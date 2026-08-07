@@ -1,0 +1,6 @@
+#!/bin/sh
+# 本地提交门禁：扫描 git 暂存区，发现疑似密钥即阻断提交。
+# 由 `git config core.hooksPath .githooks` 启用（仓库级，无需全局配置）。
+# 误报且确认非密钥时可用 `git commit --no-verify` 临时绕过，但请先确认。
+set -e
+node scripts/scan-secrets.mjs --staged
