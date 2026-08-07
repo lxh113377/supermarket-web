@@ -21,11 +21,10 @@ function getApiBase(action) {
   }
   // 管理接口 / 未配置公开端点时走 admin-api
   if (import.meta.env.VITE_CB_API_BASE) return import.meta.env.VITE_CB_API_BASE
-  // 兜底：用 envId 拼 tcb-api 域名（旧写法，该域名并非 HTTP 访问服务端点，通常不通）
-  const envId = import.meta.env.VITE_CB_ENV_ID
-  return envId
-    ? `https://${envId}.ap-shanghai.tcb-api.tencentcloud.com/web?env=${envId}&name=admin-api`
-    : ''
+  // 未配置则显式返回空，由 callAdminApi 抛明确错误。
+  // （已删除旧 envId 兜底域名：tcb-api.tencentcloud.com 并非 HTTP 访问服务端点，
+  //  拼出来的 URL 永远不通，纯属误导。）
+  return ''
 }
 
 function getCachedKey() {
@@ -39,7 +38,7 @@ function getCachedKey() {
 // 统一的云函数 HTTP 调用（不依赖 SDK 鉴权）
 async function callAdminApi(action, adminKey, payload) {
   const url = getApiBase(action)
-  if (!url) throw new Error('未配置 VITE_CB_ENV_ID，无法连接云函数')
+  if (!url) throw new Error('未配置云函数地址（VITE_CB_API_BASE / VITE_CB_PUBLIC_API_BASE），无法连接云函数')
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 15000)
   try {
