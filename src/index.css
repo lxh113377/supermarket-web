@@ -1,0 +1,142 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  -webkit-overflow-scrolling: touch;
+  touch-action: manipulation;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+}
+
+input, button {
+  font-family: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+/* === 设计系统：全局组件类 === */
+@layer components {
+  /* 卡片基础样式 */
+  .card-base {
+    @apply bg-white rounded-2xl border border-gray-100/80 shadow-card transition-all duration-300;
+  }
+  .card-interactive {
+    @apply card-base hover:shadow-elevated hover:-translate-y-0.5 active:scale-[0.98] active:shadow-soft cursor-pointer;
+  }
+
+  /* 按钮基础 */
+  .btn-primary {
+    @apply bg-brand-500 text-white font-medium rounded-xl transition-all duration-200
+           hover:bg-brand-600 hover:shadow-soft active:scale-[0.97]
+           disabled:opacity-50 disabled:pointer-events-none;
+  }
+  .btn-secondary {
+    @apply bg-gray-100 text-gray-700 font-medium rounded-xl transition-all duration-200
+           hover:bg-gray-200 active:scale-[0.97];
+  }
+
+  /* 页面容器 */
+  .page-container {
+    @apply min-h-screen bg-surface;
+  }
+
+  /* 区块标题 */
+  .section-title {
+    @apply text-sm font-semibold text-gray-900 tracking-wide;
+  }
+
+  /* 输入框 */
+  .input-base {
+    @apply w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm
+           placeholder:text-gray-400 transition-all duration-200
+           focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100;
+  }
+
+  /* 标签药丸 */
+  .pill {
+    @apply px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200;
+  }
+  .pill-active {
+    @apply pill bg-brand-500 text-white shadow-soft;
+  }
+  .pill-inactive {
+    @apply pill bg-white text-gray-600 border border-gray-200 hover:border-brand-300 hover:text-brand-600;
+  }
+
+  /* 骨架屏闪光 */
+  .skeleton-shimmer {
+    @apply bg-gradient-to-r from-gray-100 via-gray-200 to-gray-100 rounded-lg;
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+}
+
+/* === 交错入场动画工具类 === */
+@layer utilities {
+  .stagger-1 { animation-delay: 0.05s; }
+  .stagger-2 { animation-delay: 0.1s; }
+  .stagger-3 { animation-delay: 0.15s; }
+  .stagger-4 { animation-delay: 0.2s; }
+  .stagger-5 { animation-delay: 0.25s; }
+  .stagger-6 { animation-delay: 0.3s; }
+}
+
+/* === 滚动条美化 === */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.12);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0,0,0,0.2);
+}
+
+/* 打印样式：只保留小票内容 */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    font-size: 12px;
+    color: #000;
+    background: #fff;
+  }
+  .print-receipt {
+    display: block !important;
+    max-width: 300px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+  .print-receipt .receipt-line {
+    border-bottom: 1px dashed #ccc;
+    padding: 4px 0;
+  }
+}

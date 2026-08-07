@@ -1,0 +1,9 @@
+{
+  "name": "admin-api",
+  "version": "1.0.0",
+  "description": "Supermarket admin API cloud function",
+  "main": "index.js",
+  "dependencies": {
+    "@cloudbase/node-sdk": "^3.18.3"
+  }
+}
