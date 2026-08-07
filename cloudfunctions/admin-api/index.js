@@ -9,6 +9,7 @@ const {
   ensureCollection: sharedEnsureCollection,
   pickFields,
   PRODUCT_FIELDS,
+  REVIEW_FIELDS,
 } = require('./shared')
 
 // 环境 ID：CloudBase 会把变量名首字母小写化（ENV_ID → eNV_ID），需覆盖所有变体
@@ -237,7 +238,8 @@ exports.main = async (event, context) => {
         return await getReviewsHandler(db, pl)
 
       case 'addReview': {
-        const { productOrder, user, rating, text } = pl
+        // 白名单收敛输入，只取允许字段，丢弃注入的 _id/status/role 等
+        const { productOrder, user, rating, text } = pickFields(pl, REVIEW_FIELDS)
         if (productOrder == null) return { code: -1, message: '缺少 productOrder' }
         await ensureCollection('sm_reviews')
         const doc = {

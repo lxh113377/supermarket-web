@@ -96,8 +96,10 @@ async function createOrderHandler(db, payload) {
     createdAt: now(),
     updatedAt: now(),
   }
-  const res = await db.collection('sm_orders').add(doc)
-  return { code: 0, data: { id: res.id || res._id, totalAmount: doc.totalAmount } }
+  // 防御性白名单：订单文档只落白名单字段，杜绝任何意外字段入库（双保险，doc 本就只含这些）
+  const stored = pickFields(doc, ORDER_FIELDS)
+  const res = await db.collection('sm_orders').add(stored)
+  return { code: 0, data: { id: res.id || res._id, totalAmount: stored.totalAmount } }
 }
 
 async function getReviewsHandler(db, payload) {
@@ -115,7 +117,8 @@ async function getReviewsHandler(db, payload) {
 }
 
 async function createSubmissionHandler(db, payload) {
-  const { serviceId, serviceName, categoryId, categoryName, formData, images } = payload
+  // 防御性白名单：只取白名单顶层字段，丢弃注入的 _id/status/role 等
+  const { serviceId, serviceName, categoryId, categoryName, formData, images } = pickFields(payload, SUBMISSION_FIELDS)
   if (!serviceId || !serviceName) return { code: -1, message: '缺少服务信息' }
   const safeImages = Array.isArray(images) ? images.slice(0, 5) : []
   for (const img of safeImages) {
@@ -160,6 +163,14 @@ function pickFields(data, allowed) {
   return out
 }
 
+// 各写实体字段白名单（单源，与 PRODUCT_FIELDS 同范式）
+// 订单文档由服务端全量重建，这里再白名单收敛一次，防未来代码误把客户端字段直接入库
+const ORDER_FIELDS = ['roomNumber', 'items', 'totalAmount', 'status', 'createdAt', 'updatedAt']
+// 评价只接受这四项，其余（如 _id/status/role）一律丢弃
+const REVIEW_FIELDS = ['productOrder', 'user', 'rating', 'text']
+// 服务提交只接受这六项顶层字段，动态表单内容在 formData 内单独截断
+const SUBMISSION_FIELDS = ['serviceId', 'serviceName', 'categoryId', 'categoryName', 'formData', 'images']
+
 module.exports = {
   normalizeEvent,
   now,
@@ -171,4 +182,7 @@ module.exports = {
   createSubmissionHandler,
   pickFields,
   PRODUCT_FIELDS,
+  ORDER_FIELDS,
+  REVIEW_FIELDS,
+  SUBMISSION_FIELDS,
 }

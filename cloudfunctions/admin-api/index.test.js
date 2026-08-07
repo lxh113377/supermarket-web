@@ -26,6 +26,9 @@ const {
   normalizeEvent,
   getClientIp,
   createSubmissionHandler,
+  ORDER_FIELDS,
+  REVIEW_FIELDS,
+  SUBMISSION_FIELDS,
 } = shared
 
 // ---------- pickFields 白名单（服务端商品字段过滤） ----------
@@ -56,6 +59,17 @@ describe('pickFields 白名单过滤（服务端）', () => {
       'name', 'spec', 'price', 'subcategories', 'enabled',
       'order', 'image', 'description', 'reviews',
     ])
+  })
+
+  it('各实体字段白名单常量与预期一致（ORDER/REVIEW/SUBMISSION_FIELDS）', () => {
+    expect(ORDER_FIELDS).toEqual(['roomNumber', 'items', 'totalAmount', 'status', 'createdAt', 'updatedAt'])
+    expect(REVIEW_FIELDS).toEqual(['productOrder', 'user', 'rating', 'text'])
+    expect(SUBMISSION_FIELDS).toEqual(['serviceId', 'serviceName', 'categoryId', 'categoryName', 'formData', 'images'])
+  })
+
+  it('REVIEW_FIELDS 经 pickFields 只取允许字段，丢弃 _id/status/role 注入', () => {
+    const pl = { productOrder: 5, user: '小明', rating: 4, text: '好', _id: 'hack', status: 'approved', role: 'admin' }
+    expect(pickFields(pl, REVIEW_FIELDS)).toEqual({ productOrder: 5, user: '小明', rating: 4, text: '好' })
   })
 })
 
@@ -152,6 +166,19 @@ describe('createOrderHandler 服务端金额重算', () => {
     })
     expect(saved.items[0].role).toBeUndefined()
     expect(saved.totalAmount).toBe(3.5)
+  })
+
+  it('落库文档只含 ORDER_FIELDS 白名单字段，注入字段被丢弃', async () => {
+    const db = makeMockDb(products)
+    await createOrderHandler(db, {
+      roomNumber: '307',
+      _id: 'hack', status: 'paid', role: 'admin',
+      items: [{ productId: 'p1', quantity: 1 }],
+    })
+    const saved = db._orders.add.mock.calls[0][0]
+    expect(Object.keys(saved).every((k) => ORDER_FIELDS.includes(k))).toBe(true)
+    expect(saved._id).toBeUndefined()
+    expect(saved.status).toBe('pending') // 服务端强制，非来自客户端
   })
 })
 
@@ -250,5 +277,18 @@ describe('createSubmissionHandler 表单安全截断', () => {
   it('缺少 serviceId/serviceName 报错', async () => {
     const db = makeDb()
     expect((await createSubmissionHandler(db, { formData: {} })).code).toBe(-1)
+  })
+  it('丢弃注入的顶层字段（_id/status/role），status 由服务端强制为 pending', async () => {
+    const db = makeDb()
+    const res = await createSubmissionHandler(db, {
+      serviceId: 's1', serviceName: '维修',
+      _id: 'hack', status: 'done', role: 'admin',
+      formData: { a: 'b' },
+    })
+    expect(res.code).toBe(0)
+    const saved = db._sub.add.mock.calls[0][0]
+    expect(saved._id).toBeUndefined()
+    expect(saved.role).toBeUndefined()
+    expect(saved.status).toBe('pending')
   })
 })
