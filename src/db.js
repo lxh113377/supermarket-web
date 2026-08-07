@@ -1,5 +1,6 @@
 import { getDatabase, IS_CLOUD, ensureAuth } from './cloudbase.js'
 import { adminCall } from './auth.js'
+import { cacheGet, cacheSet } from './catalogCache.js'
 import {
   getLocalCategories,
   getLocalProducts,
@@ -20,21 +21,9 @@ async function ensure() {
   await ensureAuth()
 }
 
-// --- 只读目录缓存：商品/分类极少变化，加内存 TTL 缓存，砍掉重复云函数+DB 请求 ---
-const _catalogCache = new Map()
-const CATALOG_CACHE_TTL = 60 * 1000
-function cacheGet(key) {
-  const hit = _catalogCache.get(key)
-  if (hit && Date.now() - hit.ts < CATALOG_CACHE_TTL) return hit.data
-  return null
-}
-function cacheSet(key, data) {
-  _catalogCache.set(key, { ts: Date.now(), data })
-}
-// 管理端改完商品/分类后可调用此函数主动失效缓存（见 auth.js 的写操作）
-export function clearCatalogCache() {
-  _catalogCache.clear()
-}
+// 只读目录缓存实现见 ./catalogCache.js（独立模块，避免与 auth.js 循环依赖）。
+// 这里再导出一次，保持既有 `import { clearCatalogCache } from './db.js'` 的调用方不破。
+export { clearCatalogCache } from './catalogCache.js'
 
 // 顾客端分类 — 走 HTTP API，不依赖 SDK 匿名登录
 export async function getCategories() {

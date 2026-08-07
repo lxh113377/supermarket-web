@@ -9,9 +9,10 @@ export default function CartPage() {
   const [cart, setCart] = React.useState(() => getCart())
   const [priceChanges, setPriceChanges] = React.useState([])
 
-  // 检测价格变动并同步刷新购物车显示价格
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-once price sync
+  // 检测价格变动并同步刷新购物车显示价格（仅在页面打开时同步一次）
+  const initialCartRef = React.useRef(cart)
   React.useEffect(() => {
+    const cart = initialCartRef.current
     if (cart.items.length === 0) return
     getProducts().then(products => {
       const changes = []

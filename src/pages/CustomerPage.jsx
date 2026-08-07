@@ -36,12 +36,15 @@ function FlyDot({ x, y, tx, ty, onDone }) {
     boxShadow: '0 2px 8px rgba(234,179,8,0.4)',
   })
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-once animation trigger
+  // onDone 通过 ref 持有，避免 effect 依赖不稳定的内联回调导致动画重复触发
+  const onDoneRef = useRef(onDone)
+  onDoneRef.current = onDone
+
   useEffect(() => {
     setStyle(s => ({ ...s, left: endX, top: endY, width: 6, height: 6, opacity: 0 }))
-    const t = setTimeout(onDone, 650)
+    const t = setTimeout(() => onDoneRef.current(), 650)
     return () => clearTimeout(t)
-  }, [])
+  }, [endX, endY])
 
   return <div style={style} />
 }

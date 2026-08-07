@@ -18,10 +18,9 @@ export default function PaymentPage() {
     if (totalAmount) sessionStorage.setItem('sm_payment_amount', String(totalAmount))
   }, [orderId, totalAmount])
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- orderId guard only
   useEffect(() => {
     if (!orderId) navigate('/', { replace: true })
-  }, [orderId])
+  }, [orderId, navigate])
 
   useEffect(() => {
     if (!orderId || !IS_CLOUD || paid) return

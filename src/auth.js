@@ -1,4 +1,5 @@
 import { IS_CLOUD } from './cloudbase.js'
+import { clearCatalogCache } from './catalogCache.js'
 import {
   upsertLocalProduct,
   deleteLocalProduct,
@@ -100,12 +101,25 @@ function pickProductFields(data) {
   return clean
 }
 
+// 商品写操作统一在此收口：无论成功还是抛错都失效目录缓存。
+// 用 finally 而非"仅成功时清"——请求可能已落库但响应解析失败，
+// 那种情况下不清缓存会让顾客端最长 60s 拿到旧数据，代价远大于多拉一次。
+async function withCatalogInvalidation(fn) {
+  try {
+    return await fn()
+  } finally {
+    clearCatalogCache()
+  }
+}
+
 export async function updateProduct(productId, data) {
   if (!IS_CLOUD) {
     upsertLocalProduct({ _id: productId, ...pickProductFields(data) })
     return { ok: true }
   }
-  return adminCall('updateProduct', { productId, ...pickProductFields(data) })
+  return withCatalogInvalidation(() =>
+    adminCall('updateProduct', { productId, ...pickProductFields(data) }),
+  )
 }
 
 export async function createProduct(data) {
@@ -115,7 +129,7 @@ export async function createProduct(data) {
     upsertLocalProduct({ _id: id, order: Date.now(), enabled: true, ...clean })
     return { ok: true, _id: id }
   }
-  return adminCall('createProduct', clean)
+  return withCatalogInvalidation(() => adminCall('createProduct', clean))
 }
 
 export async function deleteProduct(productId) {
@@ -123,7 +137,7 @@ export async function deleteProduct(productId) {
     deleteLocalProduct(productId)
     return { ok: true }
   }
-  return adminCall('deleteProduct', { productId })
+  return withCatalogInvalidation(() => adminCall('deleteProduct', { productId }))
 }
 
 export async function updateOrderStatus(orderId, status) {
