@@ -1,211 +1,254 @@
 /**
- * 云函数核心逻辑单测
- * 测试 createOrder 价格计算、checkAuth 鉴权、限流器
+ * 云函数核心逻辑单测（真实导入被测模块，不再复制逻辑）
+ *
+ * 关键改进：此前本文件把 pickFields / createOrderHandler / checkAuth / 限流器等
+ * 逻辑「内联复制」一遍再测，逻辑一旦在 shared.js / index.js 中改动，测试不会报错，
+ * 等于没测——这正是代码审查标准 §4 标 🔴 的漏洞。
+ * 现在改为直接从 ./index.js 与 ./shared.js 导入真实实现，测试随真实代码演进。
+ *
+ * 覆盖：pickFields 白名单、createOrderHandler 服务端金额重算、checkAuth 鉴权、
+ *       createRateLimiter 限流、normalizeEvent 归一化、getClientIp、createSubmissionHandler 表单截断。
  */
 import { describe, it, expect, vi } from 'vitest'
 
-// Mock cloudbase SDK
-vi.mock('@cloudbase/node-sdk', () => {
-  const mockDb = {
-    collection: vi.fn().mockReturnThis(),
-    doc: vi.fn().mockReturnThis(),
-    get: vi.fn(),
-    add: vi.fn(),
-    update: vi.fn(),
-    remove: vi.fn(),
-    where: vi.fn().mockReturnThis(),
-    orderBy: vi.fn().mockReturnThis(),
-    skip: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockReturnThis(),
-    count: vi.fn(),
-    createCollection: vi.fn().mockResolvedValue({}),
-  }
-  return {
-    default: {
-      init: vi.fn(() => ({ database: () => mockDb })),
-    },
-  }
-})
+// Mock cloudbase SDK：ENV_ID 未配置时 index.js 根本不会调用 init，这里仅为稳妥
+vi.mock('@cloudbase/node-sdk', () => ({
+  default: { init: vi.fn(() => ({ database: () => ({}) })) },
+}))
 
-// 由于云函数是 CJS 且依赖环境变量，这里直接测试提取出的纯逻辑
-describe('pickFields 白名单过滤', () => {
-  function pickFields(data, allowed) {
-    const out = {}
-    for (const k of allowed) {
-      if (k in data) out[k] = data[k]
+import indexMod from './index.js'
+import shared from './shared.js'
+
+const { pickFields, PRODUCT_FIELDS, checkAuth } = indexMod
+const {
+  createOrderHandler,
+  createRateLimiter,
+  normalizeEvent,
+  getClientIp,
+  createSubmissionHandler,
+} = shared
+
+// ---------- pickFields 白名单（服务端商品字段过滤） ----------
+describe('pickFields 白名单过滤（服务端）', () => {
+  it('只保留白名单字段，丢弃恶意注入字段', () => {
+    const input = {
+      name: '可乐',
+      price: 3.5,
+      totalAmount: 0.01, // 客户端试图篡改金额
+      role: 'admin', // 越权注入
+      isAdmin: true,
+      _id: 'attacker',
     }
-    return out
-  }
-
-  const PRODUCT_FIELDS = ['name', 'spec', 'price', 'subcategories', 'enabled', 'order', 'image', 'description', 'reviews']
-
-  it('只保留白名单字段', () => {
-    const input = { name: '可乐', price: 3.5, hack: 'rm -rf /', _id: 'xxx' }
     const result = pickFields(input, PRODUCT_FIELDS)
     expect(result).toEqual({ name: '可乐', price: 3.5 })
-    expect(result.hack).toBeUndefined()
+    expect(result.totalAmount).toBeUndefined()
+    expect(result.role).toBeUndefined()
+    expect(result.isAdmin).toBeUndefined()
     expect(result._id).toBeUndefined()
   })
 
   it('空对象返回空', () => {
     expect(pickFields({}, PRODUCT_FIELDS)).toEqual({})
   })
+
+  it('白名单严格等于预定义字段集合', () => {
+    expect(PRODUCT_FIELDS).toEqual([
+      'name', 'spec', 'price', 'subcategories', 'enabled',
+      'order', 'image', 'description', 'reviews',
+    ])
+  })
 })
 
-describe('normalizeEvent 归一化', () => {
-  function normalizeEvent(raw) {
-    if (!raw || typeof raw !== 'object') return {}
-    if (raw.body !== undefined) {
-      let b = raw.body
-      if (typeof b === 'string') {
-        try { b = JSON.parse(b) } catch { b = {} }
-      }
-      if (b && typeof b === 'object') return b
-    }
-    return raw
+// ---------- createOrderHandler 服务端金额重算（防客户端篡改价格） ----------
+function makeMockDb(productsFixture) {
+  const productsCollection = {
+    where: vi.fn(() => productsCollection),
+    field: vi.fn(() => productsCollection),
+    get: vi.fn().mockResolvedValue({ data: productsFixture }),
   }
+  const ordersCollection = {
+    add: vi.fn().mockResolvedValue({ id: 'order_1' }),
+  }
+  return {
+    command: { in: (arr) => ({ $in: arr }) },
+    collection: vi.fn((name) => {
+      if (name === 'sm_products') return productsCollection
+      if (name === 'sm_orders') return ordersCollection
+      return { get: vi.fn().mockResolvedValue({ data: [] }), add: vi.fn().mockResolvedValue({ id: 'x' }) }
+    }),
+    _orders: ordersCollection,
+  }
+}
 
-  it('解析 HTTP body 字符串', () => {
-    const event = { body: JSON.stringify({ action: 'createOrder', payload: { items: [] } }) }
-    const result = normalizeEvent(event)
-    expect(result.action).toBe('createOrder')
+describe('createOrderHandler 服务端金额重算', () => {
+  const products = [
+    { _id: 'p1', name: '可乐', spec: '330ml', price: 3.5, enabled: true },
+    { _id: 'p2', name: '薯片', spec: '大包', price: 6.0, enabled: true },
+  ]
+
+  it('用服务端价格重算，忽略客户端传入的 price', async () => {
+    const db = makeMockDb(products)
+    const payload = {
+      roomNumber: '301',
+      items: [{ productId: 'p1', name: '可乐', price: 0.01, quantity: 2 }],
+    }
+    const res = await createOrderHandler(db, payload)
+    expect(res.code).toBe(0)
+    // 3.5 * 2 = 7，不是 0.01*2 = 0.02
+    expect(res.data.totalAmount).toBe(7)
+    // 落库订单的金额也必须用服务端价格
+    const saved = db._orders.add.mock.calls[0][0]
+    expect(saved.totalAmount).toBe(7)
+    expect(saved.items[0].price).toBe(3.5)
   })
 
-  it('直接对象透传', () => {
-    const event = { action: 'getProducts' }
-    expect(normalizeEvent(event)).toEqual(event)
+  it('多商品总价正确求和', async () => {
+    const db = makeMockDb(products)
+    const payload = {
+      roomNumber: '302',
+      items: [{ productId: 'p1', quantity: 1 }, { productId: 'p2', quantity: 1 }],
+    }
+    const res = await createOrderHandler(db, payload)
+    expect(res.data.totalAmount).toBe(9.5)
   })
 
-  it('null 返回空对象', () => {
-    expect(normalizeEvent(null)).toEqual({})
+  it('字符串 quantity 也能正确相乘', async () => {
+    const db = makeMockDb(products)
+    const payload = { roomNumber: '303', items: [{ productId: 'p1', quantity: '3' }] }
+    const res = await createOrderHandler(db, payload)
+    expect(res.data.totalAmount).toBe(10.5) // 3.5*3
   })
 
-  it('body 非法 JSON 返回空对象', () => {
-    expect(normalizeEvent({ body: 'not-json{' })).toEqual({})
+  it('商品不存在时报错', async () => {
+    const db = makeMockDb(products)
+    const res = await createOrderHandler(db, { roomNumber: '304', items: [{ productId: 'nope', quantity: 1 }] })
+    expect(res.code).toBe(-1)
+    expect(res.message).toContain('商品不存在')
+  })
+
+  it('已下架商品报错', async () => {
+    const db = makeMockDb([{ ...products[0], enabled: false }])
+    const res = await createOrderHandler(db, { roomNumber: '305', items: [{ productId: 'p1', quantity: 1 }] })
+    expect(res.code).toBe(-1)
+    expect(res.message).toContain('已下架')
+  })
+
+  it('缺少 roomNumber 或空 items 视为数据不完整', async () => {
+    const db = makeMockDb(products)
+    expect((await createOrderHandler(db, { items: [] })).code).toBe(-1)
+    expect((await createOrderHandler(db, { roomNumber: '306' })).code).toBe(-1)
+  })
+
+  it('落库订单只保留服务端校验后的字段，丢弃客户端注入', async () => {
+    const db = makeMockDb(products)
+    const payload = {
+      roomNumber: '307',
+      items: [{ productId: 'p1', price: 0.01, totalAmount: 1, role: 'admin', quantity: 1 }],
+    }
+    await createOrderHandler(db, payload)
+    const saved = db._orders.add.mock.calls[0][0]
+    expect(saved.items[0]).toEqual({
+      productId: 'p1', name: '可乐', spec: '330ml', price: 3.5, quantity: 1,
+    })
+    expect(saved.items[0].role).toBeUndefined()
+    expect(saved.totalAmount).toBe(3.5)
   })
 })
 
-describe('订单金额计算逻辑', () => {
-  it('正确计算多商品总价（含浮点精度）', () => {
-    const items = [
-      { price: 3.5, quantity: 2 },
-      { price: 1.1, quantity: 3 },
-    ]
-    const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0)
-    const rounded = Math.round(total * 100) / 100
-    expect(rounded).toBe(10.3)
-  })
-
-  it('空商品列表总价为0', () => {
-    const items = []
-    const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0)
-    expect(Math.round(total * 100) / 100).toBe(0)
-  })
-
-  it('价格为字符串时正确转换', () => {
-    const items = [{ price: '5.5', quantity: 2 }]
-    const total = items.reduce((sum, item) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 0), 0)
-    expect(Math.round(total * 100) / 100).toBe(11)
-  })
-})
-
-describe('限流器逻辑', () => {
-  it('未超限返回 null', () => {
-    const attempts = new Map()
-    function checkRateLimit(ip, max = 5, window = 60000) {
-      const now = Date.now()
-      const record = attempts.get(ip)
-      if (!record || now > record.resetAt) {
-        attempts.set(ip, { count: 1, resetAt: now + window })
-        return null
-      }
-      record.count++
-      if (record.count > max) return { code: -1, message: '操作过于频繁' }
-      return null
-    }
-
-    for (let i = 0; i < 5; i++) {
-      expect(checkRateLimit('1.2.3.4')).toBeNull()
-    }
-  })
-
-  it('超限返回错误', () => {
-    const attempts = new Map()
-    function checkRateLimit(ip, max = 5, window = 60000) {
-      const now = Date.now()
-      const record = attempts.get(ip)
-      if (!record || now > record.resetAt) {
-        attempts.set(ip, { count: 1, resetAt: now + window })
-        return null
-      }
-      record.count++
-      if (record.count > max) return { code: -1, message: '操作过于频繁' }
-      return null
-    }
-
-    for (let i = 0; i < 5; i++) checkRateLimit('1.2.3.4')
-    const result = checkRateLimit('1.2.3.4')
-    expect(result).toEqual({ code: -1, message: '操作过于频繁' })
-  })
-
-  it('不同IP互不影响', () => {
-    const attempts = new Map()
-    function checkRateLimit(ip, max = 2, window = 60000) {
-      const now = Date.now()
-      const record = attempts.get(ip)
-      if (!record || now > record.resetAt) {
-        attempts.set(ip, { count: 1, resetAt: now + window })
-        return null
-      }
-      record.count++
-      if (record.count > max) return { code: -1, message: '操作过于频繁' }
-      return null
-    }
-
-    checkRateLimit('1.1.1.1')
-    checkRateLimit('1.1.1.1')
-    checkRateLimit('1.1.1.1') // 超限
-    expect(checkRateLimit('2.2.2.2')).toBeNull() // 不同IP不受影响
-  })
-})
-
+// ---------- checkAuth 鉴权（真实模块逻辑） ----------
 describe('checkAuth 鉴权逻辑', () => {
-  const ADMIN_KEY = 'test-secret-key'
-  const publicActions = ['createOrder', 'getReviews', 'createSubmission', 'getPublicProducts']
+  const publicActions = ['createOrder', 'getReviews', 'createSubmission', 'getPublicProducts', 'getPublicCategories']
 
-  function checkAuth(adminKey, action) {
-    if (publicActions.includes(action)) return null
-    if (!ADMIN_KEY) return { code: -1, message: '服务未配置 ADMIN_KEY' }
-    if (adminKey !== ADMIN_KEY) return { code: -1, message: '密钥错误' }
-    return null
-  }
-
-  it('公开操作无需鉴权', () => {
-    expect(checkAuth('', 'createOrder')).toBeNull()
-    expect(checkAuth('', 'getPublicProducts')).toBeNull()
-    expect(checkAuth('', 'createSubmission')).toBeNull()
+  it('公开操作无需鉴权，直接放行', () => {
+    for (const a of publicActions) expect(checkAuth({}, '', a)).toBeNull()
   })
 
-  it('管理操作需要正确密钥', () => {
-    expect(checkAuth(ADMIN_KEY, 'getOrders')).toBeNull()
-    expect(checkAuth('wrong-key', 'getOrders')).toEqual({ code: -1, message: '密钥错误' })
-    expect(checkAuth('', 'deleteProduct')).toEqual({ code: -1, message: '密钥错误' })
+  it('未配置 ADMIN_KEY 时管理操作返回配置错误', () => {
+    // 本测试文件运行环境未设置 ADMIN_KEY，模块内 ADMIN_KEY 为空
+    expect(checkAuth({}, '', 'getProducts')).toEqual({ code: -1, message: '服务未配置 ADMIN_KEY' })
+  })
+
+  it('配置了正确密钥时放行、错误密钥拒绝', async () => {
+    vi.resetModules()
+    process.env.ADMIN_KEY = 'good-key'
+    const mod = await import('./index.js')
+    vi.resetModules()
+    delete process.env.ADMIN_KEY
+    expect(mod.checkAuth({}, 'good-key', 'getProducts')).toBeNull()
+    expect(mod.checkAuth({}, 'bad-key', 'getProducts')).toEqual({ code: -1, message: '密钥错误' })
   })
 })
 
-describe('formData 安全截断', () => {
-  it('key 截断到50字符，value 截断到200字符', () => {
-    const formData = {
-      ['a'.repeat(100)]: 'b'.repeat(500),
-      normal: 'ok',
+// ---------- 限流器（真实模块逻辑） ----------
+describe('createRateLimiter 限流', () => {
+  it('未超限返回 null', () => {
+    const limiter = createRateLimiter(60000, 5, '频繁')
+    for (let i = 0; i < 5; i++) expect(limiter('1.2.3.4')).toBeNull()
+  })
+  it('超限返回错误', () => {
+    const limiter = createRateLimiter(60000, 5, '频繁')
+    for (let i = 0; i < 5; i++) limiter('1.2.3.4')
+    expect(limiter('1.2.3.4')).toEqual({ code: -1, message: '频繁' })
+  })
+  it('不同 IP 互不影响', () => {
+    const limiter = createRateLimiter(60000, 2, '频繁')
+    limiter('1.1.1.1'); limiter('1.1.1.1'); limiter('1.1.1.1')
+    expect(limiter('2.2.2.2')).toBeNull()
+  })
+})
+
+// ---------- normalizeEvent ----------
+describe('normalizeEvent 归一化', () => {
+  it('解析 HTTP body 字符串', () => {
+    const ev = normalizeEvent({ body: JSON.stringify({ action: 'createOrder', payload: { items: [] } }) })
+    expect(ev.action).toBe('createOrder')
+  })
+  it('直接对象透传', () => {
+    const ev = { action: 'getProducts' }
+    expect(normalizeEvent(ev)).toEqual(ev)
+  })
+  it('null 返回空对象', () => expect(normalizeEvent(null)).toEqual({}))
+  it('body 非法 JSON 返回空对象', () => expect(normalizeEvent({ body: 'not-json{' })).toEqual({}))
+})
+
+// ---------- getClientIp ----------
+describe('getClientIp', () => {
+  it('优先取 context.source_ip', () => {
+    expect(getClientIp({ source_ip: '9.9.9.9' }, {})).toBe('9.9.9.9')
+  })
+  it('fallback 到 event.requestContext.sourceIp', () => {
+    expect(getClientIp({}, { requestContext: { sourceIp: '8.8.8.8' } })).toBe('8.8.8.8')
+  })
+  it('都没有返回 unknown', () => {
+    expect(getClientIp({}, {})).toBe('unknown')
+  })
+})
+
+// ---------- createSubmissionHandler formData 安全截断（真实模块逻辑） ----------
+describe('createSubmissionHandler 表单安全截断', () => {
+  function makeDb() {
+    const sub = { add: vi.fn().mockResolvedValue({ id: 'sub_1' }) }
+    return {
+      createCollection: vi.fn().mockResolvedValue({}),
+      collection: vi.fn((name) => (name === 'sm_submissions' ? sub : { add: vi.fn(), get: vi.fn() })),
+      _sub: sub,
     }
-    const safeForm = {}
-    for (const [k, v] of Object.entries(formData)) {
-      safeForm[String(k).slice(0, 50)] = String(v || '').slice(0, 200)
-    }
-    const keys = Object.keys(safeForm)
+  }
+  it('formData 的 key 截断到 50、value 截断到 200', async () => {
+    const db = makeDb()
+    const res = await createSubmissionHandler(db, {
+      serviceId: 's1', serviceName: '维修',
+      formData: { [ 'a'.repeat(100) ]: 'b'.repeat(500), normal: 'ok' },
+    })
+    expect(res.code).toBe(0)
+    const saved = db._sub.add.mock.calls[0][0]
+    const keys = Object.keys(saved.formData)
     expect(keys[0].length).toBe(50)
-    expect(safeForm[keys[0]].length).toBe(200)
-    expect(safeForm.normal).toBe('ok')
+    expect(saved.formData[keys[0]].length).toBe(200)
+    expect(saved.formData.normal).toBe('ok')
+  })
+  it('缺少 serviceId/serviceName 报错', async () => {
+    const db = makeDb()
+    expect((await createSubmissionHandler(db, { formData: {} })).code).toBe(-1)
   })
 })

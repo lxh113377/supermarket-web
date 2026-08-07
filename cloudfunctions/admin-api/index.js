@@ -68,6 +68,11 @@ async function ensureCollection(name) {
   return sharedEnsureCollection(db, name)
 }
 
+// 导出纯逻辑供单测真实导入（不依赖云环境，避免测试复制逻辑导致失真）
+exports.pickFields = pickFields
+exports.PRODUCT_FIELDS = PRODUCT_FIELDS
+exports.checkAuth = checkAuth
+
 exports.main = async (event, context) => {
   const ev = normalizeEvent(event)
   const { action, adminKey, payload } = ev

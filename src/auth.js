@@ -92,8 +92,8 @@ export async function verifyAdminKey(key) {
   }
 }
 
-const PRODUCT_FIELDS = ['name', 'spec', 'price', 'subcategories', 'enabled', 'order', 'image', 'description', 'reviews']
-function pickProductFields(data) {
+export const PRODUCT_FIELDS = ['name', 'spec', 'price', 'subcategories', 'enabled', 'order', 'image', 'description', 'reviews']
+export function pickProductFields(data) {
   const clean = {}
   for (const k of PRODUCT_FIELDS) {
     if (data[k] !== undefined) clean[k] = data[k]
