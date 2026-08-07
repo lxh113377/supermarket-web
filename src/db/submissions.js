@@ -1,6 +1,6 @@
 // 服务表单提交 + 离线队列（网络恢复后自动重试）
 import { IS_CLOUD } from '../cloudbase.js'
-import { adminCall } from '../auth.js'
+import { adminCall, pickSubmissionFields } from '../auth.js'
 
 function safeParse(key) {
   try { return JSON.parse(localStorage.getItem(key) || '[]') } catch { return [] }
@@ -44,28 +44,29 @@ export function initSubmissionSync() {
 }
 
 export async function createSubmission(submission) {
+  const clean = pickSubmissionFields(submission)
   if (!IS_CLOUD) {
     const key = 'sm_submissions'
     const list = safeParse(key)
-    const record = { ...submission, _id: 'sub_' + Date.now(), status: 'pending' }
+    const record = { ...clean, _id: 'sub_' + Date.now(), status: 'pending' }
     list.unshift(record)
     localStorage.setItem(key, JSON.stringify(list))
     return { id: record._id }
   }
   try {
-    const result = await adminCall('createSubmission', submission)
+    const result = await adminCall('createSubmission', clean)
     if (result.code !== 0) throw new Error(result.message || '提交失败')
     return { id: result.data?.id }
   } catch (e) {
     console.warn('[db] cloud createSubmission failed, queuing for retry:', e.message)
     // 存入离线队列，网络恢复后自动重试
     const queue = getPendingQueue()
-    queue.push(submission)
+    queue.push(clean)
     savePendingQueue(queue)
     // 同时存本地让用户能看到
     const key = 'sm_submissions'
     const list = safeParse(key)
-    const record = { ...submission, _id: 'sub_' + Date.now(), status: 'pending', _offline: true }
+    const record = { ...clean, _id: 'sub_' + Date.now(), status: 'pending', _offline: true }
     list.unshift(record)
     localStorage.setItem(key, JSON.stringify(list))
     return { id: record._id, offline: true }

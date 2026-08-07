@@ -1,21 +1,22 @@
 // 订单读写（走 SDK 鉴权 / 云函数服务端重算金额）
 import { IS_CLOUD } from '../cloudbase.js'
-import { adminCall } from '../auth.js'
+import { adminCall, pickOrderFields } from '../auth.js'
 import { cloud, ensure } from './cloud.js'
 import { getLocalOrders, addLocalOrder } from '../localStore.js'
 
 // 创建订单（走云函数，服务端重算金额，防客户端篡改）
 export async function createOrder(order) {
+  const clean = pickOrderFields(order)
   if (!IS_CLOUD) {
-    return { id: addLocalOrder(order)._id, localFallback: true }
+    return { id: addLocalOrder(clean)._id, localFallback: true }
   }
   try {
-    const result = await adminCall('createOrder', order)
+    const result = await adminCall('createOrder', clean)
     if (result.code !== 0) throw new Error(result.message || '创建订单失败')
     return { id: result.data.id }
   } catch (e) {
     console.warn('[db] cloud createOrder failed, using local fallback:', e.message)
-    return { id: addLocalOrder(order)._id, localFallback: true }
+    return { id: addLocalOrder(clean)._id, localFallback: true }
   }
 }
 

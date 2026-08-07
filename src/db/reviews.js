@@ -1,6 +1,6 @@
 // 评价读写（本地 localStorage + 云端 sm_reviews）
 import { IS_CLOUD } from '../cloudbase.js'
-import { adminCall } from '../auth.js'
+import { adminCall, pickReviewFields } from '../auth.js'
 import { getLocalReviews, addLocalReview } from '../localStore.js'
 
 // 提交评价（本地持久化，无需登录/购买，像视频评论区）
@@ -31,12 +31,13 @@ export async function getCloudReviews(productOrder) {
 // 管理员新增评价到云端
 export async function addCloudReview(productOrder, review) {
   if (!IS_CLOUD) return addLocalReview(productOrder, review)
-  const result = await adminCall('addReview', {
+  const payload = pickReviewFields({
     productOrder: Number(productOrder),
     user: review.user || '管理员',
     rating: Number(review.rating) || 5,
     text: String(review.text || ''),
   })
+  const result = await adminCall('addReview', payload)
   if (result.code !== 0) throw new Error(result.message || '新增评价失败')
   return result.data
 }

@@ -100,6 +100,38 @@ export function pickProductFields(data) {
   return clean
 }
 
+// 客户端字段白名单（与服务端 shared.js 的 *_FIELDS 对称，defence-in-depth）
+// 服务端是信任边界、会重建/校验；此处再在客户端出口收敛一次，
+// 即使服务端逻辑回归，客户端也不会发出多余字段。
+// 注意：订单客户端只发输入字段（roomNumber/items），服务端另用 ORDER_FIELDS 收敛"存储文档"，二者概念不同。
+
+export const ORDER_FIELDS = ['roomNumber', 'items']
+export function pickOrderFields(data) {
+  const clean = {}
+  for (const k of ORDER_FIELDS) {
+    if (data[k] !== undefined) clean[k] = data[k]
+  }
+  return clean
+}
+
+export const REVIEW_FIELDS = ['productOrder', 'user', 'rating', 'text']
+export function pickReviewFields(data) {
+  const clean = {}
+  for (const k of REVIEW_FIELDS) {
+    if (data[k] !== undefined) clean[k] = data[k]
+  }
+  return clean
+}
+
+export const SUBMISSION_FIELDS = ['serviceId', 'serviceName', 'categoryId', 'categoryName', 'formData', 'images']
+export function pickSubmissionFields(data) {
+  const clean = {}
+  for (const k of SUBMISSION_FIELDS) {
+    if (data[k] !== undefined) clean[k] = data[k]
+  }
+  return clean
+}
+
 // 商品写操作统一在此收口：无论成功还是抛错都失效目录缓存。
 // 用 finally 而非"仅成功时清"——请求可能已落库但响应解析失败，
 // 那种情况下不清缓存会让顾客端最长 60s 拿到旧数据，代价远大于多拉一次。
