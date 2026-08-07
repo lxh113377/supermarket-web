@@ -7,21 +7,9 @@ const {
   getReviewsHandler,
   createSubmissionHandler,
   ensureCollection: sharedEnsureCollection,
+  pickFields,
+  PRODUCT_FIELDS,
 } = require('./shared')
-
-// --- 输入白名单 ---
-const PRODUCT_FIELDS = [
-  'name', 'spec', 'price', 'subcategories', 'enabled', 'order',
-  'image', 'description', 'reviews',
-]
-
-function pickFields(data, allowed) {
-  const out = {}
-  for (const k of allowed) {
-    if (k in data) out[k] = data[k]
-  }
-  return out
-}
 
 // 环境 ID：CloudBase 会把变量名首字母小写化（ENV_ID → eNV_ID），需覆盖所有变体
 // 安全：不设硬编码兜底，缺失时初始化失败并返回明确错误

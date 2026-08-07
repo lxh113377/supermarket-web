@@ -144,6 +144,22 @@ async function createSubmissionHandler(db, payload) {
   return { code: 0, data: { id: res.id || res._id } }
 }
 
+// --- 商品字段白名单（单源）---
+// 管理端 createProduct/updateProduct 只接受白名单字段，防客户端注入 _id/totalAmount/role 等。
+// 此处为唯一来源，predeploy 同步到 admin-api/shared.js 与 public-api/shared.js。
+const PRODUCT_FIELDS = [
+  'name', 'spec', 'price', 'subcategories', 'enabled', 'order',
+  'image', 'description', 'reviews',
+]
+
+function pickFields(data, allowed) {
+  const out = {}
+  for (const k of allowed) {
+    if (k in data) out[k] = data[k]
+  }
+  return out
+}
+
 module.exports = {
   normalizeEvent,
   now,
@@ -153,4 +169,6 @@ module.exports = {
   createOrderHandler,
   getReviewsHandler,
   createSubmissionHandler,
+  pickFields,
+  PRODUCT_FIELDS,
 }
