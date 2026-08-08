@@ -10,13 +10,13 @@
 - [ ] 观察线上运行 3-7 天 — 关注 sm_orders/sm_reviews 计数与 public-api /pub 调用是否稳定（日志 Topic: tcb-topic-chaoshi-d2g5xfkao100010ef）
 
 ## P1 — 应该做
-- [ ] 评价晒图改云存储直传 — 用 @cloudbase/js-sdk uploadFile + 临时签名 URL 替代 base64 入库，注意先配安全域名
-- [ ] 部署冒烟脚本化 — 把"fn deploy 后立即 curl/fn invoke 两个函数"写进 chaoshi-web-deploy skill 或 scripts/，防 public-api 类静默失败
+- [x] 评价晒图改云存储直传 — 2026-08-08 完成：uploadFile/fileID + getTempFileURL 会话缓存 + 旧 base64 兼容；待用户控制台开启安全域名+存储匿名读写后即可用
+- [x] 部署冒烟脚本化 — 2026-08-08 完成：scripts/smoke-deploy.mjs + npm run smoke（线上实测 4/4 PASS）
 - [x] 清理迁移脚本 — 2026-08-08 已归档至 archive/2026-08-08-migration-tools/（可恢复，未硬删）
 
 ## P2 — 可以做
 - [ ] 绑定自定义域名 + HTTPS 证书（当前用默认域名）
-- [ ] 数据看板增强（评价趋势、分类毛利率）
+- [x] 数据看板增强 — 2026-08-08 完成：costPrice 字段 + 近14天评价趋势 + 饮品/食品毛利率卡片
 - [ ] CloudBase 日志检索接入（当前 tcb fn log 在 CLI 3.6.4 不可用，改控制台或 tccli）
 
 ## 最近对话摘要
