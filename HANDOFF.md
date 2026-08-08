@@ -1,6 +1,6 @@
 # 超柿 - 项目交接文档
 
-> 最后更新：2026-08-08（全量上线）
+> 最后更新：2026-08-08（专家团优化全量部署）
 
 ## 一、项目概述
 
@@ -18,6 +18,15 @@
 - 关键坑：public-api 此前从未被 HTTP 路由调用、部署包缺 node_modules → 补依赖重部署解决；`tcb fn log` 在 CLI 3.6.4 不可用
 - 线上状态：sm_products=49、sm_orders=1（测试单已删）、sm_reviews=20、sm_submissions=1；SW 版本 sm-v1786129950705，用户需强刷
 - 详细记忆：`memory/07-next-steps.md`（新对话入口）+ `memory/AGENTS.md`（savepoint 生成）
+
+## 〇.1、2026-08-08 专家团优化全量部署（17:20，commit 103a6c8）
+
+- 变更：评价晒图云存储直传（`src/utils/reviewImages.ts`：压缩→`app.uploadFile`→fileID，渲染 `getTempFileURL`+会话缓存，旧 base64 兼容；付款截图不动）；冒烟脚本 `scripts/smoke-deploy.mjs`（`npm run smoke`，零依赖）；迁移脚本归档 `archive/2026-08-08-migration-tools/`；`costPrice` 全链（shared.js/auth.ts/types.ts/ProductsTab 内联成本输入，禁弹窗红线保持）；看板「近 14 天评价趋势」+「饮品/食品毛利率」（仅统计已填成本，无成本提示"待录入"）；两端 GUI 加固（品牌文案统一、CSP 放行 tcb.qcloud.la/myqcloud、iOS 安全区/输入 16px 防缩放/touch-callout、详情图加载失败占位、aria-label、后台表格移动端可读性）
+- 门禁：117 单测（9 文件）全绿、typecheck 0 error、lint 0 error（仅脚本 console 警告）、build ✓（SW `sm-v1786181043584`）
+- 部署（chaoshi-web-deploy 全量模式 C）：hosting 128 文件 `Successfully`；predeploy 同步 shared.js ×2；密钥注入后 fn deploy admin-api/public-api 均 `updated successfully`；`cloudbaserc.json` 已还原 `${ADMIN_KEY}` 占位符（无明文）
+- 验证：`npm run smoke` 4/4 PASS（静态站 200、/web getOrders、/web getProducts、/pub getPublicProducts 均 code 0）；getProducts=49；getReviews 全商品汇总=20；tccli DescribeEnvs / DescribeHTTPServiceRoute / DescribeTable(sm_reviews) 复核通过；`/web`、`/pub` 路由均 Enable
+- 仓库：origin/main=103a6c8，GitHub `lxh113377/supermarket-web` 私有（PRIVATE）已推送
+- 待办（P0 保持监控）：观察 3-7 天、自定义域名、日志检索接入；云存储「安全域名+匿名读写」未开，控制台开启后评价传图即用
 
 ## 二、技术栈
 
