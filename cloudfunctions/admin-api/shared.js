@@ -7,7 +7,6 @@
  * 禁止直接编辑副本——只改本文件，然后跑 predeploy 同步。
  * 若副本与源不一致，部署后会出现 admin/public 行为分裂。
  */
-
 function normalizeEvent(raw) {
   if (!raw || typeof raw !== 'object') return {}
   if (raw.body !== undefined) {
@@ -62,6 +61,18 @@ async function createOrderHandler(db, payload) {
   const { roomNumber, items, wechat, remark, paymentScreenshot } = payload
   if (!roomNumber || !items?.length) return { code: -1, message: '订单数据不完整' }
   if (typeof paymentScreenshot === 'string' && paymentScreenshot.length > 800 * 1024) {
+    // 【P0-4 ⑥】超大载荷埋点（docs/security/02 §4.1 ⑥）：攻击者可用超大 base64 做成本攻击，
+    // 此事件是 R-011（应用层资源耗尽）的数据源之一；日志失败绝不影响业务。
+    // 惰性 require：避免根 package.json `"type": "module"` 下 vitest 原生加载本文件时
+    // 因 security.js 的 CommonJS require 被 Node 按 ESM 解析而报错（生产 CJS 运行不受影响）。
+    const { logSecurityEvent } = require('./security')
+    await logSecurityEvent(db, {
+      eventType: 'anomaly.oversized',
+      severity: 'medium',
+      fn: 'shared',
+      action: 'createOrder',
+      detail: { reason: 'paymentScreenshot oversized', bytes: paymentScreenshot.length },
+    })
     return { code: -1, message: '付款截图过大，请重新上传' }
   }
 
@@ -206,11 +217,47 @@ const REVIEW_FIELDS = ['productOrder', 'user', 'rating', 'text', 'images']
 // 服务提交只接受这六项顶层字段，动态表单内容在 formData 内单独截断
 const SUBMISSION_FIELDS = ['serviceId', 'serviceName', 'categoryId', 'categoryName', 'formData', 'images']
 
+// --- IP 截断（与 security.js 的 truncateIp 保持一致，用于分布式限流查询） ---
+function truncateIp(ip) {
+  if (!ip || ip === 'unknown') return 'unknown'
+  const m = String(ip).match(/^(\d+)\.(\d+)\.(\d+)\.\d+$/)
+  if (m) return `${m[1]}.${m[2]}.${m[3]}.0/24`
+  if (ip.includes(':')) return ip.split(':').slice(0, 4).join(':') + '::/64'
+  return ip
+}
+
+// --- 分布式频率限制（基于 sm_security_events 集合计数，修复 F-03 多实例绕过） ---
+function createDistributedRateLimiter(windowMs, maxAttempts, message) {
+  return async function checkDistributedRateLimit(db, ip) {
+    try {
+      if (!db) return null
+      const since = new Date(Date.now() - windowMs)
+      const ipTrunc = truncateIp(ip)
+      const { total } = await db.collection('sm_security_events')
+        .where({
+          eventType: 'auth.fail',
+          ipTrunc,
+          ts: db.command.gte(since),
+        })
+        .count()
+      if (total >= maxAttempts) {
+        return { code: -1, message }
+      }
+      return null
+    } catch (e) {
+      console.error('[rate-limit] distributed check failed:', e && e.message)
+      return null
+    }
+  }
+}
+
 module.exports = {
   normalizeEvent,
   now,
   ensureCollection,
   createRateLimiter,
+  createDistributedRateLimiter,
+  truncateIp,
   getClientIp,
   createOrderHandler,
   getReviewsHandler,
