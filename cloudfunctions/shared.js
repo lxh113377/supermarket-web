@@ -145,7 +145,8 @@ async function addReviewHandler(db, payload) {
     createdAt: now(),
   }
   const res = await db.collection('sm_reviews').add(doc)
-  return { code: 0, data: { id: res.id || res._id, ...doc } }
+  // 同时返回 id 与 _id：前端统一用 _id 作删除/更新 key（管理端与顾客端同源修复）
+  return { code: 0, data: { _id: res.id || res._id, id: res.id || res._id, ...doc } }
 }
 
 async function createSubmissionHandler(db, payload) {
