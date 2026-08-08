@@ -479,7 +479,13 @@ exports.main = async (event, context) => {
         return await addReviewHandler(db, pl)
 
       case 'addReview': {
-        return await addReviewHandler(db, pl)
+        const result = await addReviewHandler(db, pl)
+        // 兼容：addReviewHandler 返回 data.id（非 _id），管理端新列表项
+        // 用 _id 作删除 key；补一个 _id 别名，保证"新增→立即删除"闭环可用。
+        if (result && result.code === 0 && result.data && result.data.id && !result.data._id) {
+          result.data._id = result.data.id
+        }
+        return result
       }
 
       case 'deleteReview': {
