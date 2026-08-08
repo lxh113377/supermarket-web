@@ -6,7 +6,7 @@
  * 一旦 barrel 漏 re-export 或子模块命名冲突导致导出丢失，立即报错。
  */
 import { describe, it, expect } from 'vitest'
-import * as db from '../src/db.js'
+import * as db from '../src/db'
 
 const EXPECTED = [
   // products.js

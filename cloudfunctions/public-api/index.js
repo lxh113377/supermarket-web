@@ -5,6 +5,7 @@ const {
   getClientIp,
   createOrderHandler,
   getReviewsHandler,
+  addReviewHandler,
   createSubmissionHandler,
 } = require('./shared')
 
@@ -36,7 +37,7 @@ exports.main = async (event, context) => {
   if (!app || !db) return { code: -1, message: '云服务初始化失败，请检查 ENV_ID 环境变量' }
 
   // 写操作限流
-  const writeActions = ['createOrder', 'createSubmission']
+  const writeActions = ['createOrder', 'createSubmission', 'addPublicReview']
   if (writeActions.includes(action)) {
     const ip = getClientIp(context, event)
     const rateErr = checkPublicRateLimit(ip)
@@ -50,7 +51,7 @@ exports.main = async (event, context) => {
           .collection('sm_products')
           .where({ enabled: true })
           .orderBy('order', 'asc')
-          .limit(200)
+          .limit(1000)
           .field({ _id: true, name: true, spec: true, price: true, image: true, order: true, subcategories: true, enabled: true, description: true })
           .get()
         return { code: 0, data: res.data }
@@ -70,6 +71,9 @@ exports.main = async (event, context) => {
 
       case 'getReviews':
         return await getReviewsHandler(db, pl)
+
+      case 'addPublicReview':
+        return await addReviewHandler(db, pl)
 
       case 'createSubmission':
         return await createSubmissionHandler(db, pl)

@@ -59,8 +59,11 @@ function getClientIp(context, event) {
 // --- 共享业务逻辑 ---
 
 async function createOrderHandler(db, payload) {
-  const { roomNumber, items } = payload
+  const { roomNumber, items, wechat, remark, paymentScreenshot } = payload
   if (!roomNumber || !items?.length) return { code: -1, message: '订单数据不完整' }
+  if (typeof paymentScreenshot === 'string' && paymentScreenshot.length > 800 * 1024) {
+    return { code: -1, message: '付款截图过大，请重新上传' }
+  }
 
   // 优化：N+1 → 单次批量查询。原来在 for 循环里逐件串行 .doc(id).get()，
   // 一个 N 件商品的订单 = N 次串行 DB 往返；现在一次 .command.in(ids) 拉齐。
@@ -68,7 +71,7 @@ async function createOrderHandler(db, payload) {
   const { data: products } = await db
     .collection('sm_products')
     .where({ _id: db.command.in(ids) })
-    .field({ _id: true, name: true, spec: true, price: true, enabled: true })
+    .field({ _id: true, name: true, spec: true, price: true, enabled: true, subcategories: true })
     .get()
   const byId = new Map(products.map((p) => [p._id, p]))
 
@@ -85,12 +88,17 @@ async function createOrderHandler(db, payload) {
       spec: p.spec || '',
       price: Number(p.price) || 0,
       quantity: qty,
+      // 看板分类占比依赖商品子分类，订单 items 冗余存储一份
+      subcategories: p.subcategories || [],
     })
     total += (Number(p.price) || 0) * qty
   }
   const doc = {
     roomNumber: String(roomNumber).trim(),
     items: verified,
+    wechat: String(wechat || '').slice(0, 50),
+    remark: String(remark || '').slice(0, 200),
+    paymentScreenshot: typeof paymentScreenshot === 'string' ? paymentScreenshot : '',
     totalAmount: Math.round(total * 100) / 100,
     status: 'pending',
     createdAt: now(),
@@ -111,9 +119,33 @@ async function getReviewsHandler(db, payload) {
     .where({ productOrder: Number(productOrder) })
     .orderBy('createdAt', 'desc')
     .limit(500)
-    .field({ _id: true, user: true, rating: true, text: true, productOrder: true, createdAt: true })
+    .field({ _id: true, user: true, rating: true, text: true, productOrder: true, createdAt: true, images: true })
     .get()
   return { code: 0, data: res.data }
+}
+
+async function addReviewHandler(db, payload) {
+  // 白名单收敛输入：只取允许字段，丢弃注入的 _id/status/role 等
+  const { productOrder, user, rating, text, images } = pickFields(payload, REVIEW_FIELDS)
+  if (productOrder == null) return { code: -1, message: '缺少 productOrder' }
+  if (Array.isArray(images) && images.length > 5) return { code: -1, message: '最多上传 5 张图片' }
+  const safeImages = Array.isArray(images) ? images.slice(0, 5) : []
+  for (const img of safeImages) {
+    if (typeof img !== 'string' || img.length > 2 * 1024 * 1024) {
+      return { code: -1, message: '图片过大或格式无效' }
+    }
+  }
+  await ensureCollection(db, 'sm_reviews')
+  const doc = {
+    productOrder: Number(productOrder),
+    user: String(user || '匿名用户').slice(0, 20),
+    rating: Math.max(1, Math.min(5, Number(rating) || 5)),
+    text: String(text || '').slice(0, 500),
+    images: safeImages,
+    createdAt: now(),
+  }
+  const res = await db.collection('sm_reviews').add(doc)
+  return { code: 0, data: { id: res.id || res._id, ...doc } }
 }
 
 async function createSubmissionHandler(db, payload) {
@@ -151,8 +183,8 @@ async function createSubmissionHandler(db, payload) {
 // 管理端 createProduct/updateProduct 只接受白名单字段，防客户端注入 _id/totalAmount/role 等。
 // 此处为唯一来源，predeploy 同步到 admin-api/shared.js 与 public-api/shared.js。
 const PRODUCT_FIELDS = [
-  'name', 'spec', 'price', 'subcategories', 'enabled', 'order',
-  'image', 'description', 'reviews',
+  'name', 'spec', 'price', 'costPrice', 'subcategories', 'enabled', 'order',
+  'image', 'images', 'description', 'reviews',
 ]
 
 function pickFields(data, allowed) {
@@ -165,9 +197,12 @@ function pickFields(data, allowed) {
 
 // 各写实体字段白名单（单源，与 PRODUCT_FIELDS 同范式）
 // 订单文档由服务端全量重建，这里再白名单收敛一次，防未来代码误把客户端字段直接入库
-const ORDER_FIELDS = ['roomNumber', 'items', 'totalAmount', 'status', 'createdAt', 'updatedAt']
-// 评价只接受这四项，其余（如 _id/status/role）一律丢弃
-const REVIEW_FIELDS = ['productOrder', 'user', 'rating', 'text']
+const ORDER_FIELDS = [
+  'roomNumber', 'items', 'totalAmount', 'status', 'createdAt', 'updatedAt',
+  'wechat', 'remark', 'paymentScreenshot',
+]
+// 评价只接受这些字段，其余（如 _id/status/role）一律丢弃
+const REVIEW_FIELDS = ['productOrder', 'user', 'rating', 'text', 'images']
 // 服务提交只接受这六项顶层字段，动态表单内容在 formData 内单独截断
 const SUBMISSION_FIELDS = ['serviceId', 'serviceName', 'categoryId', 'categoryName', 'formData', 'images']
 
@@ -179,6 +214,7 @@ module.exports = {
   getClientIp,
   createOrderHandler,
   getReviewsHandler,
+  addReviewHandler,
   createSubmissionHandler,
   pickFields,
   PRODUCT_FIELDS,

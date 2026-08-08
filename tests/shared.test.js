@@ -6,7 +6,7 @@ const {
   normalizeEvent,
   createRateLimiter,
   getClientIp,
-} = await import('../cloudfunctions/shared.js')
+} = await import('../cloudfunctions/shared')
 
 describe('shared - normalizeEvent', () => {
   it('直接对象原样返回', () => {

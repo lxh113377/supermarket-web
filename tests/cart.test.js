@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, vi } from 'vitest'
-import { getCart, saveCart, addToCart, removeFromCart, deleteFromCart, getTotalAmount, getTotalCount } from '../src/cart.js'
+import { getCart, saveCart, addToCart, removeFromCart, deleteFromCart, getTotalAmount, getTotalCount, getItemQuantity } from '../src/cart'
 
 beforeAll(() => {
   const store = {}
@@ -24,6 +24,17 @@ describe('addToCart', () => {
     const cart = { items: [{ productId: 'p1', name: 'T', price: 1, quantity: 2 }] }
     const result = addToCart(cart, { _id: 'p1', name: 'T', price: 1 })
     expect(result.items[0].quantity).toBe(3)
+  })
+
+  it('新条目携带 subcategories 供看板分类统计', () => {
+    const cart = { items: [] }
+    const result = addToCart(cart, { _id: 'p1', name: '可乐', price: 3, subcategories: ['soda'] })
+    expect(result.items[0].subcategories).toEqual(['soda'])
+  })
+
+  it('getItemQuantity 返回已有数量或 0', () => {
+    expect(getItemQuantity({ items: [{ productId: 'p1', quantity: 2 }] }, 'p1')).toBe(2)
+    expect(getItemQuantity({ items: [] }, 'p9')).toBe(0)
   })
 })
 
@@ -76,6 +87,10 @@ describe('getTotalCount', () => {
   it('should sum quantities', () => {
     const cart = { items: [{ quantity: 2 }, { quantity: 3 }] }
     expect(getTotalCount(cart)).toBe(5)
+  })
+
+  it('空购物车返回 0', () => {
+    expect(getTotalCount({ items: [] })).toBe(0)
   })
 })
 

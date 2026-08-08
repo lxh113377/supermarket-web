@@ -1,12 +1,23 @@
 # 超柿 - 项目交接文档
 
-> 最后更新：2026-07-25
+> 最后更新：2026-08-08（全量上线）
 
 ## 一、项目概述
 
 "超柿"是一个面向宿舍/小区场景的在线超市购物系统，支持顾客浏览商品、加购下单、在线支付（扫码），以及管理员后台管理商品、订单、看板。
 
 线上地址：https://chaoshi-d2g5xfkao100010ef-1458054906.tcloudbaseapp.com/#/
+
+## 〇、2026-08-08 全量上线记录
+
+- 功能：订单字段（房间号/微信/备注/付款截图/子分类）落库、评价体系上云（addPublicReview + seedReviews 幂等导入 20 条）、商品多图轮播、数据卫生（错误上报治理、商品上限 1000）
+- 工程：41 个 src 文件 TypeScript 迁移（strict，0 错误），97 个单测全绿
+- GUI：品牌色统一、错误态重试、内联编辑错误文案、aria-label、ServiceFormPage 压缩修复
+- 图片：order20 由错误的"东鹏特饮"广告图替换为 OCR 验证的"猎兽 PREDATOR 500ml"白底抠图（备份 20_old.webp）
+- 部署（腾讯云 API 管家）：tccli 授权 + DescribeEnvs/DescribeTables/DescribeHTTPServiceRoute/DescribeLoginConfig 只读验证；CreateHTTPServiceRoute 新增 `/pub → public-api`；hosting 128 文件 + admin-api/public-api 双函数上线
+- 关键坑：public-api 此前从未被 HTTP 路由调用、部署包缺 node_modules → 补依赖重部署解决；`tcb fn log` 在 CLI 3.6.4 不可用
+- 线上状态：sm_products=49、sm_orders=1（测试单已删）、sm_reviews=20、sm_submissions=1；SW 版本 sm-v1786129950705，用户需强刷
+- 详细记忆：`memory/07-next-steps.md`（新对话入口）+ `memory/AGENTS.md`（savepoint 生成）
 
 ## 二、技术栈
 
@@ -15,10 +26,10 @@
 | 前端框架 | React 19 + Vite 8 |
 | 样式 | Tailwind CSS 3 |
 | 路由 | react-router-dom 7（HashRouter） |
-| 后端 | 腾讯云 CloudBase（匿名登录 + 云函数 + 数据库） |
+| 后端 | 腾讯云 CloudBase（云函数 + 数据库，HTTP 访问服务 /web→admin-api、/pub→public-api） |
 | 部署 | CloudBase 静态网站托管 |
 | Lint | oxlint |
-| 测试 | vitest（已配置，用例待补） |
+| 测试 | vitest（97 用例全绿） |
 
 ## 三、项目结构
 
@@ -116,6 +127,16 @@ npx tcb hosting deploy ./dist -e chaoshi-d2g5xfkao100010ef
 ```bash
 npx tcb fn deploy admin-api -e chaoshi-d2g5xfkao100010ef
 ```
+
+### 部署冒烟（npm run smoke）
+
+部署后执行 `npm run smoke`（零依赖，Node 原生 fetch），四项检查全 PASS 才视为上线成功：
+
+- 静态站根路径 HTTP 200（HTML 含 `id="root"`）
+- `/web` getOrders / getProducts（需 ADMIN_KEY）
+- `/pub` getPublicProducts
+
+密钥解析优先级：`ADMIN_KEY` 环境变量 → `cloudbaserc.json` admin-api envVariables 中的非占位符 `aDMIN_KEY` / `ADMIN_KEY`（`${ADMIN_KEY}` 视为未注入）。端点解析优先级：`STATIC_BASE` / `API_BASE` / `PUBLIC_API_BASE` 环境变量 → `.env` 的 `VITE_CB_API_BASE` / `VITE_CB_PUBLIC_API_BASE` → 内置默认域名。任一检查 FAIL 时脚本 exit 1；脚本不输出密钥本身。
 
 ## 七、关键设计决策
 

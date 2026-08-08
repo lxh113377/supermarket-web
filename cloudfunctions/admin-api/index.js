@@ -5,12 +5,13 @@ const {
   getClientIp,
   createOrderHandler,
   getReviewsHandler,
+  addReviewHandler,
   createSubmissionHandler,
   ensureCollection: sharedEnsureCollection,
   pickFields,
   PRODUCT_FIELDS,
-  REVIEW_FIELDS,
 } = require('./shared')
+const { SEED_REVIEWS } = require('./seed-reviews')
 
 // 环境 ID：CloudBase 会把变量名首字母小写化（ENV_ID → eNV_ID），需覆盖所有变体
 // 安全：不设硬编码兜底，缺失时初始化失败并返回明确错误
@@ -41,7 +42,7 @@ const checkPublicRateLimit = createRateLimiter(60000, 20, '操作过于频繁，
 
 function checkAuth(rawEvent, adminKey, action) {
   // 以下为公开操作，顾客可直接调用
-  const publicActions = ['createOrder', 'getReviews', 'createSubmission', 'getPublicProducts', 'getPublicCategories']
+  const publicActions = ['createOrder', 'getReviews', 'createSubmission', 'addPublicReview', 'getPublicProducts', 'getPublicCategories']
   if (publicActions.includes(action)) return null
   if (!ADMIN_KEY) return { code: -1, message: '服务未配置 ADMIN_KEY' }
   if (adminKey !== ADMIN_KEY) return { code: -1, message: '密钥错误' }
@@ -62,6 +63,19 @@ exports.pickFields = pickFields
 exports.PRODUCT_FIELDS = PRODUCT_FIELDS
 exports.checkAuth = checkAuth
 
+// 幂等导入 20 条种子评价（管理 action seedReviews 与单测共用同一实现）
+exports.seedReviewsHandler = async (db) => {
+  await sharedEnsureCollection(db, 'sm_reviews')
+  const countRes = await db.collection('sm_reviews').count()
+  if (countRes.total > 0) return { code: 0, data: { added: 0, skipped: true } }
+  let added = 0
+  for (const seed of SEED_REVIEWS) {
+    await db.collection('sm_reviews').add({ ...seed, createdAt: now() })
+    added += 1
+  }
+  return { code: 0, data: { added } }
+}
+
 exports.main = async (event, context) => {
   const ev = normalizeEvent(event)
   const { action, adminKey, payload } = ev
@@ -73,7 +87,7 @@ exports.main = async (event, context) => {
   if (!app || !db) return { code: -1, message: '云服务初始化失败，请检查 ENV_ID' }
 
   // 公开写操作限流
-  const publicWriteActions = ['createOrder', 'createSubmission']
+  const publicWriteActions = ['createOrder', 'createSubmission', 'addPublicReview']
   if (publicWriteActions.includes(action)) {
     const ip = getClientIp(context, event)
     const rateErr = checkPublicRateLimit(ip)
@@ -237,20 +251,12 @@ exports.main = async (event, context) => {
       case 'getReviews':
         return await getReviewsHandler(db, pl)
 
+      case 'addPublicReview':
+        // 顾客公开提交评价（与 addReview 同校验逻辑，落同一集合）
+        return await addReviewHandler(db, pl)
+
       case 'addReview': {
-        // 白名单收敛输入，只取允许字段，丢弃注入的 _id/status/role 等
-        const { productOrder, user, rating, text } = pickFields(pl, REVIEW_FIELDS)
-        if (productOrder == null) return { code: -1, message: '缺少 productOrder' }
-        await ensureCollection('sm_reviews')
-        const doc = {
-          productOrder: Number(productOrder),
-          user: String(user || '管理员').slice(0, 20),
-          rating: Math.max(1, Math.min(5, Number(rating) || 5)),
-          text: String(text || '').slice(0, 500),
-          createdAt: now(),
-        }
-        const res = await db.collection('sm_reviews').add(doc)
-        return { code: 0, data: { id: res.id || res._id, ...doc } }
+        return await addReviewHandler(db, pl)
       }
 
       case 'deleteReview': {
@@ -260,6 +266,9 @@ exports.main = async (event, context) => {
         await db.collection('sm_reviews').doc(reviewId).remove()
         return { code: 0 }
       }
+
+      case 'seedReviews':
+        return await exports.seedReviewsHandler(db)
 
       // ---------- 服务表单提交 ----------
       case 'createSubmission':

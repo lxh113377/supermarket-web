@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { cacheGet, cacheSet, clearCatalogCache, CATALOG_CACHE_TTL } from '../src/catalogCache.js'
+import { cacheGet, cacheSet, clearCatalogCache, CATALOG_CACHE_TTL } from '../src/catalogCache'
 
 // 每个用例前清空，避免用例间互相污染（缓存是模块级单例）
 beforeEach(() => {

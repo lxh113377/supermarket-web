@@ -34,6 +34,19 @@ button {
 img {
   max-width: 100%;
   display: block;
+  -webkit-touch-callout: none;
+}
+
+/* iOS/微信内置浏览器：输入聚焦不缩放（≥16px），底部安全区留白 */
+@media (max-width: 640px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* iPhone 底部小黑条安全区：挂到所有 fixed bottom 栏 */
+.safe-bottom {
+  padding-bottom: calc(env(safe-area-inset-bottom) + 1rem);
 }
 
 /* === 设计系统：全局组件类 === */

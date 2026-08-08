@@ -19,13 +19,15 @@ vi.mock('@cloudbase/node-sdk', () => ({
 import indexMod from './index.js'
 import shared from './shared.js'
 
-const { pickFields, PRODUCT_FIELDS, checkAuth } = indexMod
+const { pickFields, PRODUCT_FIELDS, checkAuth, seedReviewsHandler } = indexMod
 const {
   createOrderHandler,
   createRateLimiter,
   normalizeEvent,
   getClientIp,
   createSubmissionHandler,
+  addReviewHandler,
+  getReviewsHandler,
   ORDER_FIELDS,
   REVIEW_FIELDS,
   SUBMISSION_FIELDS,
@@ -56,20 +58,33 @@ describe('pickFields 白名单过滤（服务端）', () => {
 
   it('白名单严格等于预定义字段集合', () => {
     expect(PRODUCT_FIELDS).toEqual([
-      'name', 'spec', 'price', 'subcategories', 'enabled',
-      'order', 'image', 'description', 'reviews',
+      'name', 'spec', 'price', 'costPrice', 'subcategories', 'enabled',
+      'order', 'image', 'images', 'description', 'reviews',
     ])
   })
 
+  it('costPrice 白名单透传：数字保留，undefined 不落字段', () => {
+    expect(pickFields({ name: '可乐', price: 3.5, costPrice: 2.2, hack: 1 }, PRODUCT_FIELDS))
+      .toEqual({ name: '可乐', price: 3.5, costPrice: 2.2 })
+    expect(pickFields({ name: '可乐', costPrice: undefined }, PRODUCT_FIELDS))
+      .toEqual({ name: '可乐' })
+  })
+
   it('各实体字段白名单常量与预期一致（ORDER/REVIEW/SUBMISSION_FIELDS）', () => {
-    expect(ORDER_FIELDS).toEqual(['roomNumber', 'items', 'totalAmount', 'status', 'createdAt', 'updatedAt'])
-    expect(REVIEW_FIELDS).toEqual(['productOrder', 'user', 'rating', 'text'])
+    expect(ORDER_FIELDS).toEqual([
+      'roomNumber', 'items', 'totalAmount', 'status', 'createdAt', 'updatedAt',
+      'wechat', 'remark', 'paymentScreenshot',
+    ])
+    expect(REVIEW_FIELDS).toEqual(['productOrder', 'user', 'rating', 'text', 'images'])
     expect(SUBMISSION_FIELDS).toEqual(['serviceId', 'serviceName', 'categoryId', 'categoryName', 'formData', 'images'])
   })
 
   it('REVIEW_FIELDS 经 pickFields 只取允许字段，丢弃 _id/status/role 注入', () => {
-    const pl = { productOrder: 5, user: '小明', rating: 4, text: '好', _id: 'hack', status: 'approved', role: 'admin' }
-    expect(pickFields(pl, REVIEW_FIELDS)).toEqual({ productOrder: 5, user: '小明', rating: 4, text: '好' })
+    const pl = {
+      productOrder: 5, user: '小明', rating: 4, text: '好', images: ['x'],
+      _id: 'hack', status: 'approved', role: 'admin',
+    }
+    expect(pickFields(pl, REVIEW_FIELDS)).toEqual({ productOrder: 5, user: '小明', rating: 4, text: '好', images: ['x'] })
   })
 })
 
@@ -162,7 +177,7 @@ describe('createOrderHandler 服务端金额重算', () => {
     await createOrderHandler(db, payload)
     const saved = db._orders.add.mock.calls[0][0]
     expect(saved.items[0]).toEqual({
-      productId: 'p1', name: '可乐', spec: '330ml', price: 3.5, quantity: 1,
+      productId: 'p1', name: '可乐', spec: '330ml', price: 3.5, quantity: 1, subcategories: [],
     })
     expect(saved.items[0].role).toBeUndefined()
     expect(saved.totalAmount).toBe(3.5)
@@ -180,11 +195,184 @@ describe('createOrderHandler 服务端金额重算', () => {
     expect(saved._id).toBeUndefined()
     expect(saved.status).toBe('pending') // 服务端强制，非来自客户端
   })
+
+  it('保存 wechat/remark/paymentScreenshot 并带上 subcategories', async () => {
+    const db = makeMockDb(products)
+    const payload = {
+      roomNumber: '36栋',
+      wechat: 'wx_abc',
+      remark: '少冰',
+      paymentScreenshot: 'data:image/jpeg;base64,xxx',
+      items: [{ productId: 'p1', quantity: 2 }],
+    }
+    const res = await createOrderHandler(db, payload)
+    expect(res.code).toBe(0)
+    const saved = db._orders.add.mock.calls[0][0]
+    expect(saved.roomNumber).toBe('36栋')
+    expect(saved.wechat).toBe('wx_abc')
+    expect(saved.remark).toBe('少冰')
+    expect(saved.paymentScreenshot).toBe('data:image/jpeg;base64,xxx')
+    expect(saved.items[0].subcategories).toEqual([])
+  })
+
+  it('订单 items 携带商品 subcategories 供看板分类统计', async () => {
+    const db = makeMockDb([{ ...products[0], subcategories: ['sweet'] }])
+    const res = await createOrderHandler(db, {
+      roomNumber: '36栋',
+      items: [{ productId: 'p1', quantity: 1 }],
+    })
+    expect(res.code).toBe(0)
+    const saved = db._orders.add.mock.calls[0][0]
+    expect(saved.items[0].subcategories).toEqual(['sweet'])
+  })
+
+  it('wechat/remark 超长截断，paymentScreenshot 超 800KB 拒绝', async () => {
+    const db = makeMockDb(products)
+    const ok = await createOrderHandler(db, {
+      roomNumber: '1',
+      wechat: 'w'.repeat(100),
+      remark: 'r'.repeat(300),
+      items: [{ productId: 'p1', quantity: 1 }],
+    })
+    expect(ok.code).toBe(0)
+    const saved = db._orders.add.mock.calls[0][0]
+    expect(saved.wechat.length).toBe(50)
+    expect(saved.remark.length).toBe(200)
+
+    const bad = await createOrderHandler(db, {
+      roomNumber: '1',
+      paymentScreenshot: 'x'.repeat(800 * 1024 + 1),
+      items: [{ productId: 'p1', quantity: 1 }],
+    })
+    expect(bad.code).toBe(-1)
+    expect(bad.message).toContain('截图过大')
+  })
+})
+
+// ---------- addReviewHandler 评价提交（公开 + 管理共用） ----------
+describe('addReviewHandler 评价提交', () => {
+  function makeDb() {
+    const reviews = { add: vi.fn().mockResolvedValue({ id: 'rev_1' }) }
+    return {
+      createCollection: vi.fn().mockResolvedValue({}),
+      collection: vi.fn((name) => (name === 'sm_reviews' ? reviews : { add: vi.fn(), get: vi.fn() })),
+      _reviews: reviews,
+    }
+  }
+
+  it('评分钳制 1-5、昵称截断 20、文本截断 500', async () => {
+    const db = makeDb()
+    const res = await addReviewHandler(db, {
+      productOrder: '3',
+      user: 'u'.repeat(100),
+      rating: 99,
+      text: 't'.repeat(600),
+    })
+    expect(res.code).toBe(0)
+    const saved = db._reviews.add.mock.calls[0][0]
+    expect(saved.productOrder).toBe(3)
+    expect(saved.rating).toBe(5)
+    expect(saved.user.length).toBe(20)
+    expect(saved.text.length).toBe(500)
+  })
+
+  it('评分低于 1 时钳制为 1', async () => {
+    const db = makeDb()
+    const res = await addReviewHandler(db, { productOrder: 1, rating: -3, text: 'x' })
+    expect(res.code).toBe(0)
+    expect(db._reviews.add.mock.calls[0][0].rating).toBe(1)
+  })
+
+  it('images 最多 5 张、单张 ≤2MB，超限拒绝', async () => {
+    const db = makeDb()
+    const tooMany = await addReviewHandler(db, {
+      productOrder: 1,
+      images: Array.from({ length: 6 }, (_, i) => `img${i}`),
+    })
+    expect(tooMany.code).toBe(-1)
+
+    const tooBig = await addReviewHandler(db, {
+      productOrder: 1,
+      images: ['x'.repeat(2 * 1024 * 1024 + 1)],
+    })
+    expect(tooBig.code).toBe(-1)
+
+    const ok = await addReviewHandler(db, {
+      productOrder: 1,
+      images: ['a', 'b'],
+    })
+    expect(ok.code).toBe(0)
+    expect(db._reviews.add.mock.calls.at(-1)[0].images).toEqual(['a', 'b'])
+  })
+
+  it('缺少 productOrder 报错', async () => {
+    const db = makeDb()
+    const res = await addReviewHandler(db, { text: 'x' })
+    expect(res.code).toBe(-1)
+  })
+})
+
+// ---------- getReviewsHandler 评价读取 ----------
+describe('getReviewsHandler 评价读取', () => {
+  it('productOrder 强制 Number 且投影包含 images', async () => {
+    const reviews = {
+      where: vi.fn(() => reviews),
+      orderBy: vi.fn(() => reviews),
+      limit: vi.fn(() => reviews),
+      field: vi.fn(() => reviews),
+      get: vi.fn().mockResolvedValue({ data: [{ productOrder: 3, images: ['x'] }] }),
+    }
+    const db = { createCollection: vi.fn().mockResolvedValue({}), collection: vi.fn(() => reviews) }
+    const res = await getReviewsHandler(db, { productOrder: '3' })
+    expect(res.code).toBe(0)
+    expect(reviews.where).toHaveBeenCalledWith({ productOrder: 3 })
+    expect(reviews.field.mock.calls[0][0].images).toBe(true)
+  })
+
+  it('缺少 productOrder 报错', async () => {
+    const db = { createCollection: vi.fn(), collection: vi.fn() }
+    expect((await getReviewsHandler(db, {})).code).toBe(-1)
+  })
+})
+
+// ---------- seedReviewsHandler 种子评价导入（幂等） ----------
+describe('seedReviewsHandler 种子评价导入', () => {
+  function makeDb(total) {
+    const reviews = {
+      count: vi.fn().mockResolvedValue({ total }),
+      add: vi.fn().mockResolvedValue({ id: 'seed_1' }),
+    }
+    return {
+      createCollection: vi.fn().mockResolvedValue({}),
+      collection: vi.fn((name) => (name === 'sm_reviews' ? reviews : { count: vi.fn().mockResolvedValue({ total: 0 }), add: vi.fn() })),
+      _reviews: reviews,
+    }
+  }
+
+  it('集合为空时导入 20 条种子评价', async () => {
+    const db = makeDb(0)
+    const res = await seedReviewsHandler(db)
+    expect(res.code).toBe(0)
+    expect(res.data.added).toBe(20)
+    expect(db._reviews.add).toHaveBeenCalledTimes(20)
+    const first = db._reviews.add.mock.calls[0][0]
+    expect(first.productOrder).toBe(1)
+    expect(first.rating).toBeGreaterThanOrEqual(1)
+    expect(first.rating).toBeLessThanOrEqual(5)
+  })
+
+  it('集合非空时不重复导入', async () => {
+    const db = makeDb(3)
+    const res = await seedReviewsHandler(db)
+    expect(res.code).toBe(0)
+    expect(res.data.added).toBe(0)
+    expect(db._reviews.add).not.toHaveBeenCalled()
+  })
 })
 
 // ---------- checkAuth 鉴权（真实模块逻辑） ----------
 describe('checkAuth 鉴权逻辑', () => {
-  const publicActions = ['createOrder', 'getReviews', 'createSubmission', 'getPublicProducts', 'getPublicCategories']
+  const publicActions = ['createOrder', 'getReviews', 'createSubmission', 'addPublicReview', 'getPublicProducts', 'getPublicCategories']
 
   it('公开操作无需鉴权，直接放行', () => {
     for (const a of publicActions) expect(checkAuth({}, '', a)).toBeNull()

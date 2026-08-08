@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isBusinessHours, getBusinessHoursText, getClosedMessage } from '../src/utils/businessHours.js'
+import { isBusinessHours, getBusinessHoursText, getClosedMessage } from '../src/utils/businessHours'
 
 describe('businessHours', () => {
   describe('isBusinessHours - 工作日', () => {

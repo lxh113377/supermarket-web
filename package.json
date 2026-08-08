@@ -8,7 +8,9 @@
     "prebuild": "oxlint",
     "build": "vite build",
     "lint": "oxlint",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "smoke": "node scripts/smoke-deploy.mjs",
     "preview": "vite preview",
     "scan:secrets": "node scripts/scan-secrets.mjs",
     "predeploy": "node -e \"const fs=require('fs');const s='cloudfunctions/shared.js';fs.copyFileSync(s,'cloudfunctions/admin-api/shared.js');fs.copyFileSync(s,'cloudfunctions/public-api/shared.js');console.log('shared.js copied to both functions')\""
@@ -29,6 +31,7 @@
     "oxlint": "^1.71.0",
     "postcss": "^8.5.22",
     "tailwindcss": "^3.4.19",
+    "typescript": "^7.0.2",
     "vite": "^8.1.1",
     "vitest": "^4.1.10"
   }
