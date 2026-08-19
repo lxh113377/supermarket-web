@@ -1,0 +1,13 @@
+name = "supermarket-web"
+compatibility_date = "2024-09-23"
+pages_build_output_dir = "dist"
+
+# 管理后台密钥（生产环境建议改用 wrangler secret put ADMIN_KEY）
+[vars]
+ADMIN_KEY = "REDACTED"
+
+# D1 数据库绑定（后端存储，替代原 CloudBase 文档库）
+[[d1_databases]]
+binding = "DB"
+database_name = "supermarket"
+database_id = "4bfc0283-d307-4285-9f02-dc230cfe4f5c"

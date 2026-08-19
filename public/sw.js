@@ -26,8 +26,8 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url)
-  // API 请求不缓存
-  if (url.hostname.includes('tcloudbase') || url.hostname.includes('tencentcloud')) return
+  // API 请求（同域 /web /pub）不缓存，直接放行
+  if (url.pathname.startsWith('/web') || url.pathname.startsWith('/pub')) return
   // index.html → network-first（确保入口始终最新）
   if (url.pathname === '/' || url.pathname.endsWith('index.html') || url.pathname.endsWith('.html')) {
     e.respondWith(

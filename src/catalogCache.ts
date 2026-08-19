@@ -19,6 +19,11 @@ export function cacheSet(key: string, data: unknown): void {
   _cache.set(key, { ts: Date.now(), data })
 }
 
+// 按 key 精确失效单条缓存（如某商品评价变更后只清该商品，不等 TTL 也不清全量）。
+export function cacheDel(key: string): void {
+  _cache.delete(key)
+}
+
 // 管理端写操作（增/改/删商品、分类）后必须调用，否则顾客端最长 60s 仍看到旧数据。
 export function clearCatalogCache() {
   _cache.clear()
