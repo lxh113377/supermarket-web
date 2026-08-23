@@ -71,6 +71,20 @@ ok(Math.abs(order.data.totalAmount - 7.98) < 0.001, `createOrder 金额计算正
 const badOrder = await handlePublic(env, 'createOrder', { roomNumber: '305', items: [{ productId: 'p999', quantity: 1 }] })
 ok(badOrder.code === -1, 'createOrder 遇到不存在商品返回 -1')
 
+// ---------- 新修复：负数/小数/零数量拒绝 ----------
+const negOrder = await handlePublic(env, 'createOrder', { roomNumber: '305', items: [{ productId: 'p001', quantity: -2 }] })
+ok(negOrder.code === -1, 'createOrder 负数数量被拒')
+const floatOrder = await handlePublic(env, 'createOrder', { roomNumber: '305', items: [{ productId: 'p001', quantity: 1.5 }] })
+ok(floatOrder.code === -1, 'createOrder 小数数量被拒')
+const zeroOrder = await handlePublic(env, 'createOrder', { roomNumber: '305', items: [{ productId: 'p001', quantity: 0 }] })
+ok(zeroOrder.code === -1, 'createOrder 零数量被拒')
+
+// ---------- 新修复：付款截图 scheme 白名单 ----------
+const badShot = await handlePublic(env, 'createOrder', {
+  roomNumber: '305', items: [{ productId: 'p001', quantity: 1 }], paymentScreenshot: 'javascript:alert(1)',
+})
+ok(badShot.code === -1, 'createOrder 非白名单付款截图被拒')
+
 // ---------- 管理读单/读列表 ----------
 const getOrder = await handleAdmin(env, 'getOrder', 'test-key-123', { orderId: order.data.id })
 ok(getOrder.code === 0 && Array.isArray(getOrder.data.items) && getOrder.data.items.length === 2, 'getOrder 返回且 items 已解析为数组')
@@ -94,6 +108,14 @@ ok(reviews.code === 0 && reviews.data.some((r) => r._id === rev.data._id), 'getR
 const allRev2 = await handleAdmin(env, 'getAllReviews', 'test-key-123', {})
 ok(allRev2.code === 0 && allRev2.data.length === 21, `getAllReviews 合计 21 条 (实际 ${allRev2.data?.length})`)
 
+// ---------- 新修复：评价图片 scheme 白名单 ----------
+const badImg = await handlePublic(env, 'addPublicReview', { productOrder: 1, user: 'x', rating: 5, text: 'x', images: ['javascript:alert(1)'] })
+ok(badImg.code === -1, 'addPublicReview 非白名单图片被拒')
+const goodImg = await handlePublic(env, 'addPublicReview', { productOrder: 1, user: 'x', rating: 5, text: 'x', images: ['data:image/jpeg;base64,/9j/4AAQSkZJRg=='] })
+ok(goodImg.code === 0, 'addPublicReview base64 dataURL 图片通过')
+const badText = await handlePublic(env, 'addPublicReview', { productOrder: 1, user: 'x', rating: 5, text: '<script>alert(1)</script>' })
+ok(badText.code === -1, 'addPublicReview 注入关键词文本被拒')
+
 // ---------- 商品增改删（管理）----------
 const created = await handleAdmin(env, 'createProduct', 'test-key-123', { name: '测试可乐', price: 3.0, enabled: true })
 ok(created.code === 0 && created.data?._id, `createProduct 成功 (${created.data?._id})`)
@@ -103,6 +125,16 @@ const upd = await handleAdmin(env, 'updateProduct', 'test-key-123', { productId:
 ok(upd.code === 0, 'updateProduct 成功')
 const afterUpd = await handleAdmin(env, 'getProducts', 'test-key-123', {})
 ok(afterUpd.data.find((p) => p._id === created.data._id)?.price === 3.5, 'updateProduct 价格已更新为 3.5')
+
+// ---------- 新修复：updateProduct enabled 守卫（未传 enabled 不重上架）----------
+const offProd = await handleAdmin(env, 'createProduct', 'test-key-123', { name: '下架测试', price: 1.0, enabled: false })
+ok(offProd.code === 0 && offProd.data?._id, 'createProduct 创建下架商品')
+const partialUpd = await handleAdmin(env, 'updateProduct', 'test-key-123', { productId: offProd.data._id, price: 2.0 })
+ok(partialUpd.code === 0, 'updateProduct 部分更新成功')
+const offAfter = await handleAdmin(env, 'getProducts', 'test-key-123', {})
+ok(offAfter.data.find((p) => p._id === offProd.data._id)?.enabled === false, 'updateProduct 未传 enabled 时保持下架（不静默重上架）')
+const offDel = await handleAdmin(env, 'deleteProduct', 'test-key-123', { productId: offProd.data._id })
+ok(offDel.code === 0, 'deleteProduct 删除下架测试商品')
 const del = await handleAdmin(env, 'deleteProduct', 'test-key-123', { productId: created.data._id })
 ok(del.code === 0, 'deleteProduct 成功')
 const afterDel = await handleAdmin(env, 'getProducts', 'test-key-123', {})
@@ -133,6 +165,23 @@ const loginOk = await handleAdmin(env, 'login', 'test-key-123', {})
 ok(loginOk.code === 0, 'login 正确密钥通过')
 const loginBad = await handleAdmin(env, 'login', 'x', {})
 ok(loginBad.code === -1, 'login 错误密钥拒绝')
+
+// ---------- 新修复：登录限流（D1 计数，错误密钥也计数）----------
+// loginOk + loginBad 已占 2 次；再连打 4 次错误密钥，第 4 次（总第 6 个请求）应触发限流
+let limited = null
+for (let i = 0; i < 4; i++) {
+  const r = await handleAdmin(env, 'login', `wrong-${i}`, {})
+  if (r.message && r.message.includes('操作过于频繁')) limited = r
+}
+ok(limited !== null, '连续错误登录触发 D1 限流（rate:login:{ip}）')
+
+// ---------- 新修复：审计日志落表 ----------
+const evRow = db.prepare('SELECT COUNT(*) AS c FROM security_events').get()
+ok(Number(evRow.c) >= 10, `security_events 审计表有记录 (实际 ${evRow.c})`)
+const evAuth = db.prepare("SELECT COUNT(*) AS c FROM security_events WHERE result = 'auth_failed'").get()
+ok(Number(evAuth.c) >= 1, `认证失败已审计 (实际 ${evAuth.c})`)
+const rateRow = db.prepare("SELECT COUNT(*) AS c FROM rate_limits WHERE bucket LIKE 'rate:login:%'").get()
+ok(Number(rateRow.c) >= 1, `rate_limits 表有登录限流桶 (实际 ${rateRow.c})`)
 
 // ---------- 未知 action ----------
 const unknown = await handleAdmin(env, 'noSuchAction', 'test-key-123', {})

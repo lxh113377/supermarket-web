@@ -66,3 +66,22 @@ CREATE INDEX IF NOT EXISTS idx_reviews_productOrder ON reviews (productOrder);
 CREATE INDEX IF NOT EXISTS idx_orders_createdAt ON orders (createdAt);
 CREATE INDEX IF NOT EXISTS idx_products_order ON products ("order");
 CREATE INDEX IF NOT EXISTS idx_submissions_createdAt ON submissions (createdAt);
+
+-- 限流计数（D1 持久，跨实例有效；bucket = rate:{action}:{ip}）
+CREATE TABLE IF NOT EXISTS rate_limits (
+  bucket  TEXT PRIMARY KEY,
+  count   INTEGER DEFAULT 0,
+  resetAt INTEGER DEFAULT 0
+);
+
+-- 安全审计日志（管理写操作与认证失败；keyFingerprint 为密钥指纹，不存原始密钥）
+CREATE TABLE IF NOT EXISTS security_events (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts             TEXT NOT NULL,
+  ip             TEXT DEFAULT '',
+  action         TEXT DEFAULT '',
+  result         TEXT DEFAULT '',
+  keyFingerprint TEXT DEFAULT '',
+  detail         TEXT DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_security_events_ts ON security_events (ts);

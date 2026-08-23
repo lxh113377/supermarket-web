@@ -44,14 +44,10 @@ export async function getProducts(): Promise<Product[]> {
 }
 
 // 管理端商品（全部，含下架）— 走 HTTP API，与写操作同路径
+// 管理端是数据可信面：读取失败必须显式报错，禁止静默回退本地（掩盖后端故障）
 export async function getAdminProducts(): Promise<Product[]> {
   if (!IS_CLOUD) return getLocalProducts()
-  try {
-    const result = await adminCall('getProducts', {})
-    if (result.code === 0 && result.data) return result.data as Product[]
-    throw new Error(result.message || 'empty')
-  } catch (e) {
-    console.warn('[db] cloud getAdminProducts failed, using local fallback:', e instanceof Error ? e.message : String(e))
-    return getLocalProducts()
-  }
+  const result = await adminCall('getProducts', {})
+  if (result.code === 0 && result.data) return result.data as Product[]
+  throw new Error(result.message || '获取商品列表失败')
 }

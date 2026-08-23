@@ -69,6 +69,20 @@ function pick(input, allowed) {
   return out
 }
 
+// 恒定时间字符串比较，防时序侧信道攻击（替代 adminKey !== env.ADMIN_KEY）。
+// Workers 运行时无 node:crypto 的 timingSafeEqual，这里用 XOR 累加 + 定长循环实现；
+// 长度不等时直接返回 false（与 timingSafeEqual 抛错行为不同，但避免泄露机密内容）。
+function constantTimeEqual(a, b) {
+  const sa = typeof a === 'string' ? a : ''
+  const sb = typeof b === 'string' ? b : ''
+  const ea = new TextEncoder().encode(sa)
+  const eb = new TextEncoder().encode(sb)
+  if (ea.length !== eb.length) return false
+  let diff = 0
+  for (let i = 0; i < ea.length; i++) diff |= ea[i] ^ eb[i]
+  return diff === 0
+}
+
 const PRODUCT_FIELDS = ['name', 'spec', 'price', 'costPrice', 'subcategories', 'enabled', 'order', 'image', 'images', 'description', 'reviews']
 const ORDER_FIELDS = ['roomNumber', 'items', 'totalAmount', 'status', 'createdAt', 'updatedAt', 'wechat', 'remark', 'paymentScreenshot']
 const REVIEW_FIELDS = ['productOrder', 'user', 'rating', 'text', 'images']
@@ -88,27 +102,98 @@ async function insert(DB, table, doc) {
   return doc._id
 }
 
-// ---------- 限流（内存级，实例级有效）----------
-function createRateLimiter(windowMs, max) {
-  const attempts = new Map()
-  return function check(ip) {
-    const t = Date.now()
-    const rec = attempts.get(ip)
-    if (!rec || t > rec.resetAt) { attempts.set(ip, { count: 1, resetAt: t + windowMs }); return null }
-    rec.count++
-    if (rec.count > max) return { code: -1, message: '操作过于频繁，请稍后再试' }
+// ---------- 限流（D1 持久计数，跨实例有效；bucket = rate:{action}:{ip}）----------
+async function checkRate(DB, key, windowMs, max) {
+  if (!DB) return null
+  const t = Date.now()
+  const row = await qFirst(DB, `SELECT count, resetAt FROM rate_limits WHERE bucket = ?`, [key])
+  if (!row || t > row.resetAt) {
+    await qRun(DB,
+      `INSERT INTO rate_limits (bucket, count, resetAt) VALUES (?, 1, ?)
+       ON CONFLICT(bucket) DO UPDATE SET count = 1, resetAt = excluded.resetAt`,
+      [key, t + windowMs])
     return null
   }
+  if (row.count >= max) return { code: -1, message: '操作过于频繁，请稍后再试' }
+  await qRun(DB, `UPDATE rate_limits SET count = count + 1 WHERE bucket = ?`, [key])
+  return null
 }
-const rateLogin = createRateLimiter(60000, 5)
-const ratePublicWrite = createRateLimiter(60000, 20)
-const rateAuthFail = createRateLimiter(60000, 5)
+
+const RATE_LOGIN = { windowMs: 60000, max: 5 }
+const RATE_PUBLIC_WRITE = { windowMs: 60000, max: 20 }
+
+// 提取真实客户端 IP：优先 CF-Connecting-IP（Cloudflare 注入，不可伪造），回退 x-forwarded-for
+function getClientIp(request) {
+  if (!request || !request.headers) return 'unknown'
+  const cf = request.headers.get('CF-Connecting-IP')
+  if (cf) return String(cf).slice(0, 64)
+  const xff = request.headers.get('x-forwarded-for')
+  if (xff) return String(xff).split(',')[0].trim().slice(0, 64)
+  return 'unknown'
+}
+
+// ---------- 安全工具 ----------
+
+// 密钥指纹（SHA-256 前 8 位 hex，审计用；不落原始密钥）
+async function sha256Fingerprint(s) {
+  try {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(s || '')))
+    return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 8)
+  } catch {
+    return ''
+  }
+}
+
+// 审计日志：管理写操作 / 认证失败落 security_events 表
+async function logSecurityEvent(DB, { ip = '', action = '', result = '', keyFingerprint = '', detail = '' }) {
+  if (!DB) return
+  try {
+    await qRun(DB,
+      `INSERT INTO security_events (ts, ip, action, result, keyFingerprint, detail) VALUES (?, ?, ?, ?, ?, ?)`,
+      [nowISO(), String(ip).slice(0, 64), String(action).slice(0, 64), String(result).slice(0, 16),
+        String(keyFingerprint).slice(0, 16), String(detail).slice(0, 500)])
+  } catch (e) {
+    console.error('[audit] logSecurityEvent failed:', e)
+  }
+}
+
+// 图片串 scheme 白名单：仅允许 data:image/(jpeg|png|webp|gif);base64 或 https 受信 URL。
+// 阻止 javascript:/data:text/html 等注入向量（渲染侧未来改动也不会变成 XSS）。
+function isSafeImageUrl(url) {
+  if (typeof url !== 'string' || !url) return false
+  if (/^data:image\/(jpeg|png|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(url)) return true
+  try {
+    const u = new URL(url)
+    return u.protocol === 'https:' && !!u.hostname
+  } catch {
+    return false
+  }
+}
+
+// 图片数组校验：返回过滤后数组；发现非法项返回 null（调用方拒绝，不静默丢弃）
+function validateImages(images) {
+  if (!Array.isArray(images)) return []
+  const out = []
+  for (const img of images) {
+    if (typeof img !== 'string' || !isSafeImageUrl(img)) return null
+    out.push(img)
+  }
+  return out
+}
+
+// 公开 UGC 内容校验：长度上限 + 基础注入关键词拦截
+function checkPublicText(text, maxLen) {
+  const s = String(text || '')
+  if (s.length > maxLen) return false
+  const low = s.toLowerCase()
+  return !low.includes('<script') && !low.includes('javascript:') && !low.includes('onerror=') && !low.includes('onload=')
+}
 
 // ---------- 鉴权 ----------
 function checkAuth(action, adminKey, env) {
   if (PUBLIC_ACTIONS.has(action)) return null
-  if (!env.ADMIN_KEY) return { code: -1, message: '服务未配置 ADMIN_KEY' }
-  if (adminKey !== env.ADMIN_KEY) return { code: -1, message: '密钥错误' }
+  // 统一错误回显，不泄露"未配置 ADMIN_KEY"等部署态信息
+  if (!env.ADMIN_KEY || !constantTimeEqual(adminKey, env.ADMIN_KEY)) return { code: -1, message: '认证失败' }
   return null
 }
 
@@ -129,8 +214,11 @@ async function getPublicCategories(DB) {
 async function createOrder(DB, payload) {
   const { roomNumber, items, wechat, remark, paymentScreenshot } = payload
   if (!roomNumber || !Array.isArray(items) || !items.length) return { code: -1, message: '订单数据不完整' }
-  if (typeof paymentScreenshot === 'string' && paymentScreenshot.length > 800 * 1024)
-    return { code: -1, message: '付款截图过大，请重新上传' }
+  // 付款截图 scheme 白名单：拒绝非 data:image / https 的注入向量
+  if (typeof paymentScreenshot === 'string' && paymentScreenshot) {
+    if (paymentScreenshot.length > 800 * 1024 || !isSafeImageUrl(paymentScreenshot))
+      return { code: -1, message: '付款截图格式无效，请重新上传' }
+  }
   const ids = items.map((it) => it.productId)
   const rows = await qAll(DB,
     `SELECT _id, name, spec, price, enabled, subcategories FROM products WHERE _id IN (${ids.map(() => '?').join(',')})`,
@@ -142,7 +230,9 @@ async function createOrder(DB, payload) {
     const p = byId.get(item.productId)
     if (!p) return { code: -1, message: `商品不存在: ${item.productId}` }
     if (p.enabled === 0 || p.enabled === false) return { code: -1, message: `商品已下架: ${p.name}` }
-    const qty = Number(item.quantity) || 0
+    // 数量必须为正整数：拦截负数/小数/缺失，防订单负金额或异常金额
+    const qty = Number(item.quantity)
+    if (!Number.isInteger(qty) || qty <= 0) return { code: -1, message: `商品数量无效: ${p.name}` }
     verified.push({
       productId: p._id, name: p.name, spec: p.spec || '',
       price: Number(p.price) || 0, quantity: qty, subcategories: jparse(p.subcategories, []),
@@ -174,15 +264,19 @@ async function addReview(DB, payload) {
   const clean = pick(payload, REVIEW_FIELDS)
   if (clean.productOrder == null) return { code: -1, message: '缺少 productOrder' }
   if (Array.isArray(clean.images) && clean.images.length > 5) return { code: -1, message: '最多上传 5 张图片' }
-  const safeImages = Array.isArray(clean.images) ? clean.images.slice(0, 5) : []
-  for (const img of safeImages) {
-    if (typeof img !== 'string' || img.length > 2 * 1024 * 1024) return { code: -1, message: '图片过大或格式无效' }
+  // 图片 scheme 白名单：仅 data:image/(jpeg|png|webp|gif);base64 或 https
+  const cleanImages = validateImages(clean.images)
+  if (cleanImages === null) return { code: -1, message: '图片格式无效' }
+  for (const img of cleanImages) {
+    if (img.length > 2 * 1024 * 1024) return { code: -1, message: '图片过大或格式无效' }
   }
+  // UGC 内容校验：长度上限 + 基础注入关键词
+  if (!checkPublicText(clean.text, 500)) return { code: -1, message: '评价内容无效' }
   const doc = {
     _id: genId('r_'), productOrder: Number(clean.productOrder),
     user: String(clean.user || '匿名用户').slice(0, 20),
     rating: Math.max(1, Math.min(5, Number(clean.rating) || 5)),
-    text: String(clean.text || '').slice(0, 500), images: safeImages, createdAt: nowISO(),
+    text: String(clean.text || '').slice(0, 500), images: cleanImages, createdAt: nowISO(),
   }
   await insert(DB, 'reviews', doc)
   return { code: 0, data: { _id: doc._id, id: doc._id, ...doc } }
@@ -191,18 +285,25 @@ async function addReview(DB, payload) {
 async function createSubmission(DB, payload) {
   const clean = pick(payload, SUBMISSION_FIELDS)
   if (!clean.serviceId || !clean.serviceName) return { code: -1, message: '缺少服务信息' }
-  const safeImages = Array.isArray(clean.images) ? clean.images.slice(0, 5) : []
-  for (const img of safeImages) {
-    if (typeof img !== 'string' || img.length > 2 * 1024 * 1024) return { code: -1, message: '图片过大或格式无效' }
+  // 图片 scheme 白名单：仅 data:image/(jpeg|png|webp|gif);base64 或 https
+  const cleanImages = validateImages(clean.images)
+  if (cleanImages === null) return { code: -1, message: '图片格式无效' }
+  for (const img of cleanImages) {
+    if (img.length > 2 * 1024 * 1024) return { code: -1, message: '图片过大或格式无效' }
   }
   const safeForm = {}
   if (clean.formData && typeof clean.formData === 'object') {
-    for (const [k, v] of Object.entries(clean.formData)) safeForm[String(k).slice(0, 50)] = String(v || '').slice(0, 200)
+    for (const [k, v] of Object.entries(clean.formData)) {
+      const key = String(k).slice(0, 50)
+      const val = String(v || '').slice(0, 200)
+      if (!checkPublicText(val, 200)) return { code: -1, message: '表单内容无效' }
+      safeForm[key] = val
+    }
   }
   const doc = {
     _id: genId('s_'), serviceId: String(clean.serviceId).slice(0, 50),
     serviceName: String(clean.serviceName).slice(0, 50), categoryId: String(clean.categoryId || '').slice(0, 50),
-    categoryName: String(clean.categoryName || '').slice(0, 50), formData: safeForm, images: safeImages,
+    categoryName: String(clean.categoryName || '').slice(0, 50), formData: safeForm, images: cleanImages,
     status: 'pending', createdAt: nowISO(),
   }
   await insert(DB, 'submissions', doc)
@@ -219,6 +320,13 @@ async function getProducts(DB) {
 async function createProduct(DB, payload) {
   const data = pick(payload, PRODUCT_FIELDS)
   data.enabled = data.enabled !== false
+  // 图片 scheme 白名单（纵深防御，管理端同样收敛）
+  if (data.image && !isSafeImageUrl(data.image)) return { code: -1, message: '商品主图格式无效' }
+  if (Array.isArray(data.images)) {
+    const imgOk = validateImages(data.images)
+    if (imgOk === null) return { code: -1, message: '商品图片格式无效' }
+    data.images = imgOk
+  }
   const doc = { _id: genId('p_'), ...data, createdAt: nowISO(), updatedAt: nowISO() }
   await insert(DB, 'products', doc)
   return { code: 0, data: doc }
@@ -228,6 +336,15 @@ async function updateProduct(DB, payload) {
   const { productId } = payload
   if (!productId) return { code: -1, message: '缺少 productId' }
   const data = pick(payload, PRODUCT_FIELDS)
+  // enabled 守卫：仅当显式传了 enabled 才更新上架状态，防止部分更新时静默重上架缺货商品
+  if ('enabled' in payload) data.enabled = payload.enabled !== false
+  // 图片 scheme 白名单（纵深防御）
+  if (data.image && !isSafeImageUrl(data.image)) return { code: -1, message: '商品主图格式无效' }
+  if (Array.isArray(data.images)) {
+    const imgOk = validateImages(data.images)
+    if (imgOk === null) return { code: -1, message: '商品图片格式无效' }
+    data.images = imgOk
+  }
   data.updatedAt = nowISO()
   const cols = Object.keys(data)
   if (!cols.length) return { code: -1, message: '无更新字段' }
@@ -293,7 +410,8 @@ async function getOrders(DB, payload) {
      FROM orders ORDER BY createdAt DESC LIMIT ? OFFSET ?`,
     [pageSize + 1, (page - 1) * pageSize])
   const hasMore = rows.length > pageSize
-  const data = hasMore ? rows.slice(0, pageSize) : rows
+  const data = (hasMore ? rows.slice(0, pageSize) : rows)
+    .map((r) => ({ ...r, items: jparse(r.items, []) }))
   return { code: 0, data, hasMore, page, pageSize }
 }
 
@@ -369,63 +487,113 @@ async function deleteSubmission(DB, payload) {
 
 // ================= 调度 =================
 
-export async function handleAdmin(env, action, adminKey, payload = {}) {
+// 管理端写操作（审计日志覆盖范围）
+const ADMIN_WRITE_ACTIONS = new Set([
+  'createProduct', 'updateProduct', 'deleteProduct',
+  'deleteOrder', 'updateOrderStatus',
+  'deleteReview', 'updateSubmissionStatus', 'deleteSubmission',
+])
+
+// CORS 精准放行：仅允许白名单源（双前端部署 + 本地开发），不反射任意 Origin。
+// 可经 env.ALLOWED_ORIGINS（逗号分隔）追加额外源。
+const DEFAULT_ALLOWED_ORIGINS = [
+  'https://supermarket-web.pages.dev',
+  'https://lxh113377.github.io',
+]
+export function resolveCorsHeaders(request, env = {}) {
+  const origin = request?.headers?.get?.('Origin') || ''
+  const extra = (env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean)
+  const allowed = new Set([...DEFAULT_ALLOWED_ORIGINS, ...extra])
+  const isLocalDev = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+  const headers = {
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Vary': 'Origin',
+  }
+  if (allowed.has(origin) || isLocalDev) {
+    headers['Access-Control-Allow-Origin'] = origin
+  }
+  return headers
+}
+
+export async function handleAdmin(env, action, adminKey, payload = {}, request = null) {
   const DB = env.DB
   if (!DB) return { code: -1, message: '未配置 D1 数据库绑定' }
+  const ip = getClientIp(request)
+  // 登录限流必须在鉴权之前：无论密钥对错都计数，才能真正防暴力破解
+  if (action === 'login') {
+    const r = await checkRate(DB, `rate:login:${ip}`, RATE_LOGIN.windowMs, RATE_LOGIN.max)
+    if (r) return r
+  }
   const authErr = checkAuth(action, adminKey, env)
-  if (authErr) return authErr
+  if (authErr) {
+    // 认证失败审计（不落原始密钥，仅指纹）
+    if (!PUBLIC_ACTIONS.has(action)) {
+      await logSecurityEvent(DB, { ip, action, result: 'auth_failed', keyFingerprint: await sha256Fingerprint(adminKey) })
+    }
+    return authErr
+  }
 
-  const ip = 'unknown'
+  let result
   try {
     switch (action) {
       case 'login': {
-        const r = rateLogin(ip); if (r) return r
-        if (adminKey !== env.ADMIN_KEY) return { code: -1, message: '密钥错误' }
-        return { code: 0 }
+        if (!constantTimeEqual(adminKey, env.ADMIN_KEY)) result = { code: -1, message: '认证失败' }
+        else result = { code: 0 }
+        break
       }
       case 'verifyKey':
-        return { code: 0 }
-      case 'getProducts': return await getProducts(DB)
-      case 'createProduct': return await createProduct(DB, payload)
-      case 'updateProduct': return await updateProduct(DB, payload)
-      case 'deleteProduct': return await deleteProduct(DB, payload)
-      case 'deleteOrder': return await deleteOrder(DB, payload)
-      case 'updateOrderStatus': return await updateOrderStatus(DB, payload)
-      case 'createOrder': return await createOrder(DB, payload)
-      case 'recalculateOrders': return await recalculateOrders(DB)
-      case 'getOrders': return await getOrders(DB, payload)
-      case 'getOrder': return { code: 0, data: await getOrderById(DB, payload.orderId) }
-      case 'getPublicProducts': return await getPublicProducts(DB)
-      case 'getPublicCategories': return await getPublicCategories(DB)
-      case 'getAllReviews': return await getAllReviews(DB)
-      case 'getReviews': return await getReviews(DB, payload)
-      case 'addPublicReview': return await addReview(DB, payload)
+        result = { code: 0 }
+        break
+      case 'getProducts': result = await getProducts(DB); break
+      case 'createProduct': result = await createProduct(DB, payload); break
+      case 'updateProduct': result = await updateProduct(DB, payload); break
+      case 'deleteProduct': result = await deleteProduct(DB, payload); break
+      case 'deleteOrder': result = await deleteOrder(DB, payload); break
+      case 'updateOrderStatus': result = await updateOrderStatus(DB, payload); break
+      case 'createOrder': result = await createOrder(DB, payload); break
+      case 'recalculateOrders': result = await recalculateOrders(DB); break
+      case 'getOrders': result = await getOrders(DB, payload); break
+      case 'getOrder': result = { code: 0, data: await getOrderById(DB, payload.orderId) }; break
+      case 'getPublicProducts': result = await getPublicProducts(DB); break
+      case 'getPublicCategories': result = await getPublicCategories(DB); break
+      case 'getAllReviews': result = await getAllReviews(DB); break
+      case 'getReviews': result = await getReviews(DB, payload); break
+      case 'addPublicReview': result = await addReview(DB, payload); break
       case 'addReview': {
-        const r = await addReview(DB, payload)
-        if (r.code === 0 && r.data && r.data.id && !r.data._id) r.data._id = r.data.id
-        return r
+        result = await addReview(DB, payload)
+        if (result.code === 0 && result.data && result.data.id && !result.data._id) result.data._id = result.data.id
+        break
       }
-      case 'deleteReview': return await deleteReview(DB, payload)
-      case 'seedReviews': return await seedReviews(DB)
-      case 'createSubmission': return await createSubmission(DB, payload)
-      case 'getSubmissions': return await getSubmissions(DB)
-      case 'updateSubmissionStatus': return await updateSubmissionStatus(DB, payload)
-      case 'deleteSubmission': return await deleteSubmission(DB, payload)
-      default: return { code: -1, message: '未知操作' }
+      case 'deleteReview': result = await deleteReview(DB, payload); break
+      case 'seedReviews': result = await seedReviews(DB); break
+      case 'createSubmission': result = await createSubmission(DB, payload); break
+      case 'getSubmissions': result = await getSubmissions(DB); break
+      case 'updateSubmissionStatus': result = await updateSubmissionStatus(DB, payload); break
+      case 'deleteSubmission': result = await deleteSubmission(DB, payload); break
+      default: result = { code: -1, message: '未知操作' }
     }
   } catch (e) {
     console.error('[admin]', action, e)
-    return { code: -1, message: '服务暂时不可用，请稍后重试' }
+    result = { code: -1, message: '服务暂时不可用，请稍后重试' }
   }
+  // 管理写操作 / 登录审计
+  if (action === 'login' || ADMIN_WRITE_ACTIONS.has(action)) {
+    await logSecurityEvent(DB, {
+      ip, action, result: result.code === 0 ? 'ok' : 'fail', keyFingerprint: await sha256Fingerprint(adminKey),
+    })
+  }
+  return result
 }
 
-export async function handlePublic(env, action, payload = {}) {
+export async function handlePublic(env, action, payload = {}, request = null) {
   const DB = env.DB
   if (!DB) return { code: -1, message: '未配置 D1 数据库绑定' }
   if (!PUBLIC_ACTIONS.has(action)) return { code: -1, message: '未知操作（public 仅支持公开接口）' }
-  const ip = 'unknown'
+  const ip = getClientIp(request)
   if (['createOrder', 'createSubmission', 'addPublicReview'].includes(action)) {
-    const r = ratePublicWrite(ip); if (r) return r
+    const r = await checkRate(DB, `rate:write:${ip}`, RATE_PUBLIC_WRITE.windowMs, RATE_PUBLIC_WRITE.max)
+    if (r) return r
   }
   try {
     switch (action) {

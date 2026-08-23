@@ -27,6 +27,7 @@ export default function AdminPage() {
   const [ordersLoading, setOrdersLoading] = useState(false)
   const [seeding, setSeeding] = useState(false)
   const [seedMsg, setSeedMsg] = useState('')
+  const [productsError, setProductsError] = useState('')
 
   const prevOrderIds = useRef<Set<string>>(new Set())
   const orderTimer = useRef<number | null>(null)
@@ -39,8 +40,15 @@ export default function AdminPage() {
   }, [])
 
   const loadProducts = useCallback(async () => {
-    const prods = await getAdminProducts()
-    setProducts(prods)
+    try {
+      const prods = await getAdminProducts()
+      setProducts(prods)
+      setProductsError('')
+    } catch (e) {
+      // 管理端读取失败显式报错，不静默回退本地（掩盖后端故障）
+      setProducts([])
+      setProductsError(e instanceof Error ? e.message : '获取商品列表失败，请检查后端服务')
+    }
   }, [])
 
   const loadOrders = useCallback(async () => {
@@ -174,7 +182,16 @@ export default function AdminPage() {
       {/* Tab 内容 - 带入场动画 */}
       <div key={tab} className="animate-fade-in-up">
         {tab === 'dashboard' && <DashboardTab orders={orders} products={products} reviews={reviews} />}
-        {tab === 'products' && <ProductsTab products={products} categories={categories} onDataChange={loadProducts} />}
+        {tab === 'products' && (
+          <>
+            {productsError && (
+              <div className="mb-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3">
+                ⚠️ 商品数据加载失败：{productsError}
+              </div>
+            )}
+            <ProductsTab products={products} categories={categories} onDataChange={loadProducts} />
+          </>
+        )}
         {tab === 'orders' && <OrdersTab orders={orders} onOrdersChange={setOrders} loading={ordersLoading} />}
         {tab === 'submissions' && <SubmissionsTab />}
         {tab === 'reviews' && <ReviewsTab />}

@@ -12,18 +12,14 @@
     "test": "vitest run",
     "smoke": "node scripts/smoke-deploy.mjs",
     "preview": "vite preview",
-    "scan:secrets": "node scripts/scan-secrets.mjs",
-    "predeploy": "node -e \"const fs=require('fs');const s='cloudfunctions/shared.js';fs.copyFileSync(s,'cloudfunctions/admin-api/shared.js');fs.copyFileSync(s,'cloudfunctions/public-api/shared.js');console.log('shared.js copied to both functions')\""
+    "scan:secrets": "node scripts/scan-secrets.mjs"
   },
   "dependencies": {
-    "@cloudbase/js-sdk": "^3.6.4",
-    "@cloudbase/node-sdk": "^3.18.3",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router-dom": "^7.18.1"
   },
   "devDependencies": {
-    "@cloudbase/cli": "^3.6.4",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",

@@ -2,9 +2,13 @@ name = "supermarket-web"
 compatibility_date = "2024-09-23"
 pages_build_output_dir = "dist"
 
-# 管理后台密钥（生产环境建议改用 wrangler secret put ADMIN_KEY）
+# 注意：管理密钥 ADMIN_KEY 不写入本文件（避免明文入库）。
+# 生产：Cloudflare Dashboard → Pages 项目 → Settings → Variables and Secrets 添加 secret 型变量 ADMIN_KEY
+#       或命令：wrangler pages secret put ADMIN_KEY --project-name=supermarket-web
+# 本地开发：.dev.vars（已被 .gitignore 忽略）
 [vars]
-ADMIN_KEY = "REDACTED"
+# 可追加的 CORS 白名单源（逗号分隔，可选；默认已含 pages.dev 与 github.io）
+ALLOWED_ORIGINS = ""
 
 # D1 数据库绑定（后端存储，替代原 CloudBase 文档库）
 [[d1_databases]]

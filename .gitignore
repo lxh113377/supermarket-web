@@ -20,6 +20,8 @@ dist-ssr
 .env.local
 .env.*.local
 cloudbaserc.json
+.dev.vars
+.dev.vars.*
 
 # Editor directories and files
 .vscode/*
