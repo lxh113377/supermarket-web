@@ -19,7 +19,7 @@ export async function getCategories(): Promise<Category[]> {
     }
     throw new Error(result.message || 'empty')
   } catch (e) {
-    console.warn('[db] getPublicCategories failed, using local fallback:', e instanceof Error ? e.message : String(e))
+    console.warn('[db] getPublicCategories 云端失败，已回退本地缓存数据（可能过期）:', e instanceof Error ? e.message : String(e))
     return getLocalCategories()
   }
 }
@@ -38,7 +38,7 @@ export async function getProducts(): Promise<Product[]> {
     }
     throw new Error(result.message || 'empty')
   } catch (e) {
-    console.warn('[db] getPublicProducts failed, using local fallback:', e instanceof Error ? e.message : String(e))
+    console.warn('[db] getPublicProducts 云端失败，已回退本地缓存数据（可能过期）:', e instanceof Error ? e.message : String(e))
     return getLocalProducts().filter((p) => p.enabled !== false)
   }
 }

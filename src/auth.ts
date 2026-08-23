@@ -8,23 +8,20 @@ import {
 } from './localStore'
 import type { ApiResult, Order } from './types'
 
-// 管理后台鉴权：直接 HTTP 直调云函数（绕过 SDK callFunction 在浏览器端的鉴权/CORS 问题）。
-// 走 CloudBase 云函数 HTTP 访问服务 /web 端点；请求体即 event（部分触发会把 body 包成字符串，云函数已兼容）。
+// 管理后台鉴权：直接 HTTP 直调 Cloudflare Pages Functions（/web 端点），不再依赖云函数 SDK。
 const ADMIN_KEY_STORAGE = 'sm_admin_key'
 
-// 公开接口走独立函数（部署后在 CloudBase 控制台配置 HTTP 访问服务路径）
+// 公开接口走 /pub 端点（Pages Functions 独立路由）
 const PUBLIC_ACTIONS = ['createOrder', 'getReviews', 'createSubmission', 'addPublicReview', 'getPublicProducts', 'getPublicCategories']
 
 function getApiBase(action: string): string {
-  // 公开接口优先走 public-api（如果配置了）
+  // 公开接口优先走 /pub 端点（如果配置了）
   if (PUBLIC_ACTIONS.includes(action) && import.meta.env.VITE_CB_PUBLIC_API_BASE) {
     return import.meta.env.VITE_CB_PUBLIC_API_BASE
   }
-  // 管理接口 / 未配置公开端点时走 admin-api
+  // 管理接口 / 未配置公开端点时走 /web 端点
   if (import.meta.env.VITE_CB_API_BASE) return import.meta.env.VITE_CB_API_BASE
-  // 未配置则显式返回空，由 callAdminApi 抛明确错误。
-  // （已删除旧 envId 兜底域名：tcb-api.tencentcloud.com 并非 HTTP 访问服务端点，
-  //  拼出来的 URL 永远不通，纯属误导。）
+  // 未配置则显式返回空，由 callAdminApi 抛明确错误（不再拼任何兜底域名，避免误导）
   return ''
 }
 
@@ -39,7 +36,7 @@ function getCachedKey(): string {
 // 统一的云函数 HTTP 调用（不依赖 SDK 鉴权）
 async function callAdminApi(action: string, adminKey: string, payload: Record<string, unknown>): Promise<ApiResult<any>> {
   const url = getApiBase(action)
-  if (!url) throw new Error('未配置云函数地址（VITE_CB_API_BASE / VITE_CB_PUBLIC_API_BASE），无法连接云函数')
+  if (!url) throw new Error('未配置接口地址（VITE_CB_API_BASE / VITE_CB_PUBLIC_API_BASE），无法连接后端')
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 15000)
   try {
@@ -64,7 +61,10 @@ async function callAdminApi(action: string, adminKey: string, payload: Record<st
 
 // 登录：校验密钥，成功则缓存到会话
 export async function loginAdmin(key: string): Promise<boolean> {
-  if (!IS_CLOUD) return true
+  if (!IS_CLOUD) {
+    console.warn('[auth] 未配置 VITE_CB_API_BASE，进入本地演示模式：管理登录/操作不入库')
+    return true
+  }
   const data = await callAdminApi('login', key, {})
   if (data.code === 0) {
     try {

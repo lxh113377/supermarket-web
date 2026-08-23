@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const file = path.resolve(__dirname, '../src/data/products-seed.ts')
-let src = fs.readFileSync(file, 'utf8')
+const src = fs.readFileSync(file, 'utf8')
   .replace(/^\s*import type .*$/m, '')
   .replace(/export const/g, 'const')
   .replace(/: Category\[\]/g, '')

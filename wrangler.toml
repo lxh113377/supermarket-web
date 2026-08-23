@@ -15,3 +15,8 @@ ALLOWED_ORIGINS = ""
 binding = "DB"
 database_name = "supermarket"
 database_id = "4bfc0283-d307-4285-9f02-dc230cfe4f5c"
+
+# Workers KV 命名空间：限流计数（跨实例、可故障转移，消除限流与业务共用 D1 的单点；R3）
+[[kv_namespaces]]
+binding = "RATE_KV"
+id = "47242e458b0e4922b0238f87e472f0d1"

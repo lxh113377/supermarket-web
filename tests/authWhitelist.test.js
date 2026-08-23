@@ -12,8 +12,8 @@ import {
   pickReviewFields, REVIEW_FIELDS,
   pickSubmissionFields, SUBMISSION_FIELDS,
 } from '../src/auth'
-// 服务端白名单常量（CJS，default 导入即 module.exports），用于客户端↔服务端一致性校验
-import shared from '../cloudfunctions/shared'
+// 服务端白名单常量（ESM 具名导出，位于 functions/lib/shared.js，随迁移自旧 cloudfunctions/ 迁出），用于客户端↔服务端一致性校验
+import * as shared from '../functions/lib/shared'
 
 describe('auth.js pickProductFields 字段白名单（客户端）', () => {
   it('只保留白名单字段，丢弃恶意注入字段', () => {

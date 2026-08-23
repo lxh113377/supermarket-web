@@ -1,12 +1,11 @@
 import { describe, it, expect } from 'vitest'
 
-// 测试云函数共享模块的纯逻辑部分
-// 注意：需要先将 shared.js 复制到可 import 的位置，或直接引用
+// 测试云函数共享模块的纯逻辑部分（现位于 functions/lib/shared.js，随 CloudBase→Pages Functions 迁移迁出旧 cloudfunctions/ 目录）
 const {
   normalizeEvent,
   createRateLimiter,
   getClientIp,
-} = await import('../cloudfunctions/shared')
+} = await import('../functions/lib/shared')
 
 describe('shared - normalizeEvent', () => {
   it('直接对象原样返回', () => {

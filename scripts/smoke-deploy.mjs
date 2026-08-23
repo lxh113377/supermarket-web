@@ -14,9 +14,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(__dirname, '..')
 
 const DEFAULTS = {
-  staticBase: 'https://chaoshi-d2g5xfkao100010ef-1458054906.tcloudbaseapp.com',
-  apiBase: 'https://chaoshi-d2g5xfkao100010ef-1458054906.ap-shanghai.app.tcloudbase.com/web',
-  pubBase: 'https://chaoshi-d2g5xfkao100010ef-1458054906.ap-shanghai.app.tcloudbase.com/pub',
+  staticBase: 'https://supermarket-web.pages.dev',
+  apiBase: 'https://supermarket-web.pages.dev/web',
+  pubBase: 'https://supermarket-web.pages.dev/pub',
 }
 
 function readDotEnv(key) {

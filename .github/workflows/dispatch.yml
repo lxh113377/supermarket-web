@@ -1,0 +1,33 @@
+name: Dispatch deploy to github.io
+
+# 微倈顾客端双发（R5 修复）：main 合并后向 lxh113377.github.io 的 Actions 部署发 event，
+# github.io 仓库的 deploy.yml（repository_dispatch: supermarket-deploy）会 checkout 本仓库源码
+# 重新构建并用 deploy-pages 发布（Pages 源=GitHub Actions）。
+#
+# 前置：需在仓库 Secrets 配置 GH_DISPATCH_TOKEN（PAT，repo 权限，能对 lxh113377.github.io
+#       create repository_dispatch）。缺该 secret 时本 job 会失败（skipped 显示）。
+
+name: Dispatch supermarket-web to github.io
+on:
+  push:
+    branches: [main]
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch deploy event to github.io
+        uses: actions/github-script@v7
+        env:
+          DISPATCH_TOKEN: ${{ secrets.GH_DISPATCH_TOKEN }}
+        with:
+          github-token: ${{ secrets.GH_DISPATCH_TOKEN }}
+          script: |
+            if (!process.env.DISPATCH_TOKEN) {
+              core.setFailed('missing secret GH_DISPATCH_TOKEN (repo-scoped PAT for lxh113377.github.io)')
+            }
+            await github.rest.repos.createDispatchEvent({
+              owner: 'lxh113377',
+              repo: 'lxh113377.github.io',
+              event_type: 'supermarket-deploy',
+              client_payload: { ref: context.sha }
+            })

@@ -66,31 +66,7 @@ export function fileExt(type: string): string {
   return 'jpg'
 }
 
-export function isFileID(src: string): boolean {
-  return typeof src === 'string' && src.startsWith('cloud://')
-}
-
-// ---- 临时 URL 会话缓存（TTL 90 分钟，短于临时 URL 有效期）----
-const TEMP_URL_TTL = 90 * 60 * 1000
-const tempUrlCache = new Map<string, { url: string; expiresAt: number }>()
-
-export function getCachedTempUrl(fileID: string, now = Date.now()): string | null {
-  const hit = tempUrlCache.get(fileID)
-  if (hit && hit.expiresAt > now) return hit.url
-  if (hit) tempUrlCache.delete(fileID)
-  return null
-}
-
-export function clearTempUrlCache(): void {
-  tempUrlCache.clear()
-}
-
-export interface ResolvedFile {
-  fileID: string
-  tempFileURL: string
-}
-
-// 评价图片走 base64 dataURL：前端直接渲染，无需云端解析
+// 评价图片走 base64 dataURL：前端直接渲染，无需云端解析（cloud:// 临时 URL 机制已随迁移废弃）
 export async function resolveReviewImages(images: string[]): Promise<string[]> {
   return images
 }

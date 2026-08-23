@@ -84,7 +84,6 @@ function constantTimeEqual(a, b) {
 }
 
 const PRODUCT_FIELDS = ['name', 'spec', 'price', 'costPrice', 'subcategories', 'enabled', 'order', 'image', 'images', 'description', 'reviews']
-const ORDER_FIELDS = ['roomNumber', 'items', 'totalAmount', 'status', 'createdAt', 'updatedAt', 'wechat', 'remark', 'paymentScreenshot']
 const REVIEW_FIELDS = ['productOrder', 'user', 'rating', 'text', 'images']
 const SUBMISSION_FIELDS = ['serviceId', 'serviceName', 'categoryId', 'categoryName', 'formData', 'images']
 
@@ -102,8 +101,27 @@ async function insert(DB, table, doc) {
   return doc._id
 }
 
-// ---------- 限流（D1 持久计数，跨实例有效；bucket = rate:{action}:{ip}）----------
-async function checkRate(DB, key, windowMs, max) {
+// ---------- 限流（优先 Workers KV：跨实例、可故障转移，消除限流与业务共用 D1 的单点）----------
+// RATE_KV 未绑定（本地 mock / 未配置）时回退 D1 rate_limits 表，保证契约与回滚兼容。
+async function checkRateKV(kv, key, windowMs, max) {
+  const t = Date.now()
+  const raw = await kv.get(key)
+  let rec = null
+  if (raw) {
+    try { rec = JSON.parse(raw) } catch { rec = null }
+  }
+  const valid = rec && typeof rec.count === 'number' && t <= rec.resetAt
+  if (!valid) {
+    await kv.put(key, JSON.stringify({ count: 1, resetAt: t + windowMs }), { expirationTtl: Math.ceil(windowMs / 1000) })
+    return null
+  }
+  if (rec.count >= max) return { code: -1, message: '操作过于频繁，请稍后再试' }
+  const ttl = Math.max(1, Math.ceil((rec.resetAt - t) / 1000))
+  await kv.put(key, JSON.stringify({ count: rec.count + 1, resetAt: rec.resetAt }), { expirationTtl: ttl })
+  return null
+}
+
+async function checkRateDB(DB, key, windowMs, max) {
   if (!DB) return null
   const t = Date.now()
   const row = await qFirst(DB, `SELECT count, resetAt FROM rate_limits WHERE bucket = ?`, [key])
@@ -117,6 +135,19 @@ async function checkRate(DB, key, windowMs, max) {
   if (row.count >= max) return { code: -1, message: '操作过于频繁，请稍后再试' }
   await qRun(DB, `UPDATE rate_limits SET count = count + 1 WHERE bucket = ?`, [key])
   return null
+}
+
+async function checkRate(DB, kv, key, windowMs, max) {
+  if (kv && typeof kv.get === 'function' && typeof kv.put === 'function') {
+    try {
+      return await checkRateKV(kv, key, windowMs, max)
+    } catch (e) {
+      // KV 限流失败（偶发瞬时异常）时优雅回退 D1，避免 1101 影响业务可用性
+      console.error('[rate] KV 限流失败，回退 D1:', e)
+      return checkRateDB(DB, key, windowMs, max)
+    }
+  }
+  return checkRateDB(DB, key, windowMs, max)
 }
 
 const RATE_LOGIN = { windowMs: 60000, max: 5 }
@@ -190,10 +221,17 @@ function checkPublicText(text, maxLen) {
 }
 
 // ---------- 鉴权 ----------
+// 双密钥：ADMIN_KEY=全权限；可选 ADMIN_READONLY_KEY=只读（未配置时行为与单密钥完全一致）。
+function resolveRole(adminKey, env) {
+  if (env.ADMIN_KEY && constantTimeEqual(adminKey, env.ADMIN_KEY)) return 'admin'
+  if (env.ADMIN_READONLY_KEY && constantTimeEqual(adminKey, env.ADMIN_READONLY_KEY)) return 'readonly'
+  return null
+}
+
 function checkAuth(action, adminKey, env) {
   if (PUBLIC_ACTIONS.has(action)) return null
   // 统一错误回显，不泄露"未配置 ADMIN_KEY"等部署态信息
-  if (!env.ADMIN_KEY || !constantTimeEqual(adminKey, env.ADMIN_KEY)) return { code: -1, message: '认证失败' }
+  if (!resolveRole(adminKey, env)) return { code: -1, message: '认证失败' }
   return null
 }
 
@@ -270,7 +308,7 @@ async function addReview(DB, payload) {
   for (const img of cleanImages) {
     if (img.length > 2 * 1024 * 1024) return { code: -1, message: '图片过大或格式无效' }
   }
-  // UGC 内容校验：长度上限 + 基础注入关键词
+  // UGC 内容校验：长度上限 + 基础黑名单拦截（纵深防御的一种；最终 HTML 注入防线依赖渲染端 React 转义）
   if (!checkPublicText(clean.text, 500)) return { code: -1, message: '评价内容无效' }
   const doc = {
     _id: genId('r_'), productOrder: Number(clean.productOrder),
@@ -522,7 +560,7 @@ export async function handleAdmin(env, action, adminKey, payload = {}, request =
   const ip = getClientIp(request)
   // 登录限流必须在鉴权之前：无论密钥对错都计数，才能真正防暴力破解
   if (action === 'login') {
-    const r = await checkRate(DB, `rate:login:${ip}`, RATE_LOGIN.windowMs, RATE_LOGIN.max)
+    const r = await checkRate(DB, env.RATE_KV, `rate:login:${ip}`, RATE_LOGIN.windowMs, RATE_LOGIN.max)
     if (r) return r
   }
   const authErr = checkAuth(action, adminKey, env)
@@ -533,17 +571,21 @@ export async function handleAdmin(env, action, adminKey, payload = {}, request =
     }
     return authErr
   }
+  // 权限细分：只读密钥禁止管理写操作
+  const role = resolveRole(adminKey, env)
+  if (role === 'readonly' && ADMIN_WRITE_ACTIONS.has(action)) {
+    return { code: -1, message: '只读账号不能执行该操作' }
+  }
 
   let result
   try {
     switch (action) {
       case 'login': {
-        if (!constantTimeEqual(adminKey, env.ADMIN_KEY)) result = { code: -1, message: '认证失败' }
-        else result = { code: 0 }
+        result = { code: 0, role }
         break
       }
       case 'verifyKey':
-        result = { code: 0 }
+        result = { code: 0, role }
         break
       case 'getProducts': result = await getProducts(DB); break
       case 'createProduct': result = await createProduct(DB, payload); break
@@ -592,7 +634,7 @@ export async function handlePublic(env, action, payload = {}, request = null) {
   if (!PUBLIC_ACTIONS.has(action)) return { code: -1, message: '未知操作（public 仅支持公开接口）' }
   const ip = getClientIp(request)
   if (['createOrder', 'createSubmission', 'addPublicReview'].includes(action)) {
-    const r = await checkRate(DB, `rate:write:${ip}`, RATE_PUBLIC_WRITE.windowMs, RATE_PUBLIC_WRITE.max)
+    const r = await checkRate(DB, env.RATE_KV, `rate:write:${ip}`, RATE_PUBLIC_WRITE.windowMs, RATE_PUBLIC_WRITE.max)
     if (r) return r
   }
   try {
@@ -610,3 +652,5 @@ export async function handlePublic(env, action, payload = {}, request = null) {
     return { code: -1, message: '服务暂时不可用，请稍后重试' }
   }
 }
+
+export { checkRate, checkRateKV }
