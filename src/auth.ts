@@ -34,7 +34,7 @@ function getCachedKey(): string {
 }
 
 // 统一的云函数 HTTP 调用（不依赖 SDK 鉴权）
-async function callAdminApi(action: string, adminKey: string, payload: Record<string, unknown>): Promise<ApiResult<any>> {
+async function callAdminApi<T = unknown>(action: string, adminKey: string, payload: Record<string, unknown>): Promise<ApiResult<T>> {
   const url = getApiBase(action)
   if (!url) throw new Error('未配置接口地址（VITE_CB_API_BASE / VITE_CB_PUBLIC_API_BASE），无法连接后端')
   const controller = new AbortController()
@@ -50,7 +50,8 @@ async function callAdminApi(action: string, adminKey: string, payload: Record<st
     if (typeof data.code !== 'number') {
       throw new Error('云函数返回异常（可能网络不可达或跨域被拦截）')
     }
-    return data
+    // 平台边界断言收敛到一处：data 来自远端 JSON，业务侧用泛型 T 声明期望形状
+    return data as ApiResult<T>
   } catch (e) {
     if (e instanceof Error && e.name === 'AbortError') throw new Error('请求超时，请检查网络后重试')
     throw e
@@ -77,14 +78,14 @@ export async function loginAdmin(key: string): Promise<boolean> {
 }
 
 // 管理写操作：每次带上缓存的密钥
-export async function adminCall(action: string, payload: Record<string, unknown> = {}): Promise<ApiResult<any>> {
-  const data = await callAdminApi(action, getCachedKey(), payload)
+export async function adminCall<T = unknown>(action: string, payload: Record<string, unknown> = {}): Promise<ApiResult<T>> {
+  const data = await callAdminApi<T>(action, getCachedKey(), payload)
   return data
 }
 
 // 公开接口（顾客端免密钥，走 /pub 端点）
-export async function publicCall(action: string, payload: Record<string, unknown> = {}): Promise<ApiResult<any>> {
-  const data = await callAdminApi(action, '', payload)
+export async function publicCall<T = unknown>(action: string, payload: Record<string, unknown> = {}): Promise<ApiResult<T>> {
+  const data = await callAdminApi<T>(action, '', payload)
   return data
 }
 
@@ -155,7 +156,15 @@ async function withCatalogInvalidation<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
-export async function updateProduct(productId: string, data: Record<string, unknown>): Promise<ApiResult<any> | { ok: true }> {
+// 批量商品操作结果（与 backend.js batchUpdateProducts/batchDeleteProducts 返回对齐）
+export interface BatchMutationResult {
+  updated?: number
+  deleted?: number
+  failed: Array<{ id: string; message: string }>
+  total: number
+}
+
+export async function updateProduct(productId: string, data: Record<string, unknown>): Promise<ApiResult<unknown> | { ok: true }> {
   if (!IS_CLOUD) {
     upsertLocalProduct({ _id: productId, ...pickProductFields(data) })
     return { ok: true }
@@ -165,7 +174,7 @@ export async function updateProduct(productId: string, data: Record<string, unkn
   )
 }
 
-export async function createProduct(data: Record<string, unknown>): Promise<ApiResult<any> | { ok: true; _id: string }> {
+export async function createProduct(data: Record<string, unknown>): Promise<ApiResult<unknown> | { ok: true; _id: string }> {
   const clean = pickProductFields(data)
   if (!IS_CLOUD) {
     const id = 'p_' + Date.now()
@@ -175,7 +184,7 @@ export async function createProduct(data: Record<string, unknown>): Promise<ApiR
   return withCatalogInvalidation(() => adminCall('createProduct', clean))
 }
 
-export async function deleteProduct(productId: string): Promise<ApiResult<any> | { ok: true }> {
+export async function deleteProduct(productId: string): Promise<ApiResult<unknown> | { ok: true }> {
   if (!IS_CLOUD) {
     deleteLocalProduct(productId)
     return { ok: true }
@@ -184,24 +193,24 @@ export async function deleteProduct(productId: string): Promise<ApiResult<any> |
 }
 
 // 批量商品更新（items 逐条更新，支持每组不同 updates）；返回服务端成功/失败明细
-export async function batchUpdateProducts(items: { productId: string; updates: Record<string, unknown> }[]): Promise<ApiResult<any> | { ok: true }> {
+export async function batchUpdateProducts(items: { productId: string; updates: Record<string, unknown> }[]): Promise<ApiResult<BatchMutationResult> | { ok: true }> {
   if (!IS_CLOUD) {
     for (const it of items) upsertLocalProduct({ _id: it.productId, ...pickProductFields(it.updates) })
     return { ok: true }
   }
-  return withCatalogInvalidation(() => adminCall('batchUpdateProducts', { items }))
+  return withCatalogInvalidation(() => adminCall<BatchMutationResult>('batchUpdateProducts', { items }))
 }
 
 // 批量删除商品；返回服务端成功/失败明细
-export async function batchDeleteProducts(productIds: string[]): Promise<ApiResult<any> | { ok: true }> {
+export async function batchDeleteProducts(productIds: string[]): Promise<ApiResult<BatchMutationResult> | { ok: true }> {
   if (!IS_CLOUD) {
     for (const id of productIds) deleteLocalProduct(id)
     return { ok: true }
   }
-  return withCatalogInvalidation(() => adminCall('batchDeleteProducts', { productIds }))
+  return withCatalogInvalidation(() => adminCall<BatchMutationResult>('batchDeleteProducts', { productIds }))
 }
 
-export async function updateOrderStatus(orderId: string, status: string): Promise<ApiResult<any> | { ok: true }> {
+export async function updateOrderStatus(orderId: string, status: string): Promise<ApiResult<unknown> | { ok: true }> {
   if (!IS_CLOUD) {
     updateLocalOrderStatus(orderId, status as Order['status'])
     return { ok: true }
@@ -209,7 +218,7 @@ export async function updateOrderStatus(orderId: string, status: string): Promis
   return adminCall('updateOrderStatus', { orderId, status })
 }
 
-export async function deleteOrder(orderId: string): Promise<ApiResult<any> | { ok: true }> {
+export async function deleteOrder(orderId: string): Promise<ApiResult<unknown> | { ok: true }> {
   if (!IS_CLOUD) {
     deleteLocalOrder(orderId)
     return { ok: true }

@@ -55,7 +55,7 @@ export default function AssistantPage() {
     setMessages((prev) => [...prev, userMsg])
     setPending(true)
     try {
-      const data = await publicCall('aiChat', { question, conversationId: getConvoId() })
+      const data = await publicCall<{ content: string; source: string; conversationId?: string }>('aiChat', { question, conversationId: getConvoId() })
       if (data.code === 0 && data.data) {
         const content = String(data.data.content || '').trim()
         // 降级铁律（F38）：source=dify-error 时后端已回脱敏文案，前端直接展示降级提示
