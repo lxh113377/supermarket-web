@@ -7,7 +7,6 @@ name: Dispatch deploy to github.io
 # 前置：需在仓库 Secrets 配置 GH_DISPATCH_TOKEN（PAT，repo 权限，能对 lxh113377.github.io
 #       create repository_dispatch）。缺该 secret 时本 job 会失败（skipped 显示）。
 
-name: Dispatch supermarket-web to github.io
 on:
   push:
     branches: [main]
