@@ -12,7 +12,7 @@ import type { ApiResult, Order } from './types'
 const ADMIN_KEY_STORAGE = 'sm_admin_key'
 
 // 公开接口走 /pub 端点（Pages Functions 独立路由）
-const PUBLIC_ACTIONS = ['createOrder', 'getReviews', 'createSubmission', 'addPublicReview', 'getPublicProducts', 'getPublicCategories']
+const PUBLIC_ACTIONS = ['createOrder', 'getReviews', 'createSubmission', 'addPublicReview', 'getPublicProducts', 'getPublicCategories', 'aiChat']
 
 function getApiBase(action: string): string {
   // 公开接口优先走 /pub 端点（如果配置了）
@@ -79,6 +79,12 @@ export async function loginAdmin(key: string): Promise<boolean> {
 // 管理写操作：每次带上缓存的密钥
 export async function adminCall(action: string, payload: Record<string, unknown> = {}): Promise<ApiResult<any>> {
   const data = await callAdminApi(action, getCachedKey(), payload)
+  return data
+}
+
+// 公开接口（顾客端免密钥，走 /pub 端点）
+export async function publicCall(action: string, payload: Record<string, unknown> = {}): Promise<ApiResult<any>> {
+  const data = await callAdminApi(action, '', payload)
   return data
 }
 

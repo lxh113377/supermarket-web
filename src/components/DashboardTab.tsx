@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import type { Order, Product, Review } from '../types'
+import { adminCall } from '../auth'
 import { IconChart, IconBox } from './Icons'
 
 // ⚠ react(only-export-components) 警告为既有模式：纯函数导出供 vitest 直测（dashboard.test.ts）
@@ -498,19 +499,13 @@ export default function DashboardTab({ orders, products, reviews }: {
     }
   }, [rangeData, pieSegments, topRevenue, reviewTrend, rangeDays, reducedMotion])
 
-  // ---- AI 经营建议（/web aiAdvice） ----
+  // ---- AI 经营建议（/web aiAdvice，复用 adminCall 会话密钥） ----
   const loadAdvice = async () => {
     if (aiLoading) return
     setAiLoading(true)
     setAiStatus('loading')
     try {
-      const adminKey = (typeof window !== 'undefined' && window.localStorage.getItem('adminKey')) || ''
-      const res = await fetch('/web', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'fetch' },
-        body: JSON.stringify({ action: 'aiAdvice', adminKey, payload: {} }),
-      })
-      const data = await res.json()
+      const data = await adminCall('aiAdvice', {})
       if (data.code === 0 && data.data) {
         setAiAdvice({ content: data.data.content, source: data.data.source })
         setAiStatus('loaded')

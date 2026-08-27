@@ -183,8 +183,8 @@ function suggest(products = []) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 管理端规则版经营建议（基于订单/评价/商品的真实统计）
-export function ruleAdvice({ orders30 = [], reviews = [], products = [] } = {}) {
+// 管理端规则版经营建议（基于订单/评价的真实统计）
+export function ruleAdvice({ orders30 = [], reviews = [] } = {}) {
   // 近 30 天营收与订单
   const revenue30 = orders30.reduce((s, o) => s + (Number(o.totalAmount) || 0), 0)
   const order30 = orders30.length

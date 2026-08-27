@@ -14,6 +14,7 @@ const OrderSuccessPage = lazy(() => import('./pages/OrderSuccessPage'))
 const PaymentPage = lazy(() => import('./pages/PaymentPage'))
 const AdminPage = lazy(() => import('./pages/AdminPage'))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
+const AssistantPage = lazy(() => import('./pages/AssistantPage'))
 
 function RouteLoader() {
   return (
@@ -47,6 +48,7 @@ export default function App() {
           <Route path="/shop" element={<CustomerPage />} />
           <Route path="/product/:id" element={<ProductDetailPage />} />
           <Route path="/cart" element={<CartPage />} />
+          <Route path="/assistant" element={<AssistantPage />} />
           <Route path="/order-confirm" element={<OrderConfirmPage />} />
           <Route path="/order-success" element={<OrderSuccessPage />} />
           <Route path="/payment" element={<PaymentPage />} />

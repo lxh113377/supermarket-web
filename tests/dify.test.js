@@ -95,14 +95,14 @@ describe('ruleAdvice（管理端规则版经营建议）', () => {
   ]
 
   it('近 30 天汇总 + 热销 TOP + 低分提醒', () => {
-    const r = ruleAdvice({ orders30: orders, reviews, products: [] })
+    const r = ruleAdvice({ orders30: orders, reviews })
     expect(r).toContain('近 30 天')
     expect(r).toContain('冰可乐')
     expect(r).toContain('1 条低分评价')
   })
 
   it('无订单时返回引导文案', () => {
-    const r = ruleAdvice({ orders30: [], reviews: [], products: [] })
+    const r = ruleAdvice({ orders30: [], reviews: [] })
     expect(r).toContain('暂无近 30 天订单')
   })
 })
