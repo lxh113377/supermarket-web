@@ -5,6 +5,28 @@ import { cacheGet, cacheSet } from '../catalogCache'
 import { getLocalCategories, getLocalProducts } from '../localStore'
 import type { Category, Product } from '../types'
 
+// 持久目录缓存（localStorage，24h TTL）：内存缓存 60s 之外的第二道兜底。
+// 弱网/离线时 fetch 失败 → 回退此缓存（比 localStore 本地模式更贴近真实数据）。
+const PERSIST_TTL = 24 * 60 * 60 * 1000
+function readPersist<T>(key: string): T[] | null {
+  try {
+    const raw = localStorage.getItem(key)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed.ts !== 'number' || Date.now() - parsed.ts > PERSIST_TTL) return null
+    return Array.isArray(parsed.data) ? parsed.data : null
+  } catch {
+    return null
+  }
+}
+function writePersist(key: string, data: unknown): void {
+  try {
+    localStorage.setItem(key, JSON.stringify({ ts: Date.now(), data }))
+  } catch {
+    // localStorage 不可用（隐私模式/SSR）时静默跳过，不影响主流程
+  }
+}
+
 // 顾客端分类 — 走 HTTP API，不依赖 SDK 匿名登录
 export async function getCategories(): Promise<Category[]> {
   if (!IS_CLOUD) return getLocalCategories()
@@ -15,11 +37,14 @@ export async function getCategories(): Promise<Category[]> {
     const result = await adminCall('getPublicCategories', {})
     if (result.code === 0 && result.data?.length) {
       cacheSet(cacheKey, result.data)
+      writePersist('sm_catalog_categories', result.data)
       return result.data
     }
     throw new Error(result.message || 'empty')
   } catch (e) {
     console.warn('[db] getPublicCategories 云端失败，已回退本地缓存数据（可能过期）:', e instanceof Error ? e.message : String(e))
+    const persisted = readPersist<Category>('sm_catalog_categories')
+    if (persisted) return persisted
     return getLocalCategories()
   }
 }
@@ -34,11 +59,14 @@ export async function getProducts(): Promise<Product[]> {
     const result = await adminCall('getPublicProducts', {})
     if (result.code === 0 && result.data?.length) {
       cacheSet(cacheKey, result.data)
+      writePersist('sm_catalog_products', result.data)
       return result.data as Product[]
     }
     throw new Error(result.message || 'empty')
   } catch (e) {
     console.warn('[db] getPublicProducts 云端失败，已回退本地缓存数据（可能过期）:', e instanceof Error ? e.message : String(e))
+    const persisted = readPersist<Product>('sm_catalog_products')
+    if (persisted) return persisted
     return getLocalProducts().filter((p) => p.enabled !== false)
   }
 }

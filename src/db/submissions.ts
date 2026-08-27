@@ -36,7 +36,7 @@ export async function flushPendingSubmissions(): Promise<void> {
 
 // 网络恢复时自动重试 + 页面加载时补刷离线队列。
 // 抽成显式初始化函数，避免在 import 时产生副作用（测试可控、避免重复注册监听）。
-// 由应用入口 main.jsx 启动时调用一次。
+// 由应用入口 main.tsx 启动时调用一次。
 export function initSubmissionSync(): void {
   if (typeof window === 'undefined') return
   window.addEventListener('online', () => flushPendingSubmissions())

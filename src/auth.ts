@@ -177,6 +177,24 @@ export async function deleteProduct(productId: string): Promise<ApiResult<any> |
   return withCatalogInvalidation(() => adminCall('deleteProduct', { productId }))
 }
 
+// 批量商品更新（items 逐条更新，支持每组不同 updates）；返回服务端成功/失败明细
+export async function batchUpdateProducts(items: { productId: string; updates: Record<string, unknown> }[]): Promise<ApiResult<any> | { ok: true }> {
+  if (!IS_CLOUD) {
+    for (const it of items) upsertLocalProduct({ _id: it.productId, ...pickProductFields(it.updates) })
+    return { ok: true }
+  }
+  return withCatalogInvalidation(() => adminCall('batchUpdateProducts', { items }))
+}
+
+// 批量删除商品；返回服务端成功/失败明细
+export async function batchDeleteProducts(productIds: string[]): Promise<ApiResult<any> | { ok: true }> {
+  if (!IS_CLOUD) {
+    for (const id of productIds) deleteLocalProduct(id)
+    return { ok: true }
+  }
+  return withCatalogInvalidation(() => adminCall('batchDeleteProducts', { productIds }))
+}
+
 export async function updateOrderStatus(orderId: string, status: string): Promise<ApiResult<any> | { ok: true }> {
   if (!IS_CLOUD) {
     updateLocalOrderStatus(orderId, status as Order['status'])
