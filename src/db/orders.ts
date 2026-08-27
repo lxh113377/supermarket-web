@@ -11,9 +11,9 @@ export async function createOrder(order: Record<string, unknown>): Promise<{ id:
     return { id: addLocalOrder(clean)._id, localFallback: true }
   }
   try {
-    const result = await adminCall('createOrder', clean)
+    const result = await adminCall<{ id: string }>('createOrder', clean)
     if (result.code !== 0) throw new Error(result.message || '创建订单失败')
-    return { id: result.data.id }
+    return { id: result.data?.id ?? '' }
   } catch (e) {
     console.warn('[db] cloud createOrder failed, using local fallback:', e instanceof Error ? e.message : String(e))
     return { id: addLocalOrder(clean)._id, localFallback: true }

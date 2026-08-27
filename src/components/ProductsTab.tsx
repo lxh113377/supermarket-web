@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react'
 import { updateProduct, createProduct, deleteProduct, batchUpdateProducts, batchDeleteProducts } from '../auth'
-import type { Category, Product, ApiResult } from '../types'
+import type { Category, Product } from '../types'
 
 interface ProductForm {
   name: string
@@ -212,7 +212,7 @@ export default function ProductsTab({ products, categories, onDataChange }: {
         : await batchUpdateProducts(ids.map(id => ({ productId: id, updates: { enabled: action === 'enable' } })))
       const failed = result && 'data' in result && Array.isArray(result.data?.failed) ? result.data.failed : []
       if (result && 'code' in result && result.code !== 0) {
-        alert(`批量${label}失败：` + ((result as ApiResult<any>).message || '未知错误'))
+        alert(`批量${label}失败：` + (result.message || '未知错误'))
         return
       }
       setSelectedIds(new Set())
@@ -238,7 +238,7 @@ export default function ProductsTab({ products, categories, onDataChange }: {
       const result = await batchUpdateProducts(items)
       const failed = result && 'data' in result && Array.isArray(result.data?.failed) ? result.data.failed : []
       if (result && 'code' in result && result.code !== 0) {
-        showNotice('error', '批量改价失败：' + ((result as ApiResult<any>).message || '未知错误'))
+        showNotice('error', '批量改价失败：' + (result.message || '未知错误'))
         return
       }
       setBatchPrice('')

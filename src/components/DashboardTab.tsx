@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Order, Product, Review } from '../types'
 import { adminCall } from '../auth'
+import { useDashboardCharts } from '../hooks/useDashboardCharts'
 import { IconChart, IconBox } from './Icons'
 
 // ⚠ react(only-export-components) 警告为既有模式：纯函数导出供 vitest 直测（dashboard.test.ts）
@@ -242,15 +243,6 @@ function DeltaBadge({ value, positiveIsGood = true }: { value: number | null; po
 }
 
 // ─────────────────────────────────────────────────────────────
-// ECharts 主题工具（从 CSS 变量读取，消除硬编码色值）
-function cssVar(name: string, fallback: string): string {
-  if (typeof window === 'undefined' || !window.getComputedStyle) return fallback
-  const v = window.getComputedStyle(document.documentElement).getPropertyValue(name).trim()
-  const hex = /^#[0-9a-fA-F]{3,8}$/.test(v) ? v : ''
-  return hex || fallback
-}
-
-// ─────────────────────────────────────────────────────────────
 // 主组件
 const RANGE_OPTIONS = [
   { days: 7, label: '近7天' },
@@ -319,199 +311,16 @@ export default function DashboardTab({ orders, products, reviews }: {
       .slice(0, 10)
   }, [orders])
 
-  // ---- 图表实例（动态引入 echarts，仅管理端 chunk 增重） ----
-  const trendRef = useRef<HTMLDivElement>(null)
-  const reviewRef = useRef<HTMLDivElement>(null)
-  const pieRef = useRef<HTMLDivElement>(null)
-  const topRef = useRef<HTMLDivElement>(null)
-  // 平台边界：echarts 类型来自动态模块，此处放宽为 any（与 cloudbase.ts 边界注释一致的既有约定）
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const echartsRef = useRef<any>(null)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const chartsRef = useRef<Record<string, any>>({})
-  // echarts 就绪标志：动态 import 完成后置 true，驱动 setOption effect 重跑（修复就绪竞态）
-  const [chartsReady, setChartsReady] = useState(false)
-
-  const reducedMotion = useMemo(
-    () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true,
-    [],
-  )
-
-  useEffect(() => {
-    let cancelled = false
-    // P0-1 修复：cleanup 提到 effect 顶层（原写法 return 在 async IIFE 内部 = 无效 cleanup，
-    // resize 监听永不注销、chart 永不 dispose，切 tab 后持续泄漏）
-    const onResize = () => {
-      Object.values(chartsRef.current).forEach((c: { resize: () => void }) => c?.resize())
-    }
-    ;(async () => {
-      // 动态 import：代码分割出 echarts chunk，顾客端 bundle 不混入
-      const echarts = await import('echarts')
-      if (cancelled) return
-      echartsRef.current = echarts
-      const hosts: Array<[React.RefObject<HTMLDivElement | null>, string]> = [
-        [trendRef, 'trend'],
-        [reviewRef, 'review'],
-        [pieRef, 'pie'],
-        [topRef, 'top'],
-      ]
-      for (const [ref, key] of hosts) {
-        if (ref.current) chartsRef.current[key] = echarts.init(ref.current)
-      }
-      window.addEventListener('resize', onResize)
-      // P0-2 修复：就绪后通知 setOption effect 重跑，避免数据先到、echarts 后到时首屏图表空白
-      setChartsReady(true)
-    })()
-    return () => {
-      cancelled = true
-      window.removeEventListener('resize', onResize)
-      Object.values(chartsRef.current).forEach((c: { dispose: () => void }) => c?.dispose())
-      chartsRef.current = {}
-    }
-  }, [])
-
-  // 图表 option 更新（数据/区间/主题联动）
-  useEffect(() => {
-    const echarts = echartsRef.current
-    if (!echarts) return
-    // 条件渲染容器（评价图/TOP条）晚于 mount 出现时，先补建实例再 setOption
-    const ensure = (ref: React.RefObject<HTMLDivElement | null>, key: string) => {
-      if (ref.current && !chartsRef.current[key]) chartsRef.current[key] = echarts.init(ref.current)
-    }
-    ensure(trendRef, 'trend')
-    ensure(reviewRef, 'review')
-    ensure(pieRef, 'pie')
-    ensure(topRef, 'top')
-    const b1 = cssVar('--chart-b1', '#facc15')
-    const b2 = cssVar('--chart-b2', '#14532d')
-    const b3 = cssVar('--chart-b3', '#f97316')
-    const grid = cssVar('--chart-grid', '#f3f4f6')
-    const text = cssVar('--chart-text', '#9ca3af')
-    const noAnim = reducedMotion
-
-    // 近 N 天 营收 ¥ / 订单数 双轴趋势
-    const trend = chartsRef.current.trend
-    if (trend) {
-      trend.setOption({
-        animation: !noAnim,
-        color: [b1, b2],
-        tooltip: { trigger: 'axis' },
-        legend: { data: ['营收', '订单'], right: 0, top: 0, icon: 'circle', itemWidth: 8, itemHeight: 8, textStyle: { color: text, fontSize: 11 } },
-        grid: { left: 8, right: 8, top: 30, bottom: rangeDays >= 90 ? 28 : 0, containLabel: true },
-        xAxis: { type: 'category', data: rangeData.labels, axisLine: { lineStyle: { color: grid } }, axisLabel: { color: text, fontSize: 10 } },
-        yAxis: [
-          { type: 'value', name: '¥', nameTextStyle: { color: text, fontSize: 9 }, axisLabel: { color: text, fontSize: 9 }, splitLine: { lineStyle: { color: grid } } },
-          { type: 'value', name: '单', nameTextStyle: { color: text, fontSize: 9 }, axisLabel: { color: text, fontSize: 9 }, splitLine: { show: false } },
-        ],
-        dataZoom: rangeDays >= 90 ? [{ type: 'inside', start: 0, end: 100 }, { type: 'slider', height: 16, bottom: 2 }] : [],
-        series: [
-          {
-            name: '营收', type: 'line', smooth: true, symbol: 'circle', symbolSize: 4, yAxisIndex: 0,
-            data: rangeData.revenues, lineStyle: { width: 2.5, color: b1 }, itemStyle: { color: b1 },
-            areaStyle: {
-              color: {
-                type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-                colorStops: [
-                  { offset: 0, color: b1 + '3d' },
-                  { offset: 1, color: b1 + '0a' },
-                ],
-              },
-            },
-          },
-          {
-            name: '订单', type: 'line', smooth: true, symbol: 'circle', symbolSize: 4, yAxisIndex: 1,
-            data: rangeData.orderCounts, lineStyle: { width: 2, color: b2 }, itemStyle: { color: b2 },
-          },
-        ],
-      }, true)
-    }
-
-    // 近 14 天评价趋势（单线）
-    const review = chartsRef.current.review
-    if (review) {
-      review.setOption({
-        animation: !noAnim,
-        tooltip: { trigger: 'axis' },
-        grid: { left: 8, right: 8, top: 20, bottom: 4, containLabel: true },
-        xAxis: { type: 'category', data: reviewTrend.labels, axisLine: { lineStyle: { color: grid } }, axisLabel: { color: text, fontSize: 10 } },
-        yAxis: { type: 'value', minInterval: 1, axisLabel: { color: text, fontSize: 9 }, splitLine: { lineStyle: { color: grid } } },
-        series: [
-          {
-            name: '评价', type: 'line', smooth: true, symbol: 'circle', symbolSize: 4,
-            data: reviewTrend.counts, lineStyle: { width: 2.5, color: b2 }, itemStyle: { color: b2 },
-            areaStyle: {
-              color: {
-                type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-                colorStops: [
-                  { offset: 0, color: b2 + '30' },
-                  { offset: 1, color: b2 + '08' },
-                ],
-              },
-            },
-          },
-        ],
-      }, true)
-    }
-
-    // 饮品/食品 环形占比
-    const pie = chartsRef.current.pie
-    if (pie) {
-      pie.setOption({
-        animation: !noAnim,
-        color: [b1, b2],
-        tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
-        legend: { bottom: 0, left: 'center', icon: 'circle', itemWidth: 8, itemHeight: 8, textStyle: { color: text, fontSize: 11 } },
-        series: [
-          {
-            type: 'pie', radius: ['55%', '76%'], center: ['50%', '44%'], padAngle: 3,
-            itemStyle: { borderRadius: 6 }, label: { show: false },
-            data: pieSegments.length ? pieSegments : [],
-          },
-        ],
-        graphic: pieSegments.length ? undefined : [
-          {
-            type: 'text', left: 'center', top: '40%',
-            style: { text: '暂无数据', fill: text, fontSize: 12 },
-          },
-        ],
-      }, true)
-    }
-
-    // 热销 TOP10 横向条形（按营收，前 3 名强调色）
-    const top = chartsRef.current.top
-    if (top) {
-      const names = topRevenue.map((t) => t.name).reverse()
-      const values = topRevenue.map((t) => Math.round(t.revenue)).reverse()
-      top.setOption({
-        animation: !noAnim,
-        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: (params: Array<{ name: string; value: number }>) => `${params[0].name}<br/>营收 ¥${params[0].value}` },
-        grid: { left: 8, right: 48, top: 8, bottom: 4, containLabel: true },
-        xAxis: { type: 'value', axisLabel: { color: text, fontSize: 9 }, splitLine: { lineStyle: { color: grid } } },
-        yAxis: { type: 'category', data: names, axisLine: { lineStyle: { color: grid } }, axisLabel: { color: text, fontSize: 10 } },
-        series: [
-          {
-            type: 'bar', barWidth: 10, data: values,
-            label: { show: true, position: 'right', color: text, fontSize: 9, formatter: '¥{c}' },
-            itemStyle: {
-              borderRadius: [0, 5, 5, 0],
-              color: (p: { dataIndex: number }) => {
-                const rank = topRevenue.length - 1 - p.dataIndex
-                return rank < 3 ? b3 : b1
-              },
-            },
-          },
-        ],
-      }, true)
-    }
-  }, [rangeData, pieSegments, topRevenue, reviewTrend, rangeDays, reducedMotion, chartsReady])
+  // ---- 图表实例与 option 更新（抽到 useDashboardCharts：动态 import/resize/dispose/主题） ----
+  const { trendRef, reviewRef, pieRef, topRef } = useDashboardCharts({ rangeData, pieSegments, topRevenue, reviewTrend, rangeDays })
 
   // ---- AI 经营建议（/web aiAdvice，复用 adminCall 会话密钥） ----
-  const loadAdvice = async () => {
+  const loadAdvice = useCallback(async () => {
     if (aiLoading) return
     setAiLoading(true)
     setAiStatus('loading')
     try {
-      const data = await adminCall('aiAdvice', {})
+      const data = await adminCall<{ content: string; source: string }>('aiAdvice', {})
       if (data.code === 0 && data.data) {
         setAiAdvice({ content: data.data.content, source: data.data.source })
         setAiStatus('loaded')
@@ -523,8 +332,8 @@ export default function DashboardTab({ orders, products, reviews }: {
     } finally {
       setAiLoading(false)
     }
-  }
-  useEffect(() => { loadAdvice() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [aiLoading])
+  useEffect(() => { loadAdvice() }, [loadAdvice])
 
   const kpiRevenue = useCountUp(Math.round(revenueSum))
   const kpiOrders = useCountUp(orderSum)

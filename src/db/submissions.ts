@@ -63,9 +63,9 @@ export async function createSubmission(submission: Record<string, unknown>): Pro
     return { id: record._id }
   }
   try {
-    const result = await adminCall('createSubmission', clean)
+    const result = await adminCall<{ id: string }>('createSubmission', clean)
     if (result.code !== 0) throw new Error(result.message || '提交失败')
-    return { id: result.data?.id }
+    return { id: result.data?.id ?? '' }
   } catch (e) {
     console.warn('[db] cloud createSubmission failed, queuing for retry:', e instanceof Error ? e.message : String(e))
     // 存入离线队列，网络恢复后自动重试
