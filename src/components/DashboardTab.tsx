@@ -333,7 +333,10 @@ export default function DashboardTab({ orders, products, reviews }: {
       setAiLoading(false)
     }
   }, [aiLoading])
-  useEffect(() => { loadAdvice() }, [loadAdvice])
+  // 只在 mount 触发一次：用 ref 持有最新 loadAdvice（避免 deps=[loadAdvice] 时 aiLoading 变化导致无限重跑循环）
+  const loadAdviceRef = useRef(loadAdvice)
+  loadAdviceRef.current = loadAdvice
+  useEffect(() => { loadAdviceRef.current() }, [])
 
   const kpiRevenue = useCountUp(Math.round(revenueSum))
   const kpiOrders = useCountUp(orderSum)
