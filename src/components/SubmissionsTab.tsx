@@ -157,10 +157,22 @@ export default function SubmissionsTab() {
         </div>
       )}
 
-      {/* 图片预览弹窗 */}
+      {/* 图片预览弹窗（P0-12：dialog 语义 + Esc 关闭；P0-17：点图不冒泡关弹窗） */}
       {preview && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setPreview(null)}>
-          <img src={preview} alt="预览" className="max-w-full max-h-[80vh] rounded-xl" />
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="图片预览"
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+          onClick={() => setPreview(null)}
+          onKeyDown={(e) => { if (e.key === 'Escape') setPreview(null) }}
+        >
+          <img
+            src={preview}
+            alt="预览"
+            onClick={(e) => e.stopPropagation()}
+            className="max-w-full max-h-[80vh] rounded-xl"
+          />
         </div>
       )}
     </div>

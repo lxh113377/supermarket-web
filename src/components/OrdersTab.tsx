@@ -10,6 +10,9 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
   const [deleting, setDeleting] = useState<string | null>(null)
+  // P0-4 分页：订单全量渲染在数据量大时卡顿，按页渲染
+  const PAGE_SIZE = 20
+  const [page, setPage] = useState(1)
 
   const filtered = useMemo(() => {
     let list = orders
@@ -20,6 +23,10 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
     }
     return list
   }, [orders, filter, search])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const visible = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const pageOf = (p: number) => Math.min(Math.max(1, p), totalPages)
 
   const handleStatus = async (orderId: string, status: string) => {
     try {
@@ -90,9 +97,9 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
   return (
     <div className="space-y-3">
       <div className="flex gap-2 mb-2 flex-wrap">
-        <input type="text" placeholder="搜索房间号…" value={search} onChange={e => setSearch(e.target.value)}
+        <input type="text" placeholder="搜索房间号…" value={search} onChange={e => { setSearch(e.target.value); setPage(1) }}
           className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm" />
-        <select value={filter} onChange={e => setFilter(e.target.value)}
+        <select value={filter} onChange={e => { setFilter(e.target.value); setPage(1) }}
           className="border border-gray-200 rounded-lg px-2 py-2 text-sm">
           <option value="all">全部</option>
           <option value="pending">待支付</option>
@@ -101,7 +108,7 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
         </select>
         <button onClick={exportCSV} className="px-2.5 py-2 bg-white border border-gray-200 rounded-lg text-xs text-gray-600">CSV</button>
       </div>
-      {filtered.map(order => (
+      {visible.map(order => (
         <div key={order._id} className="bg-white p-3 rounded-lg border border-gray-100">
           <div className="flex justify-between items-center mb-2">
             <span className="text-sm font-bold">房间号：{order.roomNumber}</span>
@@ -134,6 +141,23 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
           </div>
         </div>
       ))}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between pt-1 text-sm">
+          <span className="text-xs text-gray-400">共 {filtered.length} 单 · 第 {page}/{totalPages} 页</span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPage((p) => pageOf(p - 1))}
+              disabled={page <= 1}
+              className="px-2.5 py-1 bg-white border border-gray-200 rounded-lg text-xs text-gray-600 disabled:opacity-40"
+            >上一页</button>
+            <button
+              onClick={() => setPage((p) => pageOf(p + 1))}
+              disabled={page >= totalPages}
+              className="px-2.5 py-1 bg-white border border-gray-200 rounded-lg text-xs text-gray-600 disabled:opacity-40"
+            >下一页</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

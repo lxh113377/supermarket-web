@@ -18,20 +18,27 @@ function savePendingQueue(queue: Record<string, unknown>[]): void {
 }
 
 // 重试离线队列中的提交
+// P1-3：模块级重入锁——'online' 事件与 3s 定时器并发触发时防重复提交队列
+let flushing = false
 export async function flushPendingSubmissions(): Promise<void> {
-  if (!IS_CLOUD) return
-  const queue = getPendingQueue()
-  if (queue.length === 0) return
-  const remaining = []
-  for (const item of queue) {
-    try {
-      const result = await adminCall('createSubmission', item)
-      if (result.code !== 0) remaining.push(item)
-    } catch {
-      remaining.push(item)
+  if (!IS_CLOUD || flushing) return
+  flushing = true
+  try {
+    const queue = getPendingQueue()
+    if (queue.length === 0) return
+    const remaining = []
+    for (const item of queue) {
+      try {
+        const result = await adminCall('createSubmission', item)
+        if (result.code !== 0) remaining.push(item)
+      } catch {
+        remaining.push(item)
+      }
     }
+    savePendingQueue(remaining)
+  } finally {
+    flushing = false
   }
-  savePendingQueue(remaining)
 }
 
 // 网络恢复时自动重试 + 页面加载时补刷离线队列。
@@ -51,7 +58,8 @@ export async function createSubmission(submission: Record<string, unknown>): Pro
     const list = safeParse<Record<string, unknown>[]>(key)
     const record = { ...clean, _id: 'sub_' + Date.now(), status: 'pending' }
     list.unshift(record)
-    localStorage.setItem(key, JSON.stringify(list))
+    // P1-2：与 savePendingQueue 一致的存储容错（隐私模式/超配额不中断提交）
+    try { localStorage.setItem(key, JSON.stringify(list)) } catch {}
     return { id: record._id }
   }
   try {
@@ -69,7 +77,8 @@ export async function createSubmission(submission: Record<string, unknown>): Pro
     const list = safeParse<Record<string, unknown>[]>(key)
     const record = { ...clean, _id: 'sub_' + Date.now(), status: 'pending', _offline: true }
     list.unshift(record)
-    localStorage.setItem(key, JSON.stringify(list))
+    // P1-2：存储容错，不因 localStorage 异常丢失"已离线保存"的结果
+    try { localStorage.setItem(key, JSON.stringify(list)) } catch {}
     return { id: record._id, offline: true }
   }
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { getAllReviews, addCloudReview, deleteCloudReview, getAdminProducts } from '../db'
 import type { Product, Review } from '../types'
 
@@ -43,10 +43,17 @@ export default function ReviewsTab() {
 
   useEffect(() => { load() }, [load])
 
-  // 根据 productOrder 查商品名
+  // 根据 productOrder 查商品名（P0-5：预建 Map，避免列表逐行 find 的 O(n²)）
+  const productNameMap = useMemo(() => {
+    const map = new Map<number | string, string>()
+    for (const p of products) {
+      if (p.order != null) map.set(p.order, `${p.name}${p.spec ? ' ' + p.spec : ''}`)
+    }
+    return map
+  }, [products])
   const getProductName = (order: number | string): string => {
-    const p = products.find(p => p.order === order)
-    return p ? `${p.name}${p.spec ? ' ' + p.spec : ''}` : `#${order}（已下架）`
+    const name = productNameMap.get(order)
+    return name ? name : `#${order}（已下架）`
   }
 
   // 删除评价

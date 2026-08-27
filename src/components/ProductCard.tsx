@@ -24,12 +24,22 @@ export default function ProductCard({ product, quantity, onAdd, onRemove }: Prod
 
   return (
     <div
+      // P0-9：补按钮语义与键盘可达（Enter/Space 进详情），键盘用户可操作商品卡
+      role={disabled ? undefined : 'button'}
+      tabIndex={disabled ? -1 : 0}
+      aria-label={disabled ? undefined : `查看${displayName}详情`}
       className={`flex items-center gap-3 p-3.5 rounded-2xl transition-all duration-300 ${
         disabled
           ? 'bg-gray-50 opacity-50 grayscale border border-gray-100'
-          : 'bg-white border border-gray-100/80 shadow-card hover:shadow-elevated hover:-translate-y-0.5 cursor-pointer active:scale-[0.98]'
+          : 'bg-white border border-gray-100/80 shadow-card hover:shadow-elevated hover:-translate-y-0.5 cursor-pointer active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-brand-500'
       }`}
       onClick={goDetail}
+      onKeyDown={(e) => {
+        if (!disabled && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault()
+          goDetail()
+        }
+      }}
     >
       {/* 商品缩略图 */}
       <div className="w-14 h-14 rounded-xl overflow-hidden bg-gray-50 border border-gray-100/60 shrink-0">

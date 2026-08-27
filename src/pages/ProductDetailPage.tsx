@@ -83,13 +83,18 @@ export default function ProductDetailPage() {
   }, [id])
 
   useEffect(() => {
+    let cancelled = false
     if (product?.order != null) {
       setUserReviews(getLocalProductReviews(product.order) || [])
-      getCloudReviews(product.order).then((revs) => setCloudReviews(revs)).catch(() => setCloudReviews([]))
+      // P0-3 修复：异步请求加取消保护，快速切换商品时旧评价不覆盖新商品
+      getCloudReviews(product.order)
+        .then((revs) => { if (!cancelled) setCloudReviews(revs) })
+        .catch(() => { if (!cancelled) setCloudReviews([]) })
     } else {
       setUserReviews([])
       setCloudReviews([])
     }
+    return () => { cancelled = true }
   }, [product])
 
   if (loading) {

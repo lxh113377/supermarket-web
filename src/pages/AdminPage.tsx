@@ -179,8 +179,8 @@ export default function AdminPage() {
         ))}
       </div>
 
-      {/* Tab 内容 - 带入场动画 */}
-      <div key={tab} className="animate-fade-in-up">
+      {/* Tab 内容 - 带入场动画（P0-6：去掉 key={tab}，避免整块 DOM 强制重挂载） */}
+      <div className="animate-fade-in-up">
         {tab === 'dashboard' && <DashboardTab orders={orders} products={products} reviews={reviews} />}
         {tab === 'products' && (
           <>

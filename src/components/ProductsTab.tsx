@@ -322,13 +322,25 @@ export default function ProductsTab({ products, categories, onDataChange }: {
 
                 <div className="w-11 h-11 rounded-lg overflow-hidden bg-gray-50 border border-gray-100 shrink-0">
                   {imgSrc ? (
-                    <img src={imgSrc} alt="" loading="lazy" className="w-full h-full object-cover" onError={e => { e.currentTarget.style.display = 'none' }} />
+                    <img src={imgSrc} alt={product.name} loading="lazy" className="w-full h-full object-cover" onError={e => { e.currentTarget.style.display = 'none' }} />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-red-300 text-[10px]">无图</div>
                   )}
                 </div>
 
-                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setEditingId(isEditing ? null : product._id)}>
+                <div
+                  className="flex-1 min-w-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-brand-500 rounded"
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`编辑${product.name || '商品'}`}
+                  onClick={() => setEditingId(isEditing ? null : product._id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      setEditingId(isEditing ? null : product._id)
+                    }
+                  }}
+                >
                   <p className={`text-sm font-medium truncate ${product.enabled === false ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
                     {product.name}{product.spec ? ` (${product.spec})` : ''}
                   </p>

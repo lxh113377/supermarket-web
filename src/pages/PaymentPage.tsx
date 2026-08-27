@@ -24,14 +24,19 @@ export default function PaymentPage() {
 
   useEffect(() => {
     if (!orderId || !IS_CLOUD || paid) return
+    let cancelled = false
     const check = async () => {
       try {
         const order = await getOrderById(orderId)
-        if (order?.status === 'paid') setPaid(true)
+        // P0-7：卸载后不再 setState
+        if (!cancelled && order?.status === 'paid') setPaid(true)
       } catch {}
     }
     const timer = setInterval(check, 5000)
-    return () => clearInterval(timer)
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+    }
   }, [orderId, paid])
 
   const qrSrc = method === 'wechat' ? './wechat-pay.png' : './alipay.jpg'
@@ -134,9 +139,15 @@ export default function PaymentPage() {
         </div>
       )}
 
-      {/* 支付宝温馨提示弹窗 */}
+      {/* 支付宝温馨提示弹窗（P0-12：补 dialog 语义 + Esc 关闭） */}
       {showTip && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-5 animate-fade-in">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="温馨提示"
+          onKeyDown={(e) => { if (e.key === 'Escape') setShowTip(false) }}
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-5 animate-fade-in"
+        >
           <div className="bg-white rounded-3xl p-7 max-w-sm w-full shadow-float animate-scale-in">
             <div className="text-center">
               <span className="text-4xl block mb-3">💡</span>
@@ -145,6 +156,7 @@ export default function PaymentPage() {
             </div>
             <button
               onClick={() => setShowTip(false)}
+              autoFocus
               className="mt-6 btn-primary w-full py-3.5"
             >
               我知道了
