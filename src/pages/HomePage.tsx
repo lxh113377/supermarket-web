@@ -14,7 +14,7 @@ export default function HomePage() {
         <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-white/10" />
         <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-white/5" />
         <div className="relative z-10 text-center">
-          <h1 className="text-2xl font-bold tracking-wide animate-fade-in-up">超柿</h1>
+          <h1 className="text-2xl font-bold tracking-wide animate-fade-in-up">江科一站通</h1>
           <p className="text-white/80 mt-2 text-sm font-light animate-fade-in-up stagger-1">一站式校园生活服务平台</p>
           <div className="inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 rounded-full bg-white/15 backdrop-blur-sm text-xs text-white/90 animate-fade-in-up stagger-2">
             <span className={`w-1.5 h-1.5 rounded-full ${open ? 'bg-green-300' : 'bg-amber-300'}`} />

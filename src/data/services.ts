@@ -52,6 +52,7 @@ export const SERVICES: Service[] = [
     popup: '请在配送员与您电话联系，表示可正常配送后，再进行美团、淘宝、京东下单',
     fields: [
       { key: 'phone', label: '电话号', type: 'tel', required: true, placeholder: '请输入你的手机号' },
+      { key: 'wechat', label: '微信号', type: 'text', required: true, placeholder: '请输入你的微信号' },
       { key: 'building', label: '配送楼栋', type: 'text', required: true, placeholder: '例如：36栋' },
       { key: 'screenshot', label: '订单截图（选填）', type: 'image', required: false, hint: '截图需包含订单号、取餐地点（取餐地点仅限江西科技学院南北东门）' },
       { key: 'remark', label: '备注', type: 'text', required: false, placeholder: '选填，有其他需求可以写在这里' },
@@ -99,6 +100,45 @@ export const SERVICES: Service[] = [
       { key: 'wechat', label: '微信号', type: 'text', required: true, placeholder: '请输入你的微信号' },
       { key: 'building', label: '楼栋号', type: 'text', required: true, placeholder: '例如：36栋' },
       { key: 'remark', label: '备注', type: 'text', required: false, placeholder: '选填，有其他需求可以写在这里' },
+    ],
+  },
+  {
+    id: 'campus-card',
+    categoryId: 'life',
+    name: '办校园卡',
+    icon: '💳',
+    description: '帮你办理校园卡',
+    type: 'form',
+    fields: [
+      { key: 'wechat', label: '微信号', type: 'text', required: true, placeholder: '请输入你的微信号' },
+      { key: 'building', label: '楼栋号', type: 'text', required: true, placeholder: '例如：36栋' },
+      { key: 'remark', label: '备注', type: 'text', required: false, placeholder: '选填，有其他需求可以写在这里' },
+    ],
+  },
+  {
+    id: 'gym',
+    categoryId: 'life',
+    name: '办健身房',
+    icon: '🏋️',
+    description: '帮你办理健身房会员',
+    type: 'form',
+    fields: [
+      { key: 'wechat', label: '微信号', type: 'text', required: true, placeholder: '请输入你的微信号' },
+      { key: 'building', label: '楼栋号', type: 'text', required: true, placeholder: '例如：36栋' },
+      { key: 'remark', label: '备注', type: 'text', required: false, placeholder: '选填，有其他需求可以写在这里' },
+    ],
+  },
+  {
+    id: 'medical-consult',
+    categoryId: 'life',
+    name: '生病问政',
+    icon: '🩺',
+    description: '专业医生线上问诊',
+    type: 'form',
+    hint: '站长的老冯是专业医生👨‍⚕️，从医20余年，线上问诊3元一次',
+    fields: [
+      { key: 'wechat', label: '微信号', type: 'text', required: true, placeholder: '请输入你的微信号' },
+      { key: 'remark', label: '症状描述', type: 'text', required: false, placeholder: '选填，简述症状方便医生提前了解' },
     ],
   },
   // ===== 娱乐 =====
