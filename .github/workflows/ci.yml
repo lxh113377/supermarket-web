@@ -37,3 +37,29 @@ jobs:
 
       - name: Backend contract verify (node:sqlite mock D1)
         run: node scripts/verify-backend.mjs
+
+  # 自动部署管理端+API 到 Cloudflare Pages（supermarket-web.pages.dev）
+  # 仅 main push 触发（PR 不部署）；需仓库 Secrets 配置 CLOUDFLARE_API_TOKEN（Pages:Edit 权限）。
+  # 与 dispatch.yml（github.io 顾客端双发）互不冲突：本 job 直推 pages.dev，dispatch 走 repository_dispatch。
+  deploy:
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Deploy to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: npx wrangler pages deploy dist --project-name supermarket-web

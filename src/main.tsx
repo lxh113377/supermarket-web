@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { HashRouter } from 'react-router-dom'
 import App from './App'
+import InstallPrompt from './components/InstallPrompt'
 import { initSubmissionSync } from './db'
 import './index.css'
 
@@ -22,6 +23,7 @@ ReactDOM.createRoot(rootEl).render(
   <React.StrictMode>
     <HashRouter>
       <App />
+      <InstallPrompt />
     </HashRouter>
   </React.StrictMode>,
 )
