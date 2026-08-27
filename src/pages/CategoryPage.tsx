@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { getCategoryById, getServicesByCategory } from '../data/services'
 import { isBusinessHours, getClosedMessage } from '../utils/businessHours'
+import type { Service } from '../types'
 
 export default function CategoryPage() {
   const { categoryId } = useParams()
@@ -8,6 +9,14 @@ export default function CategoryPage() {
   const category = categoryId ? getCategoryById(categoryId) : undefined
   const services = categoryId ? getServicesByCategory(categoryId) : []
   const open = isBusinessHours()
+
+  const openService = (service: Service) => {
+    if (service.type === 'supermarket') {
+      navigate('/shop', { state: { fromCategory: true } })
+    } else {
+      navigate(`/service/${service.id}`)
+    }
+  }
 
   if (!category) {
     return (
@@ -52,30 +61,44 @@ export default function CategoryPage() {
         </div>
       )}
 
-      {/* 服务列表 - 交错入场 */}
-      <div className={`px-5 max-w-lg mx-auto space-y-3.5 pb-10 ${open ? '-mt-6' : 'mt-4'}`}>
-        {services.map((service, i) => (
-          <button
-            key={service.id}
-            onClick={() => {
-              if (service.type === 'supermarket') {
-                navigate('/shop', { state: { fromCategory: true } })
-              } else {
-                navigate(`/service/${service.id}`)
-              }
-            }}
-            className={`card-interactive w-full p-5 flex items-center gap-4 text-left animate-fade-in-up stagger-${Math.min(i + 1, 6)}`}
-          >
-            <span className="text-3xl flex-shrink-0 w-12 h-12 flex items-center justify-center bg-gray-50 rounded-xl">
-              {service.icon}
-            </span>
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold text-gray-800 text-sm">{service.name}</p>
-              <p className="text-xs text-gray-400 mt-1 truncate leading-relaxed">{service.description}</p>
-            </div>
-            <span className="text-gray-300 text-xl transition-transform duration-200 group-hover:translate-x-0.5">›</span>
-          </button>
-        ))}
+      {/* 服务列表 - 生活板块两列网格，其余分类单列 */}
+      <div className={`px-5 max-w-lg mx-auto pb-10 ${open ? '-mt-6' : 'mt-4'}`}>
+        {category.id === 'life' ? (
+          <div className="grid grid-cols-2 gap-3.5">
+            {services.map((service, i) => (
+              <button
+                key={service.id}
+                onClick={() => openService(service)}
+                className={`card-interactive w-full p-4 flex flex-col items-start gap-2.5 text-left animate-fade-in-up stagger-${i + 1}`}
+              >
+                <span className="text-2xl w-11 h-11 flex items-center justify-center bg-gray-50 rounded-xl">{service.icon}</span>
+                <div className="min-w-0 w-full">
+                  <p className="font-semibold text-gray-800 text-sm truncate">{service.name}</p>
+                  <p className="text-xs text-gray-400 mt-1 leading-snug line-clamp-2">{service.description}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-3.5">
+            {services.map((service, i) => (
+              <button
+                key={service.id}
+                onClick={() => openService(service)}
+                className={`card-interactive w-full p-5 flex items-center gap-4 text-left animate-fade-in-up stagger-${i + 1}`}
+              >
+                <span className="text-3xl flex-shrink-0 w-12 h-12 flex items-center justify-center bg-gray-50 rounded-xl">
+                  {service.icon}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-gray-800 text-sm">{service.name}</p>
+                  <p className="text-xs text-gray-400 mt-1 truncate leading-relaxed">{service.description}</p>
+                </div>
+                <span className="text-gray-300 text-xl transition-transform duration-200 group-hover:translate-x-0.5">›</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

@@ -1,7 +1,7 @@
 {
-  "name": "超柿",
-  "short_name": "超柿",
-  "description": "在线超市购物系统",
+  "name": "江科一站通",
+  "short_name": "江科一站通",
+  "description": "一站式校园生活服务平台",
   "start_url": "./",
   "display": "standalone",
   "orientation": "portrait",
