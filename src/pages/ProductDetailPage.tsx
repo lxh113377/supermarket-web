@@ -243,7 +243,8 @@ export default function ProductDetailPage() {
               srcSet={orderNum ? `/images/sm/${orderNum}.webp 400w, ${imgSrc} 800w` : undefined}
               sizes="(max-width: 640px) 100vw, 600px"
               alt={product.name}
-              loading="lazy"
+              loading="eager"
+              fetchPriority="high"
               className="w-full h-72 object-contain p-6"
               onError={() => setGalleryErr((prev) => (prev[0] ? prev : { ...prev, 0: true }))}
             />
