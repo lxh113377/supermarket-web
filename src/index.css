@@ -2,6 +2,23 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  /* 品牌渐变条（柿子黄 → 橙 → 深绿），品牌视觉链路唯一真相源 */
+  --brand-bar: linear-gradient(90deg, #facc15, #f97316, #14532d);
+}
+
+/* 无障碍：用户偏好减少动效时，全局禁用动画/过渡（含 JS 动画兜底，如 count-up） */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 * {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
@@ -104,17 +121,46 @@ img {
     background-size: 200% 100%;
     animation: shimmer 1.5s ease-in-out infinite;
   }
+
+  /* 品牌渐变条（柿子黄 → 橙 → 深绿） */
+  .brand-bar {
+    background: var(--brand-bar);
+  }
+
+  /* KPI 首卡强调：顶部品牌渐变细条 + 暖黄底色，拉开主次层级 */
+  .card-accent {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(180deg, #fffbeb, #ffffff);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 6px 24px -12px rgba(202, 138, 4, 0.45);
+  }
+  .card-accent::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 3px;
+    background: var(--brand-bar);
+  }
 }
 
 /* === 交错入场动画工具类 === */
-@layer utilities {
-  .stagger-1 { animation-delay: 0.05s; }
-  .stagger-2 { animation-delay: 0.1s; }
-  .stagger-3 { animation-delay: 0.15s; }
-  .stagger-4 { animation-delay: 0.2s; }
-  .stagger-5 { animation-delay: 0.25s; }
-  .stagger-6 { animation-delay: 0.3s; }
-}
+/* 注意：不能放进 @layer utilities——Tailwind 的候选索引会吞掉部分自定义规则（如 .stagger-7+），
+   裸 CSS 规则可完整通过且无层优先级高于 utilities 层，能正确覆盖 animate-* 的动画简写 */
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.1s; }
+.stagger-3 { animation-delay: 0.15s; }
+.stagger-4 { animation-delay: 0.2s; }
+.stagger-5 { animation-delay: 0.25s; }
+.stagger-6 { animation-delay: 0.3s; }
+.stagger-7 { animation-delay: 0.35s; }
+.stagger-8 { animation-delay: 0.4s; }
+.stagger-9 { animation-delay: 0.45s; }
+.stagger-10 { animation-delay: 0.5s; }
+.stagger-11 { animation-delay: 0.55s; }
+.stagger-12 { animation-delay: 0.6s; }
+.stagger-13 { animation-delay: 0.65s; }
+.stagger-14 { animation-delay: 0.7s; }
+.stagger-15 { animation-delay: 0.75s; }
 
 /* === 滚动条美化 === */
 ::-webkit-scrollbar {

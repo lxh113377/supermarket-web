@@ -13,6 +13,7 @@ const OrderConfirmPage = lazy(() => import('./pages/OrderConfirmPage'))
 const OrderSuccessPage = lazy(() => import('./pages/OrderSuccessPage'))
 const PaymentPage = lazy(() => import('./pages/PaymentPage'))
 const AdminPage = lazy(() => import('./pages/AdminPage'))
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
 
 function RouteLoader() {
   return (
@@ -20,7 +21,7 @@ function RouteLoader() {
       <div className="w-8 h-8 border-[3px] border-brand-100 border-t-brand-500 rounded-full animate-spin" />
       <div className="fixed top-0 left-0 right-0 h-0.5 overflow-hidden">
         <div
-          className="h-full bg-gradient-to-r from-brand-400 to-brand-500 rounded-full"
+          className="h-full brand-bar rounded-full"
           style={{ animation: 'routeProgress 0.8s cubic-bezier(0.4,0,0.2,1) forwards' }}
         />
       </div>
@@ -50,6 +51,7 @@ export default function App() {
           <Route path="/order-success" element={<OrderSuccessPage />} />
           <Route path="/payment" element={<PaymentPage />} />
           <Route path="/admin" element={<AdminGuard><AdminPage /></AdminGuard>} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Suspense>
     </ErrorBoundary>
