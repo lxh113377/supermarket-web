@@ -40,10 +40,11 @@ jobs:
 
   # 自动部署管理端+API 到 Cloudflare Pages（supermarket-web.pages.dev）
   # 仅 main push 触发（PR 不部署）；需仓库 Secrets 配置 CLOUDFLARE_API_TOKEN（Pages:Edit 权限）。
+  # 未配置 token 时跳过（不标红），配置后 push main 即自动部署。
   # 与 dispatch.yml（github.io 顾客端双发）互不冲突：本 job 直推 pages.dev，dispatch 走 repository_dispatch。
   deploy:
     needs: build-and-test
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && secrets.CLOUDFLARE_API_TOKEN != ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
