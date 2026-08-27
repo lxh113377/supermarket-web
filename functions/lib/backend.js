@@ -14,6 +14,7 @@ import {
   sanitize,
   DIFY_UNAVAILABLE_TEXT,
 } from './dify.js'
+import { PRODUCT_FIELDS, REVIEW_FIELDS, SUBMISSION_FIELDS } from './shared.js'
 
 const PUBLIC_ACTIONS = new Set([
   'createOrder', 'getReviews', 'createSubmission', 'addPublicReview',
@@ -93,10 +94,6 @@ function constantTimeEqual(a, b) {
   for (let i = 0; i < ea.length; i++) diff |= ea[i] ^ eb[i]
   return diff === 0
 }
-
-const PRODUCT_FIELDS = ['name', 'spec', 'price', 'costPrice', 'subcategories', 'enabled', 'order', 'image', 'images', 'description', 'reviews']
-const REVIEW_FIELDS = ['productOrder', 'user', 'rating', 'text', 'images']
-const SUBMISSION_FIELDS = ['serviceId', 'serviceName', 'categoryId', 'categoryName', 'formData', 'images']
 
 // 通用插入：按白名单构建列，JSON 字段序列化
 async function insert(DB, table, doc) {
@@ -188,6 +185,8 @@ async function sha256Fingerprint(s) {
 }
 
 // 审计日志：管理写操作 / 认证失败落 security_events 表
+// 保留策略（2026-08-28）：写入后以 5% 概率裁剪 90 天前记录，控制表体积、防 D1 免费写配额(100k 行/天)被审计表吞掉。
+// Pages 无 Cron Trigger，故用「写时采样」组合；另有 scripts/purge-security-events.mjs 可手动全量清理。
 async function logSecurityEvent(DB, { ip = '', action = '', result = '', keyFingerprint = '', detail = '' }) {
   if (!DB) return
   try {
@@ -195,6 +194,14 @@ async function logSecurityEvent(DB, { ip = '', action = '', result = '', keyFing
       `INSERT INTO security_events (ts, ip, action, result, keyFingerprint, detail) VALUES (?, ?, ?, ?, ?, ?)`,
       [nowISO(), String(ip).slice(0, 64), String(action).slice(0, 64), String(result).slice(0, 16),
         String(keyFingerprint).slice(0, 16), String(detail).slice(0, 500)])
+    // 写时采样裁剪：每次写入 5% 概率触发，清理失败不影响审计主逻辑
+    if (Math.random() < 0.05) {
+      try {
+        await qRun(DB, `DELETE FROM security_events WHERE ts < datetime('now', '-90 days')`)
+      } catch (e2) {
+        console.error('[audit] prune old security_events failed:', e2)
+      }
+    }
   } catch (e) {
     console.error('[audit] logSecurityEvent failed:', e)
   }

@@ -66,6 +66,11 @@ CREATE INDEX IF NOT EXISTS idx_reviews_productOrder ON reviews (productOrder);
 CREATE INDEX IF NOT EXISTS idx_orders_createdAt ON orders (createdAt);
 CREATE INDEX IF NOT EXISTS idx_products_order ON products ("order");
 CREATE INDEX IF NOT EXISTS idx_submissions_createdAt ON submissions (createdAt);
+-- 优化批次（2026-08-28）：看板 90/365 天聚合 + status/roomNumber 筛选 + enabled 过滤走索引，降低 D1 全表扫配额成本
+CREATE INDEX IF NOT EXISTS idx_orders_status ON orders (status);
+CREATE INDEX IF NOT EXISTS idx_orders_roomNumber ON orders (roomNumber);
+CREATE INDEX IF NOT EXISTS idx_products_enabled ON products (enabled);
+CREATE INDEX IF NOT EXISTS idx_reviews_createdAt ON reviews (createdAt);
 
 -- 限流计数（D1 持久，跨实例有效；bucket = rate:{action}:{ip}）
 CREATE TABLE IF NOT EXISTS rate_limits (
