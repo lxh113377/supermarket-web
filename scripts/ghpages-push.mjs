@@ -5,6 +5,7 @@
 // 说明：base_tree 模式（新文件覆盖 + 未列旧文件保留）
 import fs from 'fs'
 import path from 'path'
+import { execSync } from 'child_process'
 
 const TOKEN = process.env.GH_TOKEN
 if (!TOKEN) { console.error('GH_TOKEN env required'); process.exit(1) }
@@ -85,8 +86,14 @@ async function main() {
   const newTree = await api('POST', '/git/trees', { base_tree: baseTreeSha, tree })
 
   console.log('Step 4/5: 创建 commit...')
+  // commit message：优先 -m 参数，否则取本地 git HEAD subject（避免硬编码误导性 message 造成主线污染/分叉，坑 25）
+  const mIdx = process.argv.indexOf('-m')
+  let msg = mIdx >= 0 ? String(process.argv[mIdx + 1] || '') : ''
+  if (!msg) { try { msg = execSync('git log -1 --format=%s').toString().trim() } catch {} }
+  msg = msg || (isSrc ? 'sync source' : 'deploy')
+  const message = `${msg} (ghpages ${new Date().toISOString()})`
   const commit = await api('POST', '/git/commits', {
-    message: `${isSrc ? 'feat(ui): dark immersive redesign' : 'deploy'} ${new Date().toISOString()}`,
+    message,
     tree: newTree.sha,
     parents: [headSha],
   })
