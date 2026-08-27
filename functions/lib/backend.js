@@ -163,6 +163,7 @@ async function checkRate(DB, kv, key, windowMs, max) {
 
 const RATE_LOGIN = { windowMs: 60000, max: 5 }
 const RATE_PUBLIC_WRITE = { windowMs: 60000, max: 20 }
+const RATE_AI = { windowMs: 60000, max: 20 }
 
 // 提取真实客户端 IP：优先 CF-Connecting-IP（Cloudflare 注入，不可伪造），回退 x-forwarded-for
 function getClientIp(request) {
@@ -586,6 +587,52 @@ const DEFAULT_ALLOWED_ORIGINS = [
   'https://supermarket-web.pages.dev',
   'https://lxh113377.github.io',
 ]
+// ── AI 经营助手（F38 铁律：dify-error 一律降级展示，绝不把错误串当建议渲染）──
+
+// 管理端：近 30 天经营建议（/web aiAdvice，只读，只读密钥可用）
+async function adminAiAdvice(env, DB) {
+  try {
+    const orderRes = await getOrders(DB, { page: 1, pageSize: 100 })
+    const orders = orderRes.data || []
+    const cutoff = Date.now() - 30 * 86400000
+    const orders30 = orders.filter((o) => {
+      const t = new Date(o.createdAt).getTime()
+      return !Number.isNaN(t) && t >= cutoff
+    })
+    const revRes = await getAllReviews(DB)
+    const prodRes = await getProducts(DB)
+    const reviews = revRes.data || []
+    const products = prodRes.data || []
+    if (!enabled(env)) {
+      return { code: 0, data: { source: 'rule', content: ruleAdvice({ orders30, reviews, products }) } }
+    }
+    const input = buildAdviceInput(orders30, reviews, products)
+    const prompt = `你是校园超市经营助手。以下是近 30 天经营快照：${JSON.stringify(input)}。请给店主一份简洁的经营建议（备货/定价/服务三个维度，3-4 条）。`
+    const r = await callDifyCompletion(env, prompt, 'admin')
+    return { code: 0, data: r }
+  } catch (e) {
+    console.error('[aiAdvice]', e)
+    return { code: 0, data: { source: 'dify-error', content: DIFY_UNAVAILABLE_TEXT } }
+  }
+}
+
+// 顾客端：AI 导购对话（/pub aiChat；限流在 handlePublic 路由层）
+async function pubAiChat(env, DB, payload, ip) {
+  const question = sanitize(payload?.question, 200)
+  const conversationId = sanitize(payload?.conversationId, 100) || null
+  if (!question) return { code: -1, message: '问题不能为空' }
+  try {
+    if (!enabled(env)) {
+      return { code: 0, data: { source: 'rule', content: ruleAssistantReply(question), conversationId } }
+    }
+    const r = await callDifyChat(env, question, `pub-${String(ip).slice(0, 40)}`, conversationId)
+    return { code: 0, data: r }
+  } catch (e) {
+    console.error('[aiChat]', e)
+    return { code: 0, data: { source: 'dify-error', content: DIFY_UNAVAILABLE_TEXT, conversationId } }
+  }
+}
+
 export function resolveCorsHeaders(request, env = {}) {
   const origin = request?.headers?.get?.('Origin') || ''
   const extra = (env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean)
@@ -661,6 +708,7 @@ export async function handleAdmin(env, action, adminKey, payload = {}, request =
       case 'getSubmissions': result = await getSubmissions(DB); break
       case 'updateSubmissionStatus': result = await updateSubmissionStatus(DB, payload); break
       case 'deleteSubmission': result = await deleteSubmission(DB, payload); break
+      case 'aiAdvice': result = await adminAiAdvice(env, DB); break
       default: result = { code: -1, message: '未知操作' }
     }
   } catch (e) {
@@ -693,6 +741,12 @@ export async function handlePublic(env, action, payload = {}, request = null) {
       case 'getReviews': return await getReviews(DB, payload)
       case 'addPublicReview': return await addReview(DB, payload)
       case 'createSubmission': return await createSubmission(DB, payload)
+      case 'aiChat': {
+        // AI 导购限流：20 次/60s/IP（复用 KV→D1 降级链）
+        const r = await checkRate(DB, env.RATE_KV, `rate:ai:${ip}`, RATE_AI.windowMs, RATE_AI.max)
+        if (r) return r
+        return await pubAiChat(env, DB, payload, ip)
+      }
       default: return { code: -1, message: '未知操作' }
     }
   } catch (e) {
