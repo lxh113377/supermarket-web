@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { CATEGORIES } from '../data/services'
 import { isBusinessHours, getClosedMessage, getBusinessHoursText } from '../utils/businessHours'
+import { IconRobot } from '../components/Icons'
 
 export default function HomePage() {
   const navigate = useNavigate()
@@ -59,6 +60,17 @@ export default function HomePage() {
         <div className="w-8 h-0.5 bg-gray-200 rounded-full mx-auto mb-4" />
         <p className="text-xs text-gray-400 tracking-wide">江西科技学院 · 校园服务平台</p>
       </div>
+
+      {/* AI 导购浮窗入口 */}
+      <button
+        onClick={() => navigate('/assistant')}
+        aria-label="打开 AI 导购助手"
+        className="fixed right-4 z-30 flex items-center gap-2 pl-3 pr-4 py-3 rounded-full brand-bar text-white shadow-float transition-all duration-200 active:scale-[0.95] animate-slide-up"
+        style={{ bottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
+      >
+        <IconRobot className="w-5 h-5" />
+        <span className="text-xs font-semibold tracking-wide">AI 导购</span>
+      </button>
     </div>
   )
 }

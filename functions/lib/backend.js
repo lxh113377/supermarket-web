@@ -604,7 +604,7 @@ async function adminAiAdvice(env, DB) {
     const reviews = revRes.data || []
     const products = prodRes.data || []
     if (!enabled(env)) {
-      return { code: 0, data: { source: 'rule', content: ruleAdvice({ orders30, reviews, products }) } }
+      return { code: 0, data: { source: 'rule', content: ruleAdvice({ orders30, reviews }) } }
     }
     const input = buildAdviceInput(orders30, reviews, products)
     const prompt = `你是校园超市经营助手。以下是近 30 天经营快照：${JSON.stringify(input)}。请给店主一份简洁的经营建议（备货/定价/服务三个维度，3-4 条）。`
