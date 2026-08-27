@@ -35,7 +35,8 @@ export async function getCategories(): Promise<Category[]> {
   if (cached) return cached as Category[]
   try {
     const result = await adminCall('getPublicCategories', {})
-    if (result.code === 0 && result.data?.length) {
+    // P1-1：空分类/空列表是合法状态——以 code===0 且 data 为数组为准（原 data?.length 会把空列表误判为失败、回退旧缓存显示陈旧数据）
+    if (result.code === 0 && Array.isArray(result.data)) {
       cacheSet(cacheKey, result.data)
       writePersist('sm_catalog_categories', result.data)
       return result.data
@@ -57,7 +58,8 @@ export async function getProducts(): Promise<Product[]> {
   if (cached) return cached as Product[]
   try {
     const result = await adminCall('getPublicProducts', {})
-    if (result.code === 0 && result.data?.length) {
+    // P1-1：空商品列表是合法状态（全下架/清空）——不再因空数组回退旧缓存
+    if (result.code === 0 && Array.isArray(result.data)) {
       cacheSet(cacheKey, result.data)
       writePersist('sm_catalog_products', result.data)
       return result.data as Product[]

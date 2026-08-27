@@ -302,7 +302,8 @@ export default function ServiceFormPage() {
                             <button
                               onClick={() => removeImage(i)}
                               aria-label={`删除截图 ${i + 1}`}
-                              className="absolute top-1 right-1 w-5 h-5 bg-black/50 backdrop-blur-sm text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                              // P0-14：触屏/键盘可用（原 opacity-0 仅 hover 可见，移动端无法删除）
+                              className="absolute top-1 right-1 w-5 h-5 bg-black/50 backdrop-blur-sm text-white rounded-full text-xs flex items-center justify-center opacity-70 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
                             >
                               ×
                             </button>
@@ -378,9 +379,15 @@ export default function ServiceFormPage() {
         </p>
       </div>
 
-      {/* 弹窗提示 */}
+      {/* 弹窗提示（P0-12：补 dialog 语义 + Esc 关闭） */}
       {showPopup && service.popup && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-5 animate-fade-in">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="温馨提示"
+          onKeyDown={(e) => { if (e.key === 'Escape') setShowPopup(false) }}
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-5 animate-fade-in"
+        >
           <div className="bg-white rounded-3xl p-7 max-w-sm w-full shadow-float animate-scale-in">
             <div className="text-center">
               <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-brand-50 flex items-center justify-center">
@@ -391,6 +398,7 @@ export default function ServiceFormPage() {
             </div>
             <button
               onClick={() => setShowPopup(false)}
+              autoFocus
               className="mt-6 btn-primary w-full py-3.5"
             >
               我知道了

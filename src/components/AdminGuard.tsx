@@ -58,6 +58,7 @@ export default function AdminGuard({ children }: AdminGuardProps) {
           onChange={(e) => setKey(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
           placeholder="管理密钥"
+          aria-label="管理密钥"
           autoFocus
           className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-brand-400"
         />

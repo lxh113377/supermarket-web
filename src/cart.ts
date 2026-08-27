@@ -2,14 +2,22 @@ import type { Cart, CartItem, Product } from './types'
 
 const CART_KEY = 'sm_cart'
 
-export function getCart(): Cart {
+// P0-15/16 共享：解析并校验购物车数据（损坏/畸形数据安全降级，避免 items.find 崩溃）
+export function parseCart(raw: string | null): Cart {
+  if (!raw) return { items: [] }
   try {
-    const raw = localStorage.getItem(CART_KEY)
-    if (!raw) return { items: [] }
-    return JSON.parse(raw) as Cart
+    const parsed = JSON.parse(raw) as unknown
+    if (typeof parsed !== 'object' || parsed === null || !Array.isArray((parsed as Cart).items)) {
+      return { items: [] }
+    }
+    return parsed as Cart
   } catch {
     return { items: [] }
   }
+}
+
+export function getCart(): Cart {
+  return parseCart(localStorage.getItem(CART_KEY))
 }
 
 export function saveCart(cart: Cart): void {

@@ -329,6 +329,8 @@ export default function DashboardTab({ orders, products, reviews }: {
   const echartsRef = useRef<any>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const chartsRef = useRef<Record<string, any>>({})
+  // echarts 就绪标志：动态 import 完成后置 true，驱动 setOption effect 重跑（修复就绪竞态）
+  const [chartsReady, setChartsReady] = useState(false)
 
   const reducedMotion = useMemo(
     () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true,
@@ -337,6 +339,11 @@ export default function DashboardTab({ orders, products, reviews }: {
 
   useEffect(() => {
     let cancelled = false
+    // P0-1 修复：cleanup 提到 effect 顶层（原写法 return 在 async IIFE 内部 = 无效 cleanup，
+    // resize 监听永不注销、chart 永不 dispose，切 tab 后持续泄漏）
+    const onResize = () => {
+      Object.values(chartsRef.current).forEach((c: { resize: () => void }) => c?.resize())
+    }
     ;(async () => {
       // 动态 import：代码分割出 echarts chunk，顾客端 bundle 不混入
       const echarts = await import('echarts')
@@ -351,17 +358,16 @@ export default function DashboardTab({ orders, products, reviews }: {
       for (const [ref, key] of hosts) {
         if (ref.current) chartsRef.current[key] = echarts.init(ref.current)
       }
-      const onResize = () => {
-        Object.values(chartsRef.current).forEach((c: { resize: () => void }) => c?.resize())
-      }
       window.addEventListener('resize', onResize)
-      return () => {
-        cancelled = true
-        window.removeEventListener('resize', onResize)
-        Object.values(chartsRef.current).forEach((c: { dispose: () => void }) => c?.dispose())
-        chartsRef.current = {}
-      }
+      // P0-2 修复：就绪后通知 setOption effect 重跑，避免数据先到、echarts 后到时首屏图表空白
+      setChartsReady(true)
     })()
+    return () => {
+      cancelled = true
+      window.removeEventListener('resize', onResize)
+      Object.values(chartsRef.current).forEach((c: { dispose: () => void }) => c?.dispose())
+      chartsRef.current = {}
+    }
   }, [])
 
   // 图表 option 更新（数据/区间/主题联动）
@@ -497,7 +503,7 @@ export default function DashboardTab({ orders, products, reviews }: {
         ],
       }, true)
     }
-  }, [rangeData, pieSegments, topRevenue, reviewTrend, rangeDays, reducedMotion])
+  }, [rangeData, pieSegments, topRevenue, reviewTrend, rangeDays, reducedMotion, chartsReady])
 
   // ---- AI 经营建议（/web aiAdvice，复用 adminCall 会话密钥） ----
   const loadAdvice = async () => {
