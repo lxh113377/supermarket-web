@@ -8,9 +8,9 @@ export interface CompressedImage {
   blob: Blob
 }
 
-// 压缩图片：canvas 最大边 800px、质量 0.6，同时产出 { dataUrl, blob }。
-// ≤2MB 校验由调用方按 dataUrl 长度判断（与旧行为一致）。
-export function compressImage(file: File, maxSize = 800, quality = 0.6): Promise<CompressedImage> {
+// 压缩图片：canvas 最大边 640px、质量 0.5，同时产出 { dataUrl, blob }。
+// ≤800KB 校验由调用方按 dataUrl 长度判断（与旧行为一致，阈值收紧防 D1 体积膨胀）。
+export function compressImage(file: File, maxSize = 640, quality = 0.5): Promise<CompressedImage> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = (e) => {

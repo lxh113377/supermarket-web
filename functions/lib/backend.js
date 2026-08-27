@@ -4,9 +4,20 @@
 //
 // 入口：functions/web.js（管理，需 ADMIN_KEY）、functions/pub.js（公开）
 
+import {
+  callDifyChat,
+  callDifyCompletion,
+  enabled,
+  ruleAssistantReply,
+  ruleAdvice,
+  buildAdviceInput,
+  sanitize,
+  DIFY_UNAVAILABLE_TEXT,
+} from './dify.js'
+
 const PUBLIC_ACTIONS = new Set([
   'createOrder', 'getReviews', 'createSubmission', 'addPublicReview',
-  'getPublicProducts', 'getPublicCategories',
+  'getPublicProducts', 'getPublicCategories', 'aiChat',
 ])
 
 // ---------- D1 帮助函数 ----------
@@ -301,12 +312,12 @@ async function getReviews(DB, payload) {
 async function addReview(DB, payload) {
   const clean = pick(payload, REVIEW_FIELDS)
   if (clean.productOrder == null) return { code: -1, message: '缺少 productOrder' }
-  if (Array.isArray(clean.images) && clean.images.length > 5) return { code: -1, message: '最多上传 5 张图片' }
+  if (Array.isArray(clean.images) && clean.images.length > 3) return { code: -1, message: '最多上传 3 张图片' }
   // 图片 scheme 白名单：仅 data:image/(jpeg|png|webp|gif);base64 或 https
   const cleanImages = validateImages(clean.images)
   if (cleanImages === null) return { code: -1, message: '图片格式无效' }
   for (const img of cleanImages) {
-    if (img.length > 2 * 1024 * 1024) return { code: -1, message: '图片过大或格式无效' }
+    if (img.length > 800 * 1024) return { code: -1, message: '图片过大或格式无效' }
   }
   // UGC 内容校验：长度上限 + 基础黑名单拦截（纵深防御的一种；最终 HTML 注入防线依赖渲染端 React 转义）
   if (!checkPublicText(clean.text, 500)) return { code: -1, message: '评价内容无效' }
@@ -370,9 +381,8 @@ async function createProduct(DB, payload) {
   return { code: 0, data: doc }
 }
 
-async function updateProduct(DB, payload) {
-  const { productId } = payload
-  if (!productId) return { code: -1, message: '缺少 productId' }
+// 单商品更新核心逻辑（updateProduct 与 batchUpdateProducts 复用；字段白名单/图片 scheme/部分更新守卫统一在此）
+async function applyProductUpdate(DB, productId, payload) {
   const data = pick(payload, PRODUCT_FIELDS)
   // enabled 守卫：仅当显式传了 enabled 才更新上架状态，防止部分更新时静默重上架缺货商品
   if ('enabled' in payload) data.enabled = payload.enabled !== false
@@ -395,6 +405,44 @@ async function updateProduct(DB, payload) {
   const res = await qRun(DB, `UPDATE products SET ${setClause} WHERE _id = ?`, [...values, productId])
   if (!res.meta?.changes) return { code: -1, message: '商品不存在' }
   return { code: 0 }
+}
+
+async function updateProduct(DB, payload) {
+  const { productId } = payload
+  if (!productId) return { code: -1, message: '缺少 productId' }
+  return applyProductUpdate(DB, productId, payload)
+}
+
+// 批量更新：items = [{ productId, updates }]，逐条应用（同一 updates 或多组均可）。
+// 返回成功/失败明细而非整体回滚——批量场景部分失败可定位重试，避免并发 N 请求无明细。
+async function batchUpdateProducts(DB, payload) {
+  const { items } = payload
+  if (!Array.isArray(items) || !items.length) return { code: -1, message: '缺少 items' }
+  if (items.length > 200) return { code: -1, message: '单次批量最多 200 个商品' }
+  const failed = []
+  let updated = 0
+  for (const it of items) {
+    if (!it || !it.productId) { failed.push({ id: '?', message: '缺少 productId' }); continue }
+    const r = await applyProductUpdate(DB, it.productId, it.updates || {})
+    if (r.code === 0) updated++
+    else failed.push({ id: it.productId, message: r.message })
+  }
+  return { code: 0, data: { updated, failed, total: items.length } }
+}
+
+// 批量删除：productIds 数组，返回成功/失败明细
+async function batchDeleteProducts(DB, payload) {
+  const { productIds } = payload
+  if (!Array.isArray(productIds) || !productIds.length) return { code: -1, message: '缺少 productIds' }
+  if (productIds.length > 200) return { code: -1, message: '单次批量最多 200 个商品' }
+  const failed = []
+  let deleted = 0
+  for (const productId of productIds) {
+    const res = await qRun(DB, `DELETE FROM products WHERE _id = ?`, [productId])
+    if (res.meta?.changes) deleted++
+    else failed.push({ id: productId, message: '商品不存在' })
+  }
+  return { code: 0, data: { deleted, failed, total: productIds.length } }
 }
 
 async function deleteProduct(DB, payload) {
@@ -653,4 +701,4 @@ export async function handlePublic(env, action, payload = {}, request = null) {
   }
 }
 
-export { checkRate, checkRateKV }
+export { checkRate, checkRateKV, batchUpdateProducts, batchDeleteProducts }

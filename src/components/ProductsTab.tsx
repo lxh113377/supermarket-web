@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react'
-import { updateProduct, createProduct, deleteProduct } from '../auth'
-import type { Category, Product } from '../types'
+import { updateProduct, createProduct, deleteProduct, batchUpdateProducts, batchDeleteProducts } from '../auth'
+import type { Category, Product, ApiResult } from '../types'
 
 interface ProductForm {
   name: string
@@ -152,6 +152,12 @@ export default function ProductsTab({ products, categories, onDataChange }: {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [editingId, setEditingId] = useState<string | null>(null) // null | 'new' | product._id
   const [batchPrice, setBatchPrice] = useState('')
+  // 内联反馈条（替代原生 alert；confirm 确认语义保留）
+  const [notice, setNotice] = useState<{ type: 'error' | 'warn'; msg: string } | null>(null)
+  const showNotice = (type: 'error' | 'warn', msg: string) => {
+    setNotice({ type, msg })
+    window.setTimeout(() => setNotice(null), 5000)
+  }
 
   const subToType = useMemo(() => {
     const map: Record<string, string> = {}
@@ -185,51 +191,74 @@ export default function ProductsTab({ products, categories, onDataChange }: {
     try {
       await updateProduct(product._id, { enabled: product.enabled === false })
       onDataChange()
-    } catch (err) { alert('操作失败：' + (err instanceof Error ? err.message : '未知错误')) }
+    } catch (err) { showNotice('error', '操作失败：' + (err instanceof Error ? err.message : '未知错误')) }
   }
 
   const remove = async (productId: string) => {
     if (!confirm('确定删除该商品？')) return
     try { await deleteProduct(productId); onDataChange() }
-    catch (err) { alert('删除失败：' + (err instanceof Error ? err.message : '未知错误')) }
+    catch (err) { showNotice('error', '删除失败：' + (err instanceof Error ? err.message : '未知错误')) }
   }
 
   const batchAction = async (action: string) => {
-    const count = selectedIds.size
+    const ids = [...selectedIds]
+    const count = ids.length
     if (!count) return
     if (action === 'delete' && !confirm(`确定删除 ${count} 个商品？`)) return
     const label = action === 'enable' ? '上架' : action === 'disable' ? '下架' : '删除'
     try {
-      await Promise.all([...selectedIds].map(id =>
-        action === 'delete' ? deleteProduct(id) : updateProduct(id, { enabled: action === 'enable' })
-      ))
+      const result = action === 'delete'
+        ? await batchDeleteProducts(ids)
+        : await batchUpdateProducts(ids.map(id => ({ productId: id, updates: { enabled: action === 'enable' } })))
+      const failed = result && 'data' in result && Array.isArray(result.data?.failed) ? result.data.failed : []
+      if (result && 'code' in result && result.code !== 0) {
+        alert(`批量${label}失败：` + ((result as ApiResult<any>).message || '未知错误'))
+        return
+      }
       setSelectedIds(new Set())
       onDataChange()
+      if (failed.length) alert(`批量${label}部分失败：${failed.length}/${count} 未生效`)
     } catch (err) { alert(`批量${label}失败：` + (err instanceof Error ? err.message : '未知错误')) }
   }
 
   const batchAdjustPrice = async () => {
-    if (!batchPrice.trim() || !selectedIds.size) return
+    const ids = [...selectedIds]
+    if (!batchPrice.trim() || !ids.length) return
     const isPercent = batchPrice.includes('%')
     const val = parseFloat(batchPrice)
-    if (isNaN(val)) return alert('请输入有效数字')
+    if (isNaN(val)) return showNotice('error', '请输入有效数字')
     const label = isPercent ? `调整为原价的 ${val}%` : `统一设为 ¥${val.toFixed(2)}`
-    if (!confirm(`${selectedIds.size} 个商品${label}？`)) return
+    if (!confirm(`${ids.length} 个商品${label}？`)) return
     try {
-      await Promise.all([...selectedIds].map(id => {
+      const items = ids.map(id => {
         const p = products.find(x => x._id === id)
-        if (!p) return
-        const newPrice = isPercent ? Math.round(p.price * val) / 100 : val
-        return updateProduct(id, { price: Math.round(newPrice * 100) / 100 })
-      }))
+        const newPrice = p ? (isPercent ? Math.round(p.price * val) / 100 : val) : val
+        return { productId: id, updates: { price: Math.round(newPrice * 100) / 100 } }
+      })
+      const result = await batchUpdateProducts(items)
+      const failed = result && 'data' in result && Array.isArray(result.data?.failed) ? result.data.failed : []
+      if (result && 'code' in result && result.code !== 0) {
+        showNotice('error', '批量改价失败：' + ((result as ApiResult<any>).message || '未知错误'))
+        return
+      }
       setBatchPrice('')
       setSelectedIds(new Set())
       onDataChange()
-    } catch (err) { alert('批量改价失败：' + (err instanceof Error ? err.message : '未知错误')) }
+      if (failed.length) showNotice('warn', `批量改价部分失败：${failed.length}/${ids.length} 未生效`)
+    } catch (err) { showNotice('error', '批量改价失败：' + (err instanceof Error ? err.message : '未知错误')) }
   }
 
   return (
     <div className="space-y-3">
+      {notice && (
+        <div className={`px-3 py-2.5 rounded-xl text-xs border ${
+          notice.type === 'error'
+            ? 'bg-red-50 text-red-500 border-red-100'
+            : 'bg-amber-50 text-amber-600 border-amber-100'
+        }`} role={notice.type === 'error' ? 'alert' : 'status'}>
+          {notice.msg}
+        </div>
+      )}
       {/* 搜索 + 新增 */}
       <div className="flex gap-2">
         <div className="flex-1 relative">

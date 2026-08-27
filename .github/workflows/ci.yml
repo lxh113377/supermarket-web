@@ -29,5 +29,11 @@ jobs:
       - name: Test (vitest)
         run: npm test
 
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
       - name: Backend contract verify (node:sqlite mock D1)
         run: node scripts/verify-backend.mjs

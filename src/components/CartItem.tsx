@@ -41,6 +41,7 @@ export default function CartItem({ item, onAdd, onRemove, onDelete }: CartItemPr
         </div>
         <button
           onClick={onDelete}
+          aria-label={`删除${displayName}`}
           className="text-xs text-red-400 px-2.5 py-1.5 border border-red-100 rounded-lg hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition-all duration-200"
         >
           删除

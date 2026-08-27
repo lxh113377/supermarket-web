@@ -145,7 +145,7 @@ export default function ProductDetailPage() {
     setSubmitting(true)
     setReviewMsg('')
     try {
-      // 云存储直传：任一图失败则中止提交（无图评价不受影响）
+      // 评价晒图：压缩后 base64 dataURL 直传入库（D1 reviews.images）
       let images: string[] = []
       if (reviewImageBlobs.length > 0) {
         try {
@@ -351,10 +351,10 @@ export default function ProductDetailPage() {
               rows={3}
               maxLength={500}
             />
-            {/* 晒图（最多 5 张，自动压缩） */}
+            {/* 晒图（最多 3 张，自动压缩） */}
             <div>
               {reviewImages.length > 0 && (
-                <div className="grid grid-cols-5 gap-2 mb-2">
+                <div className="grid grid-cols-3 gap-2 mb-2">
                   {reviewImages.map((src, i) => (
                     <div key={i} className="relative aspect-square rounded-xl overflow-hidden border border-gray-100">
                       <img src={src} alt={`待发布图片 ${i + 1}`} className="w-full h-full object-cover" />
@@ -372,10 +372,10 @@ export default function ProductDetailPage() {
                   ))}
                 </div>
               )}
-              {reviewImages.length < 5 && (
+              {reviewImages.length < 3 && (
                 <label className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-4 text-sm text-gray-400 hover:border-brand-300 hover:text-brand-500 hover:bg-brand-50/30 transition-all duration-300 flex flex-col items-center cursor-pointer">
                   <span className="text-xl mb-1">📷</span>
-                  添加图片（选填，最多 5 张）
+                  添加图片（选填，最多 3 张）
                   <input type="file" accept="image/*" multiple className="hidden" onChange={handleReviewImages} />
                 </label>
               )}

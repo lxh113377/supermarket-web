@@ -33,6 +33,8 @@ export default function TopNav({ categories, activeSub, onSubChange, onSearchTog
           <button
             key={cat._id}
             onClick={() => handleTopChange(cat._id)}
+            aria-label={`切换到${cat.name}分类`}
+            aria-pressed={activeTop === cat._id}
             className={`flex-1 py-3.5 text-center text-sm font-medium transition-all duration-200 relative ${
               activeTop === cat._id
                 ? 'text-brand-600'
@@ -60,6 +62,8 @@ export default function TopNav({ categories, activeSub, onSubChange, onSearchTog
       <div className="flex overflow-x-auto whitespace-nowrap px-3 py-2.5 gap-2 bg-surface-warm scrollbar-hide">
         <button
           onClick={() => onSubChange('')}
+          aria-label="显示全部商品"
+          aria-pressed={activeSub === ''}
           className={activeSub === '' ? 'pill-active' : 'pill-inactive'}
         >
           全部
@@ -68,6 +72,8 @@ export default function TopNav({ categories, activeSub, onSubChange, onSearchTog
           <button
             key={sub.id}
             onClick={() => onSubChange(sub.id)}
+            aria-label={`切换到${sub.name}分类`}
+            aria-pressed={activeSub === sub.id}
             className={activeSub === sub.id ? 'pill-active' : 'pill-inactive'}
           >
             {sub.name}

@@ -1,6 +1,7 @@
 # AGENTS.md — supermarket-web
 
 > 自动生成: 2026-08-08 03:27:01
+> ⚠️ 架构已迁移（2026-08）：本快照为 CloudBase 时代生成，**当前架构 = Cloudflare Pages Functions + D1 + Workers KV 双前端**（见根目录 `../documents/AGENTS.md` 与 `HANDOFF.md`）。下方 cloudfunctions/、tcb 部署、VITE_CB_ENV_ID 等描述均已过时，勿照做。
 
 
 ## 最近对话摘要
