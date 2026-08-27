@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildReviewTrend, computeGrossMargin } from '../src/components/DashboardTab'
+import { buildReviewTrend, computeGrossMargin, buildRangeData, buildDelta, buildCsv } from '../src/components/DashboardTab'
 import type { Order, Product, Review } from '../src/types'
 
 function daysAgoDate(days: number, hour = 10): Date {
@@ -120,5 +120,114 @@ describe('computeGrossMargin', () => {
     expect(r.withCostItems).toBe(2)
     expect(r.drink?.revenue).toBe(7)
     expect(r.food).toBeNull() // 0 销量 → 暂无销售
+  })
+})
+
+describe('buildRangeData', () => {
+  const o = (createdAt: string, totalAmount = 10, status: string = 'paid'): Order => ({
+    _id: Math.random().toString(36).slice(2),
+    roomNumber: '301',
+    status: status as Order['status'],
+    items: [],
+    totalAmount,
+    createdAt,
+  })
+
+  it('空订单返回 N 天窗口（今天为末位，全零）', () => {
+    const r = buildRangeData([], 7)
+    expect(r.labels).toHaveLength(7)
+    expect(r.orderCounts.every((v) => v === 0)).toBe(true)
+    expect(r.revenues.every((v) => v === 0)).toBe(true)
+  })
+
+  it('今天/昨天正确聚合，营收与订单数独立计数', () => {
+    const today = new Date()
+    const todayIso = today.toISOString()
+    const yest = new Date(today.getTime() - 86400000).toISOString()
+    const r = buildRangeData([o(todayIso, 100), o(yest, 50), o(todayIso, 30)], 7)
+    expect(r.orderCounts[6]).toBe(2) // 今天 2 单
+    expect(r.orderCounts[5]).toBe(1) // 昨天 1 单
+    expect(r.revenues[6]).toBe(130)
+    expect(r.revenues[5]).toBe(50)
+  })
+
+  it('窗口外订单不聚合；cancelled 不计营收但计订单数', () => {
+    const longAgo = new Date(Date.now() - 10 * 86400000).toISOString()
+    const today = new Date().toISOString()
+    const r = buildRangeData([
+      o(longAgo, 999),
+      o(today, 100, 'cancelled'),
+      o(today, 0, 'cancelled'),
+    ], 7)
+    expect(r.orderCounts[6]).toBe(2) // cancelled 计入订单数（口径：统计所有订单）
+    expect(r.revenues[6]).toBe(0) // cancelled 不计营收
+    expect(r.orderCounts.slice(0, 6).every((v) => v === 0)).toBe(true)
+  })
+
+  it('非法日期跳过，不抛错', () => {
+    const r = buildRangeData([o('not-a-date', 100)], 7)
+    expect(r.orderCounts.every((v) => v === 0)).toBe(true)
+  })
+})
+
+describe('buildDelta', () => {
+  const o = (createdAt: string, totalAmount = 10, status: string = 'paid'): Order => ({
+    _id: Math.random().toString(36).slice(2),
+    roomNumber: '301',
+    status: status as Order['status'],
+    items: [],
+    totalAmount,
+    createdAt,
+  })
+
+  it('本期 3 单 vs 上期 2 单：订单 +50%、营收 +50%', () => {
+    const today = new Date()
+    const d = (ago: number) => new Date(today.getTime() - ago * 86400000).toISOString()
+    // 本期（近7天）3 单 300 元；上期 2 单 200 元
+    const orders = [
+      o(d(1), 100), o(d(2), 100), o(d(3), 100),
+      o(d(8), 100), o(d(9), 100),
+    ]
+    const r = buildDelta(orders, 7)
+    expect(r.ordersDelta).toBe(50) // (3-2)/2
+    expect(r.revenueDelta).toBe(50) // (300-200)/200
+  })
+
+  it('无上期数据（基数为 0）返回 null', () => {
+    const today = new Date()
+    const orders = [o(new Date(today.getTime() - 86400000).toISOString(), 10)]
+    const r = buildDelta(orders, 7)
+    expect(r.ordersDelta).toBeNull()
+    expect(r.revenueDelta).toBeNull()
+  })
+
+  it('cancelled 计入订单数、不计营收（口径一致）', () => {
+    const today = new Date()
+    const d = (ago: number) => new Date(today.getTime() - ago * 86400000).toISOString()
+    const orders = [
+      o(d(1), 100), o(d(2), 100, 'cancelled'),
+      o(d(8), 50), o(d(9), 50),
+    ]
+    const r = buildDelta(orders, 7)
+    expect(r.ordersDelta).toBe(0) // 本期2单 vs 上期2单
+    expect(r.revenueDelta).toBe(0) // 本期100 vs 上期100
+  })
+})
+
+describe('buildCsv', () => {
+  it('含 BOM、表头齐全、顺序与标签一致', () => {
+    const csv = buildCsv({ labels: ['8/27', '8/28'], orderCounts: [1, 2], revenues: [10, 20] })
+    expect(csv.startsWith('\uFEFF')).toBe(true)
+    const lines = csv.replace('\uFEFF', '').split('\r\n')
+    expect(lines[0]).toBe('日期,订单数,营收(¥)')
+    expect(lines[1]).toBe('8/27,1,10')
+    expect(lines[2]).toBe('8/28,2,20')
+  })
+
+  it('含逗号/引号的内容正确转义', () => {
+    const csv = buildCsv({ labels: ['a,b', 'x"y'], orderCounts: [1, 2], revenues: [0, 0] })
+    const lines = csv.replace('\uFEFF', '').split('\r\n')
+    expect(lines[1]).toBe('"a,b",1,0')
+    expect(lines[2]).toBe('"x""y",2,0')
   })
 })

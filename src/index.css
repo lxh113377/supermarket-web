@@ -5,6 +5,12 @@
 :root {
   /* 品牌渐变条（柿子黄 → 橙 → 深绿），品牌视觉链路唯一真相源 */
   --brand-bar: linear-gradient(90deg, #facc15, #f97316, #14532d);
+  /* 看板图表色板（唯一真相源，ECharts 主题从此读取，消除硬编码色值） */
+  --chart-b1: #facc15;
+  --chart-b2: #14532d;
+  --chart-b3: #f97316;
+  --chart-grid: #f3f4f6;
+  --chart-text: #9ca3af;
 }
 
 /* 无障碍：用户偏好减少动效时，全局禁用动画/过渡（含 JS 动画兜底，如 count-up） */
@@ -134,13 +140,26 @@ img {
     background: linear-gradient(180deg, #fffbeb, #ffffff);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 6px 24px -12px rgba(202, 138, 4, 0.45);
   }
-  .card-accent::before {
-    content: '';
-    position: absolute;
-    inset: 0 0 auto 0;
-    height: 3px;
-    background: var(--brand-bar);
+  /* 时间范围分段切换（看板 7/30/90/365） */
+  .seg-bar {
+    @apply inline-flex items-center gap-1 bg-gray-100 p-1 rounded-xl;
   }
+  .seg {
+    @apply px-3 py-1.5 rounded-lg text-xs font-medium text-gray-500 transition-all duration-200 cursor-pointer;
+  }
+  .seg.active {
+    background: var(--brand-bar);
+    color: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  }
+
+  /* KPI 环比徽章 */
+  .delta-badge {
+    @apply inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-semibold;
+  }
+  .delta-up { @apply bg-green-50 text-green-600; }
+  .delta-down { @apply bg-red-50 text-red-500; }
+  .delta-flat { @apply bg-gray-50 text-gray-400; }
 }
 
 /* === 交错入场动画工具类 === */
