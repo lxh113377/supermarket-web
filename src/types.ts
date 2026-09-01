@@ -123,4 +123,6 @@ export interface ApiResult<T = unknown> {
   total?: number
   page?: number
   pageSize?: number
+  // 分页查询是否还有下一页（getOrders 等分页接口返回；前端循环拉全量依赖它）
+  hasMore?: boolean
 }

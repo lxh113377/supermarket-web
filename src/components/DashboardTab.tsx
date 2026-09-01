@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Order, Product, Review } from '../types'
 import { adminCall } from '../auth'
 import { useDashboardCharts } from '../hooks/useDashboardCharts'
+import KpiCard from './KpiCard'
 import { IconChart, IconBox } from './Icons'
+import { csvEscape } from '../utils/csv'
 
 // ⚠ react(only-export-components) 警告为既有模式：纯函数导出供 vitest 直测（dashboard.test.ts）
 // ─────────────────────────────────────────────────────────────
@@ -104,14 +106,11 @@ export function buildDelta(orders: Order[], days: number): DeltaResult {
 
 // ─────────────────────────────────────────────────────────────
 // 纯函数（供单测）：CSV 生成（逗号/引号/换行转义 + Excel UTF-8 BOM）
+// 转义逻辑复用 src/utils/csv.ts（OrdersTab 同源），此处仅组装行结构
 export function buildCsv(rangeData: RangeData): string {
-  const esc = (v: string | number) => {
-    const s = String(v)
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
-  }
   const rows = ['日期,订单数,营收(¥)']
   rangeData.labels.forEach((label, i) => {
-    rows.push(`${esc(label)},${esc(rangeData.orderCounts[i])},${esc(rangeData.revenues[i])}`)
+    rows.push(`${csvEscape(label)},${csvEscape(rangeData.orderCounts[i])},${csvEscape(rangeData.revenues[i])}`)
   })
   return '\uFEFF' + rows.join('\r\n')
 }
@@ -192,54 +191,6 @@ export function computeGrossMargin(orders: Order[], products: Product[]): Margin
     withCostItems,
     totalItems,
   }
-}
-
-// ─────────────────────────────────────────────────────────────
-// KPI count-up 动画（尊重 prefers-reduced-motion，直接落最终值）
-function useCountUp(target: number, duration = 700): number {
-  const reduced = useMemo(
-    () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true,
-    [],
-  )
-  const [value, setValue] = useState(0)
-  const prevRef = useRef(0)
-  useEffect(() => {
-    if (reduced) {
-      setValue(target)
-      prevRef.current = target
-      return
-    }
-    const from = prevRef.current
-    const start = performance.now()
-    let raf = 0
-    const tick = (now: number) => {
-      const p = Math.min((now - start) / duration, 1)
-      if (p >= 1) {
-        setValue(target)
-        prevRef.current = target
-      } else {
-        setValue(from + (target - from) * (1 - Math.pow(1 - p, 3)))
-        raf = requestAnimationFrame(tick)
-      }
-    }
-    raf = requestAnimationFrame(tick)
-    return () => {
-      cancelAnimationFrame(raf)
-      prevRef.current = target
-    }
-  }, [target, duration, reduced])
-  return value
-}
-
-function DeltaBadge({ value, positiveIsGood = true }: { value: number | null; positiveIsGood?: boolean }) {
-  if (value === null) return <span className="delta-badge delta-flat">—</span>
-  const up = value > 0
-  const good = up === positiveIsGood
-  return (
-    <span className={`delta-badge ${value === 0 ? 'delta-flat' : good ? 'delta-up' : 'delta-down'}`}>
-      {up ? '▲' : value < 0 ? '▼' : '◆'}{Math.abs(value)}%
-    </span>
-  )
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -338,9 +289,9 @@ export default function DashboardTab({ orders, products, reviews }: {
   loadAdviceRef.current = loadAdvice
   useEffect(() => { loadAdviceRef.current() }, [])
 
-  const kpiRevenue = useCountUp(Math.round(revenueSum))
-  const kpiOrders = useCountUp(orderSum)
-  const kpiAvg = useCountUp(Math.round(avgDaily))
+  const kpiRevenue = Math.round(revenueSum)
+  const kpiOrders = orderSum
+  const kpiAvg = Math.round(avgDaily)
 
   const dateStr = new Date().toISOString().slice(0, 10)
 
@@ -368,27 +319,31 @@ export default function DashboardTab({ orders, products, reviews }: {
         </div>
       </div>
 
-      {/* 数据卡片（count-up + 环比徽章，首卡 accent） */}
+      {/* 数据卡片（count-up + 环比徽章；count-up 动画隔离在 KpiCard 子树，避免每帧触发整页重渲染） */}
       <div className="grid grid-cols-3 gap-3">
-        <div className={`p-4 rounded-2xl border border-gray-100/80 text-center ${rangeDays === 7 ? 'card-accent animate-fade-in-up stagger-1' : 'bg-white shadow-card animate-fade-in-up stagger-1'}`}>
-          <p className="text-xl font-bold text-brand-700">¥{kpiRevenue.toLocaleString()}</p>
-          <p className="text-[10px] text-gray-400 mt-1">近{rangeDays}天营收</p>
-          <div className="mt-1 flex justify-center">
-            <DeltaBadge value={delta.revenueDelta} />
-          </div>
-        </div>
-        <div className="bg-white p-4 rounded-2xl border border-gray-100/80 shadow-card text-center animate-fade-in-up stagger-2">
-          <p className="text-xl font-bold text-gray-900">{kpiOrders.toLocaleString()}</p>
-          <p className="text-[10px] text-gray-400 mt-1">近{rangeDays}天订单</p>
-          <div className="mt-1 flex justify-center">
-            <DeltaBadge value={delta.ordersDelta} />
-          </div>
-        </div>
-        <div className="bg-white p-4 rounded-2xl border border-gray-100/80 shadow-card text-center animate-fade-in-up stagger-3">
-          <p className="text-xl font-bold text-gray-900">¥{kpiAvg.toLocaleString()}</p>
-          <p className="text-[10px] text-gray-400 mt-1">日均营收</p>
-          <p className="text-[10px] text-gray-400 mt-1">累计 {orders.length} 单</p>
-        </div>
+        <KpiCard
+          label={`近${rangeDays}天营收`}
+          value={kpiRevenue}
+          prefix="¥"
+          accent={rangeDays === 7}
+          delta={delta}
+          deltaMetric="revenue"
+          staggerCls="stagger-1"
+        />
+        <KpiCard
+          label={`近${rangeDays}天订单`}
+          value={kpiOrders}
+          delta={delta}
+          deltaMetric="orders"
+          staggerCls="stagger-2"
+        />
+        <KpiCard
+          label="日均营收"
+          value={kpiAvg}
+          prefix="¥"
+          sub={`累计 ${orders.length} 单`}
+          staggerCls="stagger-3"
+        />
       </div>
 
       {/* 趋势图（近 N 天 营收/订单 双轴） */}
