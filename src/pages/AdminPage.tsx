@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { getCategories, getAdminProducts, getAllReviews, seedCloudData } from '../db'
-import { adminCall } from '../auth'
+import { getCategories, getAdminProducts, getAllReviews, seedCloudData, getAllOrders } from '../db'
 import { IS_CLOUD } from '../cloudbase'
 import DashboardTab from '../components/DashboardTab'
 import ProductsTab from '../components/ProductsTab'
@@ -54,8 +53,8 @@ export default function AdminPage() {
   const loadOrders = useCallback(async () => {
     setOrdersLoading(true)
     try {
-      const result = await adminCall('getOrders', {})
-      const ords = (result && result.code === 0) ? ((result.data || []) as Order[]) : []
+      // 循环拉全量（getOrders 默认 50 条，直接取会截断；getAllOrders 按 hasMore 循环合并）
+      const ords = await getAllOrders()
       const ids = new Set(ords.map(o => o._id))
       if (prevOrderIds.current.size > 0) {
         const added = [...ids].filter(id => !prevOrderIds.current.has(id))

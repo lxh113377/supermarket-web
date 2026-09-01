@@ -6,8 +6,9 @@
 > **⚠️ 这是新对话恢复上下文的入口文件。P0 必须永远有一条可执行指令。**
 
 ## P0 — 必须做
-- [ ] 线上全链路人工验收 — 用户 Ctrl+Shift+R 强刷后走通 首页→详情(order20 猎兽图+评价)→加购→下单→支付→管理后台；验证 seed 的 20 条评价可见
-- [ ] 观察线上运行 3-7 天 — 关注 sm_orders/sm_reviews 计数与 public-api /pub 调用是否稳定（日志 Topic: tcb-topic-chaoshi-d2g5xfkao100010ef）
+- [x] 2026-08-30 修复后台无法登录：线上 pages.dev 部署的是未烘焙 VITE_CB_API_BASE 的旧构建（后台静默降级「本地演示模式」，看不到真实订单）→ `npm run build`（.env 已配 API base）+ `node node_modules/wrangler/bin/wrangler.js pages deploy dist --project-name=supermarket-web --commit-dirty=true` 重新部署，线上验证云端模式 + 登录 + 12 条订单可见
+- [x] 2026-08-30 确认正确后台入口 URL = `https://supermarket-web.pages.dev/#/admin`（HashRouter 路由；`#@command:admin` 非合法路由会 404，勿再用）
+- [ ] 观察线上运行 — 管理端每次登录/查看订单正常；后台仍出现「本地演示模式」= 部署的构建没带 .env（VITE_CB_API_BASE），需重构建+重部署（见 project_memory 2026-08-30 条）
 
 ## P1 — 应该做
 - [x] 评价晒图改云存储直传 — 2026-08-08 完成：uploadFile/fileID + getTempFileURL 会话缓存 + 旧 base64 兼容；待用户控制台开启安全域名+存储匿名读写后即可用
@@ -20,6 +21,7 @@
 - [ ] CloudBase 日志检索接入（当前 tcb fn log 在 CLI 3.6.4 不可用，改控制台或 tccli）
 
 ## 最近对话摘要
+- 2026-08-30 — 修复后台无法登录：①用户用错 URL `#@command:admin`（HashRouter 下 404，正确为 `#/admin`）②线上 pages.dev 部署的构建未烘焙 VITE_CB_API_BASE → 后台静默「本地演示模式」，登录绕过、看不到真实订单。根因 = 部署的 dist 是旧构建（不含 .env 编译产物）。修复 = 重新 `npm run build` + `wrangler pages deploy dist`，线上验证：云端模式、登录（`supermarket-admin-2026`）、12 条订单、控制台零报错；顾客端 github.io 同 bundle（index-BXYcXL5G.js）跨域 API 正常（49 商品）。⚠️ 注意：本 memory/ 目录仍为 CloudBase 时代旧快照，当前架构 = Cloudflare Pages Functions + D1 + KV（见项目根 AGENTS.md 顶部警示），勿照抄旧命令。
 - 2026-08-08 — 完成超柿全量上线：P0/P1/P2 修复（订单字段/评价体系/多图/数据卫生）、41 文件 TS 迁移（97 测试全绿）、GUI 打磨、order20 换图（OCR 验证猎兽）。tccli 授权成功，创建 /pub→public-api 独立路由；部署发现 public-api 从未被 HTTP 调用、包内缺 node_modules → 补依赖后重部署解决。线上验证：49 商品、20 种子评价、测试订单/评价已清理。
 
 ## 已完成

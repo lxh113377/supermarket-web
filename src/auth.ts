@@ -33,12 +33,17 @@ function getCachedKey(): string {
   }
 }
 
+// AI 接口默认超时 30s（服务端 callDifyChat/callDifyCompletion 为 20s 上游硬上限，blocking 模式长回复
+// 必须让前端超时 > 服务端超时，否则 AI 回答会被前端 AbortController 掐断。普通接口维持 15s。）
+const DEFAULT_TIMEOUT_MS = 15000
+const AI_TIMEOUT_MS = 30000
+
 // 统一的云函数 HTTP 调用（不依赖 SDK 鉴权）
-async function callAdminApi<T = unknown>(action: string, adminKey: string, payload: Record<string, unknown>): Promise<ApiResult<T>> {
+async function callAdminApi<T = unknown>(action: string, adminKey: string, payload: Record<string, unknown>, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<ApiResult<T>> {
   const url = getApiBase(action)
   if (!url) throw new Error('未配置接口地址（VITE_CB_API_BASE / VITE_CB_PUBLIC_API_BASE），无法连接后端')
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 15000)
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
     const res = await fetch(url, {
       method: 'POST',
@@ -78,16 +83,21 @@ export async function loginAdmin(key: string): Promise<boolean> {
 }
 
 // 管理写操作：每次带上缓存的密钥
-export async function adminCall<T = unknown>(action: string, payload: Record<string, unknown> = {}): Promise<ApiResult<T>> {
-  const data = await callAdminApi<T>(action, getCachedKey(), payload)
+export async function adminCall<T = unknown>(action: string, payload: Record<string, unknown> = {}, timeoutMs?: number): Promise<ApiResult<T>> {
+  const useAiTimeout = timeoutMs ?? (AI_ACTIONS.has(action) ? AI_TIMEOUT_MS : undefined)
+  const data = await callAdminApi<T>(action, getCachedKey(), payload, useAiTimeout)
   return data
 }
 
 // 公开接口（顾客端免密钥，走 /pub 端点）
-export async function publicCall<T = unknown>(action: string, payload: Record<string, unknown> = {}): Promise<ApiResult<T>> {
-  const data = await callAdminApi<T>(action, '', payload)
+export async function publicCall<T = unknown>(action: string, payload: Record<string, unknown> = {}, timeoutMs?: number): Promise<ApiResult<T>> {
+  const useAiTimeout = timeoutMs ?? (AI_ACTIONS.has(action) ? AI_TIMEOUT_MS : undefined)
+  const data = await callAdminApi<T>(action, '', payload, useAiTimeout)
   return data
 }
+
+// AI 相关 action：需要更宽松的超时（见 AI_TIMEOUT_MS 注释）
+const AI_ACTIONS = new Set(['aiChat', 'aiAdvice'])
 
 export async function verifyAdminKey(key: string): Promise<boolean> {
   if (!IS_CLOUD) return true

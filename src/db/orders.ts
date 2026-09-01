@@ -47,3 +47,31 @@ export async function getOrders(
     return getLocalOrders()
   }
 }
+
+// 查询全量订单（管理端看板/列表；后端 getOrders 默认 pageSize=50，直接取 data 会截断，
+// 这里按 hasMore 循环拉全量，避免看板聚合/搜索/翻页只覆盖最新 N 单。maxPages 防异常死循环）
+export async function getAllOrders(): Promise<Order[]> {
+  if (!IS_CLOUD) return getLocalOrders()
+  const PAGE_SIZE = 100
+  const MAX_PAGES = 20
+  const seen = new Set<string>()
+  const all: Order[] = []
+  try {
+    for (let page = 1; page <= MAX_PAGES; page++) {
+      const r = await adminCall<Order[]>('getOrders', { page, pageSize: PAGE_SIZE })
+      if (r.code !== 0) return getLocalOrders()
+      const rows = r.data || []
+      for (const o of rows) {
+        if (o._id && !seen.has(o._id)) {
+          seen.add(o._id)
+          all.push(o)
+        }
+      }
+      if (!r.hasMore || rows.length < PAGE_SIZE) break
+    }
+    return all
+  } catch (e) {
+    console.warn('[db] cloud getAllOrders failed, using local fallback:', e instanceof Error ? e.message : String(e))
+    return getLocalOrders()
+  }
+}

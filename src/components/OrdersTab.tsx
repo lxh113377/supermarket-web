@@ -1,5 +1,7 @@
 import React, { useState, useMemo } from 'react'
-import { updateOrderStatus, deleteOrder, adminCall } from '../auth'
+import { updateOrderStatus, deleteOrder } from '../auth'
+import { getAllOrders } from '../db'
+import { buildCsvText } from '../utils/csv'
 import type { Order } from '../types'
 
 export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
@@ -31,7 +33,7 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
   const handleStatus = async (orderId: string, status: string) => {
     try {
       await updateOrderStatus(orderId, status)
-      const data = await fetchOrders()
+      const data = await getAllOrders()
       onOrdersChange(data)
     } catch (err) {
       alert('更新失败：' + (err instanceof Error ? err.message : '未知错误'))
@@ -46,7 +48,7 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
       if (!res || ('code' in res && res.code !== 0)) {
         throw new Error((res && 'message' in res && res.message) || '删除失败')
       }
-      const data = await fetchOrders()
+      const data = await getAllOrders()
       onOrdersChange(data)
     } catch (err) {
       alert('删除失败：' + (err instanceof Error ? err.message : '未知错误'))
@@ -62,19 +64,20 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
   }
 
   const exportCSV = (): void => {
-    const head = '房间号,商品,数量,单价,小计,状态,时间'
-    const rows = orders.map(o =>
+    const statusLabel = (s: string) => s === 'pending' ? '待支付' : s === 'paid' ? '已支付' : '已取消'
+    const rows = orders.flatMap(o =>
       o.items.map(i => [
         String(o.roomNumber),
-        `"${i.name}${i.spec ? '(' + i.spec + ')' : ''}  x${i.quantity}"`,
-        i.quantity,
+        `${i.name}${i.spec ? '(' + i.spec + ')' : ''}  x${i.quantity}`,
+        String(i.quantity),
         (i.price ?? 0).toFixed(2),
         ((i.price ?? 0) * i.quantity).toFixed(2),
-        o.status === 'pending' ? '待支付' : o.status === 'paid' ? '已支付' : '已取消',
+        statusLabel(o.status),
         new Date(o.createdAt).toLocaleString(),
-      ].join(',')).join('\n')
-    ).join('\n')
-    const blob = new Blob(['\uFEFF' + head + '\n' + rows], { type: 'text/csv;charset=utf-8' })
+      ])
+    )
+    const csv = buildCsvText(['房间号', '商品', '数量', '单价', '小计', '状态', '时间'], rows)
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -160,9 +163,4 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
       )}
     </div>
   )
-}
-
-async function fetchOrders(): Promise<Order[]> {
-  const result = await adminCall('getOrders', {})
-  return result.code === 0 ? (result.data || []) as Order[] : []
 }

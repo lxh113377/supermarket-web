@@ -599,8 +599,11 @@ const DEFAULT_ALLOWED_ORIGINS = [
 // 管理端：近 30 天经营建议（/web aiAdvice，只读，只读密钥可用）
 async function adminAiAdvice(env, DB) {
   try {
-    const orderRes = await getOrders(DB, { page: 1, pageSize: 100 })
-    const orders = orderRes.data || []
+    // 一次全量查询（getOrders 默认 50/100 条会截断近 30 天窗口；社区超市量级 LIMIT 2000 足够）
+    const orderRows = await qAll(DB,
+      `SELECT _id, roomNumber, items, totalAmount, status, createdAt, wechat, remark, updatedAt
+       FROM orders ORDER BY createdAt DESC LIMIT 2000`)
+    const orders = orderRows.map((r) => ({ ...r, items: jparse(r.items, []) }))
     const cutoff = Date.now() - 30 * 86400000
     const orders30 = orders.filter((o) => {
       const t = new Date(o.createdAt).getTime()
