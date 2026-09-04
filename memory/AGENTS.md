@@ -6,7 +6,7 @@
 ## 门禁命令
 
 ```
-门禁命令: cd supermarket-web && node scripts/verify-backend.mjs && npx vitest run
+门禁命令: cd supermarket-web && npm run verify:backend && npm test
 ```
 
 - 触发条件：任何修改类任务（改 `functions/`、`src/`、`scripts/verify-backend.mjs`、`db/`）完成后必须跑，全绿才可交付。
