@@ -7,6 +7,11 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# 同一 workflow 组内：连续 push main 时取消旧 run，防止两次 deploy job 并发导致旧构建覆盖新构建
+concurrency:
+  group: ci-supermarket-web
+  cancel-in-progress: true
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
