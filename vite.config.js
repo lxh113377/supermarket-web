@@ -25,6 +25,11 @@ function swVersionPlugin() {
 export default defineConfig({
   plugins: [react(), swVersionPlugin()],
   base: './',
+  test: {
+    // vitest 4 读取本字段；setup 统一注册 RTL cleanup（非 globals 模式不自动清理）
+    environment: 'jsdom',
+    setupFiles: ['./tests/setup.ts'],
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'),

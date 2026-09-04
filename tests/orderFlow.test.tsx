@@ -50,8 +50,7 @@ const cartWith = (qty: number) => ({ items: [{ productId: 'p1', name: '可乐', 
 
 describe('下单主链路（加购 → 确认 → 支付）', () => {
   beforeEach(() => {
-    // 清残留 DOM（RTL 在 vitest 非 globals 模式不自动 cleanup；cleanup() 导入在此环境绑定异常，用 DOM 级清理等效）
-    document.body.innerHTML = ''
+    // 测试间 DOM 清理由 tests/setup.ts 全局 RTL cleanup 统一负责
     localStorage.clear()
     sessionStorage.clear()
     vi.clearAllMocks()
