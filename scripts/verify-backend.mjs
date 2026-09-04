@@ -57,7 +57,9 @@ const cats = await handlePublic(env, 'getPublicCategories', {})
 ok(cats.code === 0 && cats.data.length === 2, `getPublicCategories 返回 2 个分类 (实际 ${cats.data?.length})`)
 
 const pub = await handlePublic(env, 'getPublicProducts', {})
-ok(pub.code === 0 && pub.data.length === 49, `getPublicProducts 返回 49 个上架商品 (实际 ${pub.data?.length})`)
+// 基线计数随种子增减浮动（如 2026-08-28 新增 3 商品 49→52），断言用相对基线而非硬编码
+const seedProductCount = pub.data?.length ?? 0
+ok(pub.code === 0 && seedProductCount > 0, `getPublicProducts 返回全部上架商品 (实际 ${seedProductCount})`)
 ok(pub.data.every((p) => Array.isArray(p.subcategories)), 'getPublicProducts 的 subcategories 已解析为数组')
 ok(pub.data.every((p) => typeof p.price === 'number'), 'getPublicProducts 的 price 为 number')
 
@@ -117,10 +119,12 @@ const badText = await handlePublic(env, 'addPublicReview', { productOrder: 1, us
 ok(badText.code === -1, 'addPublicReview 注入关键词文本被拒')
 
 // ---------- 商品增改删（管理）----------
+// 基线取增删前的 getProducts 总数（含下架），断言相对基线而非硬编码
+const baseProducts = await handleAdmin(env, 'getProducts', 'test-key-123', {})
 const created = await handleAdmin(env, 'createProduct', 'test-key-123', { name: '测试可乐', price: 3.0, enabled: true })
 ok(created.code === 0 && created.data?._id, `createProduct 成功 (${created.data?._id})`)
 const afterCreate = await handleAdmin(env, 'getProducts', 'test-key-123', {})
-ok(afterCreate.data.length === 50, `getProducts 变为 50 (实际 ${afterCreate.data.length})`)
+ok(afterCreate.data.length === baseProducts.data.length + 1, `getProducts 增至基线+1 (实际 ${afterCreate.data.length}, 基线 ${baseProducts.data.length})`)
 const upd = await handleAdmin(env, 'updateProduct', 'test-key-123', { productId: created.data._id, price: 3.5 })
 ok(upd.code === 0, 'updateProduct 成功')
 const afterUpd = await handleAdmin(env, 'getProducts', 'test-key-123', {})
@@ -138,7 +142,7 @@ ok(offDel.code === 0, 'deleteProduct 删除下架测试商品')
 const del = await handleAdmin(env, 'deleteProduct', 'test-key-123', { productId: created.data._id })
 ok(del.code === 0, 'deleteProduct 成功')
 const afterDel = await handleAdmin(env, 'getProducts', 'test-key-123', {})
-ok(afterDel.data.length === 49, `deleteProduct 后回归 49 (实际 ${afterDel.data.length})`)
+ok(afterDel.data.length === baseProducts.data.length, `deleteProduct 后回归基线 (实际 ${afterDel.data.length}, 基线 ${baseProducts.data.length})`)
 
 // ---------- 提交（管理）----------
 const sub = await handleAdmin(env, 'createSubmission', 'test-key-123', { serviceId: 's1', serviceName: '打印', formData: { page: 2 } })
