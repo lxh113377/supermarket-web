@@ -2,7 +2,7 @@
 
 > 最后更新：2026-08-28（架构已迁移 Cloudflare Pages + D1，README 为准；CloudBase 历史记录见文末存档）
 >
-> ✅ **最后实测验证：2026-09-05** —— main@565973c（后端分层重构 + echarts 按需 + CI concurrency），远端 CI **success**、双部署链路通、线上 smoke 4/4 PASS、verify-backend 47/47、vitest 126/126。优化建议与执行记录见 `../deliverables/optimization-recommendations-2026-09-05.md`。本文档中早于该日期的状态描述若与本戳冲突，**以本戳和磁盘实测为准**。
+> ✅ **最后实测验证：2026-09-05** —— main@565973c（后端分层重构 + echarts 按需 + CI concurrency），远端 CI **success**、双部署链路通、线上 smoke 4/4 PASS、verify-backend 47/47、vitest 132/132（09-05 二轮新增 orderFlow 下单链路集成测试 6 用例）。优化建议与执行记录见 `../deliverables/optimization-recommendations-2026-09-05.md`。本文档中早于该日期的状态描述若与本戳冲突，**以本戳和磁盘实测为准**。
 
 ## 一、项目概述
 
@@ -23,7 +23,7 @@
 | 数据库 | D1（SQLite，7 表）+ Workers KV（限流计数） |
 | 双前端 | Cloudflare Pages（同源）/ GitHub Pages（dispatch CI 双发） |
 | Lint | oxlint |
-| 测试 | vitest（82 用例）+ `scripts/verify-backend.mjs`（后端契约 47 项） |
+| 测试 | vitest（19 文件 132 用例）+ `scripts/verify-backend.mjs`（后端契约 47 项） |
 
 ## 三、项目结构
 
