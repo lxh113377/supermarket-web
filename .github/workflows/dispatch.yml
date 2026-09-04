@@ -10,6 +10,12 @@ name: Dispatch deploy to github.io
 on:
   push:
     branches: [main]
+
+# 连续 push main 时取消旧 run，防止重复 dispatch 触发 github.io 侧并发构建
+concurrency:
+  group: dispatch-supermarket-web
+  cancel-in-progress: true
+
 jobs:
   dispatch:
     runs-on: ubuntu-latest
