@@ -51,7 +51,7 @@ supermarket-web/
 │   ├── utils/              # businessHours / reviewImages（评价图压缩+base64）
 │   ├── components/         # UI 组件（含管理端 InlineEditForm 内联编辑）
 │   └── pages/              # 顾客端 + 管理端页面
-├── tests/                  # vitest 单测（11 文件 82 用例）
+├── tests/                  # vitest 单测（18 文件 126 用例）
 ├── public/                 # 商品图 webp + sm/ 小图、sw.js、manifest、收款码
 ├── .github/workflows/      # ci.yml（门禁）+ dispatch.yml（github.io 双发）
 ├── wrangler.toml           # Pages 构建输出 + D1/KV 绑定
@@ -151,7 +151,7 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN`（repo �
 | Pages 项目 | supermarket-web（`supermarket-web.pages.dev`） |
 | D1 数据库 | supermarket（id `4bfc0283-...`，binding `DB`） |
 | Workers KV | RATE_KV（id `47242e45-...`，限流计数） |
-| 管理密钥 | `ADMIN_KEY` = `supermarket-admin-2026`（生产 secret 与 `.dev.vars` 同值；**禁止轮换**） |
+| 管理密钥 | `ADMIN_KEY` = 64 位随机串（**2026-09-05 已轮换**，旧值 supermarket-admin-2026 作废；生产 Pages secret 与本地 `.dev.vars` 同值） |
 | 只读密钥 | `ADMIN_READONLY_KEY`（可选） |
 | CORS 追加源 | `ALLOWED_ORIGINS`（逗号分隔，可选） |
 
