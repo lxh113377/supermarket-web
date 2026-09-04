@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Dispatch deploy event to github.io
-        uses: actions/github-script@v9
+        uses: actions/github-script@v7
         env:
           DISPATCH_TOKEN: ${{ secrets.GH_DISPATCH_TOKEN }}
         with:
