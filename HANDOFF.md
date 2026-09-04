@@ -1,6 +1,8 @@
 # 超柿 - 项目交接文档
 
 > 最后更新：2026-08-28（架构已迁移 Cloudflare Pages + D1，README 为准；CloudBase 历史记录见文末存档）
+>
+> ✅ **最后实测验证：2026-09-05** —— main@565973c（后端分层重构 + echarts 按需 + CI concurrency），远端 CI **success**、双部署链路通、线上 smoke 4/4 PASS、verify-backend 47/47、vitest 126/126。优化建议与执行记录见 `../deliverables/optimization-recommendations-2026-09-05.md`。本文档中早于该日期的状态描述若与本戳冲突，**以本戳和磁盘实测为准**。
 
 ## 一、项目概述
 
