@@ -96,4 +96,9 @@ export const products: SeedProduct[] = [
   { name: '白象方便面', spec: '零售', price: 1.88, subcategories: ['filling'], order: 47 },
   { name: '乡巴佬卤蛋', spec: '', price: 1.37, subcategories: ['filling'], order: 48 },
   { name: '双汇火腿肠', spec: '', price: 0.88, subcategories: ['filling'], order: 49 },
+
+  // 新增商品
+  { name: '优酸乳', spec: '200ml', price: 1.5, subcategories: ['sweet'], order: 50 },
+  { name: '补水啦', spec: '900ml', price: 4.88, subcategories: ['energy'], order: 51 },
+  { name: '乐吧薯片', spec: '40g', price: 1.88, subcategories: ['snacks'], order: 52 },
 ]

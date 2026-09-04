@@ -49,3 +49,6 @@ INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order") V
 INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order") VALUES ('p047', '白象方便面', '零售', 1.88, '["filling"]', 1, 47);
 INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order") VALUES ('p048', '乡巴佬卤蛋', '', 1.37, '["filling"]', 1, 48);
 INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order") VALUES ('p049', '双汇火腿肠', '', 0.88, '["filling"]', 1, 49);
+INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order") VALUES ('p050', '优酸乳', '200ml', 1.5, '["sweet"]', 1, 50);
+INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order") VALUES ('p051', '补水啦', '900ml', 4.88, '["energy"]', 1, 51);
+INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order") VALUES ('p052', '乐吧薯片', '40g', 1.88, '["snacks"]', 1, 52);
