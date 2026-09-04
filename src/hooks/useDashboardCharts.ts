@@ -46,9 +46,33 @@ export function useDashboardCharts(d: ChartData) {
       Object.values(chartsRef.current).forEach((c: { resize: () => void }) => c?.resize())
     }
     ;(async () => {
-      // 动态 import：代码分割出 echarts chunk，顾客端 bundle 不混入
-      const echarts = await import('echarts')
+      // 动态 import：代码分割出 echarts chunk，顾客端 bundle 不混入。
+      // 注意：必须走 lib 深路径而非 echarts/charts|components barrel——echarts package.json
+      // 把 lib/chart/*、lib/component/* 全部声明为 sideEffects，barrel 一旦引入即整包保留
+      // （实测全量 gzip ~340KB、barrel 按需 ~327KB，深路径仅 ~1/3）。
+      const [core, line, pie, bar, grid, tooltip, legend, dz, dzi, dzs, renderers] = await Promise.all([
+        import('echarts/core'),
+        import('echarts/lib/chart/line'),
+        import('echarts/lib/chart/pie'),
+        import('echarts/lib/chart/bar'),
+        import('echarts/lib/component/grid'),
+        import('echarts/lib/component/tooltip'),
+        import('echarts/lib/component/legend'),
+        import('echarts/lib/component/dataZoom'),
+        import('echarts/lib/component/dataZoomInside'),
+        import('echarts/lib/component/dataZoomSlider'),
+        import('echarts/renderers'),
+      ])
       if (cancelled) return
+      const installs = [
+        line.default, pie.default, bar.default,
+        grid.default, tooltip.default, legend.default,
+        dz.default, dzi.default, dzs.default,
+        renderers.CanvasRenderer,
+      ]
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      core.use(installs as any)
+      const echarts = core
       echartsRef.current = echarts
       const hosts: Array<[RefObject<HTMLDivElement | null>, string]> = [
         [trendRef, 'trend'],
@@ -170,12 +194,7 @@ export function useDashboardCharts(d: ChartData) {
             data: pieSegments.length ? pieSegments : [],
           },
         ],
-        graphic: pieSegments.length ? undefined : [
-          {
-            type: 'text', left: 'center', top: '40%',
-            style: { text: '暂无数据', fill: text, fontSize: 12 },
-          },
-        ],
+        // 空态提示由 DashboardTab 的 HTML overlay 负责（不再注册 GraphicComponent，省 ~87KB gz）
       }, true)
     }
 

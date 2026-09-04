@@ -407,7 +407,14 @@ export default function DashboardTab({ orders, products, reviews }: {
       {/* 分类销量占比（环形） */}
       <div className="bg-white p-5 rounded-2xl border border-gray-100/80 shadow-card animate-fade-in-up stagger-6">
         <h3 className="section-title mb-2">分类销量占比</h3>
-        <div ref={pieRef} className="h-56 w-full" aria-label="饮品与食品销量占比图" />
+        <div className="relative h-56 w-full">
+          <div ref={pieRef} className="h-56 w-full" aria-label="饮品与食品销量占比图" />
+          {!pieSegments.length && (
+            <div className="absolute inset-0 flex items-center justify-center text-gray-300 text-sm" aria-hidden="true">
+              暂无数据
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 销量排行 TOP10（按营收） */}
