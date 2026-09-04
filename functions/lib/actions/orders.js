@@ -1,0 +1,98 @@
+// 订单域 handlers（从 backend.js 拆出，逻辑零改动）
+
+import { qAll, qFirst, qRun, jparse, nowISO, genId, insert } from '../db.js'
+import { isSafeImageUrl } from '../security.js'
+
+export async function createOrder(DB, payload) {
+  const { roomNumber, items, wechat, remark, paymentScreenshot } = payload
+  if (!roomNumber || !Array.isArray(items) || !items.length) return { code: -1, message: '订单数据不完整' }
+  // 付款截图 scheme 白名单：拒绝非 data:image / https 的注入向量
+  if (typeof paymentScreenshot === 'string' && paymentScreenshot) {
+    if (paymentScreenshot.length > 800 * 1024 || !isSafeImageUrl(paymentScreenshot))
+      return { code: -1, message: '付款截图格式无效，请重新上传' }
+  }
+  const ids = items.map((it) => it.productId)
+  const rows = await qAll(DB,
+    `SELECT _id, name, spec, price, enabled, subcategories FROM products WHERE _id IN (${ids.map(() => '?').join(',')})`,
+    ids)
+  const byId = new Map(rows.map((p) => [p._id, p]))
+  let total = 0
+  const verified = []
+  for (const item of items) {
+    const p = byId.get(item.productId)
+    if (!p) return { code: -1, message: `商品不存在: ${item.productId}` }
+    if (p.enabled === 0 || p.enabled === false) return { code: -1, message: `商品已下架: ${p.name}` }
+    // 数量必须为正整数：拦截负数/小数/缺失，防订单负金额或异常金额
+    const qty = Number(item.quantity)
+    if (!Number.isInteger(qty) || qty <= 0) return { code: -1, message: `商品数量无效: ${p.name}` }
+    verified.push({
+      productId: p._id, name: p.name, spec: p.spec || '',
+      price: Number(p.price) || 0, quantity: qty, subcategories: jparse(p.subcategories, []),
+    })
+    total += (Number(p.price) || 0) * qty
+  }
+  const ts = nowISO()
+  const doc = {
+    _id: genId('o_'), roomNumber: String(roomNumber).trim(), items: verified,
+    wechat: String(wechat || '').slice(0, 50), remark: String(remark || '').slice(0, 200),
+    paymentScreenshot: typeof paymentScreenshot === 'string' ? paymentScreenshot : '',
+    totalAmount: Math.round(total * 100) / 100, status: 'pending', createdAt: ts, updatedAt: ts,
+  }
+  await insert(DB, 'orders', doc)
+  return { code: 0, data: { id: doc._id, totalAmount: doc.totalAmount } }
+}
+
+export async function deleteOrder(DB, payload) {
+  const { orderId } = payload
+  if (!orderId) return { code: -1, message: '缺少 orderId' }
+  await qRun(DB, `DELETE FROM orders WHERE _id = ?`, [orderId])
+  return { code: 0 }
+}
+
+export async function updateOrderStatus(DB, payload) {
+  const { orderId, status } = payload
+  if (!orderId || !['pending', 'paid', 'cancelled'].includes(status)) return { code: -1, message: '参数无效' }
+  const res = await qRun(DB, `UPDATE orders SET status = ?, updatedAt = ? WHERE _id = ?`, [status, nowISO(), orderId])
+  if (!res.meta?.changes) return { code: -1, message: '订单不存在' }
+  return { code: 0 }
+}
+
+export async function recalculateOrders(DB) {
+  const BATCH = 200
+  let processed = 0, fixed = 0
+  while (true) {
+    const rows = await qAll(DB, `SELECT _id, items, totalAmount FROM orders ORDER BY _id ASC LIMIT ? OFFSET ?`, [BATCH, processed])
+    if (!rows.length) break
+    for (const o of rows) {
+      const items = jparse(o.items, [])
+      const total = items.reduce((s, it) => s + (Number(it.price) || 0) * (Number(it.quantity) || 0), 0)
+      const rounded = Math.round(total * 100) / 100
+      if (o.totalAmount == null || Math.abs(Number(o.totalAmount) - rounded) > 0.01) {
+        await qRun(DB, `UPDATE orders SET totalAmount = ?, updatedAt = ? WHERE _id = ?`, [rounded, nowISO(), o._id])
+        fixed++
+      }
+    }
+    processed += rows.length
+    if (rows.length < BATCH) break
+  }
+  return { code: 0, data: { total: processed, fixed } }
+}
+
+export async function getOrders(DB, payload) {
+  const page = Math.max(1, Number(payload.page) || 1)
+  const pageSize = Math.min(100, Math.max(1, Number(payload.pageSize) || 50))
+  const rows = await qAll(DB,
+    `SELECT _id, roomNumber, items, totalAmount, status, createdAt, wechat, remark, updatedAt
+     FROM orders ORDER BY createdAt DESC LIMIT ? OFFSET ?`,
+    [pageSize + 1, (page - 1) * pageSize])
+  const hasMore = rows.length > pageSize
+  const data = (hasMore ? rows.slice(0, pageSize) : rows)
+    .map((r) => ({ ...r, items: jparse(r.items, []) }))
+  return { code: 0, data, hasMore, page, pageSize }
+}
+
+export async function getOrderById(DB, orderId) {
+  const row = await qFirst(DB, `SELECT * FROM orders WHERE _id = ?`, [orderId])
+  if (!row) return null
+  return { ...row, items: jparse(row.items, []), paymentScreenshot: row.paymentScreenshot || '' }
+}
