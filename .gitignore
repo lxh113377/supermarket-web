@@ -9,8 +9,12 @@ lerna-debug.log*
 
 node_modules
 dist
+dist-*
 dist-ssr
 *.local
+
+# 误建的 GPU 日志目录（2026-09-05 清理残留后防再犯）
+NVIDIA Corporation/
 
 # Cloudflare wrangler local cache
 .wrangler/
