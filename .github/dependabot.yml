@@ -1,0 +1,23 @@
+version: 2
+updates:
+  # npm 依赖周更：minor/patch 自动 PR（major 会被 @ 规则限制，见下方 ignore 不设——major PR 留给人工评估）
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+  # Actions 版本周更
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions-minor-and-patch:
+        update-types:
+          - minor
+          - patch
