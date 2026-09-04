@@ -4,3 +4,8 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: geolocation=(), microphone=(), camera=()
   Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+
+# 商品图（order 命名可能被同名校验替换，用 7 天软缓存 + SWR；SW 侧另有 cache-first）
+/images/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
