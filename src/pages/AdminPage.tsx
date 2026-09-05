@@ -61,7 +61,8 @@ export default function AdminPage() {
         if (added.length > 0) {
           try {
             if (!audioCtxRef.current) {
-              const AC = window.AudioContext || (window as any).webkitAudioContext
+              // Safari 旧内核前缀 API：精确类型替代 as any；webkitAudioContext 缺失时 new 抛错仍由外层 catch 吞掉（行为不变）
+              const AC = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext!
               audioCtxRef.current = new AC()
             }
             const ctx = audioCtxRef.current

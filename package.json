@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "prebuild": "oxlint",
+    "prebuild": "npm run lint",
     "build": "vite build",
-    "lint": "oxlint",
+    "lint": "oxlint --max-warnings 0",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "smoke": "node scripts/smoke-deploy.mjs",
