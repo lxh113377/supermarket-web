@@ -1,8 +1,8 @@
 /**
- * 客户端字段白名单单测（真实导入 src/auth.js）
+ * 客户端字段白名单单测（真实导入 src/auth.ts，其再导出 src/api/fields.ts）
  *
- * 说明：src/auth.js 的 pickProductFields 是客户端侧的商品字段整形，
- * 最终写入仍由服务端 pickFields 强制执行（见 cloudfunctions/admin-api/index.test.js）。
+ * 说明：src/api/fields.ts 的 pickProductFields 是客户端侧的商品字段整形，
+ * 最终写入仍由服务端 pick（functions/lib/db.js，依 *_FIELDS 白名单）强制执行。
  * 这里保证客户端也不会把非白名单字段（如恶意注入的 totalAmount / _id）带去服务端。
  */
 import { describe, it, expect } from 'vitest'

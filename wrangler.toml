@@ -1,5 +1,5 @@
 name = "supermarket-web"
-compatibility_date = "2024-09-23"
+compatibility_date = "2025-06-01"
 pages_build_output_dir = "dist"
 
 # 注意：管理密钥 ADMIN_KEY 不写入本文件（避免明文入库）。
