@@ -5,6 +5,7 @@ export default function OrderSuccessPage() {
   const navigate = useNavigate()
   const { state } = useLocation()
   const building = state?.building || ''
+  const room = state?.room || ''
   const orderId = state?.orderId || ''
   const totalAmount = state?.totalAmount || 0
 
@@ -28,8 +29,14 @@ export default function OrderSuccessPage() {
               <p className="text-2xl font-bold text-gray-900">{building}</p>
             </>
           )}
+          {room && (
+            <>
+              <p className="text-xs text-gray-400 mb-1.5 mt-3">房间号</p>
+              <p className="text-2xl font-bold text-gray-900">{room}</p>
+            </>
+          )}
           {totalAmount > 0 && (
-            <p className={`text-sm text-brand-600 font-semibold ${building ? 'mt-2' : ''}`}>¥{totalAmount.toFixed(2)}</p>
+            <p className={`text-sm text-brand-600 font-semibold ${building || room ? 'mt-2' : ''}`}>¥{totalAmount.toFixed(2)}</p>
           )}
         </div>
 
