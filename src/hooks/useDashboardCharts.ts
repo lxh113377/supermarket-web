@@ -43,7 +43,7 @@ export function useDashboardCharts(d: ChartData) {
     // P0-1 修复：cleanup 提到 effect 顶层（原写法 return 在 async IIFE 内部 = 无效 cleanup，
     // resize 监听永不注销、chart 永不 dispose，切 tab 后持续泄漏）
     const onResize = () => {
-      Object.values(chartsRef.current).forEach((c: { resize: () => void }) => c?.resize())
+      Object.values(chartsRef.current).forEach((c) => c.resize())
     }
     ;(async () => {
       // 动态 import：代码分割出 echarts chunk，顾客端 bundle 不混入。

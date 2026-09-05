@@ -1,39 +1,41 @@
 // echarts lib 深路径无随包类型声明（package.json exports 未附 .d.ts）。
-// 这些模块 default 导出 install 对象，仅传给 echarts/core 的 use()；
-// use 参数处已收敛为 any（见 useDashboardCharts.ts），此处从宽声明即可。
+// install 对象仅传给 echarts/core 的 use()，类型收敛为 use() 的插件形参
+// （echarts 公开 API 类型，替代旧 unknown + as any 借道）。
+type EChartsInstall = Parameters<typeof import('echarts/core').use>[0]
+
 declare module 'echarts/lib/chart/line' {
-  const install: unknown
+  const install: EChartsInstall
   export default install
 }
 declare module 'echarts/lib/chart/pie' {
-  const install: unknown
+  const install: EChartsInstall
   export default install
 }
 declare module 'echarts/lib/chart/bar' {
-  const install: unknown
+  const install: EChartsInstall
   export default install
 }
 declare module 'echarts/lib/component/grid' {
-  const install: unknown
+  const install: EChartsInstall
   export default install
 }
 declare module 'echarts/lib/component/tooltip' {
-  const install: unknown
+  const install: EChartsInstall
   export default install
 }
 declare module 'echarts/lib/component/legend' {
-  const install: unknown
+  const install: EChartsInstall
   export default install
 }
 declare module 'echarts/lib/component/dataZoom' {
-  const install: unknown
+  const install: EChartsInstall
   export default install
 }
 declare module 'echarts/lib/component/dataZoomInside' {
-  const install: unknown
+  const install: EChartsInstall
   export default install
 }
 declare module 'echarts/lib/component/dataZoomSlider' {
-  const install: unknown
+  const install: EChartsInstall
   export default install
 }
