@@ -286,7 +286,8 @@ export default function DashboardTab({ orders, products, reviews }: {
   }, [aiLoading])
   // 只在 mount 触发一次：用 ref 持有最新 loadAdvice（避免 deps=[loadAdvice] 时 aiLoading 变化导致无限重跑循环）
   const loadAdviceRef = useRef(loadAdvice)
-  loadAdviceRef.current = loadAdvice
+  // 渲染提交后同步最新回调（react/refs 要求不在渲染期写 ref；mount effect 调用时序不变）
+  useEffect(() => { loadAdviceRef.current = loadAdvice })
   useEffect(() => { loadAdviceRef.current() }, [])
 
   const kpiRevenue = Math.round(revenueSum)

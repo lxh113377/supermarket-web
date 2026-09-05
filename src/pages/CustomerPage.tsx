@@ -47,7 +47,8 @@ function FlyDot({ x, y, tx, ty, onDone }: Omit<FlyDotData, 'id'> & { onDone: () 
 
   // onDone 通过 ref 持有，避免 effect 依赖不稳定的内联回调导致动画重复触发
   const onDoneRef = useRef(onDone)
-  onDoneRef.current = onDone
+  // 渲染提交后同步最新回调（react/refs 要求不在渲染期写 ref；timeout 读取时序不变）
+  useEffect(() => { onDoneRef.current = onDone })
 
   useEffect(() => {
     setStyle(s => ({ ...s, left: endX, top: endY, width: 6, height: 6, opacity: 0 }))
@@ -126,6 +127,8 @@ export default function CustomerPage() {
     const rect = e?.currentTarget?.getBoundingClientRect?.() || null
     if (rect) {
       const ct = cartBtnRef.current?.getBoundingClientRect()
+      // 事件回调内生成飞行点 id（非渲染期调用；oxlint purity 静态分析无法区分调用时机，行内豁免）
+      // oxlint-disable-next-line react/purity
       const dotId = Date.now() + Math.random()
       setFlyDots(prev => [...prev, {
         id: dotId,
