@@ -46,6 +46,7 @@ export default function OrderConfirmPage() {
   const navigate = useNavigate()
   const cart = getCart()
   const [building, setBuilding] = useState('')
+  const [room, setRoom] = useState('')
   const [wechat, setWechat] = useState('')
   const [remark, setRemark] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -78,8 +79,8 @@ export default function OrderConfirmPage() {
       setError('请填写楼栋号')
       return
     }
-    if (!wechat.trim()) {
-      setError('请填写微信号')
+    if (!room.trim()) {
+      setError('请填写房间号')
       return
     }
     if (cart.items.length === 0) {
@@ -89,14 +90,15 @@ export default function OrderConfirmPage() {
     setSubmitting(true)
     try {
       const result = await createOrder({
-        building: building.trim(),
-        wechat: wechat.trim(),
+        // 楼栋+房间合并写入 roomNumber（服务端以该字段必填校验），如 "36栋-501"
+        roomNumber: `${building.trim()}-${room.trim()}`,
+        wechat: wechat.trim() || undefined,
         remark: remark.trim() || undefined,
         items: cart.items,
         paymentScreenshot: screenshot || undefined,
       })
       clearCart()
-      navigate('/order-success', { state: { building: building.trim(), orderId: result.id, localFallback: result.localFallback, totalAmount } })
+      navigate('/order-success', { state: { building: building.trim(), room: room.trim(), orderId: result.id, localFallback: result.localFallback, totalAmount } })
     } catch (err) {
       setError('提交订单失败：' + (err instanceof Error ? err.message : '网络错误'))
     } finally {
@@ -155,9 +157,21 @@ export default function OrderConfirmPage() {
             />
           </div>
 
-          {/* 微信号 */}
+          {/* 房间号 */}
           <div className="animate-fade-in-up stagger-1">
-            <label className="section-title block mb-2.5">微信号 <span className="text-red-400">*</span></label>
+            <label className="section-title block mb-2.5">房间号 <span className="text-red-400">*</span></label>
+            <input
+              type="text"
+              value={room}
+              onChange={(e) => setRoom(e.target.value)}
+              placeholder="例如：501"
+              className="input-base"
+            />
+          </div>
+
+          {/* 微信号（选填） */}
+          <div className="animate-fade-in-up stagger-1">
+            <label className="section-title block mb-2.5">微信号（选填）</label>
             <input
               type="text"
               value={wechat}
@@ -174,7 +188,7 @@ export default function OrderConfirmPage() {
               type="text"
               value={remark}
               onChange={(e) => setRemark(e.target.value)}
-              placeholder="仅限36栋备注房间号"
+              placeholder="选填，有其他需求可以写在这里"
               className="input-base"
             />
           </div>

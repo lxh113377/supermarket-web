@@ -6,7 +6,6 @@ import { IS_CLOUD } from '../cloudbase'
 export default function PaymentPage() {
   const [method, setMethod] = useState<string | null>(null)
   const [paid, setPaid] = useState(false)
-  const [claimed, setClaimed] = useState(false)
   const [showTip, setShowTip] = useState(false)
   const { state } = useLocation()
   const navigate = useNavigate()
@@ -40,10 +39,6 @@ export default function PaymentPage() {
   }, [orderId, paid])
 
   const qrSrc = method === 'wechat' ? './wechat-pay.png' : './alipay.jpg'
-
-  const markPaid = () => {
-    setClaimed(true)
-  }
 
   if (!orderId) return null
 
@@ -88,20 +83,6 @@ export default function PaymentPage() {
               <p className="text-lg font-bold text-green-600">付款已确认</p>
               <p className="text-sm text-gray-400 mt-2">客服将尽快处理你的订单</p>
             </div>
-          ) : claimed ? (
-            <div className="text-center animate-scale-in">
-              <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-indigo-50 flex items-center justify-center">
-                <span className="text-4xl">📋</span>
-              </div>
-              <p className="text-lg font-bold text-indigo-600">已收到你的付款确认</p>
-              <p className="text-sm text-gray-400 mt-2">请在群内联系客服确认到账</p>
-              <button
-                onClick={() => navigate('/')}
-                className="mt-6 btn-primary px-8 py-3"
-              >
-                返回首页
-              </button>
-            </div>
           ) : (
             <div className="text-center w-full max-w-sm animate-fade-in-up flex flex-col items-center">
               {totalAmount > 0 && (
@@ -111,7 +92,7 @@ export default function PaymentPage() {
               )}
               <div className="w-full bg-amber-50 border border-amber-200/80 rounded-xl px-3 py-2 mb-2">
                 <p className="text-amber-700 text-xs font-medium">
-                  ⚠️ 请截图扫码付款，付款后点击下方"我已付款"
+                  ⚠️ 请截图扫码付款，付款后联系商家进行配送
                 </p>
               </div>
               <div className="bg-white p-2 rounded-2xl shadow-card border border-gray-100/80 inline-block mb-3">
@@ -123,14 +104,8 @@ export default function PaymentPage() {
                 />
               </div>
               <button
-                onClick={markPaid}
-                className="w-full bg-green-500 text-white py-3 rounded-2xl font-medium shadow-elevated hover:bg-green-600 transition-all duration-200 active:scale-[0.98]"
-              >
-                我已付款
-              </button>
-              <button
                 onClick={() => setMethod(null)}
-                className="mt-2 text-sm text-gray-400 hover:text-gray-600 transition-colors duration-200"
+                className="mt-4 text-sm text-gray-400 hover:text-gray-600 transition-colors duration-200"
               >
                 返回重新选择
               </button>

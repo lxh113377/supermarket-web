@@ -81,19 +81,19 @@ describe('下单主链路（加购 → 确认 → 支付）', () => {
     saveCart(cartWith(1))
     mocks.createOrder.mockResolvedValue({ id: 'o1', localFallback: false })
     render(<OrderConfirmPage />)
-    fireEvent.change(screen.getByPlaceholderText('例如：36栋'), { target: { value: '36栋305' } })
-    fireEvent.change(screen.getByPlaceholderText('请输入你的微信号'), { target: { value: 'wx_test' } })
+    fireEvent.change(screen.getByPlaceholderText('例如：36栋'), { target: { value: '36栋' } })
+    fireEvent.change(screen.getByPlaceholderText('例如：501'), { target: { value: '305' } })
+    // 微信号已改为选填：不填也能提交
     fireEvent.click(screen.getByRole('button', { name: '确认支付' }))
 
     await waitFor(() => expect(mocks.createOrder).toHaveBeenCalledTimes(1))
     expect(mocks.createOrder).toHaveBeenCalledWith(expect.objectContaining({
-      building: '36栋305',
-      wechat: 'wx_test',
+      roomNumber: '36栋-305',
       items: [expect.objectContaining({ productId: 'p1', quantity: 1 })],
     }))
     expect(mocks.navigate).toHaveBeenCalledWith(
       '/order-success',
-      expect.objectContaining({ state: expect.objectContaining({ orderId: 'o1' }) }),
+      expect.objectContaining({ state: expect.objectContaining({ orderId: 'o1', building: '36栋', room: '305' }) }),
     )
     // 提交成功后购物车清空
     expect(getCart().items).toHaveLength(0)
@@ -109,12 +109,22 @@ describe('下单主链路（加购 → 确认 → 支付）', () => {
     expect(mocks.navigate).not.toHaveBeenCalled()
   })
 
-  it('PaymentPage：选微信支付 → 我已付款 → 显示已收到确认', () => {
+  it('OrderConfirmPage：未填房间号阻止提交并提示（房间号必填）', async () => {
+    saveCart(cartWith(1))
+    render(<OrderConfirmPage />)
+    fireEvent.change(screen.getByPlaceholderText('例如：36栋'), { target: { value: '36栋' } })
+    fireEvent.click(screen.getByRole('button', { name: '确认支付' }))
+    await waitFor(() => expect(screen.getByText('请填写房间号')).toBeTruthy())
+    expect(mocks.createOrder).not.toHaveBeenCalled()
+    expect(mocks.navigate).not.toHaveBeenCalled()
+  })
+
+  it('PaymentPage：选微信支付 → 显示二维码与联系商家提示，无"我已付款"按钮', () => {
     render(<PaymentPage />)
     fireEvent.click(screen.getByRole('button', { name: '微信支付' }))
     expect(screen.getByAltText('微信支付二维码')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: '我已付款' }))
-    expect(screen.getByText('已收到你的付款确认')).toBeTruthy()
+    expect(screen.getByText(/请截图扫码付款，付款后联系商家进行配送/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '我已付款' })).toBeNull()
   })
 
   it('PaymentPage：轮询到订单 paid 显示付款已确认', async () => {
