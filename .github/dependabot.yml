@@ -1,23 +1,34 @@
+# 依赖自动安全更新（2026-09-05 L3）
+# weekly 频率，只开 npm 目录；group 依赖以减 PR 噪音。
 version: 2
 updates:
-  # npm 依赖周更：minor/patch 自动 PR（major 会被 @ 规则限制，见下方 ignore 不设——major PR 留给人工评估）
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    labels:
+      - dependencies
     groups:
-      minor-and-patch:
-        update-types:
-          - minor
-          - patch
-  # Actions 版本周更
+      vite:
+        patterns:
+          - "vite"
+          - "@vitejs/*"
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react*"
+      cloudflare:
+        patterns:
+          - "wrangler"
+          - "@cloudflare/*"
+    ignore:
+      # TS 7 / Vitest 5 为主版本前沿，升级需手工验证，不自动 PR（见 L3 备注）
+      - dependency-name: "typescript"
+      - dependency-name: "vitest"
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
-    groups:
-      actions-minor-and-patch:
-        update-types:
-          - minor
-          - patch
+    open-pull-requests-limit: 3

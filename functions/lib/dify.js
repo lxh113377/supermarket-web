@@ -159,7 +159,7 @@ export async function callDifyCompletion(env, prompt, user) {
 // 规则版知识（无 Dify 时的回退；与前端 src/data/assistantFaq.ts 同源，改动需两侧同步）
 const RULE_HOURS = '08:00 - 22:00'
 const RULE_FAQ = [
-  { match: ['营业', '开门', '多久', '时间', '关门'], answer: `本店营业时间 ${RULE_HOURS}，周末照常营业。` },
+  { match: ['营业', '开门', '时间', '关门'], answer: `本店营业时间 ${RULE_HOURS}，周末照常营业。` },
   { match: ['配送', '送到', '多久', '送货'], answer: '下单后我们会尽快安排配送，一般在当轮配送时段内送达宿舍楼下，请保持手机畅通接收取餐通知。' },
   { match: ['支付', '付款', '微信', '支付宝', '怎么付'], answer: '支持微信支付与支付宝，下单页选择支付方式，按提示扫码或确认支付即可；付款后订单自动进入配送队列。' },
   { match: ['退', '换', '错', '少', '漏'], answer: '收到商品如有少件/错件/质量问题，可在订单页提交售后或联系客服，我们会尽快处理退换。' },

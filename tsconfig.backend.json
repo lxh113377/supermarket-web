@@ -1,0 +1,22 @@
+{
+  // 后端 functions 静态门禁（2026-09-05 M4）
+  // Cloudflare Pages Functions 均为 JS（约定不迁 TS），此配置把 functions/ 纳入 tsc 检查：
+  // - allowJs + checkJs：对 JS 执行类型推断（JSDoc 注释可见）
+  // - 宽化规则（noImplicitAny/strict=false）：历史 JS 无类型注解不爆红，只拦真实语法/引用错误
+  // - moduleResolution bundler + module esnext：与 package.json "type":"module" 对齐
+  "compilerOptions": {
+    "noEmit": true,
+    "allowJs": true,
+    "checkJs": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "target": "es2022",
+    "lib": ["ES2022", "DOM"],
+    "strict": false,
+    "noImplicitAny": false,
+    "skipLibCheck": true,
+    "types": [],
+    "noUnusedLocals": false
+  },
+  "include": ["functions"]
+}

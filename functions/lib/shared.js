@@ -1,50 +1,9 @@
-// 共享契约模块（纯逻辑，无 CloudBase 依赖）
-// 2026-08-23 从 cloudfunctions/shared.js 迁出：原文件的 CloudBase 专属 handler
-// （createOrderHandler 等，依赖 db.collection().where().get() NoSQL API）已随迁移废弃，
-// 此处仅保留前端/后端共用的字段白名单常量与无副作用工具函数，统一到线上后端同源目录。
-
-function normalizeEvent(raw) {
-  if (!raw || typeof raw !== 'object') return {}
-  if (raw.body !== undefined) {
-    let b = raw.body
-    if (typeof b === 'string') {
-      try { b = JSON.parse(b) } catch { b = {} }
-    }
-    if (b && typeof b === 'object') return b
-  }
-  return raw
-}
-
-function createRateLimiter(windowMs, maxAttempts, message) {
-  const attempts = new Map()
-  return function checkRateLimit(ip) {
-    const t = Date.now()
-    const record = attempts.get(ip)
-    if (!record || t > record.resetAt) {
-      attempts.set(ip, { count: 1, resetAt: t + windowMs })
-      return null
-    }
-    record.count++
-    if (record.count > maxAttempts) {
-      return { code: -1, message }
-    }
-    return null
-  }
-}
-
-function getClientIp(context, event) {
-  return (context && context.source_ip) ||
-    (event && event.requestContext && event.requestContext.sourceIp) ||
-    'unknown'
-}
-
-function pickFields(data, allowed) {
-  const out = {}
-  for (const k of allowed) {
-    if (k in data) out[k] = data[k]
-  }
-  return out
-}
+// 共享契约模块（纯常量，无副作用）
+// 2026-08-23 从 cloudfunctions/shared.js 迁出：原 CloudBase 专属 handler
+// （createOrderHandler 等，依赖 db.collection().where().get() NoSQL API）已随迁移废弃；
+// normalizeEvent/createRateLimiter/getClientIp/pickFields 四个遗留函数生产零引用，
+// 2026-09-05 已删除（生产用 security.js:getClientIp/checkRate 与 db.js:pick）。
+// 此处仅保留前端/后端共用的字段白名单常量（防御纵深：服务端为信任边界，白名单单源迭代）。
 
 // 商品字段白名单（单源）
 const PRODUCT_FIELDS = [
@@ -63,10 +22,6 @@ const REVIEW_FIELDS = ['productOrder', 'user', 'rating', 'text', 'images']
 const SUBMISSION_FIELDS = ['serviceId', 'serviceName', 'categoryId', 'categoryName', 'formData', 'images']
 
 export {
-  normalizeEvent,
-  createRateLimiter,
-  getClientIp,
-  pickFields,
   PRODUCT_FIELDS,
   ORDER_FIELDS,
   REVIEW_FIELDS,

@@ -1,14 +1,17 @@
 {
   "name": "supermarket-web",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "vite",
     "prebuild": "npm run lint",
     "build": "vite build",
     "lint": "oxlint --max-warnings 0",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.backend.json",
     "test": "vitest run",
     "smoke": "node scripts/smoke-deploy.mjs",
     "verify:backend": "node scripts/verify-backend.mjs",

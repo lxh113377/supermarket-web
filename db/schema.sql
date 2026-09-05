@@ -64,6 +64,8 @@ CREATE TABLE IF NOT EXISTS submissions (
 
 CREATE INDEX IF NOT EXISTS idx_reviews_productOrder ON reviews (productOrder);
 CREATE INDEX IF NOT EXISTS idx_orders_createdAt ON orders (createdAt);
+-- 增量轮询（2026-09-05 H1-1）：管理端按 updatedAt 游标拉新增/变更订单，避免全量拉取
+CREATE INDEX IF NOT EXISTS idx_orders_updatedAt ON orders (updatedAt);
 CREATE INDEX IF NOT EXISTS idx_products_order ON products ("order");
 CREATE INDEX IF NOT EXISTS idx_submissions_createdAt ON submissions (createdAt);
 -- 优化批次（2026-08-28）：看板 90/365 天聚合 + status/roomNumber 筛选 + enabled 过滤走索引，降低 D1 全表扫配额成本

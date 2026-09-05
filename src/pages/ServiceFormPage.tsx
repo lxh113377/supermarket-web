@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { getServiceById, getCategoryById } from '../data/services'
 import { isBusinessHours, getClosedMessage } from '../utils/businessHours'
 import { createSubmission } from '../db'
+import ServiceHintCard from '../components/service/ServiceHintCard'
+import ServicePopup from '../components/service/ServicePopup'
 import type { ServiceCategory } from '../types'
 
 // 压缩图片到合理大小
@@ -41,15 +43,6 @@ function compressImage(file: File, maxWidth = 800, quality = 0.7): Promise<strin
   })
 }
 
-// 将hint文本解析为结构化段落（按空行分段）
-function parseHintSections(hint?: string): string[][] {
-  if (!hint) return []
-  return hint.split('\n\n').map(section => {
-    const lines = section.split('\n').filter(l => l.trim())
-    return lines
-  })
-}
-
 export default function ServiceFormPage() {
   const { serviceId } = useParams()
   const navigate = useNavigate()
@@ -85,7 +78,7 @@ export default function ServiceFormPage() {
     )
   }
 
-  const hintSections = parseHintSections(service.hint)
+  // 服务说明已拆至 ServiceHintCard（hint 分段解析随迁），此处不再需要 hintSections
 
   const handleInputChange = (key: string, value: string) => {
     setFormData(prev => ({ ...prev, [key]: value }))
@@ -235,44 +228,8 @@ export default function ServiceFormPage() {
       {/* 主内容区 */}
       <div className={`px-5 max-w-lg mx-auto pb-12 ${open ? '-mt-6' : 'mt-5'}`}>
 
-        {/* 服务说明卡片 */}
-        {hintSections.length > 0 && (
-          <div className="bg-white rounded-3xl p-5 mb-4 shadow-card border border-gray-100/80 animate-fade-in-up stagger-1">
-            <div className="flex items-center gap-2 mb-3.5">
-              <span className="w-6 h-6 rounded-lg bg-brand-100 flex items-center justify-center text-xs">📋</span>
-              <h3 className="text-sm font-semibold text-gray-800">服务说明</h3>
-            </div>
-            <div className="space-y-3">
-              {hintSections.map((section, sIdx) => (
-                <div key={sIdx}>
-                  {sIdx > 0 && <div className="border-t border-dashed border-gray-100 my-3" />}
-                  <div className="space-y-1.5">
-                    {section.map((line, lIdx) => {
-                      // 检测是否是标题行（如"(配套服务)"）
-                      const isTitle = line.startsWith('(') || line.startsWith('（')
-                      if (isTitle) {
-                        return (
-                          <p key={lIdx} className="text-xs font-semibold text-brand-600 mt-2 flex items-center gap-1.5">
-                            <span className="w-1 h-3 rounded-full bg-brand-400 inline-block" />
-                            {line.replace(/[()（）]/g, '')}
-                          </p>
-                        )
-                      }
-                      // 检测是否含价格信息
-                      const hasPrice = /\d+元/.test(line) || /\d+\.\d+元/.test(line)
-                      return (
-                        <p key={lIdx} className={`text-xs leading-relaxed flex items-start gap-2 ${hasPrice ? 'text-gray-800 font-medium' : 'text-gray-500'}`}>
-                          <span className={`mt-1 w-1 h-1 rounded-full flex-shrink-0 ${hasPrice ? 'bg-brand-400' : 'bg-gray-300'}`} />
-                          {line}
-                        </p>
-                      )
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* 服务说明卡片（hint 解析与渲染已在 ServiceHintCard） */}
+        <ServiceHintCard hint={service.hint} />
 
         {/* 表单卡片 */}
         <div className="bg-white rounded-3xl p-6 shadow-card border border-gray-100/80 animate-fade-in-up stagger-2">
@@ -379,32 +336,9 @@ export default function ServiceFormPage() {
         </p>
       </div>
 
-      {/* 弹窗提示（P0-12：补 dialog 语义 + Esc 关闭） */}
+      {/* 弹窗提示（ServicePopup：dialog 语义 + Esc 关闭，P0-12 保留） */}
       {showPopup && service.popup && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="温馨提示"
-          onKeyDown={(e) => { if (e.key === 'Escape') setShowPopup(false) }}
-          className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-5 animate-fade-in"
-        >
-          <div className="bg-white rounded-3xl p-7 max-w-sm w-full shadow-float animate-scale-in">
-            <div className="text-center">
-              <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-brand-50 flex items-center justify-center">
-                <span className="text-3xl">📋</span>
-              </div>
-              <h3 className="font-bold text-gray-900 text-lg">温馨提示</h3>
-              <p className="text-gray-500 text-sm mt-3 leading-relaxed">{service.popup}</p>
-            </div>
-            <button
-              onClick={() => setShowPopup(false)}
-              autoFocus
-              className="mt-6 btn-primary w-full py-3.5"
-            >
-              我知道了
-            </button>
-          </div>
-        </div>
+        <ServicePopup popup={service.popup} onClose={() => setShowPopup(false)} />
       )}
     </div>
   )

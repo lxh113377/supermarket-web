@@ -1,6 +1,6 @@
 // 服务表单提交 + 离线队列（网络恢复后自动重试）
 import { IS_CLOUD } from '../cloudbase'
-import { adminCall, pickSubmissionFields } from '../auth'
+import { adminCall, publicCall, pickSubmissionFields } from '../auth'
 import type { Submission } from '../types'
 
 function safeParse<T>(key: string): T {
@@ -29,7 +29,7 @@ export async function flushPendingSubmissions(): Promise<void> {
     const remaining = []
     for (const item of queue) {
       try {
-        const result = await adminCall('createSubmission', item)
+        const result = await publicCall('createSubmission', item)
         if (result.code !== 0) remaining.push(item)
       } catch {
         remaining.push(item)
@@ -63,7 +63,7 @@ export async function createSubmission(submission: Record<string, unknown>): Pro
     return { id: record._id }
   }
   try {
-    const result = await adminCall<{ id: string }>('createSubmission', clean)
+    const result = await publicCall<{ id: string }>('createSubmission', clean)
     if (result.code !== 0) throw new Error(result.message || '提交失败')
     return { id: result.data?.id ?? '' }
   } catch (e) {

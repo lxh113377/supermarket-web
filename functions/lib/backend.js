@@ -22,6 +22,8 @@ import { createOrder, deleteOrder, updateOrderStatus, recalculateOrders, getOrde
 import { getReviews, addReview, getAllReviews, deleteReview, seedReviews } from './actions/reviews.js'
 import { createSubmission, getSubmissions, updateSubmissionStatus, deleteSubmission } from './actions/submissions.js'
 import { adminAiAdvice, pubAiChat } from './actions/ai.js'
+import { getDashboardStats } from './actions/stats.js'
+import { kvCacheGetJSON, kvCacheSet, invalidatePublicCatalog } from './cache.js'
 
 // 管理端写操作（审计日志覆盖范围）
 const ADMIN_WRITE_ACTIONS = new Set([
@@ -67,14 +69,30 @@ export async function handleAdmin(env, action, adminKey, payload = {}, request =
       case 'createProduct': result = await createProduct(DB, payload); break
       case 'updateProduct': result = await updateProduct(DB, payload); break
       case 'deleteProduct': result = await deleteProduct(DB, payload); break
+      // M1：商品/分类写操作后失效公共目录 KV 缓存（顾客端最长 60s 拿到旧数据 → 即时失败）
+      case 'batchUpdateProducts': result = await batchUpdateProducts(DB, payload); break
+      case 'batchDeleteProducts': result = await batchDeleteProducts(DB, payload); break
       case 'deleteOrder': result = await deleteOrder(DB, payload); break
       case 'updateOrderStatus': result = await updateOrderStatus(DB, payload); break
       case 'createOrder': result = await createOrder(DB, payload); break
       case 'recalculateOrders': result = await recalculateOrders(DB); break
       case 'getOrders': result = await getOrders(DB, payload); break
       case 'getOrder': result = { code: 0, data: await getOrderById(DB, payload.orderId) }; break
-      case 'getPublicProducts': result = await getPublicProducts(DB); break
-      case 'getPublicCategories': result = await getPublicCategories(DB); break
+      case 'getPublicProducts': {
+        // M1：公共商品走 KV 缓存（60s TTL）；命中直接返回，未命中查库后回填
+        const cached = await kvCacheGetJSON(env, 'cache:public:products')
+        if (cached) { result = cached; break }
+        result = await getPublicProducts(DB)
+        if (result.code === 0) await kvCacheSet(env, 'cache:public:products', result, 60)
+        break
+      }
+      case 'getPublicCategories': {
+        const cached = await kvCacheGetJSON(env, 'cache:public:categories')
+        if (cached) { result = cached; break }
+        result = await getPublicCategories(DB)
+        if (result.code === 0) await kvCacheSet(env, 'cache:public:categories', result, 60)
+        break
+      }
       case 'getAllReviews': result = await getAllReviews(DB); break
       case 'getReviews': result = await getReviews(DB, payload); break
       case 'addPublicReview': result = await addReview(DB, payload); break
@@ -89,12 +107,24 @@ export async function handleAdmin(env, action, adminKey, payload = {}, request =
       case 'getSubmissions': result = await getSubmissions(DB); break
       case 'updateSubmissionStatus': result = await updateSubmissionStatus(DB, payload); break
       case 'deleteSubmission': result = await deleteSubmission(DB, payload); break
-      case 'aiAdvice': result = await adminAiAdvice(env, DB); break
+      case 'aiAdvice': {
+        // M2：AI 建议 60s KV 缓存（近 30 天快照确定性高；命中免去全量订单/评价/商品查询与 Dify 调用）
+        const cached = await kvCacheGetJSON(env, 'cache:ai:advice')
+        if (cached) { result = cached; break }
+        result = await adminAiAdvice(env, DB)
+        if (result.code === 0) await kvCacheSet(env, 'cache:ai:advice', result, 60)
+        break
+      }
+      case 'getDashboardStats': result = await getDashboardStats(DB, payload); break
       default: result = { code: -1, message: '未知操作' }
     }
   } catch (e) {
     console.error('[admin]', action, e)
     result = { code: -1, message: '服务暂时不可用，请稍后重试' }
+  }
+  // M1：商品/分类写操作成功后失效公共目录 KV 缓存（顾客端立即看到新数据）
+  if (result.code === 0 && ['createProduct', 'updateProduct', 'deleteProduct', 'batchUpdateProducts', 'batchDeleteProducts'].includes(action)) {
+    await invalidatePublicCatalog(env)
   }
   // 管理写操作 / 登录审计
   if (action === 'login' || ADMIN_WRITE_ACTIONS.has(action)) {
@@ -116,8 +146,21 @@ export async function handlePublic(env, action, payload = {}, request = null) {
   }
   try {
     switch (action) {
-      case 'getPublicProducts': return await getPublicProducts(DB)
-      case 'getPublicCategories': return await getPublicCategories(DB)
+      case 'getPublicProducts': {
+        // M1：与 handleAdmin 同源缓存键，顾客端 /pub 与后台 /web 共享同一 KV 缓存
+        const cached = await kvCacheGetJSON(env, 'cache:public:products')
+        if (cached) return cached
+        const result = await getPublicProducts(DB)
+        if (result.code === 0) await kvCacheSet(env, 'cache:public:products', result, 60)
+        return result
+      }
+      case 'getPublicCategories': {
+        const cached = await kvCacheGetJSON(env, 'cache:public:categories')
+        if (cached) return cached
+        const result = await getPublicCategories(DB)
+        if (result.code === 0) await kvCacheSet(env, 'cache:public:categories', result, 60)
+        return result
+      }
       case 'createOrder': return await createOrder(DB, payload)
       case 'getReviews': return await getReviews(DB, payload)
       case 'addPublicReview': return await addReview(DB, payload)

@@ -33,8 +33,9 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
   const handleStatus = async (orderId: string, status: string) => {
     try {
       await updateOrderStatus(orderId, status)
-      const data = await getAllOrders()
-      onOrdersChange(data)
+      // 状态变更后拉增量即可（更新后的订单 updatedAt 必然大于游标）
+      const { orders } = await getAllOrders()
+      onOrdersChange(orders)
     } catch (err) {
       alert('更新失败：' + (err instanceof Error ? err.message : '未知错误'))
     }
@@ -48,8 +49,8 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
       if (!res || ('code' in res && res.code !== 0)) {
         throw new Error((res && 'message' in res && res.message) || '删除失败')
       }
-      const data = await getAllOrders()
-      onOrdersChange(data)
+      const { orders } = await getAllOrders()
+      onOrdersChange(orders)
     } catch (err) {
       alert('删除失败：' + (err instanceof Error ? err.message : '未知错误'))
     } finally {

@@ -1,67 +1,33 @@
 import { describe, it, expect } from 'vitest'
 
-// 测试云函数共享模块的纯逻辑部分（现位于 functions/lib/shared.js，随 CloudBase→Pages Functions 迁移迁出旧 cloudfunctions/ 目录）
-const {
-  normalizeEvent,
-  createRateLimiter,
-  getClientIp,
-} = await import('../functions/lib/shared')
+// 共享契约模块（functions/lib/shared.js）：CloudBase 遗留函数
+// （normalizeEvent/createRateLimiter/getClientIp/pickFields）已于 2026-09-05 随 H2 清理删除，
+// 本测试改为守护仍在使用中的字段白名单常量——它们是服务端写操作的信任边界，
+// 任何增删字段都需与前端白名单（src/api/fields.ts）与 schema（db/schema.sql）保持对称。
 
-describe('shared - normalizeEvent', () => {
-  it('直接对象原样返回', () => {
-    const input = { action: 'test', payload: { a: 1 } }
-    expect(normalizeEvent(input)).toEqual(input)
+const { PRODUCT_FIELDS, ORDER_FIELDS, REVIEW_FIELDS, SUBMISSION_FIELDS } = await import('../functions/lib/shared')
+
+// 与前端 src/api/fields.ts 导出的白名单逐项对齐（防御纵深：双端对称防字段漂移）
+const frontend = await import('../src/api/fields')
+
+describe('shared - 字段白名单契约', () => {
+  it('商品白名单与前端对称', () => {
+    expect(PRODUCT_FIELDS).toEqual(frontend.PRODUCT_FIELDS)
   })
 
-  it('HTTP 触发 body 字符串解析', () => {
-    const input = { body: JSON.stringify({ action: 'createOrder', payload: {} }) }
-    expect(normalizeEvent(input)).toEqual({ action: 'createOrder', payload: {} })
+  it('订单白名单与前端对称', () => {
+    // 前端 ORDER_FIELDS 只含客户端输入字段，服务端 ORDER_FIELDS 是完整存储文档字段
+    // （totalAmount/status/createdAt/updatedAt 由服务端生成），故用子集断言而非相等。
+    expect(frontend.ORDER_FIELDS).toEqual(['roomNumber', 'items', 'wechat', 'remark', 'paymentScreenshot'])
+    expect(frontend.ORDER_FIELDS.every((f) => ORDER_FIELDS.includes(f))).toBe(true)
+    expect(ORDER_FIELDS.length).toBeGreaterThan(frontend.ORDER_FIELDS.length)
   })
 
-  it('body 非法 JSON 返回空对象', () => {
-    const input = { body: 'not-json{{{' }
-    expect(normalizeEvent(input)).toEqual({})
+  it('评价白名单与前端对称', () => {
+    expect(REVIEW_FIELDS).toEqual(frontend.REVIEW_FIELDS)
   })
 
-  it('null 输入返回空对象', () => {
-    expect(normalizeEvent(null)).toEqual({})
-    expect(normalizeEvent(undefined)).toEqual({})
-  })
-
-  it('body 已是对象直接使用', () => {
-    const input = { body: { action: 'test' } }
-    expect(normalizeEvent(input)).toEqual({ action: 'test' })
-  })
-})
-
-describe('shared - createRateLimiter', () => {
-  it('前 N 次通过，超限后拦截', () => {
-    const limiter = createRateLimiter(60000, 3, '太频繁')
-    expect(limiter('ip1')).toBeNull()
-    expect(limiter('ip1')).toBeNull()
-    expect(limiter('ip1')).toBeNull()
-    expect(limiter('ip1')).toEqual({ code: -1, message: '太频繁' })
-  })
-
-  it('不同 IP 独立计数', () => {
-    const limiter = createRateLimiter(60000, 1, '限流')
-    expect(limiter('a')).toBeNull()
-    expect(limiter('b')).toBeNull()
-    expect(limiter('a')).toEqual({ code: -1, message: '限流' })
-    expect(limiter('b')).toEqual({ code: -1, message: '限流' })
-  })
-})
-
-describe('shared - getClientIp', () => {
-  it('从 context.source_ip 取', () => {
-    expect(getClientIp({ source_ip: '1.2.3.4' }, {})).toBe('1.2.3.4')
-  })
-
-  it('从 event.requestContext.sourceIp 取', () => {
-    expect(getClientIp(null, { requestContext: { sourceIp: '5.6.7.8' } })).toBe('5.6.7.8')
-  })
-
-  it('都没有返回 unknown', () => {
-    expect(getClientIp(null, null)).toBe('unknown')
+  it('服务提交白名单与前端对称', () => {
+    expect(SUBMISSION_FIELDS).toEqual(frontend.SUBMISSION_FIELDS)
   })
 })
