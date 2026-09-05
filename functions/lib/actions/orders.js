@@ -81,10 +81,16 @@ export async function recalculateOrders(DB) {
 export async function getOrders(DB, payload) {
   const page = Math.max(1, Number(payload.page) || 1)
   const pageSize = Math.min(100, Math.max(1, Number(payload.pageSize) || 50))
+  // 增量模式（管理端轮询）：since = ISO 时间串，只拉 updatedAt 大于该值的订单（含新建+状态变更），
+  // 按 updatedAt ASC 排序保证游标单调推进；无 since 时维持原行为（createdAt DESC 分页）。
+  const since = typeof payload.since === 'string' && payload.since ? payload.since : null
+  const orderByCol = since ? 'updatedAt' : 'createdAt'
+  const whereClause = since ? 'WHERE updatedAt > ?' : ''
+  const params = since ? [since, pageSize + 1, (page - 1) * pageSize] : [pageSize + 1, (page - 1) * pageSize]
   const rows = await qAll(DB,
     `SELECT _id, roomNumber, items, totalAmount, status, createdAt, wechat, remark, updatedAt
-     FROM orders ORDER BY createdAt DESC LIMIT ? OFFSET ?`,
-    [pageSize + 1, (page - 1) * pageSize])
+     FROM orders ${whereClause} ORDER BY ${orderByCol} ${since ? 'ASC' : 'DESC'} LIMIT ? OFFSET ?`,
+    params)
   const hasMore = rows.length > pageSize
   const data = (hasMore ? rows.slice(0, pageSize) : rows)
     .map((r) => ({ ...r, items: jparse(r.items, []) }))

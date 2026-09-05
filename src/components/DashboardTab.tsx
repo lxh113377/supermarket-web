@@ -1,118 +1,48 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { Order, Product, Review } from '../types'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { adminCall } from '../auth'
 import { useDashboardCharts } from '../hooks/useDashboardCharts'
 import KpiCard from './KpiCard'
 import { IconChart, IconBox } from './Icons'
 import { csvEscape } from '../utils/csv'
 
-// ⚠ react(only-export-components) 警告为既有模式：纯函数导出供 vitest 直测（dashboard.test.ts）
+// ⚠ react(only-export-components) 警告为既有模式：buildCsv 纯函数导出供 vitest 直测
+// H1-2（2026-09-05）：数据聚合已下沉 functions/lib/actions/stats.js（getDashboardStats），
+// 本组件只负责任务：调聚合接口 + 渲染图表/AI 建议。buildRangeData/buildDelta/buildReviewTrend/
+// computeGrossMargin/pieSegments/topRevenue 等纯函数已迁移服务端，单测迁至 tests/stats.test.js。
 // ─────────────────────────────────────────────────────────────
-// 纯函数（供单测）：近 14 天评价趋势
-export interface ReviewTrend {
-  counts: number[]
-  labels: string[]
-}
-
-function dayNum(d: Date): number {
-  return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000)
-}
-
-// 按本地日界聚合 createdAt；今天为末位，labels 格式 M/D；无 createdAt/非法日期跳过
-export function buildReviewTrend(reviews: Review[], days = 14): ReviewTrend {
-  const now = new Date()
-  const counts: number[] = new Array(days).fill(0)
-  const labels: string[] = []
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i)
-    labels.push(`${d.getMonth() + 1}/${d.getDate()}`)
-  }
-  const today = dayNum(now)
-  for (const r of reviews) {
-    if (!r.createdAt) continue
-    const t = new Date(r.createdAt).getTime()
-    if (Number.isNaN(t)) continue
-    const diff = today - dayNum(new Date(t))
-    if (diff >= 0 && diff < days) counts[days - 1 - diff] += 1
-  }
-  return { counts, labels }
-}
-
-// ─────────────────────────────────────────────────────────────
-// 纯函数（供单测）：按自然日区间聚合 订单数/营收
+// 纯函数（供单测）：CSV 生成（逗号/引号/换行转义 + Excel UTF-8 BOM）
+// 转义逻辑复用 src/utils/csv.ts（OrdersTab 同源），此处仅组装行结构
 export interface RangeData {
   labels: string[]
   orderCounts: number[]
   revenues: number[]
 }
 
-export function buildRangeData(orders: Order[], days: number): RangeData {
-  const now = new Date()
-  const labels: string[] = []
-  const orderCounts: number[] = new Array(days).fill(0)
-  const revenues: number[] = new Array(days).fill(0)
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i)
-    labels.push(`${d.getMonth() + 1}/${d.getDate()}`)
-  }
-  // 今天为末位：窗口首日
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - days + 1)
-  const idx = (t: Date): number =>
-    Math.round((new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime() - start.getTime()) / 86400000)
-  for (const o of orders) {
-    const t = new Date(o.createdAt)
-    if (Number.isNaN(t.getTime())) continue
-    const i = idx(t)
-    if (i < 0 || i >= days) continue
-    orderCounts[i] += 1
-    // 营收口径：cancelled 不计（沿用现状）
-    if (o.status !== 'cancelled') revenues[i] += Number(o.totalAmount) || 0
-  }
-  return { labels, orderCounts, revenues }
-}
-
-// ─────────────────────────────────────────────────────────────
-// 纯函数（供单测）：本期 vs 上期 环比（百分比；基数为 0 时返回 null）
-export interface DeltaResult {
-  ordersDelta: number | null
-  revenueDelta: number | null
-}
-
-export function buildDelta(orders: Order[], days: number): DeltaResult {
-  const now = new Date()
-  const half = (offset: number) => {
-    const from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - offset - days + 1)
-    const to = new Date(now.getFullYear(), now.getMonth(), now.getDate() - offset + 1)
-    let cnt = 0
-    let rev = 0
-    for (const o of orders) {
-      const t = new Date(o.createdAt)
-      if (Number.isNaN(t.getTime())) continue
-      if (t >= from && t < to) {
-        cnt += 1
-        if (o.status !== 'cancelled') rev += Number(o.totalAmount) || 0
-      }
-    }
-    return { cnt, rev }
-  }
-  const cur = half(0)
-  const prev = half(days)
-  const pct = (a: number, b: number) => (b > 0 ? Math.round(((a - b) / b) * 100) : null)
-  return {
-    ordersDelta: pct(cur.cnt, prev.cnt),
-    revenueDelta: pct(cur.rev, prev.rev),
-  }
-}
-
-// ─────────────────────────────────────────────────────────────
-// 纯函数（供单测）：CSV 生成（逗号/引号/换行转义 + Excel UTF-8 BOM）
-// 转义逻辑复用 src/utils/csv.ts（OrdersTab 同源），此处仅组装行结构
 export function buildCsv(rangeData: RangeData): string {
   const rows = ['日期,订单数,营收(¥)']
   rangeData.labels.forEach((label, i) => {
     rows.push(`${csvEscape(label)},${csvEscape(rangeData.orderCounts[i])},${csvEscape(rangeData.revenues[i])}`)
   })
   return '\uFEFF' + rows.join('\r\n')
+}
+
+// 看板聚合结果（与服务端 stats.js getDashboardStats 返回对齐）
+interface MarginSummary {
+  revenue: number
+  cost: number
+  marginPct: number
+}
+interface DashboardStats {
+  rangeDays: number
+  rangeData: RangeData
+  delta: { ordersDelta: number | null; revenueDelta: number | null }
+  reviewTrend: { counts: number[]; labels: string[] }
+  margin: { drink: MarginSummary | null; food: MarginSummary | null; withCostItems: number; totalItems: number }
+  pieSegments: Array<{ name: string; value: number }>
+  topRevenue: Array<{ name: string; revenue: number; qty: number }>
+  totalOrders: number
+  orderSum: number
+  revenueSum: number
 }
 
 function downloadCsv(csv: string, dateStr: string) {
@@ -125,75 +55,6 @@ function downloadCsv(csv: string, dateStr: string) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 纯函数（供单测）：饮品/食品毛利率（沿用现状）
-export interface MarginSummary {
-  revenue: number
-  cost: number
-  marginPct: number
-}
-
-export interface MarginResult {
-  drink: MarginSummary | null
-  food: MarginSummary | null
-  /** 已填成本商品的销量（件）——为 0 时 UI 显示「待录入」 */
-  withCostItems: number
-  /** 非取消订单总销量（件） */
-  totalItems: number
-}
-
-const drinkSubs = new Set(['low_sugar', 'vitamin', 'energy', 'tea', 'soda', 'sweet', 'water'])
-
-function nameSpecKey(name: string, spec?: string): string {
-  return `${name}|${spec || ''}`
-}
-
-function toMargin(revenue: number, cost: number): MarginSummary | null {
-  if (revenue <= 0) return null
-  const r = Math.round(revenue * 100) / 100
-  const c = Math.round(cost * 100) / 100
-  return { revenue: r, cost: c, marginPct: Math.round(((r - c) / r) * 100) }
-}
-
-// 仅统计已填 costPrice 商品的订单；productId 匹配，兜底 name+spec
-export function computeGrossMargin(orders: Order[], products: Product[]): MarginResult {
-  const byId = new Map(products.map((p) => [p._id, p]))
-  const byNameSpec = new Map(products.map((p) => [nameSpecKey(p.name, p.spec), p]))
-  const acc = { drink: { revenue: 0, cost: 0 }, food: { revenue: 0, cost: 0 } }
-  let withCostItems = 0
-  let totalItems = 0
-
-  for (const o of orders) {
-    if (o.status === 'cancelled') continue
-    for (const item of o.items || []) {
-      const qty = Number(item.quantity) || 0
-      totalItems += qty
-      const product = byId.get(item.productId) || byNameSpec.get(nameSpecKey(item.name, item.spec))
-      if (!product || product.costPrice == null) continue
-      const revenue = (Number(item.price) || 0) * qty
-      const cost = Number(product.costPrice) * qty
-      const isDrink = Array.isArray(item.subcategories)
-        ? item.subcategories.some((s) => drinkSubs.has(s))
-        : true // 无子分类信息归饮品（与现状一致）
-      if (isDrink) {
-        acc.drink.revenue += revenue
-        acc.drink.cost += cost
-      } else {
-        acc.food.revenue += revenue
-        acc.food.cost += cost
-      }
-      withCostItems += qty
-    }
-  }
-
-  return {
-    drink: toMargin(acc.drink.revenue, acc.drink.cost),
-    food: toMargin(acc.food.revenue, acc.food.cost),
-    withCostItems,
-    totalItems,
-  }
-}
-
-// ─────────────────────────────────────────────────────────────
 // 主组件
 const RANGE_OPTIONS = [
   { days: 7, label: '近7天' },
@@ -202,65 +63,40 @@ const RANGE_OPTIONS = [
   { days: 365, label: '全年' },
 ]
 
-export default function DashboardTab({ orders, products, reviews }: {
-  orders: Order[]
-  products: Product[]
-  reviews: Review[]
-}) {
-  const [rangeDays, setRangeDays] = useState(7)
+// props 改为无数据依赖（聚合已服务端化），仅保留初始 rangeDays 供恢复
+export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDays?: number } = {}) {
+  const [rangeDays, setRangeDays] = useState(initialRangeDays)
+  const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [statsError, setStatsError] = useState('')
   const [aiAdvice, setAiAdvice] = useState<{ content: string; source: string } | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiStatus, setAiStatus] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle')
 
-  // ---- 数据聚合（纯函数 + 现状口径） ----
-  const rangeData = useMemo(() => buildRangeData(orders, rangeDays), [orders, rangeDays])
-  const delta = useMemo(() => buildDelta(orders, rangeDays), [orders, rangeDays])
-  const revenueSum = useMemo(() => rangeData.revenues.reduce((s, v) => s + v, 0), [rangeData])
-  const orderSum = useMemo(() => rangeData.orderCounts.reduce((s, v) => s + v, 0), [rangeData])
-  const avgDaily = revenueSum / rangeDays
-
-  const reviewTrend = useMemo(() => buildReviewTrend(reviews), [reviews])
-  const margin = useMemo(() => computeGrossMargin(orders, products), [orders, products])
-  const hasReviews = reviewTrend.counts.some((v) => v > 0)
-
-  // 饮品/食品销量占比（沿用现状子分类判定）
-  const pieSegments = useMemo(() => {
-    let drinkQty = 0
-    let foodQty = 0
-    orders.filter((o) => o.status !== 'cancelled').forEach((o) => {
-      o.items.forEach((i) => {
-        if (Array.isArray(i.subcategories)) {
-          if (i.subcategories.some((s) => drinkSubs.has(s))) drinkQty += i.quantity
-          else foodQty += i.quantity
-        } else {
-          drinkQty += i.quantity
-        }
+  // 拉取聚合（rangeDays 变化重取）
+  useEffect(() => {
+    let cancelled = false
+    setStatsError('')
+    adminCall<DashboardStats>('getDashboardStats', { rangeDays })
+      .then((r) => {
+        if (cancelled) return
+        if (r.code === 0 && r.data) setStats(r.data)
+        else setStatsError(r.message || '看板数据加载失败')
       })
-    })
-    return [
-      { name: '饮品', value: drinkQty },
-      { name: '食品', value: foodQty },
-    ].filter((s) => s.value > 0)
-  }, [orders])
+      .catch(() => { if (!cancelled) setStatsError('看板数据加载失败') })
+    return () => { cancelled = true }
+  }, [rangeDays])
 
-  // 热销 TOP10（按营收，cancelled 不计）
-  const topRevenue = useMemo(() => {
-    const rev = new Map<string, number>()
-    const qty = new Map<string, number>()
-    for (const o of orders) {
-      if (o.status === 'cancelled') continue
-      for (const it of o.items || []) {
-        const key = it.name + (it.spec ? `(${it.spec})` : '')
-        const q = Number(it.quantity) || 0
-        rev.set(key, (rev.get(key) || 0) + (Number(it.price) || 0) * q)
-        qty.set(key, (qty.get(key) || 0) + q)
-      }
-    }
-    return [...rev.entries()]
-      .map(([name, revenue]) => ({ name, revenue, qty: qty.get(name) || 0 }))
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 10)
-  }, [orders])
+  const rangeData = stats?.rangeData ?? { labels: [], orderCounts: [], revenues: [] }
+  const delta = stats?.delta ?? { ordersDelta: null, revenueDelta: null }
+  const revenueSum = stats?.revenueSum ?? 0
+  const orderSum = stats?.orderSum ?? 0
+  const reviewTrend = stats?.reviewTrend ?? { counts: [], labels: [] }
+  const margin = stats?.margin ?? { drink: null, food: null, withCostItems: 0, totalItems: 0 }
+  const pieSegments = stats?.pieSegments ?? []
+  const topRevenue = stats?.topRevenue ?? []
+  const totalOrders = stats?.totalOrders ?? 0
+  const avgDaily = rangeDays > 0 ? revenueSum / rangeDays : 0
+  const hasReviews = reviewTrend.counts.some((v) => v > 0)
 
   // ---- 图表实例与 option 更新（抽到 useDashboardCharts：动态 import/resize/dispose/主题） ----
   const { trendRef, reviewRef, pieRef, topRef } = useDashboardCharts({ rangeData, pieSegments, topRevenue, reviewTrend, rangeDays })
@@ -295,6 +131,14 @@ export default function DashboardTab({ orders, products, reviews }: {
   const kpiAvg = Math.round(avgDaily)
 
   const dateStr = new Date().toISOString().slice(0, 10)
+
+  if (statsError) {
+    return (
+      <div className="bg-white p-5 rounded-2xl border border-gray-100/80 shadow-card">
+        <p className="text-sm text-red-500">⚠️ {statsError}</p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">
@@ -342,7 +186,7 @@ export default function DashboardTab({ orders, products, reviews }: {
           label="日均营收"
           value={kpiAvg}
           prefix="¥"
-          sub={`累计 ${orders.length} 单`}
+          sub={`累计 ${totalOrders} 单`}
           staggerCls="stagger-3"
         />
       </div>

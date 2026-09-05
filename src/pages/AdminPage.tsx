@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { getCategories, getAdminProducts, getAllReviews, seedCloudData, getAllOrders } from '../db'
+import { getCategories, getAdminProducts, seedCloudData, getAllOrders } from '../db'
 import { IS_CLOUD } from '../cloudbase'
 import DashboardTab from '../components/DashboardTab'
 import ProductsTab from '../components/ProductsTab'
 import OrdersTab from '../components/OrdersTab'
 import ReviewsTab from '../components/ReviewsTab'
 import SubmissionsTab from '../components/SubmissionsTab'
-import type { Category, Order, Product, Review } from '../types'
+import type { Category, Order, Product } from '../types'
 
 const TABS = [
   { key: 'dashboard', label: '看板', icon: '📊' },
@@ -21,17 +21,20 @@ export default function AdminPage() {
   const [categories, setCategories] = useState<Category[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [orders, setOrders] = useState<Order[]>([])
-  const [reviews, setReviews] = useState<Review[]>([])
   const [loading, setLoading] = useState(true)
   const [ordersLoading, setOrdersLoading] = useState(false)
   const [seeding, setSeeding] = useState(false)
   const [seedMsg, setSeedMsg] = useState('')
   const [productsError, setProductsError] = useState('')
 
-  const prevOrderIds = useRef<Set<string>>(new Set())
   const orderTimer = useRef<number | null>(null)
   const pollDelay = useRef<number>(10000)
   const audioCtxRef = useRef<AudioContext | null>(null)
+  // H1-1 增量轮询状态：ordersRef 保存全量订单 Map（_id→order），cursorRef 保存上次同步的 maxUpdatedAt。
+  // 首次全量拉取，之后带 since 只拉增量合并——轮询带宽从 O(全量) 降为 O(增量)。
+  const ordersRef = useRef<Map<string, Order>>(new Map())
+  const cursorRef = useRef<string | null>(null)
+  const firstSyncRef = useRef(true)
 
   const loadCategories = useCallback(async () => {
     const cats = await getCategories()
@@ -53,27 +56,33 @@ export default function AdminPage() {
   const loadOrders = useCallback(async () => {
     setOrdersLoading(true)
     try {
-      // 循环拉全量（getOrders 默认 50 条，直接取会截断；getAllOrders 按 hasMore 循环合并）
-      const ords = await getAllOrders()
-      const ids = new Set(ords.map(o => o._id))
-      if (prevOrderIds.current.size > 0) {
-        const added = [...ids].filter(id => !prevOrderIds.current.has(id))
-        if (added.length > 0) {
-          try {
-            if (!audioCtxRef.current) {
-              // Safari 旧内核前缀 API：精确类型替代 as any；webkitAudioContext 缺失时 new 抛错仍由外层 catch 吞掉（行为不变）
-              const AC = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext!
-              audioCtxRef.current = new AC()
-            }
-            const ctx = audioCtxRef.current
-            const osc = ctx.createOscillator(); const gain = ctx.createGain()
-            osc.connect(gain); gain.connect(ctx.destination)
-            osc.frequency.value = 880; gain.gain.value = 0.3
-            osc.start(); osc.stop(ctx.currentTime + 0.15)
-          } catch {}
-        }
+      // H1-1 增量轮询：首次全量 + 记录游标；后续带 since 只拉增量合并。
+      // 新增判定基于 prior 游标是否已建（新拉到的 _id 不在 Map 中即为新单，触发提示音）。
+      const { orders: batch, maxUpdatedAt } = await getAllOrders({ since: cursorRef.current })
+      const newlyAdded: string[] = []
+      if (!firstSyncRef.current) {
+        for (const o of batch) if (!ordersRef.current.has(o._id)) newlyAdded.push(o._id)
+      } else {
+        firstSyncRef.current = false
       }
-      prevOrderIds.current = ids
+      for (const o of batch) ordersRef.current.set(o._id, o)
+      if (maxUpdatedAt) cursorRef.current = maxUpdatedAt
+      const ords = [...ordersRef.current.values()]
+        .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
+      if (newlyAdded.length > 0) {
+        try {
+          if (!audioCtxRef.current) {
+            // Safari 旧内核前缀 API：精确类型替代 as any；webkitAudioContext 缺失时 new 抛错仍由外层 catch 吞掉（行为不变）
+            const AC = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext!
+            audioCtxRef.current = new AC()
+          }
+          const ctx = audioCtxRef.current
+          const osc = ctx.createOscillator(); const gain = ctx.createGain()
+          osc.connect(gain); gain.connect(ctx.destination)
+          osc.frequency.value = 880; gain.gain.value = 0.3
+          osc.start(); osc.stop(ctx.currentTime + 0.15)
+        } catch {}
+      }
       setOrders(ords)
       pollDelay.current = 10000
     } catch {
@@ -92,13 +101,6 @@ export default function AdminPage() {
   useEffect(() => {
     if (tab === 'products') loadProducts()
   }, [tab, loadProducts])
-
-  useEffect(() => {
-    if (tab !== 'dashboard') return
-    getAllReviews()
-      .then((revs) => setReviews(revs))
-      .catch(() => setReviews([]))
-  }, [tab])
 
   useEffect(() => {
     if (tab === 'orders') {
@@ -181,7 +183,7 @@ export default function AdminPage() {
 
       {/* Tab 内容 - 带入场动画（P0-6：去掉 key={tab}，避免整块 DOM 强制重挂载） */}
       <div className="animate-fade-in-up">
-        {tab === 'dashboard' && <DashboardTab orders={orders} products={products} reviews={reviews} />}
+        {tab === 'dashboard' && <DashboardTab />}
         {tab === 'products' && (
           <>
             {productsError && (
@@ -192,7 +194,19 @@ export default function AdminPage() {
             <ProductsTab products={products} categories={categories} onDataChange={loadProducts} />
           </>
         )}
-        {tab === 'orders' && <OrdersTab orders={orders} onOrdersChange={setOrders} loading={ordersLoading} />}
+        {tab === 'orders' && (
+          <OrdersTab
+            orders={orders}
+            onOrdersChange={(list) => {
+              // 变更（状态/删除）后重建全量基线并重置游标：下次轮询回到全量，防止增量 Map 残留已删单/旧状态
+              ordersRef.current = new Map(list.map((o) => [o._id, o]))
+              cursorRef.current = null
+              firstSyncRef.current = false
+              setOrders(list)
+            }}
+            loading={ordersLoading}
+          />
+        )}
         {tab === 'submissions' && <SubmissionsTab />}
         {tab === 'reviews' && <ReviewsTab />}
       </div>

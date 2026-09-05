@@ -1,6 +1,6 @@
 // 评价读写（本地 localStorage + 云端 sm_reviews）
 import { IS_CLOUD } from '../cloudbase'
-import { adminCall, pickReviewFields } from '../auth'
+import { adminCall, publicCall, pickReviewFields } from '../auth'
 import { cacheGet, cacheSet, cacheDel, clearCatalogCache } from '../catalogCache'
 import { getLocalReviews, addLocalReview } from '../localStore'
 import type { Review } from '../types'
@@ -55,7 +55,7 @@ export async function getCloudReviews(productOrder: number | string): Promise<Re
   const cached = cacheGet(cacheKey)
   if (cached) return cached as Review[]
   try {
-    const result = await adminCall('getReviews', { productOrder: Number(productOrder) })
+    const result = await publicCall('getReviews', { productOrder: Number(productOrder) })
     if (result.code === 0) {
       const data = (result.data || []) as Review[]
       cacheSet(cacheKey, data)
