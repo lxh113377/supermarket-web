@@ -101,4 +101,8 @@ export const products: SeedProduct[] = [
   { name: '优酸乳', spec: '200ml', price: 1.5, subcategories: ['sweet'], order: 50 },
   { name: '补水啦', spec: '900ml', price: 4.88, subcategories: ['energy'], order: 51 },
   { name: '乐吧薯片', spec: '40g', price: 1.88, subcategories: ['snacks'], order: 52 },
+
+  // 新增商品（2026-09-07）
+  { name: '康师傅茉莉清茶', spec: '1L', price: 3.5, subcategories: ['tea', 'sweet'], order: 53 },
+  { name: '康师傅茉莉蜜茶', spec: '1L', price: 3.5, subcategories: ['tea', 'sweet'], order: 54 },
 ]
