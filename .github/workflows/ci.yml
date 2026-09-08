@@ -92,7 +92,9 @@ jobs:
         run: npx wrangler pages deploy dist --project-name supermarket-web
 
       # M5：部署后在线冒烟（_health 探活 + 公开接口契约抽查），第一时间暴露"构建成功但线上异常"（坑27 防线）
+      # 坑#30 后续加固（2026-09-08）：smoke 失败 → 自动回滚上一生产部署（下方 rollback step，仅此处触发）
       - name: Smoke test deployed API
+        id: smoke
         if: env.CLOUDFLARE_API_TOKEN != ''
         shell: bash
         run: |
@@ -105,3 +107,37 @@ jobs:
             -d '{"action":"getPublicCategories","payload":{}}' \
             | grep -q '"code":0' || { echo "::error::公开接口契约失败"; exit 1; }
           echo "SMOKE OK"
+
+      # 坑#30 后续加固：仅当"部署成功但 smoke 验证失败"时回滚到上一生产部署。
+      # 触发条件 = failure() && steps.smoke.outcome == 'failure'——build/download/deploy 自身失败不触发
+      #（那些场景生产未被本次改动污染，无需回滚）。
+      # 回滚目标 = 部署列表（时间倒序、仅 production）中排除当前版本后的第一个（即上一部署）。
+      # 回滚后必须复验（与 smoke 同款判定）；复验失败 = 连续坏版本，升级人工告警（下方 step）。
+      # 注意：回滚成功也不改变 job 失败态（smoke 已红）——回滚是止损，不是掩盖，需人工知悉复盘。
+      - name: Rollback to previous deployment (smoke failed)
+        id: rollback
+        if: failure() && steps.smoke.outcome == 'failure'
+        shell: bash
+        run: |
+          set -e
+          echo "::error::Smoke 验证失败，开始自动回滚到上一生产部署"
+          API="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/supermarket-web/deployments"
+          PREV_ID=$(curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$API?per_page=10" \
+            | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const j=JSON.parse(s);const ds=(j.result||[]).filter(d=>d.environment==='production');if(ds.length<2){console.error('无上一生产部署可回滚');process.exit(1)}console.log(ds[1].id)})")
+          echo "回滚目标部署: $PREV_ID"
+          curl -fsS -X POST -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$API/$PREV_ID/rollback" -o /dev/null
+          echo "回滚指令已下发，等待边缘传播..."
+          sleep 15
+          echo "== 回滚后复验 =="
+          curl -fsS --retry 3 --retry-delay 5 "$DEPLOY_URL/_health"
+          curl -fsS --retry 3 --retry-delay 5 -X POST "$DEPLOY_URL/pub" \
+            -H 'Content-Type: application/json' \
+            -d '{"action":"getPublicCategories","payload":{}}' \
+            | grep -q '"code":0'
+          echo "ROLLBACK OK: 生产已回滚至 $PREV_ID 且复验通过"
+
+      # 回滚本身失败或回滚后复验仍失败（连续坏版本）→ 显式人工介入告警，防止静默异常
+      - name: Rollback failed (manual intervention required)
+        if: failure() && steps.rollback.outcome == 'failure'
+        run: |
+          echo "::error::自动回滚执行/复验失败——生产可能仍处于异常状态，需立即人工介入：Cloudflare Dashboard → Pages → supermarket-web → Deployments → 手动回滚到最后一个健康版本"
