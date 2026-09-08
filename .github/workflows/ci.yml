@@ -73,6 +73,13 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: 04b1466b2606b678a332fe6f26aa87ec
       DEPLOY_URL: https://supermarket-web.pages.dev
     steps:
+      # 坑#30 修复（2026-09-08，M5 回归）：wrangler pages deploy 依赖工作目录的
+      # functions/（自动打包为 Pages Functions）与 wrangler.toml（D1/KV 绑定、pages_build_output_dir）。
+      # M5 只下载 dist artifact 缺这两者 → 纯静态部署，POST 全 405、绑定全丢，且 smoke 失败无法自动回滚。
+      # 故 deploy 前必须 checkout 源码（仅拉一次浅克隆，体积开销可忽略）。
+      - name: Checkout source (functions/ + wrangler.toml required)
+        uses: actions/checkout@v4
+
       # M5：直接复用 build-and-test 的 dist（含构建期注入的 VITE_* env），无需重新 npm ci + build
       - name: Download dist artifact
         uses: actions/download-artifact@v4
