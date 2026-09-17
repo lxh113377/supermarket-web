@@ -2,7 +2,7 @@
 
 > 最后更新：2026-08-28（架构已迁移 Cloudflare Pages + D1，README 为准；CloudBase 历史记录见文末存档）
 >
-> ✅ **最后实测验证：2026-09-05** —— main@9d803bd（含 CI env 注入修复），线上烘焙版正常（web/pub=True）、vitest 132/132、verify-backend 47/47。**ADMIN_KEY 已回退固定值**：09-05 轮换为随机串后用户拍板恢复 `supermarket-admin-2026`（线上 secret + .dev.vars 同值，login code 0 实测通过）。**事故记录**：5 提交推送触发 CI 自动部署，因 ci.yml 缺 VITE_CB_API_BASE 注入产出未烘焙版（坑 27 复发）→ 已修 ci.yml（两处 Build step 注入 env）并手动部署烘焙版救火。优化建议与执行记录见 `../deliverables/optimization-recommendations-2026-09-05.md`。本文档中早于该日期的状态描述若与本戳冲突，**以本戳和磁盘实测为准**。
+> ✅ **最后实测验证：2026-09-05** —— main@9d803bd（含 CI env 注入修复），线上烘焙版正常（web/pub=True）、vitest 132/132、verify-backend 47/47。**ADMIN_KEY 已回退固定值**：09-05 轮换为随机串后用户拍板恢复 `supermarket-admin-****（掩码；真值见 .dev.vars / Pages secret）`（线上 secret + .dev.vars 同值，login code 0 实测通过）。**事故记录**：5 提交推送触发 CI 自动部署，因 ci.yml 缺 VITE_CB_API_BASE 注入产出未烘焙版（坑 27 复发）→ 已修 ci.yml（两处 Build step 注入 env）并手动部署烘焙版救火。优化建议与执行记录见 `../deliverables/optimization-recommendations-2026-09-05.md`。本文档中早于该日期的状态描述若与本戳冲突，**以本戳和磁盘实测为准**。
 
 ## 一、项目概述
 
@@ -176,7 +176,7 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN`（repo �
 | Pages 项目   | supermarket-web（`supermarket-web.pages.dev`）                                                              |
 | D1 数据库     | supermarket（id `4bfc0283-...`，binding `DB`）                                                               |
 | Workers KV | RATE\_KV（id `47242e45-...`，限流计数）                                                                          |
-| 管理密钥       | `ADMIN_KEY` = 64 位随机串（**2026-09-05 已轮换**，旧值 supermarket-admin-2026 作废；生产 Pages secret 与本地 `.dev.vars` 同值） |
+| 管理密钥       | `ADMIN_KEY` = 64 位随机串（**2026-09-05 已轮换**，旧值 supermarket-admin-****（掩码；真值见 .dev.vars / Pages secret） 作废；生产 Pages secret 与本地 `.dev.vars` 同值） |
 | 只读密钥       | `ADMIN_READONLY_KEY`（可选）                                                                                  |
 | CORS 追加源   | `ALLOWED_ORIGINS`（逗号分隔，可选）                                                                                |
 
