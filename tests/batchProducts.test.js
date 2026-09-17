@@ -1,14 +1,16 @@
 import { describe, it, expect } from 'vitest'
 import { batchUpdateProducts, batchDeleteProducts } from '../functions/lib/backend.js'
 
-// mock D1：backend 走 DB.prepare(sql).bind(...params).run() 链；默认 changes=1（成功）
-function makeDB(runImpl) {
+// mock D1：backend 走 DB.prepare(sql).bind(...params).run()/.all() 链；默认 changes=1（成功）
+// allRows：SELECT 结果集（2026-09-18 R6：批量删除改为「存在性查询 + 批量 DELETE」，需 all 支持）
+function makeDB(runImpl, allRows = []) {
   return {
     prepare(sql) {
       let bound = []
       const self = {
         bind(...params) { bound = params; return self },
         async run() { return runImpl ? runImpl(sql, bound) : { meta: { changes: 1 } } },
+        async all() { return { results: typeof allRows === 'function' ? allRows(sql, bound) : allRows } },
       }
       return self
     },
@@ -56,8 +58,8 @@ describe('batchUpdateProducts', () => {
 
 describe('batchDeleteProducts', () => {
   it('批量删除返回成功/失败明细', async () => {
-    // DELETE FROM products WHERE _id = ? → params[0] = productId
-    const db = makeDB((sql, params) => ({ meta: { changes: params[0] === 'p2' ? 0 : 1 } }))
+    // R6 后为「1 次存在性查询 + 1 次批量 DELETE」：存在集合决定明细（p2 不存在 → failed）
+    const db = makeDB(null, [{ _id: 'p1' }, { _id: 'p3' }])
     const res = await batchDeleteProducts(db, { productIds: ['p1', 'p2', 'p3'] })
     expect(res.code).toBe(0)
     expect(res.data.deleted).toBe(2)
