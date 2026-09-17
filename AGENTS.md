@@ -12,7 +12,7 @@
 ## 红线（不可改，永久生效）
 
 - 部署任何 wrangler pages deploy / gh pages 推送 / d1 execute 前**必须先加载 chaoshi-web-deploy skill**，禁止凭记忆裸跑。
-- `ADMIN_KEY` 固定值 = `supermarket-admin-****`（生产 Pages secret 与本地 `.dev.vars` 同值，禁止改回随机串）。
+- `ADMIN_KEY` 固定值 = `supermarket-admin-****（掩码；真值见 .dev.vars / Pages secret）`（生产 Pages secret 与本地 `.dev.vars` 同值，禁止改回随机串）。
 - 管理后台商品编辑**禁弹窗/禁抽屉**，唯一交互为 InlineEditForm 内联展开。
 - 密钥/占位符**禁止明文入库**（`.env`、`.dev.vars`、cloudbaserc 类文件均 gitignore）。
 - 云函数保持 CommonJS JS（不迁 TS，避免部署编译步骤）。
