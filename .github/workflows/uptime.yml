@@ -6,11 +6,14 @@ name: Uptime
 #
 # 注意：
 #   - schedule 仅在默认分支（main）生效；
-#   - GitHub 的 cron 为 UTC，且高峰期可能有几分钟延迟（非分钟级 SLA）；
+#   - GitHub 的 cron 为 UTC，且高峰期可能有延迟（非分钟级 SLA）——如需分钟级告警，另接 UptimeRobot 等外部监控；
+#   - 频率：每日 1 次（约 30 分钟 Actions 额度/月），故障发现依赖次日巡检；
 #   - 本 workflow 不引用任何 secret（纯外部 HTTP 探测）。
 on:
   schedule:
-    - cron: '*/30 * * * *'
+    # 每天一次（2026-09-18 定：日巡检定位，非分钟级 SLA）：
+    # UTC 01:00 = 北京时间 09:00 —— GitHub cron 一律为 UTC。
+    - cron: '0 1 * * *'
   workflow_dispatch:
 
 concurrency:
