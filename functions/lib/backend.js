@@ -20,7 +20,7 @@ import { getPublicProducts, getPublicCategories, getProducts, createProduct, upd
   deleteProduct, batchUpdateProducts, batchDeleteProducts } from './actions/products.js'
 import { createOrder, deleteOrder, updateOrderStatus, recalculateOrders, getOrders, getOrderById } from './actions/orders.js'
 import { getReviews, addReview, getAllReviews, deleteReview, seedReviews } from './actions/reviews.js'
-import { createSubmission, getSubmissions, updateSubmissionStatus, deleteSubmission } from './actions/submissions.js'
+import { createSubmission, getSubmissions, getSubmissionImages, updateSubmissionStatus, deleteSubmission } from './actions/submissions.js'
 import { adminAiAdvice, pubAiChat } from './actions/ai.js'
 import { getDashboardStats } from './actions/stats.js'
 import { kvCacheGetJSON, kvCacheSet, invalidatePublicCatalog } from './cache.js'
@@ -105,6 +105,7 @@ export async function handleAdmin(env, action, adminKey, payload = {}, request =
       case 'seedReviews': result = await seedReviews(DB); break
       case 'createSubmission': result = await createSubmission(DB, payload); break
       case 'getSubmissions': result = await getSubmissions(DB); break
+      case 'getSubmissionImages': result = await getSubmissionImages(DB, payload); break
       case 'updateSubmissionStatus': result = await updateSubmissionStatus(DB, payload); break
       case 'deleteSubmission': result = await deleteSubmission(DB, payload); break
       case 'aiAdvice': {
