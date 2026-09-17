@@ -4,11 +4,21 @@ import { buildReviewTrend, computeGrossMargin, buildRangeData, buildDelta } from
 // H1-2（2026-09-05）：看板聚合函数从 DashboardTab 迁移至 functions/lib/actions/stats.js，
 // 本测试改为直测服务端模块，确保聚合口径不随前端下沉而漂移（口径已统一为固定 UTC+8 自然日）。
 
+// ⚠️ 口径对齐（2026-09-18 修复）：被测函数按「固定 UTC+8 自然日」分桶，
+// 测试数据必须在**同一口径**下构造——旧写法用本地时区 setHours()，
+// 在 UTC 环境（GitHub Actions runner 默认）会落到相邻桶，导致 CI 红而本地绿。
+const DAY_MS = 86400000
+const TZ8_MS = 8 * 3600000
+
+const utc8TodayIndex = () => Math.floor((Date.now() + TZ8_MS) / DAY_MS)
+
 function daysAgoDate(days, hour = 10) {
-  const d = new Date()
-  d.setDate(d.getDate() - days)
-  d.setHours(hour, 0, 0, 0)
-  return d
+  return new Date((utc8TodayIndex() - days) * DAY_MS + hour * 3600000 - TZ8_MS)
+}
+
+function utc8TodayLabel() {
+  const d = new Date(utc8TodayIndex() * DAY_MS - TZ8_MS)
+  return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`
 }
 
 function review(over) {
@@ -29,8 +39,8 @@ describe('buildReviewTrend', () => {
     expect(counts).toHaveLength(14)
     expect(labels).toHaveLength(14)
     expect(counts.every((v) => v === 0)).toBe(true)
-    const today = new Date()
-    expect(labels[13]).toBe(`${today.getMonth() + 1}/${today.getDate()}`)
+    // 末位标签 = UTC+8 的今天（与分桶同口径，任何时区下均应一致）
+    expect(labels[13]).toBe(utc8TodayLabel())
   })
 
   it('今天/昨天/第 14 天边界正确聚合', () => {
