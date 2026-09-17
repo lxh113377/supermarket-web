@@ -10,15 +10,25 @@ const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
 const blob = Object.values(pkg.scripts).join(' ')
 
 const scriptsDir = join(root, 'scripts')
-const files = readdirSync(scriptsDir).sort()
+const files = readdirSync(scriptsDir, { withFileTypes: true })
+  .filter((e) => e.isFile())
+  .map((e) => e.name)
+  .sort()
 const uncovered = files.filter((f) => !blob.includes(`scripts/${f}`))
 
+// 运维手动脚本：需人工判断时机（会改远端/重写历史），刻意不挂 npm script、不纳入 verify
+const MANUAL_ONLY = new Set(['git-push-fallback.ps1', 'purge-admin-key-history.sh'])
+
+const effective = uncovered.filter((f) => !MANUAL_ONLY.has(f))
 console.log(`[覆盖透明化] scripts/ 共 ${files.length} 个文件`)
-if (uncovered.length) {
-  console.log(`[覆盖透明化] 未被任何 npm script 引用（${uncovered.length}）：${uncovered.join('、')}`)
+if (MANUAL_ONLY.size && uncovered.length !== effective.length) {
+  console.log(`[覆盖透明化] 运维手动脚本（刻意不纳入，需人工触发）：${[...MANUAL_ONLY].join('、')}`)
+}
+if (effective.length) {
+  console.log(`[覆盖透明化] 未被任何 npm script 引用（${effective.length}）：${effective.join('、')}`)
   console.log('[覆盖透明化] 处置建议：有价值者挂到 package.json scripts（verify:xxx / maintain:xxx）；一次性者移入 archive/')
 } else {
-  console.log('[覆盖透明化] 全部脚本均已被 npm script 引用')
+  console.log('[覆盖透明化] 全部脚本均已被 npm script 引用或标注为运维手动')
 }
 
 const inVerify = new Set(['scan:secrets', 'lint', 'typecheck', 'test', 'verify:backend', 'verify'])

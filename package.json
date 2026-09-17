@@ -17,6 +17,9 @@
     "verify:backend": "node scripts/verify-backend.mjs",
     "preview": "vite preview",
     "scan:secrets": "node scripts/scan-secrets.mjs",
+    "check:cycles": "node scripts/check-import-cycles.mjs",
+    "verify:images": "python scripts/verify_images.py",
+    "maintain:purge-events": "node scripts/purge-security-events.mjs",
     "verify": "npm run scan:secrets && npm run lint && npm run typecheck && npm test && npm run verify:backend && node scripts/list-uncovered.mjs"
   },
   "dependencies": {
