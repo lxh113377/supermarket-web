@@ -81,6 +81,8 @@ export interface Submission {
   categoryName?: string
   formData: Record<string, string>
   images?: string[]
+  // 列表接口只回张数，原图按需拉取（性能：避免整表 base64 一次性下发）
+  imageCount?: number
   status?: string
   createdAt?: Date | string
   _offline?: boolean

@@ -13,6 +13,28 @@ export default function SubmissionsTab() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
   const [preview, setPreview] = useState<string | null>(null)
+  // 图片按需加载缓存：列表接口只回 imageCount，点开才拉原图，避免手机端一次下载 MB 级 base64
+  const [imageCache, setImageCache] = useState<Record<string, string[]>>({})
+  const [imageLoading, setImageLoading] = useState<Record<string, boolean>>({})
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+
+  const loadImages = async (id: string) => {
+    if (imageCache[id] || imageLoading[id]) return
+    setImageLoading(prev => ({ ...prev, [id]: true }))
+    try {
+      const res = await adminCall<{ images: string[] }>('getSubmissionImages', { submissionId: id })
+      if (res.code === 0) setImageCache(prev => ({ ...prev, [id]: res.data?.images || [] }))
+    } catch (e) {
+      console.warn('获取提交图片失败:', e instanceof Error ? e.message : String(e))
+    } finally {
+      setImageLoading(prev => ({ ...prev, [id]: false }))
+    }
+  }
+
+  const toggleImages = (id: string) => {
+    setExpanded(prev => ({ ...prev, [id]: !prev[id] }))
+    if (!expanded[id]) loadImages(id)
+  }
 
   const fetchSubmissions = async () => {
     try {
@@ -61,7 +83,7 @@ export default function SubmissionsTab() {
     const lines = [
       `服务：${s.categoryName} > ${s.serviceName}`,
       ...Object.entries(s.formData || {}).map(([k, v]) => `${k}: ${v}`),
-      `图片：${(s.images || []).length}张`,
+      `图片：${s.images?.length ?? s.imageCount ?? 0}张`,
       `时间：${s.createdAt ? new Date(s.createdAt).toLocaleString() : ''}`,
     ]
     navigator.clipboard.writeText(lines.join('\n')).then(() => alert('已复制'))
@@ -121,19 +143,30 @@ export default function SubmissionsTab() {
                       <p key={k} className="text-xs text-gray-600">{formatField(k, v)}</p>
                     ))}
                   </div>
-                  {/* 图片 */}
-                  {Array.isArray(s.images) && s.images.length > 0 && (
-                    <div className="flex gap-2 mt-2">
-                      {(s.images || []).map((img, i) => (
-                        <img
-                          key={i}
-                          src={img}
-                          alt={`截图${i + 1}`}
-                          loading="lazy"
-                          onClick={() => setPreview(img)}
-                          className="w-14 h-14 rounded-lg object-cover border border-gray-200 cursor-pointer hover:opacity-80"
-                        />
-                      ))}
+                  {/* 图片：按需加载（列表不再内联 base64，避免手机端首屏下载 MB 级数据） */}
+                  {(s.images?.length ?? s.imageCount ?? 0) > 0 && (
+                    <div className="mt-2">
+                      <button
+                        onClick={() => toggleImages(s._id)}
+                        className="px-2.5 py-1 bg-gray-50 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-100"
+                      >
+                        {expanded[s._id] ? '收起图片' : `查看图片 (${s.images?.length ?? s.imageCount ?? 0})`}
+                      </button>
+                      {expanded[s._id] && (
+                        <div className="flex gap-2 mt-2 flex-wrap">
+                          {imageLoading[s._id] && <span className="text-xs text-gray-400 py-4">图片加载中...</span>}
+                          {(s.images || imageCache[s._id] || []).map((img, i) => (
+                            <img
+                              key={i}
+                              src={img}
+                              alt={`截图${i + 1}`}
+                              loading="lazy"
+                              onClick={() => setPreview(img)}
+                              className="w-14 h-14 rounded-lg object-cover border border-gray-200 cursor-pointer hover:opacity-80"
+                            />
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
