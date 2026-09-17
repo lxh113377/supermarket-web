@@ -7,6 +7,7 @@ export function fakeDb({
   aiCalls = [],
   agg = null,
   inserts = [],
+  statements = [],
   failInsert = false,
 } = {}) {
   const tableOf = (sql) => {
@@ -32,6 +33,7 @@ export function fakeDb({
   }
   return {
     prepare(sql) {
+      statements.push(sql)
       return {
         bind(...params) {
           return {
@@ -42,11 +44,26 @@ export function fakeDb({
                 if (failInsert) throw new Error('D1 insert failed')
                 inserts.push({ sql, params })
               }
-              return { success: true }
+              return { success: true, meta: { changes: 1 } }
             },
           }
         },
       }
+    },
+  }
+}
+
+// 内存版 Workers KV（用于验证缓存命中 / 失效 / 分键）
+export function fakeKv() {
+  const store = new Map()
+  return {
+    store,
+    get: async (k) => (store.has(k) ? store.get(k) : null),
+    put: async (k, v) => {
+      store.set(k, v)
+    },
+    delete: async (k) => {
+      store.delete(k)
     },
   }
 }

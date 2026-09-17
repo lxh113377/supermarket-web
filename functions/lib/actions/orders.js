@@ -57,20 +57,41 @@ export async function updateOrderStatus(DB, payload) {
   return { code: 0 }
 }
 
+// 2026-09-18 双向迭代 R6：修正写入由「逐条 UPDATE」改为「分批 CASE WHEN 批量 UPDATE」，
+// 语句数从 O(需修正单数) 降为 O(页数 + ceil(需修正/50))——单批 50 条是参数上限与语句长度的折中
+// （每条约 3 个参数：CASE 的 _id / totalAmount + WHERE 的 _id）。
+const RECALC_CHUNK = 50
+
 export async function recalculateOrders(DB) {
   const BATCH = 200
   let processed = 0, fixed = 0
   while (true) {
     const rows = await qAll(DB, `SELECT _id, items, totalAmount FROM orders ORDER BY _id ASC LIMIT ? OFFSET ?`, [BATCH, processed])
     if (!rows.length) break
+    const pending = []
     for (const o of rows) {
       const items = jparse(o.items, [])
       const total = items.reduce((s, it) => s + (Number(it.price) || 0) * (Number(it.quantity) || 0), 0)
       const rounded = Math.round(total * 100) / 100
       if (o.totalAmount == null || Math.abs(Number(o.totalAmount) - rounded) > 0.01) {
-        await qRun(DB, `UPDATE orders SET totalAmount = ?, updatedAt = ? WHERE _id = ?`, [rounded, nowISO(), o._id])
-        fixed++
+        pending.push({ _id: o._id, total: rounded })
       }
+    }
+    for (let i = 0; i < pending.length; i += RECALC_CHUNK) {
+      const chunk = pending.slice(i, i + RECALC_CHUNK)
+      const now = nowISO()
+      const cases = chunk.map(() => 'WHEN ? THEN ?').join(' ')
+      const inPh = chunk.map(() => '?').join(',')
+      const params = []
+      for (const p of chunk) params.push(p._id, p.total)
+      params.push(now)
+      params.push(...chunk.map((p) => p._id))
+      await qRun(
+        DB,
+        `UPDATE orders SET totalAmount = CASE _id ${cases} ELSE totalAmount END, updatedAt = ? WHERE _id IN (${inPh})`,
+        params,
+      )
+      fixed += chunk.length
     }
     processed += rows.length
     if (rows.length < BATCH) break

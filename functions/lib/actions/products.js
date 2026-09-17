@@ -115,17 +115,24 @@ export async function batchUpdateProducts(DB, payload) {
 }
 
 // 批量删除：productIds 数组，返回成功/失败明细
+// 2026-09-18 双向迭代 R6：由「逐条 DELETE」改为「1 次存在性查询 + 1 次批量 DELETE」，
+// 语句数从 O(N) 降为常数（N ≤ 200，远低于 SQLite 999 参数上限）。
 export async function batchDeleteProducts(DB, payload) {
   const { productIds } = payload
   if (!Array.isArray(productIds) || !productIds.length) return { code: -1, message: '缺少 productIds' }
   if (productIds.length > 200) return { code: -1, message: '单次批量最多 200 个商品' }
-  const failed = []
-  let deleted = 0
-  for (const productId of productIds) {
-    const res = await qRun(DB, `DELETE FROM products WHERE _id = ?`, [productId])
-    if (res.meta?.changes) deleted++
-    else failed.push({ id: productId, message: '商品不存在' })
-  }
+  const ids = [...new Set(productIds.filter((id) => typeof id === 'string' && id))]
+  if (!ids.length) return { code: -1, message: '缺少 productIds' }
+  const ph = ids.map(() => '?').join(',')
+  const existRows = await qAll(DB, `SELECT _id FROM products WHERE _id IN (${ph})`, ids)
+  const exist = new Set(existRows.map((r) => r._id))
+  await qRun(DB, `DELETE FROM products WHERE _id IN (${ph})`, ids)
+  // 删除数以「批量前查到的存在集合」为准：不依赖驱动返回的 meta.changes（各环境口径不一，
+  // 甚至可能为 null），保证 deleted 与 failed 之和恒等于去重后的请求数。
+  const deleted = exist.size
+  const failed = productIds
+    .filter((id) => !exist.has(id))
+    .map((id) => ({ id, message: '商品不存在' }))
   return { code: 0, data: { deleted, failed, total: productIds.length } }
 }
 
