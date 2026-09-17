@@ -23,6 +23,15 @@ function localDay(t) {
   return Math.floor((t + TZ_SHIFT_MS) / DAY_MS)
 }
 
+// 日序号 → UTC+8 自然日的「M/D」标签（与 localDay 同口径）。
+// ⚠️ 旧实现直接用 new Date(...).getMonth()/getDate()——那是**运行环境本地时区**：
+//    在 Cloudflare / GitHub Actions 等 UTC 环境下，标签会比 UTC+8 分桶**整体错位一天**
+//    （2026-09-18 CI 实测暴露：分桶按 UTC+8、标签按 UTC）。此处统一走 UTC 方法读取。
+function localDayLabel(dayIndex) {
+  const d = new Date(dayIndex * DAY_MS - TZ_SHIFT_MS)
+  return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`
+}
+
 // 自然日区间聚合 订单数/营收（labels 本地 M/D；今天为末位）
 export function buildRangeData(orders, days) {
   const now = Date.now()
@@ -30,9 +39,9 @@ export function buildRangeData(orders, days) {
   const orderCounts = new Array(days).fill(0)
   const revenues = new Array(days).fill(0)
   const today = localDay(now)
+  // labels 与分桶同源（UTC+8 日序号），避免运行环境时区导致标签与数据错位
   for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(now - i * DAY_MS)
-    labels.push(`${d.getMonth() + 1}/${d.getDate()}`)
+    labels.push(localDayLabel(today - i))
   }
   for (const o of orders) {
     const t = new Date(o.createdAt).getTime()
@@ -75,11 +84,11 @@ export function buildReviewTrend(reviews, days = 14) {
   const now = Date.now()
   const counts = new Array(days).fill(0)
   const labels = []
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(now - i * DAY_MS)
-    labels.push(`${d.getMonth() + 1}/${d.getDate()}`)
-  }
   const today = localDay(now)
+  // 同 buildRangeData：labels 与分桶同源（UTC+8 日序号）
+  for (let i = days - 1; i >= 0; i--) {
+    labels.push(localDayLabel(today - i))
+  }
   for (const r of reviews) {
     if (!r.createdAt) continue
     const t = new Date(r.createdAt).getTime()
