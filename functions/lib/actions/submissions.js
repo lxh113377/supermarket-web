@@ -32,9 +32,31 @@ export async function createSubmission(DB, payload) {
   return { code: 0, data: { id: doc._id } }
 }
 
+// 性能（2026-09-18）：列表接口不再下发 base64 图片。
+// 实测线上 14 条提交 images 合计 1.22MB（单条最大 442KB），JSON 整包约 1.2MB，
+// 手机 4G 下仅下载+解码就数秒卡顿（电脑宽带几乎无感）。列表只回传 imageCount，
+// 原图改由 getSubmissionImages 按需单条拉取（点开才下载，且带本地缓存）。
 export async function getSubmissions(DB) {
-  const rows = await qAll(DB, `SELECT * FROM submissions ORDER BY createdAt DESC LIMIT 500`)
-  return { code: 0, data: rows.map((r) => ({ ...r, formData: jparse(r.formData, {}), images: jparse(r.images, []) })) }
+  const rows = await qAll(DB, `SELECT _id, serviceId, serviceName, categoryId, categoryName, formData, status, createdAt, updatedAt,
+      CASE WHEN json_valid(images) THEN json_array_length(images) ELSE 0 END AS imageCount
+    FROM submissions ORDER BY createdAt DESC LIMIT 500`)
+  return {
+    code: 0,
+    data: rows.map((r) => ({
+      ...r,
+      formData: jparse(r.formData, {}),
+      imageCount: Number(r.imageCount) || 0,
+    })),
+  }
+}
+
+// 按需拉取单条提交的原图（列表接口已剥离 images，避免整表 base64 全量下发）
+export async function getSubmissionImages(DB, payload) {
+  const submissionId = payload && payload.submissionId
+  if (!submissionId) return { code: -1, message: '缺少 submissionId' }
+  const rows = await qAll(DB, `SELECT images FROM submissions WHERE _id = ? LIMIT 1`, [String(submissionId)])
+  if (!rows.length) return { code: -1, message: '提交不存在' }
+  return { code: 0, data: { images: jparse(rows[0].images, []) } }
 }
 
 export async function updateSubmissionStatus(DB, payload) {
