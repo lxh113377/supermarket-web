@@ -92,3 +92,19 @@ CREATE TABLE IF NOT EXISTS security_events (
   detail         TEXT DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_security_events_ts ON security_events (ts);
+
+-- AI 调用留痕（2026-09-18 双向迭代 R4）：scene/source/ok/fallback/latencyMs/tokens/keyFp
+-- keyFp 为密钥指纹（SHA-256 前 8 位），绝不落明文密钥。
+CREATE TABLE IF NOT EXISTS ai_calls (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts        TEXT NOT NULL,
+  scene     TEXT DEFAULT '',
+  source    TEXT DEFAULT '',
+  ok        INTEGER DEFAULT 0,
+  fallback  INTEGER DEFAULT 0,
+  latencyMs INTEGER DEFAULT 0,
+  tokens    INTEGER,
+  keyFp     TEXT DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_ai_calls_ts ON ai_calls (ts);
+CREATE INDEX IF NOT EXISTS idx_ai_calls_scene_ts ON ai_calls (scene, ts);
