@@ -1,0 +1,31 @@
+name: Uptime
+
+# 生产定时探活（2026-09-18 双向迭代 R5 收尾）
+# 替代 UptimeRobot：无需注册第三方，失败即 workflow 变红 → GitHub 自动给仓库 watcher 发邮件。
+# 探活逻辑在 scripts/uptime-check.mjs（可本地 `node scripts/uptime-check.mjs` 直接验证）。
+#
+# 注意：
+#   - schedule 仅在默认分支（main）生效；
+#   - GitHub 的 cron 为 UTC，且高峰期可能有几分钟延迟（非分钟级 SLA）；
+#   - 本 workflow 不引用任何 secret（纯外部 HTTP 探测）。
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: uptime-check
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Probe production endpoints
+        run: node scripts/uptime-check.mjs
