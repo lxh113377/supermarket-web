@@ -23,13 +23,22 @@ import { getReviews, addReview, getAllReviews, deleteReview, seedReviews } from 
 import { createSubmission, getSubmissions, getSubmissionImages, updateSubmissionStatus, deleteSubmission } from './actions/submissions.js'
 import { adminAiAdvice, pubAiChat } from './actions/ai.js'
 import { getDashboardStats } from './actions/stats.js'
-import { kvCacheGetJSON, kvCacheSet, invalidatePublicCatalog } from './cache.js'
+import { kvCacheGetJSON, kvCacheSet, invalidatePublicCatalog, invalidateDashboard, DASHBOARD_CACHE_PREFIX } from './cache.js'
 
 // 管理端写操作（审计日志覆盖范围）
 const ADMIN_WRITE_ACTIONS = new Set([
   'createProduct', 'updateProduct', 'deleteProduct',
   'deleteOrder', 'updateOrderStatus',
   'deleteReview', 'updateSubmissionStatus', 'deleteSubmission',
+])
+
+// 会影响看板聚合结果的写操作（2026-09-18 R6）：成功后必须让看板缓存即时失效，
+// 否则「提交后立即可见」的语义被 60s 缓存破坏（这是借鉴门店缓存方案时刻意保留的约束）。
+const DASHBOARD_WRITE_ACTIONS = new Set([
+  'createProduct', 'updateProduct', 'deleteProduct', 'batchUpdateProducts', 'batchDeleteProducts',
+  'createOrder', 'deleteOrder', 'updateOrderStatus', 'recalculateOrders',
+  'addReview', 'deleteReview',
+  'createSubmission', 'updateSubmissionStatus', 'deleteSubmission',
 ])
 
 export async function handleAdmin(env, action, adminKey, payload = {}, request = null) {
@@ -116,7 +125,17 @@ export async function handleAdmin(env, action, adminKey, payload = {}, request =
         if (result.code === 0) await kvCacheSet(env, 'cache:ai:advice', result, 60)
         break
       }
-      case 'getDashboardStats': result = await getDashboardStats(DB, payload); break
+      case 'getDashboardStats': {
+        // R6：看板聚合缓存 60s（按 rangeDays 分键，避免不同区间互相污染）。
+        // 跨请求缓存必须配写失效——失效集合见 DASHBOARD_WRITE_ACTIONS，缺一即破坏「提交后立即可见」。
+        const rangeDays = Math.min(365, Math.max(1, Number(payload?.rangeDays) || 7))
+        const key = `${DASHBOARD_CACHE_PREFIX}${rangeDays}`
+        const cached = await kvCacheGetJSON(env, key)
+        if (cached) { result = cached; break }
+        result = await getDashboardStats(DB, payload)
+        if (result.code === 0) await kvCacheSet(env, key, result, 60)
+        break
+      }
       default: result = { code: -1, message: '未知操作' }
     }
   } catch (e) {
@@ -126,6 +145,10 @@ export async function handleAdmin(env, action, adminKey, payload = {}, request =
   // M1：商品/分类写操作成功后失效公共目录 KV 缓存（顾客端立即看到新数据）
   if (result.code === 0 && ['createProduct', 'updateProduct', 'deleteProduct', 'batchUpdateProducts', 'batchDeleteProducts'].includes(action)) {
     await invalidatePublicCatalog(env)
+  }
+  // R6：看板缓存写失效（与目录缓存同处收口，保证"改完立刻看到"）
+  if (result.code === 0 && DASHBOARD_WRITE_ACTIONS.has(action)) {
+    await invalidateDashboard(env)
   }
   // 管理写操作 / 登录审计
   if (action === 'login' || ADMIN_WRITE_ACTIONS.has(action)) {
@@ -162,10 +185,23 @@ export async function handlePublic(env, action, payload = {}, request = null) {
         if (result.code === 0) await kvCacheSet(env, 'cache:public:categories', result, 60)
         return result
       }
-      case 'createOrder': return await createOrder(DB, payload)
+      case 'createOrder': {
+        // 顾客下单后看板必须立刻反映（R6 写失效）
+        const r = await createOrder(DB, payload)
+        if (r.code === 0) await invalidateDashboard(env)
+        return r
+      }
       case 'getReviews': return await getReviews(DB, payload)
-      case 'addPublicReview': return await addReview(DB, payload)
-      case 'createSubmission': return await createSubmission(DB, payload)
+      case 'addPublicReview': {
+        const r = await addReview(DB, payload)
+        if (r.code === 0) await invalidateDashboard(env)
+        return r
+      }
+      case 'createSubmission': {
+        const r = await createSubmission(DB, payload)
+        if (r.code === 0) await invalidateDashboard(env)
+        return r
+      }
       case 'aiChat': {
         // AI 导购限流：20 次/60s/IP（复用 KV→D1 降级链）
         const r = await checkRate(DB, env.RATE_KV, `rate:ai:${ip}`, RATE_AI.windowMs, RATE_AI.max)

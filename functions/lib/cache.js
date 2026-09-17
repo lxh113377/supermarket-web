@@ -49,3 +49,13 @@ export async function invalidatePublicCatalog(env) {
     kvCacheDel(env, 'cache:public:categories'),
   ])
 }
+
+// ── 看板聚合缓存（2026-09-18 双向迭代 R6）──
+// ⚠️ 必须按 rangeDays 分键：看板结果随区间（7/30/365…）变化，
+//    单键缓存会让「7 天视图返回 365 天数据」，属静默错误。
+export const DASHBOARD_CACHE_PREFIX = 'cache:dashboard:stats:'
+export const DASHBOARD_RANGES = [1, 3, 7, 14, 30, 60, 90, 180, 365]
+
+export async function invalidateDashboard(env) {
+  await Promise.all(DASHBOARD_RANGES.map((d) => kvCacheDel(env, `${DASHBOARD_CACHE_PREFIX}${d}`)))
+}
