@@ -1,6 +1,10 @@
-import {  useState, useEffect, useMemo  } from 'react'
+import {  useState, useEffect, useMemo, useCallback  } from 'react'
 import { adminCall } from '../auth'
-import { CATEGORIES } from '../data/services'
+import { CATEGORIES } from '../data/categories'
+import EmptyState from './EmptyState'
+import { SkeletonTable } from './Skeleton'
+import Overlay from './Overlay'
+import { IconEmpty } from './Icons'
 import type { Submission } from '../types'
 
 const STATUS_MAP: Record<string, { label: string; cls: string }> = {
@@ -36,7 +40,8 @@ export default function SubmissionsTab() {
     if (!expanded[id]) loadImages(id)
   }
 
-  const fetchSubmissions = async () => {
+  // useCallback 固定引用：否则下面 30s 轮询的 effect 依赖不成立（原实现把 [] 当依赖，闭包是首帧的）
+  const fetchSubmissions = useCallback(async () => {
     try {
       const res = await adminCall('getSubmissions', {})
       if (res.code === 0) setSubmissions((res.data || []) as Submission[])
@@ -45,20 +50,30 @@ export default function SubmissionsTab() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  useEffect(() => { fetchSubmissions() }, [])
+  useEffect(() => { fetchSubmissions() }, [fetchSubmissions])
 
   // 自动刷新
   useEffect(() => {
     const t = setInterval(fetchSubmissions, 30000)
     return () => clearInterval(t)
-  }, [])
+  }, [fetchSubmissions])
 
   const filtered = useMemo(() => {
     if (filter === 'all') return submissions
     return submissions.filter(s => s.categoryId === filter)
   }, [submissions, filter])
+
+  // 各分类计数一次算完：原实现在筛选栏里对每个分类各跑一次 filter（分类数 × 提交数）
+  const countsByCategory = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const s of submissions) {
+      const key = s.categoryId || ''
+      map[key] = (map[key] || 0) + 1
+    }
+    return map
+  }, [submissions])
 
   const handleStatus = async (id: string, status: string) => {
     try {
@@ -95,35 +110,43 @@ export default function SubmissionsTab() {
   }
 
   if (loading) {
-    return <div className="text-center py-12 text-gray-400">加载中...</div>
+    return (
+      <div className="space-y-3">
+        <span className="sr-only" role="status">加载服务提交中</span>
+        <SkeletonTable rows={3} />
+      </div>
+    )
   }
 
   return (
     <div>
       {/* 筛选 */}
-      <div className="flex gap-2 mb-4 flex-wrap">
+      <div className="flex gap-2 mb-4 flex-wrap" role="group" aria-label="按服务分类筛选">
         <button
           onClick={() => setFilter('all')}
+          aria-pressed={filter === 'all'}
           className={`px-3 py-1.5 rounded-lg text-xs font-medium ${filter === 'all' ? 'bg-brand-500 text-white' : 'bg-gray-100 text-gray-600'}`}
         >
           全部 ({submissions.length})
         </button>
-        {CATEGORIES.map(c => {
-          const count = submissions.filter(s => s.categoryId === c.id).length
-          return (
-            <button
-              key={c.id}
-              onClick={() => setFilter(c.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium ${filter === c.id ? 'bg-brand-500 text-white' : 'bg-gray-100 text-gray-600'}`}
-            >
-              {c.name} ({count})
-            </button>
-          )
-        })}
+        {CATEGORIES.map(c => (
+          <button
+            key={c.id}
+            onClick={() => setFilter(c.id)}
+            aria-pressed={filter === c.id}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium ${filter === c.id ? 'bg-brand-500 text-white' : 'bg-gray-100 text-gray-600'}`}
+          >
+            {c.name} ({countsByCategory[c.id] || 0})
+          </button>
+        ))}
       </div>
 
       {filtered.length === 0 ? (
-        <div className="text-center py-12 text-gray-400">暂无服务提交</div>
+        <EmptyState
+          icon={<IconEmpty className="w-6 h-6" />}
+          title="暂无服务提交"
+          description={filter === 'all' ? '顾客提交生活服务需求后会出现在这里' : '该分类下暂时没有提交记录'}
+        />
       ) : (
         <div className="space-y-3">
           {filtered.map(s => (
@@ -154,16 +177,28 @@ export default function SubmissionsTab() {
                       </button>
                       {expanded[s._id] && (
                         <div className="flex gap-2 mt-2 flex-wrap">
-                          {imageLoading[s._id] && <span className="text-xs text-gray-400 py-4">图片加载中...</span>}
+                          {imageLoading[s._id] && (
+                            <span className="text-xs text-gray-400 py-4" role="status">图片加载中...</span>
+                          )}
+                          {/* 图片本身可点开预览 —— 用 button 包裹而不是给 img 挂 onClick，
+                              键盘用户与读屏用户才能操作（原实现只有鼠标能点） */}
                           {(s.images || imageCache[s._id] || []).map((img, i) => (
-                            <img
+                            <button
                               key={i}
-                              src={img}
-                              alt={`截图${i + 1}`}
-                              loading="lazy"
                               onClick={() => setPreview(img)}
-                              className="w-14 h-14 rounded-lg object-cover border border-gray-200 cursor-pointer hover:opacity-80"
-                            />
+                              aria-label={`查看截图 ${i + 1}`}
+                              className="w-14 h-14 rounded-lg overflow-hidden border border-gray-200 hover:opacity-80 transition focus-visible:outline-2 focus-visible:outline-brand-500"
+                            >
+                              <img
+                                src={img}
+                                alt=""
+                                width={56}
+                                height={56}
+                                loading="lazy"
+                                decoding="async"
+                                className="w-full h-full object-cover"
+                              />
+                            </button>
                           ))}
                         </div>
                       )}
@@ -171,17 +206,17 @@ export default function SubmissionsTab() {
                   )}
                 </div>
               </div>
-              {/* 操作按钮 */}
+              {/* 操作按钮：py-2 把命中高度撑到 ~36px + .tap-44 外扩至 44px */}
               <div className="flex gap-2 mt-3 pt-3 border-t border-gray-50">
                 {s.status === 'pending' && (
-                  <button onClick={() => handleStatus(s._id, 'done')} className="px-3 py-1 bg-green-50 text-green-600 rounded-lg text-xs font-medium hover:bg-green-100">
+                  <button onClick={() => handleStatus(s._id, 'done')} className="tap-44 px-3 py-2 bg-green-50 text-green-600 rounded-lg text-xs font-medium hover:bg-green-100">
                     标记已处理
                   </button>
                 )}
-                <button onClick={() => copySubmission(s)} className="px-3 py-1 bg-gray-50 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-100">
+                <button onClick={() => copySubmission(s)} className="tap-44 px-3 py-2 bg-gray-50 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-100">
                   复制
                 </button>
-                <button onClick={() => handleDelete(s._id)} className="px-3 py-1 bg-red-50 text-red-500 rounded-lg text-xs font-medium hover:bg-red-100">
+                <button onClick={() => handleDelete(s._id)} className="tap-44 px-3 py-2 bg-red-50 text-red-500 rounded-lg text-xs font-medium hover:bg-red-100">
                   删除
                 </button>
               </div>
@@ -190,24 +225,28 @@ export default function SubmissionsTab() {
         </div>
       )}
 
-      {/* 图片预览弹窗（P0-12：dialog 语义 + Esc 关闭；P0-17：点图不冒泡关弹窗） */}
-      {preview && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="图片预览"
-          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
-          onClick={() => setPreview(null)}
-          onKeyDown={(e) => { if (e.key === 'Escape') setPreview(null) }}
-        >
+      {/* 图片预览：改用统一 Overlay（补齐原实现缺失的焦点陷阱与焦点归还） */}
+      <Overlay
+        open={!!preview}
+        onClose={() => setPreview(null)}
+        label="图片预览"
+        className="max-w-2xl p-2 bg-transparent border-0 shadow-none"
+      >
+        {preview && (
           <img
             src={preview}
-            alt="预览"
-            onClick={(e) => e.stopPropagation()}
-            className="max-w-full max-h-[80vh] rounded-xl"
+            alt="提交截图预览"
+            className="max-w-full max-h-[75vh] mx-auto rounded-xl"
           />
-        </div>
-      )}
+        )}
+        <button
+          onClick={() => setPreview(null)}
+          data-autofocus
+          className="mt-3 mx-auto block px-5 py-2.5 bg-white/90 text-gray-700 rounded-xl text-sm font-medium"
+        >
+          关闭
+        </button>
+      </Overlay>
     </div>
   )
 }

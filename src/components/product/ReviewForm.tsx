@@ -81,6 +81,7 @@ export default function ReviewForm({ productOrder, onPublished }: { productOrder
       <div className="space-y-4">
         <input
           type="text"
+          aria-label="昵称（选填，默认匿名用户）"
           placeholder="昵称（选填，默认匿名用户）"
           value={user}
           onChange={(e) => setUser(e.target.value)}
@@ -103,6 +104,7 @@ export default function ReviewForm({ productOrder, onPublished }: { productOrder
           </div>
         </div>
         <textarea
+          aria-label="评价内容（最多 500 字）"
           placeholder="说说你的感受...（最多500字）"
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -116,16 +118,24 @@ export default function ReviewForm({ productOrder, onPublished }: { productOrder
             <div className="grid grid-cols-3 gap-2 mb-2">
               {images.map((src, i) => (
                 <div key={i} className="relative aspect-square rounded-xl overflow-hidden border border-gray-100">
-                  <img src={src} alt={`待发布图片 ${i + 1}`} className="w-full h-full object-cover" />
+                  <img
+                    src={src}
+                    alt={`待发布图片 ${i + 1}`}
+                    width={160}
+                    height={160}
+                    loading="lazy"
+                    decoding="async"
+                    className="w-full h-full object-cover"
+                  />
                   <button
                     onClick={() => {
                       setImages((prev) => prev.filter((_, j) => j !== i))
                       setBlobs((prev) => prev.filter((_, j) => j !== i))
                     }}
                     aria-label={`删除图片 ${i + 1}`}
-                    className="absolute top-0.5 right-0.5 w-5 h-5 bg-black/50 text-white rounded-full text-xs flex items-center justify-center"
+                    className="tap-44 absolute top-0.5 right-0.5 w-6 h-6 bg-black/50 text-white rounded-full text-xs flex items-center justify-center"
                   >
-                    ×
+                    <span aria-hidden="true">×</span>
                   </button>
                 </div>
               ))}
@@ -135,13 +145,16 @@ export default function ReviewForm({ productOrder, onPublished }: { productOrder
             <label className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-4 text-sm text-gray-400 hover:border-brand-300 hover:text-brand-500 hover:bg-brand-50/30 transition-all duration-300 flex flex-col items-center cursor-pointer">
               <span className="text-xl mb-1">📷</span>
               添加图片（选填，最多 5 张）
-              <input type="file" accept="image/*" multiple className="hidden" onChange={handleImages} />
+              <input type="file" accept="image/*" multiple aria-label="选择要上传的评价图片" className="hidden" onChange={handleImages} />
             </label>
           )}
         </div>
-        {msg && (
-          <p className={`text-xs ${msg.includes('✓') ? 'text-green-600' : 'text-red-400'}`}>{msg}</p>
-        )}
+        {/* 发布结果需播报（成功/失败均是瞬时视觉提示） */}
+        <div role="status" aria-live="polite">
+          {msg && (
+            <p className={`text-xs ${msg.includes('✓') ? 'text-green-600' : 'text-red-400'}`}>{msg}</p>
+          )}
+        </div>
         <button
           onClick={submit}
           disabled={!text.trim() || submitting}

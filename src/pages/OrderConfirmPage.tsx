@@ -4,6 +4,7 @@ import OrderItem from '../components/OrderItem'
 import { getCart, getTotalAmount, clearCart } from '../cart'
 import { createOrder } from '../db'
 import { isBusinessHours, getClosedMessage } from '../utils/businessHours'
+import { formatYuan } from '../utils/format'
 
 // 图片压缩：限制最大边 800px，质量 0.6
 function compressImage(file: File): Promise<string> {
@@ -121,7 +122,7 @@ export default function OrderConfirmPage() {
         <span className="w-9" />
       </div>
 
-      <div className="flex-1 p-5 overflow-hidden flex flex-col">
+      <div className="flex-1 p-5 overflow-hidden flex flex-col w-full max-w-3xl lg:max-w-4xl mx-auto">
         <div className="flex-1 overflow-y-auto space-y-5">
           {/* 营业时间提示 */}
           {!open && (
@@ -141,38 +142,55 @@ export default function OrderConfirmPage() {
             </div>
             <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-100">
               <span className="text-sm font-semibold text-gray-700">合计</span>
-              <span className="text-xl font-bold text-brand-600">¥{totalAmount.toFixed(2)}</span>
+              <span className="text-xl font-bold text-brand-600">{formatYuan(totalAmount)}</span>
             </div>
           </div>
 
+          {/* 表单 label 与输入框显式关联（htmlFor/id）：
+              原实现 label 与 input 是兄弟节点、无关联，读屏只会念「编辑框」不念字段名 */}
           {/* 楼栋号 */}
           <div className="animate-fade-in-up stagger-1">
-            <label className="section-title block mb-2.5">楼栋号 <span className="text-red-400">*</span></label>
+            <label htmlFor="order-building" className="section-title block mb-2.5">
+              楼栋号 <span className="text-red-400" aria-hidden="true">*</span>
+            </label>
             <input
+              id="order-building"
               type="text"
               value={building}
               onChange={(e) => setBuilding(e.target.value)}
               placeholder="例如：36栋"
+              required
+              aria-required="true"
+              aria-invalid={error.includes('楼栋') || undefined}
+              aria-describedby={error.includes('楼栋') ? 'order-error' : undefined}
               className="input-base"
             />
           </div>
 
           {/* 房间号 */}
           <div className="animate-fade-in-up stagger-1">
-            <label className="section-title block mb-2.5">房间号 <span className="text-red-400">*</span></label>
+            <label htmlFor="order-room" className="section-title block mb-2.5">
+              房间号 <span className="text-red-400" aria-hidden="true">*</span>
+            </label>
             <input
+              id="order-room"
               type="text"
               value={room}
               onChange={(e) => setRoom(e.target.value)}
               placeholder="例如：501"
+              required
+              aria-required="true"
+              aria-invalid={error.includes('房间') || undefined}
+              aria-describedby={error.includes('房间') ? 'order-error' : undefined}
               className="input-base"
             />
           </div>
 
           {/* 微信号（选填） */}
           <div className="animate-fade-in-up stagger-1">
-            <label className="section-title block mb-2.5">微信号（选填）</label>
+            <label htmlFor="order-wechat" className="section-title block mb-2.5">微信号（选填）</label>
             <input
+              id="order-wechat"
               type="text"
               value={wechat}
               onChange={(e) => setWechat(e.target.value)}
@@ -183,8 +201,9 @@ export default function OrderConfirmPage() {
 
           {/* 备注 */}
           <div className="animate-fade-in-up stagger-2">
-            <label className="section-title block mb-2.5">备注</label>
+            <label htmlFor="order-remark" className="section-title block mb-2.5">备注</label>
             <input
+              id="order-remark"
               type="text"
               value={remark}
               onChange={(e) => setRemark(e.target.value)}
@@ -216,15 +235,23 @@ export default function OrderConfirmPage() {
                 点击上传付款截图
               </button>
             )}
-            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleScreenshot} />
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              aria-label="选择付款截图"
+              onChange={handleScreenshot}
+            />
           </div>
         </div>
 
         {/* 底部操作 */}
         <div className="mt-5 space-y-2.5">
-          {error && (
-            <p className="text-red-500 text-sm text-center animate-slide-down">{error}</p>
-          )}
+          {/* role="alert" + id：读屏会在校验失败时立即播报，并被上方输入框的 aria-describedby 引用 */}
+          <div role="alert" aria-live="assertive">
+            {error && <p id="order-error" className="text-red-500 text-sm text-center animate-slide-down">{error}</p>}
+          </div>
           <button
             onClick={handleConfirm}
             disabled={submitting}

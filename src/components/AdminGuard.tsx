@@ -27,7 +27,7 @@ export default function AdminGuard({ children }: AdminGuardProps) {
   }, [])
 
   if (!IS_CLOUD) return children
-  if (checking) return <div className="flex items-center justify-center min-h-full text-gray-400">验证中...</div>
+  if (checking) return <div className="flex items-center justify-center min-h-full text-gray-400" role="status" aria-live="polite">验证中...</div>
   if (authed) return children
 
   const handleLogin = async () => {
@@ -62,7 +62,9 @@ export default function AdminGuard({ children }: AdminGuardProps) {
           autoFocus
           className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-brand-400"
         />
-        {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
+        <div role="alert" aria-live="assertive">
+          {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
+        </div>
         <button
           onClick={handleLogin}
           disabled={checking}

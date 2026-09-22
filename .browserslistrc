@@ -1,0 +1,20 @@
+# 目标浏览器（autoprefixer / esbuild 以此为前缀与降级依据）
+# 主战场：微信内置浏览器（Android 多为 X5/Chromium 内核，iOS 为 WKWebView）+ 主流桌面浏览器。
+# 参考依据：项目主入口是「微信扫码打开 github.io」，桌面端仅管理后台使用。
+#
+# 说明：Vite 的构建 target 已是 es2020（见 vite.config.js），此文件只影响
+# CSS 前缀补全与 autoprefixer 的行为，不改变 JS 语法降级目标。
+
+# 校园用户手机（近 3 年主流机型）
+last 2 ChromeAndroid versions
+last 3 iOS major versions
+last 2 Safari major versions
+last 2 Chrome versions
+last 2 Edge versions
+last 2 Firefox versions
+
+# 微信 X5 内核长期对应 Chrome 86 左右，显式兜住
+Chrome >= 86
+iOS >= 14
+
+not dead

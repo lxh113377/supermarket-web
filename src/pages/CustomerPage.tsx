@@ -1,9 +1,14 @@
-import React, { useEffect, useMemo, useRef, useState, useDeferredValue } from 'react'
+import React, { useEffect, useMemo, useRef, useState, useDeferredValue, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import TopNav from '../components/TopNav'
 import ProductCard from '../components/ProductCard'
+import EmptyState from '../components/EmptyState'
+import { SkeletonList } from '../components/Skeleton'
+import { IconCart, IconEmpty } from '../components/Icons'
 import useCart from '../hooks/useCart'
 import useProducts from '../hooks/useProducts'
+import { formatYuan } from '../utils/format'
+import { prefetchRoute } from '../routeLoaders'
 import type { Product } from '../types'
 
 interface FlyDotData {
@@ -12,19 +17,6 @@ interface FlyDotData {
   y: number
   tx: number
   ty: number
-}
-
-// ---- 骨架屏组件 ----
-function SkeletonCard() {
-  return (
-    <div className="flex items-center justify-between p-4 rounded-2xl bg-white border border-gray-100/80">
-      <div className="flex-1 pr-3 space-y-2.5">
-        <div className="h-4 skeleton-shimmer w-3/4" />
-        <div className="h-3.5 skeleton-shimmer w-1/4" />
-      </div>
-      <div className="w-8 h-8 rounded-full skeleton-shimmer" />
-    </div>
-  )
 }
 
 // ---- 加购飞行动画 ----
@@ -116,12 +108,22 @@ export default function CustomerPage() {
     ).slice(0, 5)
   }, [products, search])
 
-  const showToast = (msg: string) => {
-    setToast(msg)
-    setTimeout(() => setToast(''), 1200)
-  }
+  // toast 定时器需可清理：原实现每次 showToast 直接 setTimeout 且无人回收，
+  // 组件卸载（如点返回）后仍会执行 setState，产生「已卸载组件更新」告警。
+  const toastTimerRef = useRef<number | null>(null)
+  useEffect(() => () => {
+    if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current)
+  }, [])
 
-  const handleAdd = (product: Product, e?: React.MouseEvent) => {
+  const showToast = useCallback((msg: string) => {
+    setToast(msg)
+    if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current)
+    toastTimerRef.current = window.setTimeout(() => setToast(''), 1200)
+  }, [])
+
+  // handleAdd / handleRemove 用 useCallback 固定引用：
+  // ProductCard 已 memo，回调若每次渲染都新建则 memo 完全失效。
+  const handleAdd = useCallback((product: Product, e?: React.MouseEvent) => {
     add(product)
     showToast('已添加 ' + product.name)
     const rect = e?.currentTarget?.getBoundingClientRect?.() || null
@@ -138,11 +140,11 @@ export default function CustomerPage() {
         ty: ct ? ct.top + ct.height / 2 : rect.top + 400,
       }])
     }
-  }
+  }, [add, showToast])
 
-  const handleRemove = (product: Product) => {
+  const handleRemove = useCallback((product: Product) => {
     remove(product._id)
-  }
+  }, [remove])
 
   const removeDot = (id: number) => setFlyDots(prev => prev.filter(d => d.id !== id))
 
@@ -150,13 +152,8 @@ export default function CustomerPage() {
     return (
       <div className="flex flex-col h-full bg-surface">
         <TopNav categories={[]} activeSub="" onSubChange={() => {}} onSearchToggle={() => {}} showSearch={false} />
-        <div className="flex-1 overflow-y-auto p-4 pb-24 space-y-3">
-          <SkeletonCard />
-          <SkeletonCard />
-          <SkeletonCard />
-          <SkeletonCard />
-          <SkeletonCard />
-          <SkeletonCard />
+        <div className="flex-1 overflow-y-auto p-4 pb-24">
+          <SkeletonList rows={6} />
         </div>
       </div>
     )
@@ -164,8 +161,8 @@ export default function CustomerPage() {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-3 p-6">
-        <span className="text-3xl">😵</span>
+      <div className="flex flex-col items-center justify-center h-full gap-3 p-6" role="alert">
+        <span className="text-3xl" aria-hidden="true">😵</span>
         <p className="text-red-400 text-sm text-center">{error}</p>
         <button
           onClick={refresh}
@@ -205,9 +202,10 @@ export default function CustomerPage() {
       {showSearch && (
         <div className="px-4 pb-2.5 animate-slide-down">
           <input
-            type="text"
+            type="search"
             className="input-base"
             placeholder="搜索商品名称…"
+            aria-label="搜索商品名称"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             autoFocus
@@ -221,7 +219,7 @@ export default function CustomerPage() {
                   className="w-full text-left px-4 py-3 text-sm hover:bg-brand-50/50 flex justify-between items-center transition-colors duration-150 border-b border-gray-50 last:border-0"
                 >
                   <span className="text-gray-700">{p.name}{p.spec ? ` (${p.spec})` : ''}</span>
-                  <span className="text-brand-600 text-xs font-semibold">¥{p.price.toFixed(2)}</span>
+                  <span className="text-brand-600 text-xs font-semibold">{formatYuan(p.price)}</span>
                 </button>
               ))}
             </div>
@@ -248,38 +246,47 @@ export default function CustomerPage() {
 
       <div className="flex-1 overflow-y-auto p-4 pb-32">
         {filteredProducts.length === 0 && !deferredSearch && (
-          <div className="flex flex-col items-center gap-2 mt-16 text-gray-300">
-            <span className="text-4xl">🛒</span>
-            <span className="text-sm">暂无该类商品</span>
-          </div>
+          <EmptyState
+            className="mt-10"
+            icon={<IconCart className="w-6 h-6" />}
+            title="暂无该类商品"
+            description="换个分类看看，或稍后再来"
+          />
         )}
         {filteredProducts.length === 0 && deferredSearch && (
-          <div className="flex flex-col items-center gap-2 mt-16 text-gray-300">
-            <span className="text-4xl">🔍</span>
-            <span className="text-sm">未找到 "{deferredSearch}" 相关商品</span>
-          </div>
+          <EmptyState
+            className="mt-10"
+            icon={<IconEmpty className="w-6 h-6" />}
+            title={`未找到「${deferredSearch}」相关商品`}
+            description="试试更短的关键词，或换个说法"
+          />
         )}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* 响应式：手机 1 列 → 平板 2 列 → 桌面 3 列（原实现桌面也只排 2 列） */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {filteredProducts.map(product => (
             <ProductCard
               key={product._id}
               product={product}
               quantity={getQuantity(product._id)}
-              onAdd={(e) => handleAdd(product, e)}
-              onRemove={() => handleRemove(product)}
+              onAdd={handleAdd}
+              onRemove={handleRemove}
             />
           ))}
         </div>
       </div>
 
-      {/* Toast - 更精致的弹出 */}
-      {toast && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 animate-scale-in">
-          <div className="bg-gray-900/90 backdrop-blur-sm text-white text-sm px-5 py-2.5 rounded-full shadow-float">
+      {/* Toast：补 role="status" + aria-live —— 加购成功这类瞬时反馈此前读屏完全听不到 */}
+      <div
+        className="fixed top-16 left-1/2 -translate-x-1/2 z-50 pointer-events-none"
+        role="status"
+        aria-live="polite"
+      >
+        {toast && (
+          <div className="bg-gray-900/90 backdrop-blur-sm text-white text-sm px-5 py-2.5 rounded-full shadow-float animate-scale-in">
             {toast}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* 飞行动画 */}
       {flyDots.map(d => (
@@ -287,17 +294,21 @@ export default function CustomerPage() {
       ))}
 
       {/* 购物车浮球 - 更圆润 */}
+      {/* 底部位置改用 .safe-offset-bottom：原 bottom-5 会被 iPhone 底部小黑条盖住结算入口 */}
       {totalCount > 0 && (
-        <div className="fixed bottom-5 left-5 right-5 z-30 animate-slide-up" ref={cartBtnRef}>
+        <div className="safe-offset-bottom fixed left-5 right-5 z-30 animate-slide-up" ref={cartBtnRef}>
           <button
             onClick={() => navigate('/cart')}
-            className="w-full bg-gray-900 hover:bg-gray-800 text-white py-4 rounded-2xl shadow-float flex items-center justify-center gap-3 transition-all duration-200 active:scale-[0.98]"
+            onMouseEnter={() => prefetchRoute('cart')}
+            onFocus={() => prefetchRoute('cart')}
+            aria-label={`查看购物车，共 ${totalCount} 件，合计 ${formatYuan(totalAmount)}`}
+            className="w-full max-w-2xl mx-auto bg-gray-900 hover:bg-gray-800 text-white py-4 rounded-2xl shadow-float flex items-center justify-center gap-3 transition-all duration-200 active:scale-[0.98]"
           >
             <span className="font-medium">购物车</span>
             <span className="bg-brand-500 px-2.5 py-0.5 rounded-full text-xs font-bold">
               {totalCount} 件
             </span>
-            <span className="font-bold text-brand-300">¥{totalAmount.toFixed(2)}</span>
+            <span className="font-bold text-brand-300">{formatYuan(totalAmount)}</span>
           </button>
         </div>
       )}

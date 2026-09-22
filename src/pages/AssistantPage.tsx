@@ -103,8 +103,15 @@ export default function AssistantPage() {
         </span>
       </div>
 
-      {/* 消息区 */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3 pb-4">
+      {/* 消息区：role="log" + aria-live 让读屏在 AI 回复到达时自动播报新消息
+          （原实现是纯视觉流，读屏用户完全感知不到回复已到） */}
+      <div
+        ref={scrollRef}
+        role="log"
+        aria-live="polite"
+        aria-label="对话记录"
+        className="flex-1 overflow-y-auto px-4 py-4 space-y-3 pb-4 w-full max-w-3xl mx-auto"
+      >
         {messages.map((m) => (
           <div key={m.id} className={`flex gap-2 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             {m.role === 'assistant' && (
@@ -152,14 +159,14 @@ export default function AssistantPage() {
 
         {/* 输入中指示器 */}
         {pending && (
-          <div className="flex gap-2 justify-start">
+          <div className="flex gap-2 justify-start" role="status" aria-label="AI 正在输入">
             <div className="w-7 h-7 rounded-full brand-bar opacity-90 shrink-0 flex items-center justify-center text-white mt-0.5">
               <IconRobot className="w-4 h-4" />
             </div>
             <div className="bg-white border border-gray-100/80 shadow-card rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-              <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-              <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+              <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+              <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+              <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '300ms' }} />
             </div>
           </div>
         )}
@@ -168,10 +175,12 @@ export default function AssistantPage() {
       {/* 输入区 */}
       <form
         onSubmit={onSubmit}
-        className="border-t border-gray-100 bg-white/95 backdrop-blur-sm px-4 py-3 safe-bottom flex items-center gap-2"
+        className="border-t border-gray-100 bg-white/95 backdrop-blur-sm px-4 py-3 safe-bottom"
       >
+        <div className="flex items-center gap-2 w-full max-w-3xl mx-auto">
         <input
           type="text"
+          aria-label="向 AI 导购提问"
           className="input-base flex-1"
           placeholder="问问营业时间、配送、商品…（200字内）"
           maxLength={200}
@@ -191,6 +200,7 @@ export default function AssistantPage() {
             <path d="M22 2 11 13" />
           </svg>
         </button>
+        </div>
       </form>
     </div>
   )

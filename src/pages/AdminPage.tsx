@@ -130,15 +130,15 @@ export default function AdminPage() {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-3">
-        <div className="w-8 h-8 border-3 border-brand-200 border-t-brand-500 rounded-full animate-spin" />
+      <div className="flex flex-col items-center justify-center h-full gap-3" role="status" aria-live="polite">
+        <div className="w-8 h-8 border-[3px] border-brand-200 border-t-brand-500 rounded-full animate-spin" />
         <span className="text-sm text-gray-400">加载中...</span>
       </div>
     )
   }
 
   return (
-    <div className="min-h-full bg-surface p-5 pb-24">
+    <div className="min-h-full bg-surface p-5 pb-24 w-full max-w-5xl lg:max-w-6xl mx-auto">
       {/* 标题区 */}
       <div className="flex items-center justify-between mb-5">
         <h1 className="text-xl font-bold text-gray-900">管理后台</h1>
@@ -164,31 +164,45 @@ export default function AdminPage() {
       )}
 
       {/* Tab 导航 - 更精致的分段控件 */}
-      <div className="flex gap-1.5 mb-5 bg-white p-1.5 rounded-2xl shadow-card border border-gray-100/80">
+      {/* Tab 导航：补 tablist 语义（读屏能播报「第 N 个，共 5 个」），小屏字号收窄防挤压 */}
+      <div
+        role="tablist"
+        aria-label="管理功能"
+        className="flex gap-1.5 mb-5 bg-white p-1.5 rounded-2xl shadow-card border border-gray-100/80"
+      >
         {TABS.map(t => (
           <button
             key={t.key}
+            role="tab"
+            aria-selected={tab === t.key}
+            aria-controls={`admin-panel-${t.key}`}
+            id={`admin-tab-${t.key}`}
             onClick={() => setTab(t.key)}
-            className={`flex-1 py-2.5 rounded-xl text-xs font-medium transition-all duration-200 flex flex-col items-center gap-1 ${
+            className={`flex-1 min-w-0 py-2.5 rounded-xl text-[11px] sm:text-xs font-medium transition-all duration-200 flex flex-col items-center gap-1 ${
               tab === t.key
                 ? 'bg-gray-900 text-white shadow-soft'
                 : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
             }`}
           >
-            <span className="text-sm">{t.icon}</span>
-            {t.label}
+            <span className="text-sm" aria-hidden="true">{t.icon}</span>
+            <span className="truncate max-w-full">{t.label}</span>
           </button>
         ))}
       </div>
 
       {/* Tab 内容 - 带入场动画（P0-6：去掉 key={tab}，避免整块 DOM 强制重挂载） */}
-      <div className="animate-fade-in-up">
+      <div
+        className="animate-fade-in-up"
+        role="tabpanel"
+        id={`admin-panel-${tab}`}
+        aria-labelledby={`admin-tab-${tab}`}
+      >
         {tab === 'dashboard' && <DashboardTab />}
         {tab === 'products' && (
           <>
             {productsError && (
-              <div className="mb-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3">
-                ⚠️ 商品数据加载失败：{productsError}
+              <div className="mb-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3" role="alert">
+                <span aria-hidden="true">⚠️</span> 商品数据加载失败：{productsError}
               </div>
             )}
             <ProductsTab products={products} categories={categories} onDataChange={loadProducts} />

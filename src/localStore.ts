@@ -20,23 +20,52 @@ function seedToLocal(): Product[] {
   }))
 }
 
+/**
+ * 解析结果缓存（2026-09-23 性能改造）。
+ *
+ * 原实现每次读都 `JSON.parse` 整表、每次写都 `JSON.stringify` 整表。
+ * 加购属于高频写，而管理端一次渲染会触发多次读 —— 反复同步解析是主线程卡顿来源。
+ *
+ * ⚠️ 存储格式**保持不变**（仍是整表 JSON），因此对已有本地数据零迁移、零破坏。
+ * 原计划里的「增量写」需要改成按记录分键存储（= 对既有用户数据做迁移），
+ * 收益仅限本地演示模式，风险却落到真实数据上，故本轮不做。
+ *
+ * 别名安全：读取方一律拿到**浅拷贝**（新数组容器），
+ * 既避免调用方原地改动污染缓存，也保留原实现「每次读都是新数组」的语义。
+ */
+const parseCache = new Map<string, unknown>()
+
 function readJSON<T>(key: string, fallback: T): T {
+  if (parseCache.has(key)) return parseCache.get(key) as T
   try {
     const raw = localStorage.getItem(key)
-    if (!raw) return fallback
+    if (!raw) {
+      parseCache.set(key, fallback)
+      return fallback
+    }
     const parsed = JSON.parse(raw) as T
-    return parsed == null ? fallback : parsed
+    const value = parsed == null ? fallback : parsed
+    parseCache.set(key, value)
+    return value
   } catch {
+    parseCache.set(key, fallback)
     return fallback
   }
 }
 
 function writeJSON(key: string, value: unknown): void {
   try {
+    // 先落缓存再落盘：后续读命中缓存，省掉一次整表 parse（缓存即最新真相源）
+    parseCache.set(key, value)
     localStorage.setItem(key, JSON.stringify(value))
   } catch (e) {
     console.error('localStore write failed:', e)
   }
+}
+
+/** 数组读出的统一出口：返回浅拷贝容器，防止调用方原地改动污染缓存 */
+function cloneArray<T>(list: T[]): T[] {
+  return Array.isArray(list) ? list.slice() : []
 }
 
 export function getLocalCategories(): Category[] {
@@ -51,10 +80,10 @@ export function getLocalProducts(): Product[] {
   if (raw === null) {
     const seeded = seedToLocal()
     writeJSON(PRODUCTS_KEY, seeded)
-    return seeded
+    return cloneArray(seeded)
   }
   const list = readJSON<Product[] | null>(PRODUCTS_KEY, null)
-  return Array.isArray(list) ? list : []
+  return cloneArray(Array.isArray(list) ? list : [])
 }
 
 export function saveLocalProducts(list: Product[]): void {
@@ -80,7 +109,7 @@ export function deleteLocalProduct(productId: string): Product[] {
 }
 
 export function getLocalOrders(): Order[] {
-  return readJSON<Order[]>(ORDERS_KEY, [])
+  return cloneArray(readJSON<Order[]>(ORDERS_KEY, []))
 }
 
 export function addLocalOrder(order: Record<string, unknown>): Order {
@@ -120,7 +149,7 @@ export function deleteLocalOrder(orderId: string): Order[] {
 // ---------- 评价（本地持久化，无需登录，像视频评论区） ----------
 export function getLocalReviews(productOrder: number | string): Review[] {
   const all = readJSON<Record<string, Review[]>>(REVIEWS_KEY, {})
-  return all[String(productOrder)] || []
+  return cloneArray(all[String(productOrder)] || [])
 }
 
 export function addLocalReview(productOrder: number | string, review: Partial<Review>): Review {
