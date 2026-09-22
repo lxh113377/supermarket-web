@@ -5,7 +5,13 @@
   Permissions-Policy: geolocation=(), microphone=(), camera=()
   Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
 
-# 商品图（order 命名可能被同名校验替换，用 7 天软缓存 + SWR；SW 侧另有 cache-first）
+# 商品图：URL 是「同名换内容」（前端硬约定 /images/{order}.webp，文件名不随内容变），
+# 所以**不能按"带 hash 的静态资源"给长强缓存** —— 否则换图后浏览器最长 7 天仍显示旧图。
+# 2026-09-23 修正：max-age 604800(7天) → 600(10分钟)，与顾客端 GitHub Pages 的默认值对齐。
+# 保留 stale-while-revalidate：到期后先回旧图同时后台复验，命中 ETag 时仅 304 不传 body，
+# 实际流量代价接近零；换来的是「换图后最多 10 分钟两端都可见」。
+# 注：SW 侧对 /images/ 也是 cache-first，但其缓存随每次部署的 CACHE_VERSION 变更整体清空，
+# 真正的长尾滞留来自这里的 HTTP 强缓存 —— 所以这一处才是关键闸门。
 /images/*
-  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+  Cache-Control: public, max-age=600, stale-while-revalidate=86400
 
