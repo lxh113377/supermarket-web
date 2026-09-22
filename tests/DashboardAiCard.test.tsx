@@ -2,7 +2,7 @@
 // DashboardTab AI 经营建议卡三态渲染测试（mock adminCall + useDashboardCharts，不触网不挂 echarts）
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, cleanup } from '@testing-library/react'
-import DashboardTab from '../src/components/DashboardTab'
+import DashboardTab, { resetAdviceCacheForTest } from '../src/components/DashboardTab'
 
 // vi.hoisted 规避 vi.mock 工厂 hoisting 的 TDZ 问题
 const { adminCall } = vi.hoisted(() => ({ adminCall: vi.fn() }))
@@ -52,6 +52,8 @@ function mockStatsOk() {
 describe('DashboardTab AI 经营建议卡', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // AI 建议现为会话级缓存（mount 复用），不复位会让上一用例结果泄漏进下一用例
+    resetAdviceCacheForTest()
     mockStatsOk()
   })
   afterEach(() => {

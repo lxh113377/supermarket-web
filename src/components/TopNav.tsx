@@ -72,12 +72,14 @@ export default function TopNav({ categories, activeSub, onSubChange, onSearchTog
           </svg>
         </button>
       </div>
-      {/* 子分类横向滚动区：加 tabIndex 让键盘用户也能用方向键滚动（原生 overflow 区域默认不可聚焦） */}
+      {/* 子分类横向滚动区：加 tabIndex 让键盘用户也能用方向键滚动（原生 overflow 区域默认不可聚焦）。
+          lg 及以上屏宽改为换行平铺（lg:flex-wrap + 关闭横向滚动）：桌面/平板不再出现横向滚动条，
+          一屏看全全部子分类；小屏保持横滚 + scrollbar-hide，入口位置与移动端习惯不变。 */}
       <div
         role="group"
         aria-label="子分类筛选"
         tabIndex={0}
-        className="flex overflow-x-auto whitespace-nowrap px-3 py-2.5 gap-2 bg-surface-warm scrollbar-hide max-w-5xl mx-auto focus-visible:outline-2 focus-visible:outline-brand-500"
+        className="flex overflow-x-auto whitespace-nowrap px-3 py-2.5 gap-2 bg-surface-warm scrollbar-hide max-w-5xl mx-auto focus-visible:outline-2 focus-visible:outline-brand-500 lg:flex-wrap lg:justify-center lg:overflow-x-visible lg:whitespace-normal"
       >
         <button
           onClick={() => onSubChange('')}

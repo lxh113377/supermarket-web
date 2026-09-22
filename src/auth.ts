@@ -2,7 +2,9 @@ import { IS_CLOUD } from './cloudbase'
 import { clearCatalogCache } from './catalogCache'
 import {
   upsertLocalProduct,
+  upsertLocalProducts,
   deleteLocalProduct,
+  deleteLocalProducts,
   updateLocalOrderStatus,
   deleteLocalOrder,
 } from './localStore'
@@ -75,7 +77,7 @@ export async function deleteProduct(productId: string): Promise<{ code: number; 
 // 批量商品更新（items 逐条更新，支持每组不同 updates）；返回服务端成功/失败明细
 export async function batchUpdateProducts(items: { productId: string; updates: Record<string, unknown> }[]): Promise<{ code: number; message?: string; data?: BatchMutationResult } | { ok: true }> {
   if (!IS_CLOUD) {
-    for (const it of items) upsertLocalProduct({ _id: it.productId, ...pickProductFields(it.updates) })
+    upsertLocalProducts(items.map((it) => ({ _id: it.productId, ...pickProductFields(it.updates) })))
     return { ok: true }
   }
   return withCatalogInvalidation(() => adminCall<BatchMutationResult>('batchUpdateProducts', { items }))
@@ -84,7 +86,7 @@ export async function batchUpdateProducts(items: { productId: string; updates: R
 // 批量删除商品；返回服务端成功/失败明细
 export async function batchDeleteProducts(productIds: string[]): Promise<{ code: number; message?: string; data?: BatchMutationResult } | { ok: true }> {
   if (!IS_CLOUD) {
-    for (const id of productIds) deleteLocalProduct(id)
+    deleteLocalProducts(productIds)
     return { ok: true }
   }
   return withCatalogInvalidation(() => adminCall<BatchMutationResult>('batchDeleteProducts', { productIds }))

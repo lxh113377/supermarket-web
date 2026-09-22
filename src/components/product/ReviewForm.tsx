@@ -89,13 +89,15 @@ export default function ReviewForm({ productOrder, onPublished }: { productOrder
           className="input-base"
         />
         <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-500">评分</span>
-          <div className="flex gap-1">
+          <span className="text-sm text-gray-500" id="review-rating-label">评分</span>
+          <div className="flex gap-1" role="radiogroup" aria-labelledby="review-rating-label">
             {[1, 2, 3, 4, 5].map((n) => (
               <button
                 key={n}
-                onClick={() => setRating(n)}
+                role="radio"
+                aria-checked={rating === n}
                 aria-label={`${n}星`}
+                onClick={() => setRating(n)}
                 className={`text-2xl transition-all duration-150 ${n <= rating ? 'text-brand-400 scale-110' : 'text-gray-200 hover:text-brand-200 hover:scale-105'}`}
               >
                 ★

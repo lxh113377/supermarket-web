@@ -226,13 +226,6 @@ img {
 .stagger-6 { animation-delay: 0.3s; }
 .stagger-7 { animation-delay: 0.35s; }
 .stagger-8 { animation-delay: 0.4s; }
-.stagger-9 { animation-delay: 0.45s; }
-.stagger-10 { animation-delay: 0.5s; }
-.stagger-11 { animation-delay: 0.55s; }
-.stagger-12 { animation-delay: 0.6s; }
-.stagger-13 { animation-delay: 0.65s; }
-.stagger-14 { animation-delay: 0.7s; }
-.stagger-15 { animation-delay: 0.75s; }
 
 /* === 滚动条美化 === */
 ::-webkit-scrollbar {
@@ -250,24 +243,11 @@ img {
   background: rgba(0,0,0,0.2);
 }
 
-/* 打印样式：只保留小票内容 */
-@media print {
-  .no-print {
-    display: none !important;
-  }
-  body {
-    font-size: 12px;
-    color: #000;
-    background: #fff;
-  }
-  .print-receipt {
-    display: block !important;
-    max-width: 300px;
-    margin: 0 auto;
-    padding: 20px;
-  }
-  .print-receipt .receipt-line {
-    border-bottom: 1px dashed #ccc;
-    padding: 4px 0;
-  }
+/* 隐藏滚动条但保留滚动能力（TopNav 横向分类区等；纯 Tailwind 无此类，须自定义） */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }

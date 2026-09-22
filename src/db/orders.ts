@@ -42,21 +42,6 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
   }
 }
 
-// 查询订单（分页，管理端）
-export async function getOrders(
-  { page = 1, pageSize = 50 }: { page?: number; pageSize?: number } = {},
-): Promise<Order[]> {
-  if (!IS_CLOUD) return getLocalOrders()
-  try {
-    const r = await adminCall('getOrders', { page, pageSize })
-    if (r.code !== 0) throwCloudReadError('cloud getOrders', r.message || `code=${r.code}`)
-    return (r.data || []) as Order[]
-  } catch (e) {
-    if (e instanceof Error && e.message.startsWith('cloud getOrders失败')) throw e
-    throwCloudReadError('cloud getOrders', e instanceof Error ? e.message : String(e))
-  }
-}
-
 // 查询全量订单（管理端看板/列表；后端 getOrders 默认 pageSize=50，直接取 data 会截断，
 // 这里按 hasMore 循环拉全量，避免看板聚合/搜索/翻页只覆盖最新 N 单。maxPages 防异常死循环）
 // H1-1 增量模式：since 为上次同步游标（ISO）时只拉 updatedAt 更大的订单（新建+状态变更），
