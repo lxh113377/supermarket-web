@@ -1,4 +1,3 @@
-import React from 'react'
 
 // 服务说明卡片（M6 拆分自 ServiceFormPage，2026-09-05）
 // hint 文本按空行分段，标题行（括号包裹）、价格行高亮；渲染逻辑与拆分前逐字一致。

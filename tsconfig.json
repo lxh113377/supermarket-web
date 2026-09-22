@@ -7,6 +7,10 @@
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
     "strict": true,
+    // P2-5：补开未使用检查（原仅 strict）。启用后需同时清掉由此暴露的死变量，
+    // 否则本地 tsc 通过、CI 严格档失败，形成"两处真相"。
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "noEmit": true,
     "isolatedModules": true,
     "skipLibCheck": true,

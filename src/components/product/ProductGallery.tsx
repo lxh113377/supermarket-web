@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import {  useState  } from 'react'
 import type { Product } from '../../types'
 
 // 商品图集组件（M6 拆分自 ProductDetailPage，2026-09-05）

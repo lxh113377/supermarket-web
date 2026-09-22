@@ -1,4 +1,3 @@
-import React from 'react'
 import type { OrderItem as OrderItemType } from '../types'
 
 export default function OrderItem({ item }: { item: OrderItemType }) {

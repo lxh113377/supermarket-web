@@ -1,4 +1,3 @@
-import React from 'react'
 import type { CartItem as CartItemType } from '../types'
 
 interface CartItemProps {
