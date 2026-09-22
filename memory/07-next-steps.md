@@ -4,6 +4,24 @@
 > 归档类型：增量（已完成的行动项移入归档）
 >
 > **⚠️ 这是新对话恢复上下文的入口文件。P0 必须永远有一条可执行指令。**
+>
+> **⚠️ 记忆双份提示（2026-09-23 实测）**：本项目存在两套 `memory/` —— 本目录（代码仓内）与
+> 外层 `超市web/超市/memory/`（工作区）。两者内容**不同**（07 主卷 SHA256 不一致），
+> 属历史遗留的双份结构，尚未合并。**本轮的权威记录在外层**：`deliverables/前端深度优化方案-2026-09-23.md` §6。
+
+## 2026-09-23 — 前端六维深度优化（P0+P1+P2 全量执行 + 双端上线）
+
+- 提交 `91c4fad`（39 文件 +1644/−702，新增 routeLoaders / data/categories / utils/format / utils/images /
+  EmptyState / Skeleton / Overlay / admin/ProductRow / admin/ProductInlineEditForm / .browserslistrc）
+  + `75b5f5e`（浮层层级重排），已推 origin/main。
+- 门禁：oxlint 0/0（126 文件）、双 tsconfig 0 error、**165/165 测试**、`npx vite build` ✓；`check:cycles` 已纳入 `npm run verify`。
+- 上线：pages.dev `db6d44c8`（无 ignoring config）+ github.io run 35762336633 / 01:47 run（dispatch 自动触发成功）；
+  三方产物哈希一致 `index-CsAoeQPX.js` / `index-Oz2BHkIz.css`。
+- 推翻 3 条旧结论：`sm/` 缩略图覆盖率实为 **100%**（110 webp = 顶层 55 + sm 55，别再把 sm/ 重复计入分母）；
+  `.githooks/pre-commit` 实测**正常工作**（真实提交输出密钥扫描通过）；github.io `repository_dispatch` 自动触发**正常**。
+- 主动不做：CSP 去 `style-src 'unsafe-inline'`（全站样式开关，本环境无微信真机验收手段）、
+  localStore 真增量写（需迁移既有本地数据）、TopNav 折叠式导航重构（改变用户熟悉入口）。
+- 详细方案与实测数字：`deliverables/前端深度优化方案-2026-09-23.md`（§0 基线 / §6 执行结果）。
 
 ## P0 — 必须做
 - [x] 2026-08-30 修复后台无法登录：线上 pages.dev 部署的是未烘焙 VITE_CB_API_BASE 的旧构建（后台静默降级「本地演示模式」，看不到真实订单）→ `npm run build`（.env 已配 API base）+ `node node_modules/wrangler/bin/wrangler.js pages deploy dist --project-name=supermarket-web --commit-dirty=true` 重新部署，线上验证云端模式 + 登录 + 12 条订单可见
