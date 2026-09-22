@@ -66,6 +66,25 @@
   localStore 真增量写（需迁移既有本地数据）、TopNav 折叠式导航重构（改变用户熟悉入口）。
 - 详细方案与实测数字：`deliverables/前端深度优化方案-2026-09-23.md`（§0 基线 / §6 执行结果）。
 
+## 2026-09-23 — 第二轮优化（图片深压 + 性能深水区 + TopNav 收尾 + F2/CSP + 死代码清理）
+
+- 提交 `a399cbf`，已推 origin/main；门禁：oxlint 0/0（128 文件）、双 tsconfig 0 error、**165/165 测试**、build ✓。
+- **图片深压**：55 张整图统一 800×800 白底 q75 + sm/ 400×400 q68（原尺寸杂乱：960×960 / 800×1067 / 1440×1080 混杂）。
+  资产 4.09MB → 3.46MB（**-15.4%**，低于预估 -40~50%：实测资产已是高效 q80 编码，继续压需动尺寸/画质，风险>收益止步）。
+  质量梯度实验（q75/70/65/60 × 4 张代表图）+ 目检定档；从 archive 原始备份重编码避免二次有损；备份 `archive/images-replaced-2026-09-23-r2/`。
+- **性能**：AI 经营建议会话级缓存（切 tab 不再重打 30s 级 Dify 调用，「刷新」按钮强制绕过）；订单/服务提交两个轮询器
+  感知 `document.hidden`（后台标签页不打云函数，回前台 visibilitychange 补拉）；本地模式批量操作合并为一次读+一次写
+  （`upsertLocalProducts`/`deleteLocalProducts`，消除 N 次整表 stringify）；DashboardTab 毛利 ¥ 收口 formatCount。
+- **结构**：compressImage 三份重复实现（reviewImages/ServiceForm/OrderConfirm，参数互不一致 640/0.5、800/0.7、800/0.6）收口
+  `utils/imageCompress.ts`；新增 `utils/rovingTabs.ts`（tablist 方向键导航，AdminPage + DashboardTab 接入）。
+- **F2 已执行**：CSP 去掉 `style-src 'unsafe-inline'`（真机验收通过解锁；保留 connect-src pages.dev 铁律）；
+  断言 dist 0 个 `<style>` 标签 ✅。**TopNav 收尾**：lg 以上子分类换行平铺（`lg:flex-wrap`），小屏保持横滚，入口位置不变。
+- **死代码清理**：print 样式块、stagger-9~15、`getOrders` 死导出（facade 测试同步改 `getAllOrders`）；`scrollbar-hide` 补上真实定义（原是 no-op 类）。
+- **a11y 残留**：ReviewForm 评分 radiogroup/radio/aria-checked；ProductInlineEditForm 错误字段 aria-invalid + aria-describedby。
+- **双端上线 + §6 全绿**：pages.dev sw-v1790104522853 / github.io sw-v1790104515129（**dispatch 自动触发成功，第 3 次**，间歇失效未复现）；
+  curl 清单 ①28=上架数 ②2 ④错误密钥被拒 ⑥CORS 精确回显 ⑦200 ⑧跨域 28 ⑤测试订单 `o_mud2cyuzh89l2q`（例行写入）+ 新 CSS 200。
+- ⚠️ 中断记录：本轮收尾时遇 ZCode 平台「Captcha instance timed out」报错（provider 轮次失败，与项目无关），恢复后续跑。
+
 ## P0 — 必须做
 - [x] 2026-08-30 修复后台无法登录：线上 pages.dev 部署的是未烘焙 VITE_CB_API_BASE 的旧构建（后台静默降级「本地演示模式」，看不到真实订单）→ `npm run build`（.env 已配 API base）+ `node node_modules/wrangler/bin/wrangler.js pages deploy dist --project-name=supermarket-web --commit-dirty=true` 重新部署，线上验证云端模式 + 登录 + 12 条订单可见
 - [x] 2026-08-30 确认正确后台入口 URL = `https://supermarket-web.pages.dev/#/admin`（HashRouter 路由；`#@command:admin` 非合法路由会 404，勿再用）
