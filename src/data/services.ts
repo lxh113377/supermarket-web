@@ -1,36 +1,10 @@
 // 服务配置 - 定义所有分类和子服务的表单结构
 import type { Service, ServiceCategory } from '../types'
+import { CATEGORIES } from './categories'
 
-export const CATEGORIES: ServiceCategory[] = [
-  {
-    id: 'life',
-    name: '生活',
-    icon: '🏠',
-    color: 'from-green-400 to-emerald-500',
-    description: '日常生活服务',
-  },
-  {
-    id: 'entertainment',
-    name: '娱乐',
-    icon: '🎮',
-    color: 'from-purple-400 to-violet-500',
-    description: '娱乐休闲服务',
-  },
-  {
-    id: 'study',
-    name: '学习',
-    icon: '📚',
-    color: 'from-blue-400 to-indigo-500',
-    description: '学习辅助服务',
-  },
-  {
-    id: 'other',
-    name: '其他',
-    icon: '💡',
-    color: 'from-orange-400 to-amber-500',
-    description: '合作与推广',
-  },
-]
+// CATEGORIES 定义已迁至 ./categories（轻量模块），此处 re-export 保持既有导入路径可用。
+// HomePage 等只用到分类的页面请直接从 '../data/categories' 引入，避免连带加载本文件的服务定义。
+export { CATEGORIES }
 
 export const SERVICES: Service[] = [
   // ===== 生活 =====

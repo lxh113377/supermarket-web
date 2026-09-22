@@ -2,6 +2,8 @@ import {  useEffect, useState  } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { getOrderById } from '../db'
 import { IS_CLOUD } from '../cloudbase'
+import Overlay from '../components/Overlay'
+import { formatYuan } from '../utils/format'
 
 export default function PaymentPage() {
   const [method, setMethod] = useState<string | null>(null)
@@ -58,7 +60,7 @@ export default function PaymentPage() {
       </div>
 
       {!method ? (
-        <div className="flex-1 flex flex-col items-center justify-center gap-4 p-6">
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 p-6 w-full max-w-lg mx-auto">
           <p className="text-sm text-gray-400 mb-2">请选择支付方式完成付款</p>
           <button
             onClick={() => setMethod('wechat')}
@@ -75,10 +77,12 @@ export default function PaymentPage() {
         </div>
       ) : (
         <div className="flex-1 flex flex-col items-center justify-center px-5 py-3">
+          {/* 支付状态变更（轮询到已付款）需播报：原实现是纯视觉变化，读屏用户完全无感知 */}
+          <div className="w-full flex flex-col items-center" role="status" aria-live="polite">
           {paid ? (
             <div className="text-center animate-scale-in">
               <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-green-50 flex items-center justify-center">
-                <span className="text-4xl">✅</span>
+                <span className="text-4xl" aria-hidden="true">✅</span>
               </div>
               <p className="text-lg font-bold text-green-600">付款已确认</p>
               <p className="text-sm text-gray-400 mt-2">客服将尽快处理你的订单</p>
@@ -86,20 +90,21 @@ export default function PaymentPage() {
           ) : (
             <div className="text-center w-full max-w-sm animate-fade-in-up flex flex-col items-center">
               {totalAmount > 0 && (
-                <p className="text-xl font-bold text-gray-900 mb-1.5">
-                  <span className="text-xs text-gray-400 mr-1">¥</span>{totalAmount.toFixed(2)}
-                </p>
+                <p className="text-xl font-bold text-gray-900 mb-1.5">{formatYuan(totalAmount)}</p>
               )}
               <div className="w-full bg-amber-50 border border-amber-200/80 rounded-xl px-3 py-2 mb-2">
                 <p className="text-amber-700 text-xs font-medium">
-                  ⚠️ 请截图扫码付款，付款后联系商家进行配送
+                  <span aria-hidden="true">⚠️</span> 请截图扫码付款，付款后联系商家进行配送
                 </p>
               </div>
               <div className="bg-white p-2 rounded-2xl shadow-card border border-gray-100/80 inline-block mb-3">
                 <img
                   src={qrSrc}
                   alt={method === 'wechat' ? '微信支付二维码' : '支付宝二维码'}
+                  width={240}
+                  height={240}
                   loading="lazy"
+                  decoding="async"
                   className="max-w-full max-h-[20vh] object-contain rounded-xl"
                 />
               </div>
@@ -111,34 +116,26 @@ export default function PaymentPage() {
               </button>
             </div>
           )}
-        </div>
-      )}
-
-      {/* 支付宝温馨提示弹窗（P0-12：补 dialog 语义 + Esc 关闭） */}
-      {showTip && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="温馨提示"
-          onKeyDown={(e) => { if (e.key === 'Escape') setShowTip(false) }}
-          className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-5 animate-fade-in"
-        >
-          <div className="bg-white rounded-3xl p-7 max-w-sm w-full shadow-float animate-scale-in">
-            <div className="text-center">
-              <span className="text-4xl block mb-3">💡</span>
-              <h3 className="font-bold text-gray-900">温馨提示</h3>
-              <p className="text-gray-500 text-sm mt-2.5 leading-relaxed">商家无支付宝消息提示，支付宝付款请告知商家</p>
-            </div>
-            <button
-              onClick={() => setShowTip(false)}
-              autoFocus
-              className="mt-6 btn-primary w-full py-3.5"
-            >
-              我知道了
-            </button>
           </div>
         </div>
       )}
+
+      {/* 支付宝温馨提示弹窗：改用统一 Overlay
+          （补齐原实现缺失的焦点陷阱、焦点归还、背景滚动锁） */}
+      <Overlay open={showTip} onClose={() => setShowTip(false)} label="温馨提示" className="rounded-3xl p-7">
+        <div className="text-center">
+          <span className="text-4xl block mb-3" aria-hidden="true">💡</span>
+          <h3 className="font-bold text-gray-900">温馨提示</h3>
+          <p className="text-gray-500 text-sm mt-2.5 leading-relaxed">商家无支付宝消息提示，支付宝付款请告知商家</p>
+        </div>
+        <button
+          onClick={() => setShowTip(false)}
+          data-autofocus
+          className="mt-6 btn-primary w-full py-3.5"
+        >
+          我知道了
+        </button>
+      </Overlay>
     </div>
   )
 }

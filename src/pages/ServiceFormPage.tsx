@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, type CSSProperties } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getServiceById, getCategoryById } from '../data/services'
 import { isBusinessHours, getClosedMessage } from '../utils/businessHours'
@@ -225,8 +225,8 @@ export default function ServiceFormPage() {
         </div>
       )}
 
-      {/* 主内容区 */}
-      <div className={`px-5 max-w-lg mx-auto pb-12 ${open ? '-mt-6' : 'mt-5'}`}>
+      {/* 主内容区：桌面端放宽到 max-w-2xl（原先恒 max-w-lg，大屏两侧大片留白） */}
+      <div className={`px-5 max-w-lg md:max-w-2xl mx-auto pb-12 ${open ? '-mt-6' : 'mt-5'}`}>
 
         {/* 服务说明卡片（hint 解析与渲染已在 ServiceHintCard） */}
         <ServiceHintCard hint={service.hint} />
@@ -241,28 +241,42 @@ export default function ServiceFormPage() {
           <div className="space-y-5">
             {(service.fields || []).map(field => (
               <div key={field.key}>
-                <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-2.5">
+                {/* label 与控件显式关联：原实现 label 用包裹式但控件是兄弟节点，
+                    读屏只念「编辑框」不念字段名 */}
+                <label
+                  htmlFor={`sf-${field.key}`}
+                  className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-2.5"
+                >
                   {field.label}
-                  {field.required && <span className="text-red-400 text-xs">*</span>}
+                  {field.required && <span className="text-red-400 text-xs" aria-hidden="true">*</span>}
                 </label>
 
                 {field.type === 'image' ? (
                   <div>
                     {field.hint && (
-                      <p className="text-xs text-gray-400 mb-3 leading-relaxed">{field.hint}</p>
+                      <p className="text-xs text-gray-400 mb-3 leading-relaxed" id={`sf-hint-${field.key}`}>{field.hint}</p>
                     )}
                     {images.length > 0 && (
-                      <div className="grid grid-cols-4 gap-2.5 mb-3">
+                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 mb-3">
                         {images.map((img, i) => (
                           <div key={i} className="relative aspect-square rounded-xl overflow-hidden border border-gray-200 shadow-soft animate-scale-in group">
-                            <img src={img} alt={`截图${i + 1}`} className="w-full h-full object-cover" />
+                            <img
+                              src={img}
+                              alt={`已上传截图 ${i + 1}`}
+                              width={160}
+                              height={160}
+                              loading="lazy"
+                              decoding="async"
+                              className="w-full h-full object-cover"
+                            />
                             <button
                               onClick={() => removeImage(i)}
                               aria-label={`删除截图 ${i + 1}`}
                               // P0-14：触屏/键盘可用（原 opacity-0 仅 hover 可见，移动端无法删除）
-                              className="absolute top-1 right-1 w-5 h-5 bg-black/50 backdrop-blur-sm text-white rounded-full text-xs flex items-center justify-center opacity-70 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+                              style={{ '--tap-x': '10px', '--tap-y': '10px' } as CSSProperties}
+                              className="tap-44 absolute top-1 right-1 w-6 h-6 bg-black/50 backdrop-blur-sm text-white rounded-full text-xs flex items-center justify-center opacity-70 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
                             >
-                              ×
+                              <span aria-hidden="true">×</span>
                             </button>
                           </div>
                         ))}
@@ -272,26 +286,32 @@ export default function ServiceFormPage() {
                       onClick={() => fileInputRef.current?.click()}
                       className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-8 text-center text-gray-400 text-sm hover:border-brand-300 hover:text-brand-500 hover:bg-brand-50/30 transition-all duration-300 active:scale-[0.98]"
                     >
-                      <span className="block text-2xl mb-2">📷</span>
+                      <span className="block text-2xl mb-2" aria-hidden="true">📷</span>
                       <span className="font-medium">点击上传截图</span>
                       <span className="block text-xs text-gray-300 mt-1">至少{field.minCount || 1}张，最多5张</span>
                     </button>
                     <input
                       ref={fileInputRef}
+                      id={`sf-${field.key}`}
                       type="file"
                       accept="image/*"
                       multiple
+                      aria-label={`上传${field.label}`}
                       onChange={handleImageSelect}
                       className="hidden"
                     />
                   </div>
                 ) : (
                   <input
+                    id={`sf-${field.key}`}
                     type={field.type === 'tel' ? 'tel' : 'text'}
                     value={formData[field.key] || ''}
                     onChange={(e) => handleInputChange(field.key, e.target.value)}
                     placeholder={field.placeholder}
                     maxLength={field.type === 'tel' ? 11 : 50}
+                    required={field.required}
+                    aria-required={field.required || undefined}
+                    aria-describedby={field.hint ? `sf-hint-${field.key}` : undefined}
                     className="input-base"
                   />
                 )}
@@ -299,14 +319,16 @@ export default function ServiceFormPage() {
             ))}
           </div>
 
-          {/* 错误提示 */}
-          {error && (
-            <div className="mt-4 bg-red-50 border border-red-100 rounded-xl px-4 py-3 animate-slide-down">
-              <p className="text-red-500 text-xs flex items-center gap-2">
-                <span>⚡</span> {error}
-              </p>
-            </div>
-          )}
+          {/* 错误提示：role="alert" 让读屏在提交校验失败时立即播报 */}
+          <div role="alert" aria-live="assertive">
+            {error && (
+              <div className="mt-4 bg-red-50 border border-red-100 rounded-xl px-4 py-3 animate-slide-down">
+                <p className="text-red-500 text-xs flex items-center gap-2">
+                  <span aria-hidden="true">⚡</span> {error}
+                </p>
+              </div>
+            )}
+          </div>
 
           {/* 提交按钮 */}
           <button

@@ -1,4 +1,4 @@
-import {  useCallback, useEffect, useRef, useState  } from 'react'
+import {  useCallback, useEffect, useMemo, useRef, useState  } from 'react'
 import { adminCall } from '../auth'
 import { useDashboardCharts } from '../hooks/useDashboardCharts'
 import KpiCard from './KpiCard'
@@ -86,17 +86,31 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
     return () => { cancelled = true }
   }, [rangeDays])
 
-  const rangeData = stats?.rangeData ?? { labels: [], orderCounts: [], revenues: [] }
-  const delta = stats?.delta ?? { ordersDelta: null, revenueDelta: null }
-  const revenueSum = stats?.revenueSum ?? 0
-  const orderSum = stats?.orderSum ?? 0
-  const reviewTrend = stats?.reviewTrend ?? { counts: [], labels: [] }
-  const margin = stats?.margin ?? { drink: null, food: null, withCostItems: 0, totalItems: 0 }
-  const pieSegments = stats?.pieSegments ?? []
-  const topRevenue = stats?.topRevenue ?? []
-  const totalOrders = stats?.totalOrders ?? 0
-  const avgDaily = rangeDays > 0 ? revenueSum / rangeDays : 0
-  const hasReviews = reviewTrend.counts.some((v) => v > 0)
+  // 派生值全部 memo 化。关键收益不在计算本身（都很轻），而在于**引用稳定性**：
+  // useDashboardCharts 的 setOption effect 依赖 rangeData / pieSegments / topRevenue / reviewTrend，
+  // 而 `?? { labels: [], ... }` 这种兜底字面量每次渲染都是新对象 —— 首屏数据未到位期间
+  // 会让该 effect 在每次渲染都重跑一遍全量 setOption（重绘 4 张图）。
+  const {
+    rangeData, delta, revenueSum, orderSum, reviewTrend, margin,
+    pieSegments, topRevenue, totalOrders, avgDaily, hasReviews,
+  } = useMemo(() => {
+    const rangeData = stats?.rangeData ?? { labels: [], orderCounts: [], revenues: [] }
+    const reviewTrend = stats?.reviewTrend ?? { counts: [], labels: [] }
+    const revenueSum = stats?.revenueSum ?? 0
+    return {
+      rangeData,
+      delta: stats?.delta ?? { ordersDelta: null, revenueDelta: null },
+      revenueSum,
+      orderSum: stats?.orderSum ?? 0,
+      reviewTrend,
+      margin: stats?.margin ?? { drink: null, food: null, withCostItems: 0, totalItems: 0 },
+      pieSegments: stats?.pieSegments ?? [],
+      topRevenue: stats?.topRevenue ?? [],
+      totalOrders: stats?.totalOrders ?? 0,
+      avgDaily: rangeDays > 0 ? revenueSum / rangeDays : 0,
+      hasReviews: reviewTrend.counts.some((v) => v > 0),
+    }
+  }, [stats, rangeDays])
 
   // ---- 图表实例与 option 更新（抽到 useDashboardCharts：动态 import/resize/dispose/主题） ----
   const { trendRef, reviewRef, pieRef, topRef } = useDashboardCharts({ rangeData, pieSegments, topRevenue, reviewTrend, rangeDays })

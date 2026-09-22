@@ -1,11 +1,16 @@
 import {  useState, useEffect, useCallback, useMemo  } from 'react'
 import { getAllReviews, addCloudReview, deleteCloudReview, getAdminProducts } from '../db'
+import EmptyState from './EmptyState'
+import { SkeletonTable } from './Skeleton'
+import { IconEmpty } from './Icons'
 import type { Product, Review } from '../types'
 
+// 星级展示：补 role="img" + aria-label —— 原先只有 ★☆ 字符，读屏会逐字符念「黑星白星」，
+// 用户完全听不出「几星」。
 function Stars({ rating }: { rating: number }) {
   return (
-    <span className="text-yellow-500 text-sm">
-      {'★'.repeat(rating)}{'☆'.repeat(5 - rating)}
+    <span className="text-yellow-500 text-sm" role="img" aria-label={`${rating} 星（满分 5 星）`}>
+      <span aria-hidden="true">{'★'.repeat(rating)}{'☆'.repeat(5 - rating)}</span>
     </span>
   )
 }
@@ -97,8 +102,9 @@ export default function ReviewsTab() {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <p className="text-gray-500 text-sm text-center">加载中...</p>
+      <div className="space-y-3">
+        <span className="sr-only" role="status">加载评价中</span>
+        <SkeletonTable rows={5} />
       </div>
     )
   }
@@ -130,6 +136,7 @@ export default function ReviewsTab() {
           <h3 className="text-sm font-bold text-gray-900">新增评价</h3>
           {/* 选择商品 */}
           <select
+            aria-label="选择商品"
             value={formProduct}
             onChange={(e) => setFormProduct(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
@@ -144,26 +151,32 @@ export default function ReviewsTab() {
           {/* 昵称 */}
           <input
             type="text"
+            aria-label={'昵称（选填，默认“管理员”）'}
             placeholder={'昵称（选填，默认"管理员"）'}
             value={formUser}
             onChange={(e) => setFormUser(e.target.value)}
             maxLength={20}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
           />
-          {/* 评分 */}
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-600">评分：</span>
+          {/* 评分：radiogroup 语义，读屏能播报「已选 N 星」 */}
+          <div className="flex items-center gap-2" role="radiogroup" aria-label="评分">
+            <span className="text-sm text-gray-600" aria-hidden="true">评分：</span>
             {[1,2,3,4,5].map(n => (
               <button
                 key={n}
                 onClick={() => setFormRating(n)}
+                role="radio"
+                aria-checked={formRating === n}
                 aria-label={`${n}星`}
-                className={`text-2xl ${n <= formRating ? 'text-yellow-400' : 'text-gray-300'}`}
-              >★</button>
+                className={`p-1 text-2xl ${n <= formRating ? 'text-yellow-400' : 'text-gray-300'}`}
+              >
+                <span aria-hidden="true">★</span>
+              </button>
             ))}
           </div>
           {/* 内容 */}
           <textarea
+            aria-label="评价内容（最多 500 字）"
             placeholder="评价内容（最多500字）"
             value={formText}
             onChange={(e) => setFormText(e.target.value)}
@@ -171,7 +184,9 @@ export default function ReviewsTab() {
             rows={3}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none"
           />
-          {formError && <p className="text-red-500 text-xs">{formError}</p>}
+          <div role="alert" aria-live="assertive">
+            {formError && <p className="text-red-500 text-xs">{formError}</p>}
+          </div>
           <div className="flex gap-2">
             <button
               onClick={doAdd}
@@ -192,8 +207,12 @@ export default function ReviewsTab() {
 
       {/* 评价列表 */}
       {reviews.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-          <p className="text-gray-400 text-sm text-center">暂无云端评价，点击上方"新增评价"添加</p>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+          <EmptyState
+            icon={<IconEmpty className="w-6 h-6" />}
+            title="暂无云端评价"
+            description="点击上方「+ 新增评价」添加第一条"
+          />
         </div>
       ) : (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">

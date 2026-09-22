@@ -30,6 +30,9 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* 视口高度：先用 100%，再用 dvh 覆盖。
+   dvh = 动态视口高度，解决移动端地址栏收缩 / 键盘弹出时 100% 导致的
+   「页面高度跳变、吸底元素被顶出屏幕」问题（不支持 dvh 的旧 WebView 自动留在 100%）。 */
 html, body, #root {
   height: 100%;
   margin: 0;
@@ -39,6 +42,12 @@ html, body, #root {
   touch-action: manipulation;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+}
+
+@supports (height: 100dvh) {
+  html, body, #root {
+    height: 100dvh;
+  }
 }
 
 #root {
@@ -52,6 +61,50 @@ input, button {
 
 button {
   cursor: pointer;
+}
+
+/* === 全局键盘焦点环（无障碍）===
+   此前全站只有 2 处 Tailwind focus-visible 类，键盘用户 Tab 到大部分按钮
+   完全看不出焦点在哪。这里给所有可交互元素兜一个统一的可见焦点环。
+   用 :focus-visible 而非 :focus —— 鼠标点击不会出现焦点环，不干扰视觉。 */
+:focus-visible {
+  outline: 2px solid #eab308; /* brand-500 */
+  outline-offset: 2px;
+}
+
+/* 已有自绘焦点样式的元素（Tailwind focus-visible:outline-*）不重复描边 */
+[class*='focus-visible:outline']:focus-visible {
+  outline: none;
+}
+
+/* === 触控目标扩展（无障碍/可用性）===
+   若干圆形按钮视觉尺寸仅 32px，低于 Apple HIG 44px / Android 48px 建议。
+   用伪元素向外扩命中区，视觉尺寸与布局完全不变。
+   --tap-x / --tap-y 可按需覆盖（默认 6px：32px 按钮 → 44px）。
+   ⚠️ 使用处需保证相邻控件的水平间距 ≥ (2 × --tap-x)，否则命中区会重叠导致误触。 */
+.tap-44 {
+  position: relative;
+}
+.tap-44::after {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * var(--tap-y, 6px)) calc(-1 * var(--tap-x, 6px));
+}
+
+/* === 固定悬浮层的安全区定位 ===
+   iPhone 底部小黑条会盖住 fixed bottom 的浮层（如购物车结算条）。 */
+.safe-offset-bottom {
+  bottom: calc(env(safe-area-inset-bottom) + 1.25rem);
+}
+
+/* === 路由切换顶部进度条（原实现是 App.tsx 内联 <style>，每次渲染注入一次）=== */
+@keyframes routeProgress {
+  0% { width: 0; opacity: 1; }
+  70% { width: 85%; opacity: 1; }
+  100% { width: 100%; opacity: 0; }
+}
+.route-progress {
+  animation: routeProgress 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 img {

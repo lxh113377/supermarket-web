@@ -6,6 +6,10 @@ import useCart from '../hooks/useCart'
 import ProductGallery from '../components/product/ProductGallery'
 import ReviewList, { Stars } from '../components/product/ReviewList'
 import ReviewForm from '../components/product/ReviewForm'
+import EmptyState from '../components/EmptyState'
+import { IconEmpty } from '../components/Icons'
+import { productImageUrl } from '../utils/images'
+import { formatYuan } from '../utils/format'
 import type { Product, Review } from '../types'
 
 // 商品详情页（M6 拆分 2026-09-05：图集→ProductGallery、评价列表→ReviewList、写评价→ReviewForm）
@@ -22,7 +26,7 @@ export default function ProductDetailPage() {
   // 商品图集（必须在条件 return 之前计算，遵守 Hooks 顺序）
   const orderNum = product?.order != null ? product.order
     : (product?._id ? parseInt(String(product._id).replace(/\D/g, ''), 10) : null)
-  const imgSrc = product?.image || (orderNum ? `/images/${orderNum}.webp` : null)
+  const imgSrc = product?.image || productImageUrl(orderNum)
   const gallery: string[] = product
     ? (() => {
         const list = Array.isArray(product.images) ? product.images.filter(Boolean) : []
@@ -78,8 +82,8 @@ export default function ProductDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-3">
-        <div className="w-8 h-8 border-3 border-brand-200 border-t-brand-500 rounded-full animate-spin" />
+      <div className="flex flex-col items-center justify-center h-full gap-3" role="status" aria-live="polite">
+        <div className="w-8 h-8 border-[3px] border-brand-200 border-t-brand-500 rounded-full animate-spin" />
         <span className="text-sm text-gray-400">加载中...</span>
       </div>
     )
@@ -87,11 +91,17 @@ export default function ProductDetailPage() {
 
   if (!product) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-4">
-        <span className="text-4xl">😢</span>
-        <p className="text-gray-400 text-sm">商品不存在或已下架</p>
-        <button onClick={() => navigate('/')} className="text-brand-600 text-sm font-medium hover:underline">返回首页</button>
-      </div>
+      <EmptyState
+        className="h-full justify-center"
+        icon={<IconEmpty className="w-6 h-6" />}
+        title="商品不存在或已下架"
+        description="可能已被商家下架，去看看其他商品吧"
+        action={
+          <button onClick={() => navigate('/')} className="btn-primary px-5 py-2.5 text-sm">
+            返回首页
+          </button>
+        }
+      />
     )
   }
 
@@ -114,17 +124,15 @@ export default function ProductDetailPage() {
         <h1 className="text-sm font-bold text-gray-900 truncate">{product.name}</h1>
       </div>
 
-      <div className="flex-1 overflow-y-auto pb-28">
+      <div className="flex-1 overflow-y-auto pb-28 w-full max-w-3xl lg:max-w-4xl mx-auto">
         {/* 商品图片（多图轮播，key 驱动切商品时重置轮播态） */}
         <ProductGallery key={product._id} product={product} gallery={gallery} />
 
         {/* 商品信息 */}
         <div className="bg-white mt-2.5 p-5 animate-fade-in-up stagger-1">
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-lg font-bold text-gray-900">{product.name}</h2>
-            <span className="text-2xl font-bold text-brand-600">
-              <span className="text-sm">¥</span>{product.price.toFixed(2)}
-            </span>
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="text-lg font-bold text-gray-900 min-w-0">{product.name}</h2>
+            <span className="text-2xl font-bold text-brand-600 shrink-0">{formatYuan(product.price)}</span>
           </div>
           {product.spec && <p className="text-sm text-gray-400 mt-1.5">规格：{product.spec}</p>}
           {avgRating && (
@@ -150,20 +158,22 @@ export default function ProductDetailPage() {
         )}
       </div>
 
-      {/* 底部加购栏 */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-gray-100 px-5 py-4 flex items-center gap-4 z-20 safe-bottom">
-        <div className="flex-1">
-          <span className="text-xl font-bold text-brand-600">
-            <span className="text-xs">¥</span>{product.price.toFixed(2)}
-          </span>
-          {quantity > 0 && <span className="text-xs text-gray-400 ml-2">购物车已有 {quantity} 件</span>}
+      {/* 底部加购栏：桌面端内容居中限宽（原先整条铺满屏幕、按钮跑到最右） */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-gray-100 px-5 py-4 z-20 safe-bottom">
+        <div className="flex items-center gap-4 w-full max-w-3xl lg:max-w-4xl mx-auto">
+          <div className="flex-1 min-w-0">
+            <span className="text-xl font-bold text-brand-600">{formatYuan(product.price)}</span>
+            {quantity > 0 && (
+              <span className="text-xs text-gray-400 ml-2" aria-live="polite">购物车已有 {quantity} 件</span>
+            )}
+          </div>
+          <button
+            onClick={() => add(product)}
+            className="btn-primary px-8 py-3.5 rounded-2xl shadow-elevated shrink-0"
+          >
+            加入购物车
+          </button>
         </div>
-        <button
-          onClick={() => add(product)}
-          className="btn-primary px-8 py-3.5 rounded-2xl shadow-elevated"
-        >
-          加入购物车
-        </button>
       </div>
     </div>
   )

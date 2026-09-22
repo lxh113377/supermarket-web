@@ -1,43 +1,55 @@
-import {  Suspense, lazy  } from 'react'
+import { Suspense, lazy, useEffect } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import ErrorBoundary from './components/ErrorBoundary'
 import AdminGuard from './components/AdminGuard'
+import { routeLoaders, prefetchHotRoutes } from './routeLoaders'
 
-const HomePage = lazy(() => import('./pages/HomePage'))
-const CategoryPage = lazy(() => import('./pages/CategoryPage'))
-const ServiceFormPage = lazy(() => import('./pages/ServiceFormPage'))
-const CustomerPage = lazy(() => import('./pages/CustomerPage'))
-const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage'))
-const CartPage = lazy(() => import('./pages/CartPage'))
-const OrderConfirmPage = lazy(() => import('./pages/OrderConfirmPage'))
-const OrderSuccessPage = lazy(() => import('./pages/OrderSuccessPage'))
-const PaymentPage = lazy(() => import('./pages/PaymentPage'))
-const AdminPage = lazy(() => import('./pages/AdminPage'))
-const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
-const AssistantPage = lazy(() => import('./pages/AssistantPage'))
+// 与 routeLoaders 共用同一份 import 工厂：预取过的 chunk，点击时无需再下载。
+const HomePage = lazy(routeLoaders.home)
+const CategoryPage = lazy(routeLoaders.category)
+const ServiceFormPage = lazy(routeLoaders.service)
+const CustomerPage = lazy(routeLoaders.shop)
+const ProductDetailPage = lazy(routeLoaders.product)
+const CartPage = lazy(routeLoaders.cart)
+const OrderConfirmPage = lazy(routeLoaders.orderConfirm)
+const OrderSuccessPage = lazy(routeLoaders.orderSuccess)
+const PaymentPage = lazy(routeLoaders.payment)
+const AdminPage = lazy(routeLoaders.admin)
+const NotFoundPage = lazy(routeLoaders.notFound)
+const AssistantPage = lazy(routeLoaders.assistant)
 
+/**
+ * 路由切换的兜底 UI。
+ * 相较此前版本的两处改动：
+ *   ① 内联 <style> 移到 index.css（原实现每次渲染都往 DOM 注入一段 style，
+ *      也是 CSP 不得不放开 style-src 'unsafe-inline' 的原因之一）
+ *   ② 背景由不透明 bg-surface 改为半透明 + 轻微模糊，配合预取后基本不再出现，
+ *      万一出现也不会「闪白一整屏」
+ */
 function RouteLoader() {
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-surface">
+    <div
+      className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-surface/60 backdrop-blur-[2px]"
+      role="status"
+      aria-live="polite"
+    >
       <div className="w-8 h-8 border-[3px] border-brand-100 border-t-brand-500 rounded-full animate-spin" />
       <div className="fixed top-0 left-0 right-0 h-0.5 overflow-hidden">
-        <div
-          className="h-full brand-bar rounded-full"
-          style={{ animation: 'routeProgress 0.8s cubic-bezier(0.4,0,0.2,1) forwards' }}
-        />
+        <div className="h-full brand-bar rounded-full route-progress" />
       </div>
-      <style>{`
-        @keyframes routeProgress {
-          0% { width: 0; opacity: 1; }
-          70% { width: 85%; opacity: 1; }
-          100% { width: 100%; opacity: 0; }
-        }
-      `}</style>
+      <span className="sr-only">页面加载中</span>
     </div>
   )
 }
 
+
 export default function App() {
+  // 首屏渲染完成后，空闲时段预取高频路由（分类 / 商城 / 详情 / 购物车）。
+  // 不阻塞首屏：请求全部在 requestIdleCallback（降级 setTimeout）中发起。
+  useEffect(() => {
+    prefetchHotRoutes()
+  }, [])
+
   return (
     <ErrorBoundary>
       <Suspense fallback={<RouteLoader />}>

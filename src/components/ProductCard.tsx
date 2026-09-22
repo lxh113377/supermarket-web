@@ -1,22 +1,28 @@
-import React, { useState } from 'react'
+import React, { memo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Product } from '../types'
+import { productImageUrl, productSrcSet } from '../utils/images'
+import { formatPrice } from '../utils/format'
+import { prefetchRoute } from '../routeLoaders'
 
 interface ProductCardProps {
   product: Product
   quantity: number
-  onAdd: (e: React.MouseEvent) => void
-  onRemove: () => void
+  // 回调签名带上 product：父组件因此可以传「引用稳定」的函数，
+  // memo 才真正生效（原先父组件用内联箭头函数，每次渲染都是新引用，memo 形同虚设）
+  onAdd: (product: Product, e?: React.MouseEvent) => void
+  onRemove: (product: Product) => void
 }
 
-export default function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
+function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
   const navigate = useNavigate()
   const disabled = product.enabled === false
   const [imgErr, setImgErr] = useState(false)
   const displayName = product.spec
     ? `${product.name} (${product.spec})`
     : product.name
-  const imgSrc = product.order ? `/images/${product.order}.webp` : null
+  const imgSrc = productImageUrl(product.order)
+  const imgSrcSet = productSrcSet(product.order)
 
   const goDetail = () => {
     if (!disabled) navigate(`/product/${product._id}`)
@@ -34,6 +40,12 @@ export default function ProductCard({ product, quantity, onAdd, onRemove }: Prod
           : 'bg-white border border-gray-100/80 shadow-card hover:shadow-elevated hover:-translate-y-0.5 cursor-pointer active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-brand-500'
       }`}
       onClick={goDetail}
+      onMouseEnter={() => {
+        if (!disabled) prefetchRoute('product')
+      }}
+      onFocus={() => {
+        if (!disabled) prefetchRoute('product')
+      }}
       onKeyDown={(e) => {
         if (!disabled && (e.key === 'Enter' || e.key === ' ')) {
           e.preventDefault()
@@ -41,21 +53,26 @@ export default function ProductCard({ product, quantity, onAdd, onRemove }: Prod
         }
       }}
     >
-      {/* 商品缩略图 */}
+      {/* 商品缩略图：显式 width/height 固定占位（消除 CLS）+ decoding="async"（解码不阻塞主线程） */}
       <div className="w-14 h-14 rounded-xl overflow-hidden bg-gray-50 border border-gray-100/60 shrink-0">
         {imgSrc && !imgErr ? (
           <img
             src={imgSrc}
-            srcSet={`/images/sm/${product.order}.webp 400w, ${imgSrc} 800w`}
+            srcSet={imgSrcSet}
             sizes="56px"
+            width={56}
+            height={56}
             alt={product.name}
             loading="lazy"
+            decoding="async"
             className="w-full h-full object-cover"
             onError={() => setImgErr(true)}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-xl bg-gradient-to-br from-brand-50 to-orange-50">
-            {product.subcategories?.includes('snacks') || product.subcategories?.includes('filling') ? '🍜' : '🥤'}
+            <span aria-hidden="true">
+              {product.subcategories?.includes('snacks') || product.subcategories?.includes('filling') ? '🍜' : '🥤'}
+            </span>
           </div>
         )}
       </div>
@@ -72,33 +89,48 @@ export default function ProductCard({ product, quantity, onAdd, onRemove }: Prod
           )}
         </div>
         <p className={`text-base font-bold mt-0.5 ${disabled ? 'text-gray-400' : 'text-brand-600'}`}>
-          <span className="text-xs font-medium">¥</span>{product.price.toFixed(2)}
+          <span className="text-xs font-medium">¥</span>{formatPrice(product.price)}
         </p>
       </div>
 
       {!disabled && (
-        <div className="flex items-center gap-2.5" onClick={(e) => e.stopPropagation()}>
+        // gap 由 10px 提到 12px：配合 .tap-44 的命中区扩展，避免相邻按钮命中区重叠误触。
+        // 原先这里是 <div onClick={stopPropagation}>（无语义、无键盘支持），
+        // 改为在每个按钮自身阻止冒泡 —— 少一层非语义交互壳。
+        <div className="flex items-center gap-3">
           {quantity > 0 && (
             <>
               <button
-                onClick={onRemove}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onRemove(product)
+                }}
                 aria-label={`减少${product.name}`}
-                className="w-8 h-8 rounded-full bg-gray-50 border border-gray-200 text-gray-500 flex items-center justify-center text-sm hover:bg-gray-100 hover:border-gray-300 transition-all duration-200 active:scale-90"
+                className="tap-44 w-8 h-8 rounded-full bg-gray-50 border border-gray-200 text-gray-500 flex items-center justify-center text-sm hover:bg-gray-100 hover:border-gray-300 transition-all duration-200 active:scale-90"
               >
-                -
+                <span aria-hidden="true">-</span>
               </button>
-              <span className="text-sm font-semibold w-5 text-center text-gray-800">{quantity}</span>
+              <span className="text-sm font-semibold w-5 text-center text-gray-800" aria-live="polite">
+                {quantity}
+              </span>
             </>
           )}
           <button
-            onClick={(e) => onAdd(e)}
+            onClick={(e) => {
+              e.stopPropagation()
+              onAdd(product, e)
+            }}
             aria-label={`添加${product.name}`}
-            className="w-8 h-8 rounded-full bg-brand-500 text-white flex items-center justify-center text-sm shadow-soft hover:bg-brand-600 hover:shadow-elevated transition-all duration-200 active:scale-90"
+            className="tap-44 w-8 h-8 rounded-full bg-brand-500 text-white flex items-center justify-center text-sm shadow-soft hover:bg-brand-600 hover:shadow-elevated transition-all duration-200 active:scale-90"
           >
-            +
+            <span aria-hidden="true">+</span>
           </button>
         </div>
       )}
     </div>
   )
 }
+
+// 列表项重渲染优化：商品列表在加购/改数量时会整列重渲染，
+// memo 后只有数量变化的那张卡重新渲染（依赖父组件传入稳定的 onAdd/onRemove）。
+export default memo(ProductCard)

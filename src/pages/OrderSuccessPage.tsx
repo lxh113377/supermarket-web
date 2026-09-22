@@ -1,4 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom'
+import { formatYuan } from '../utils/format'
 
 export default function OrderSuccessPage() {
   const navigate = useNavigate()
@@ -10,12 +11,12 @@ export default function OrderSuccessPage() {
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-surface items-center justify-center p-6 animate-fade-in">
-      <div className="text-center max-w-sm w-full">
+      <div className="text-center max-w-sm w-full" role="status" aria-live="polite">
         {/* 成功动画 */}
         <div className="relative mx-auto w-20 h-20 mb-6">
           <div className="absolute inset-0 rounded-full bg-green-100 animate-scale-in" />
           <div className="absolute inset-2 rounded-full bg-green-50 flex items-center justify-center animate-scale-in stagger-1">
-            <span className="text-3xl">✅</span>
+            <span className="text-3xl" aria-hidden="true">✅</span>
           </div>
         </div>
         <h2 className="text-xl font-bold text-gray-900 mb-2 animate-fade-in-up stagger-1">下单成功！</h2>
@@ -35,7 +36,7 @@ export default function OrderSuccessPage() {
             </>
           )}
           {totalAmount > 0 && (
-            <p className={`text-sm text-brand-600 font-semibold ${building || room ? 'mt-2' : ''}`}>¥{totalAmount.toFixed(2)}</p>
+            <p className={`text-sm text-brand-600 font-semibold ${building || room ? 'mt-2' : ''}`}>{formatYuan(totalAmount)}</p>
           )}
         </div>
 

@@ -1,8 +1,11 @@
-import React from 'react'
+import React, { useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import CartItem from '../components/CartItem'
+import EmptyState from '../components/EmptyState'
+import { IconCart } from '../components/Icons'
 import { getCart, saveCart, addToCart, removeFromCart, deleteFromCart, getTotalAmount, getTotalCount } from '../cart'
 import { getProducts } from '../db'
+import { formatYuan } from '../utils/format'
 import type { Cart, CartItem as CartItemType, Product } from '../types'
 
 interface PriceChange {
@@ -42,24 +45,26 @@ export default function CartPage() {
     }).catch(() => {})
   }, [])
 
-  const handleAdd = (item: CartItemType) => {
+  // 三个回调用 useCallback 固定引用：CartItem 已 memo，
+  // 传内联箭头函数会让 memo 完全失效（每次渲染都是新函数）。
+  const handleAdd = useCallback((item: CartItemType) => {
     const product = { _id: item.productId, name: item.name, spec: item.spec, price: item.price }
     const newCart = addToCart(cart, product)
     setCart(newCart)
     saveCart(newCart)
-  }
+  }, [cart])
 
-  const handleRemove = (item: CartItemType) => {
+  const handleRemove = useCallback((item: CartItemType) => {
     const newCart = removeFromCart(cart, item.productId)
     setCart(newCart)
     saveCart(newCart)
-  }
+  }, [cart])
 
-  const handleDelete = (item: CartItemType) => {
+  const handleDelete = useCallback((item: CartItemType) => {
     const newCart = deleteFromCart(cart, item.productId)
     setCart(newCart)
     saveCart(newCart)
-  }
+  }, [cart])
 
   const handleClose = () => {
     saveCart(cart)
@@ -106,37 +111,41 @@ export default function CartPage() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-5">
+      <div className="flex-1 overflow-y-auto p-5 w-full max-w-3xl lg:max-w-4xl mx-auto">
         {priceChanges.length > 0 && (
-          <div className="mb-4 bg-amber-50/80 border border-amber-200/60 rounded-2xl p-4 animate-slide-down">
+          <div className="mb-4 bg-amber-50/80 border border-amber-200/60 rounded-2xl p-4 animate-slide-down" role="status">
             <p className="text-amber-700 text-xs font-medium mb-2">以下商品价格已变动（结算按最新价格）：</p>
             {priceChanges.map((c, i) => (
               <p key={i} className="text-amber-600 text-xs mt-1">
-                {c.name}：¥{c.oldPrice.toFixed(2)} → ¥{c.newPrice.toFixed(2)}
+                {c.name}：{formatYuan(c.oldPrice)} → {formatYuan(c.newPrice)}
               </p>
             ))}
           </div>
         )}
         {cart.items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-300">
-            <span className="text-5xl">🛒</span>
-            <span className="text-sm">购物车是空的</span>
-            <button
-              onClick={() => navigate('/shop')}
-              className="mt-2 text-brand-600 text-sm font-medium hover:underline"
-            >
-              去逛逛
-            </button>
-          </div>
+          <EmptyState
+            className="h-full justify-center"
+            icon={<IconCart className="w-6 h-6" />}
+            title="购物车是空的"
+            description="还没有添加任何商品"
+            action={
+              <button
+                onClick={() => navigate('/shop')}
+                className="btn-primary px-5 py-2.5 text-sm"
+              >
+                去逛逛
+              </button>
+            }
+          />
         ) : (
           <div className="space-y-3">
             {cart.items.map((item, i) => (
               <div key={item.productId} className={`animate-fade-in-up stagger-${Math.min(i + 1, 6)}`}>
                 <CartItem
                   item={item}
-                  onAdd={() => handleAdd(item)}
-                  onRemove={() => handleRemove(item)}
-                  onDelete={() => handleDelete(item)}
+                  onAdd={handleAdd}
+                  onRemove={handleRemove}
+                  onDelete={handleDelete}
                 />
               </div>
             ))}
@@ -144,21 +153,24 @@ export default function CartPage() {
         )}
       </div>
 
+      {/* safe-bottom 覆盖下内边距，为 iPhone 底部小黑条留白 */}
       {cart.items.length > 0 && (
-        <div className="border-t border-gray-100 p-5 bg-white/95 backdrop-blur-sm">
-          <div className="flex justify-between items-center mb-4">
-            <span className="text-sm text-gray-500">共 {totalCount} 件</span>
-            <span className="text-xl font-bold text-gray-900">
-              <span className="text-xs font-medium text-gray-500 mr-1">合计</span>
-              <span className="text-brand-600">¥{totalAmount.toFixed(2)}</span>
-            </span>
+        <div className="border-t border-gray-100 px-5 pt-5 bg-white/95 backdrop-blur-sm safe-bottom">
+          <div className="w-full max-w-3xl lg:max-w-4xl mx-auto">
+            <div className="flex justify-between items-center mb-4">
+              <span className="text-sm text-gray-500">共 {totalCount} 件</span>
+              <span className="text-xl font-bold text-gray-900">
+                <span className="text-xs font-medium text-gray-500 mr-1">合计</span>
+                <span className="text-brand-600">{formatYuan(totalAmount)}</span>
+              </span>
+            </div>
+            <button
+              onClick={() => navigate('/order-confirm')}
+              className="btn-primary w-full py-4 rounded-2xl text-base shadow-elevated"
+            >
+              去支付
+            </button>
           </div>
-          <button
-            onClick={() => navigate('/order-confirm')}
-            className="btn-primary w-full py-4 rounded-2xl text-base shadow-elevated"
-          >
-            去支付
-          </button>
         </div>
       )}
     </div>

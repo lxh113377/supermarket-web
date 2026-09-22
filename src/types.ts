@@ -27,7 +27,8 @@ export interface Product {
   image?: string
   images?: string[]
   description?: string
-  reviews?: unknown[]
+  /** 商品内嵌评价（接口若一并下发则为 Review[]，此前写 unknown[] 会让下游必须强转） */
+  reviews?: Review[]
   createdAt?: Date | string
   updatedAt?: Date | string
 }
