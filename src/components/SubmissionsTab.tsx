@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import {  useState, useEffect, useMemo  } from 'react'
 import { adminCall } from '../auth'
 import { CATEGORIES } from '../data/services'
 import type { Submission } from '../types'

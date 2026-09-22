@@ -4,6 +4,15 @@ import { adminCall, publicCall, pickOrderFields } from '../auth'
 import { getLocalOrders, addLocalOrder } from '../localStore'
 import type { Order } from '../types'
 
+// P1-5：云端模式下管理端"读取"失败统一显式抛错，不再静默回退本地。
+// 原因：回退到的本地库在云端模式下通常是空的，失败会被渲染成"暂无订单"，
+// 把后端故障伪装成业务空态（与 products.ts"管理端禁静默回退"的口径保持一致）。
+// 注意：仅读取路径如此；createOrder 的下单兜底是"不让用户丢单"的刻意设计，保留。
+function throwCloudReadError(where: string, detail: string): never {
+  console.error(`[db] ${where} failed:`, detail)
+  throw new Error(`${where}失败：${detail}`)
+}
+
 // 创建订单（走 API，服务端重算金额，防客户端篡改）
 export async function createOrder(order: Record<string, unknown>): Promise<{ id: string; localFallback?: boolean }> {
   const clean = pickOrderFields(order)
@@ -40,11 +49,11 @@ export async function getOrders(
   if (!IS_CLOUD) return getLocalOrders()
   try {
     const r = await adminCall('getOrders', { page, pageSize })
-    if (r.code !== 0) return getLocalOrders()
+    if (r.code !== 0) throwCloudReadError('cloud getOrders', r.message || `code=${r.code}`)
     return (r.data || []) as Order[]
   } catch (e) {
-    console.warn('[db] cloud getOrders failed, using local fallback:', e instanceof Error ? e.message : String(e))
-    return getLocalOrders()
+    if (e instanceof Error && e.message.startsWith('cloud getOrders失败')) throw e
+    throwCloudReadError('cloud getOrders', e instanceof Error ? e.message : String(e))
   }
 }
 
@@ -64,7 +73,7 @@ export async function getAllOrders(
   try {
     for (let page = 1; page <= MAX_PAGES; page++) {
       const r = await adminCall<Order[]>('getOrders', { page, pageSize: PAGE_SIZE, since: since || undefined })
-      if (r.code !== 0) return { orders: getLocalOrders(), maxUpdatedAt: null }
+      if (r.code !== 0) throwCloudReadError('cloud getAllOrders', r.message || `code=${r.code}`)
       const rows = r.data || []
       for (const o of rows) {
         // 增量模式下 updatedAt 满足 since<o.updatedAt 升序排列
@@ -79,7 +88,7 @@ export async function getAllOrders(
     }
     return { orders: all, maxUpdatedAt }
   } catch (e) {
-    console.warn('[db] cloud getAllOrders failed, using local fallback:', e instanceof Error ? e.message : String(e))
-    return { orders: getLocalOrders(), maxUpdatedAt: null }
+    if (e instanceof Error && e.message.startsWith('cloud getAllOrders失败')) throw e
+    throwCloudReadError('cloud getAllOrders', e instanceof Error ? e.message : String(e))
   }
 }

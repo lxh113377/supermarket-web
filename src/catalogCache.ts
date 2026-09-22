@@ -9,6 +9,10 @@ const _cache = new Map()
 // 商品/分类极少变化，60s 内复用结果，砍掉重复的云函数 + 数据库请求。
 export const CATALOG_CACHE_TTL = 60 * 1000
 
+// P1-6：容量上限——评价缓存按商品累积，长会话下 Map 无上限增长。
+// 超过上限时淘汰最早插入的一条（Map 保序，近似 FIFO；命中时会重插到末尾，等价于简易 LRU）。
+export const CATALOG_CACHE_MAX = 200
+
 export function cacheGet(key: string): unknown {
   const hit = _cache.get(key)
   if (hit && Date.now() - hit.ts < CATALOG_CACHE_TTL) return hit.data
@@ -16,7 +20,14 @@ export function cacheGet(key: string): unknown {
 }
 
 export function cacheSet(key: string, data: unknown): void {
+  // 命中后先删除再 set，把该键移到末尾（近似 LRU 的"最近使用"端）
+  if (_cache.has(key)) _cache.delete(key)
   _cache.set(key, { ts: Date.now(), data })
+  while (_cache.size > CATALOG_CACHE_MAX) {
+    const oldest = _cache.keys().next().value
+    if (oldest === undefined) break
+    _cache.delete(oldest)
+  }
 }
 
 // 按 key 精确失效单条缓存（如某商品评价变更后只清该商品，不等 TTL 也不清全量）。

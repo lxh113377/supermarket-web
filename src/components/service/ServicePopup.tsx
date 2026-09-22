@@ -1,4 +1,3 @@
-import React from 'react'
 
 // 服务表单页弹窗（M6 拆分自 ServiceFormPage，2026-09-05）
 // P0-12 语义保留：dialog + aria-modal + Esc 关闭。

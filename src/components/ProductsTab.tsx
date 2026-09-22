@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import {  useState, useMemo  } from 'react'
 import { updateProduct, createProduct, deleteProduct, batchUpdateProducts, batchDeleteProducts } from '../auth'
 import type { Category, Product } from '../types'
 

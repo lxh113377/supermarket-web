@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import {  useEffect, useMemo, useState  } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getProducts, getLocalProductReviews, getCloudReviews } from '../db'
 import { reviews as seedReviews } from '../data/reviews-seed'

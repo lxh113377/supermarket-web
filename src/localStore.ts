@@ -44,12 +44,17 @@ export function getLocalCategories(): Category[] {
 }
 
 export function getLocalProducts(): Product[] {
-  let list = readJSON<Product[] | null>(PRODUCTS_KEY, null)
-  if (!Array.isArray(list) || list.length === 0) {
-    list = seedToLocal()
-    writeJSON(PRODUCTS_KEY, list)
+  // P1-4：区分「从未初始化」与「已初始化但为空」。
+  // 旧写法用 list.length === 0 判定未初始化，导致管理端把商品删光后刷新又被重新 seed，
+  // 表现为"删不掉"。只有键完全不存在时才播种；已存值（含空数组）一律照原样返回。
+  const raw = localStorage.getItem(PRODUCTS_KEY)
+  if (raw === null) {
+    const seeded = seedToLocal()
+    writeJSON(PRODUCTS_KEY, seeded)
+    return seeded
   }
-  return list
+  const list = readJSON<Product[] | null>(PRODUCTS_KEY, null)
+  return Array.isArray(list) ? list : []
 }
 
 export function saveLocalProducts(list: Product[]): void {
