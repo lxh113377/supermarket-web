@@ -17,8 +17,10 @@
 - 门禁：oxlint 0/0（126 文件）、双 tsconfig 0 error、**165/165 测试**、`npx vite build` ✓；`check:cycles` 已纳入 `npm run verify`。
 - 上线：pages.dev `db6d44c8`（无 ignoring config）+ github.io run 35762336633 / 01:47 run（dispatch 自动触发成功）；
   三方产物哈希一致 `index-CsAoeQPX.js` / `index-Oz2BHkIz.css`。
-- 推翻 3 条旧结论：`sm/` 缩略图覆盖率实为 **100%**（110 webp = 顶层 55 + sm 55，别再把 sm/ 重复计入分母）；
-  `.githooks/pre-commit` 实测**正常工作**（真实提交输出密钥扫描通过）；github.io `repository_dispatch` 自动触发**正常**。
+- 推翻 2 条旧结论 + 1 条降级为待观察：`sm/` 缩略图覆盖率实为 **100%**（110 webp = 顶层 55 + sm 55，
+  别再把 sm/ 重复计入分母）；`.githooks/pre-commit` 实测**正常工作**（真实提交输出密钥扫描通过）；
+  github.io `repository_dispatch` 本轮**两次 push 均自动触发成功**，但同日更早会话记录过一次失效 ⇒
+  按**间歇性问题待观察**（R269：两结论各自为真、时间点不同），不写作"已修复"。
 - 主动不做：CSP 去 `style-src 'unsafe-inline'`（全站样式开关，本环境无微信真机验收手段）、
   localStore 真增量写（需迁移既有本地数据）、TopNav 折叠式导航重构（改变用户熟悉入口）。
 - 详细方案与实测数字：`deliverables/前端深度优化方案-2026-09-23.md`（§0 基线 / §6 执行结果）。
