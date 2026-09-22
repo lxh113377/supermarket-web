@@ -12,7 +12,7 @@ const EXPECTED = [
   // products.js
   'getCategories', 'getProducts', 'getAdminProducts',
   // orders.js
-  'createOrder', 'getOrderById', 'getOrders',
+  'createOrder', 'getOrderById', 'getAllOrders',
   // reviews.js
   'addReview', 'getLocalProductReviews', 'getCloudReviews',
   'addCloudReview', 'deleteCloudReview', 'getAllReviews',

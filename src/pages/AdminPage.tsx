@@ -7,6 +7,7 @@ import OrdersTab from '../components/OrdersTab'
 import ReviewsTab from '../components/ReviewsTab'
 import SubmissionsTab from '../components/SubmissionsTab'
 import type { Category, Order, Product } from '../types'
+import { handleTablistKeyDown } from '../utils/rovingTabs'
 
 const TABS = [
   { key: 'dashboard', label: '看板', icon: '📊' },
@@ -107,12 +108,19 @@ export default function AdminPage() {
       loadOrders()
       const scheduleNext = () => {
         orderTimer.current = setTimeout(async () => {
-          await loadOrders()
+          // 页面不可见时跳过本轮请求（后台标签页挂着管理页不应持续打云函数），
+          // 轮询本身继续排程，回到前台后 visibilitychange 会立即补拉一次
+          if (!document.hidden) await loadOrders()
           scheduleNext()
         }, pollDelay.current)
       }
       scheduleNext()
-      return () => { if (orderTimer.current) clearTimeout(orderTimer.current) }
+      const onVisible = () => { if (!document.hidden) loadOrders() }
+      document.addEventListener('visibilitychange', onVisible)
+      return () => {
+        if (orderTimer.current) clearTimeout(orderTimer.current)
+        document.removeEventListener('visibilitychange', onVisible)
+      }
     }
     if (orderTimer.current) { clearTimeout(orderTimer.current); orderTimer.current = null }
   }, [tab, loadOrders])
@@ -169,6 +177,15 @@ export default function AdminPage() {
         role="tablist"
         aria-label="管理功能"
         className="flex gap-1.5 mb-5 bg-white p-1.5 rounded-2xl shadow-card border border-gray-100/80"
+        onKeyDown={(e) =>
+          handleTablistKeyDown(
+            e,
+            TABS.map((t) => t.key),
+            tab,
+            setTab,
+            (v) => document.getElementById(`admin-tab-${v}`)?.focus(),
+          )
+        }
       >
         {TABS.map(t => (
           <button
@@ -177,6 +194,7 @@ export default function AdminPage() {
             aria-selected={tab === t.key}
             aria-controls={`admin-panel-${t.key}`}
             id={`admin-tab-${t.key}`}
+            tabIndex={tab === t.key ? 0 : -1}
             onClick={() => setTab(t.key)}
             className={`flex-1 min-w-0 py-2.5 rounded-xl text-[11px] sm:text-xs font-medium transition-all duration-200 flex flex-col items-center gap-1 ${
               tab === t.key

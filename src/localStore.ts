@@ -102,6 +102,30 @@ export function upsertLocalProduct(product: Partial<Product> & { _id: string }):
   return list
 }
 
+/** 批量 upsert：一次读 + 一次写（逐条调 upsertLocalProduct 会对 N 个商品做 N 次整表 stringify） */
+export function upsertLocalProducts(items: Array<Partial<Product> & { _id: string }>): Product[] {
+  const list = getLocalProducts()
+  const pending = new Map(items.map((it) => [it._id, it]))
+  for (let i = 0; i < list.length; i++) {
+    const it = pending.get(list[i]._id)
+    if (it) {
+      list[i] = { ...list[i], ...it } as Product
+      pending.delete(list[i]._id)
+    }
+  }
+  for (const it of pending.values()) list.push(it as Product)
+  saveLocalProducts(list)
+  return list
+}
+
+/** 批量删除：一次读 + 一次写 */
+export function deleteLocalProducts(productIds: string[]): Product[] {
+  const ids = new Set(productIds)
+  const list = getLocalProducts().filter((p) => !ids.has(p._id))
+  saveLocalProducts(list)
+  return list
+}
+
 export function deleteLocalProduct(productId: string): Product[] {
   const list = getLocalProducts().filter((p) => p._id !== productId)
   saveLocalProducts(list)

@@ -3,7 +3,7 @@
 // 原 db.js 是 285 行上帝模块，混装了商品/分类、订单、评价、服务表单提交、云端初始化
 // 等互不相干的职责。现按单一职责拆分到 ./db/ 下的子模块：
 //   - products.js    商品与分类读取（getCategories / getProducts / getAdminProducts）
-//   - orders.js      订单读写（createOrder / getOrderById / getOrders）
+//   - orders.js      订单读写（createOrder / getOrderById / getAllOrders）
 //   - reviews.js     评价读写（addReview / getCloudReviews / addCloudReview / ...）
 //   - submissions.js 服务表单提交 + 离线队列（createSubmission / getSubmissions / initSubmissionSync / flushPendingSubmissions）
 //   - cloudInit.js   云端初始化与种子导入（seedCloudData）

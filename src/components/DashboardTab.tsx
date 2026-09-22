@@ -4,6 +4,8 @@ import { useDashboardCharts } from '../hooks/useDashboardCharts'
 import KpiCard from './KpiCard'
 import { IconChart, IconBox } from './Icons'
 import { csvEscape } from '../utils/csv'
+import { formatCount } from '../utils/format'
+import { handleTablistKeyDown } from '../utils/rovingTabs'
 
 // ⚠ react(only-export-components) 警告为既有模式：buildCsv 纯函数导出供 vitest 直测
 // H1-2（2026-09-05）：数据聚合已下沉 functions/lib/actions/stats.js（getDashboardStats），
@@ -63,6 +65,15 @@ const RANGE_OPTIONS = [
   { days: 365, label: '全年' },
 ]
 
+// AI 经营建议会话级缓存：aiAdvice 是 30s 级的 Dify 后端调用，看板在 tab 间来回切换
+// 时每次 mount 都重打一次（等待 + 计费）。缓存后 mount 直接复用，「刷新」按钮强制绕过。
+let adviceCache: { content: string; source: string } | null = null
+
+/** 仅测试用：单测间复位缓存，避免上一个用例的结果泄漏到下一个（三态测试会互相污染） */
+export function resetAdviceCacheForTest(): void {
+  adviceCache = null
+}
+
 // props 改为无数据依赖（聚合已服务端化），仅保留初始 rangeDays 供恢复
 export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDays?: number } = {}) {
   const [rangeDays, setRangeDays] = useState(initialRangeDays)
@@ -116,14 +127,21 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
   const { trendRef, reviewRef, pieRef, topRef } = useDashboardCharts({ rangeData, pieSegments, topRevenue, reviewTrend, rangeDays })
 
   // ---- AI 经营建议（/web aiAdvice，复用 adminCall 会话密钥） ----
-  const loadAdvice = useCallback(async () => {
+  // force=false 时命中会话缓存直接返回（mount 复用路径）；「刷新」按钮传 true 绕过缓存
+  const loadAdvice = useCallback(async (force = false) => {
     if (aiLoading) return
+    if (!force && adviceCache) {
+      setAiAdvice({ ...adviceCache })
+      setAiStatus('loaded')
+      return
+    }
     setAiLoading(true)
     setAiStatus('loading')
     try {
       const data = await adminCall<{ content: string; source: string }>('aiAdvice', {})
       if (data.code === 0 && data.data) {
-        setAiAdvice({ content: data.data.content, source: data.data.source })
+        adviceCache = { content: data.data.content, source: data.data.source }
+        setAiAdvice({ ...adviceCache })
         setAiStatus('loaded')
       } else {
         setAiStatus('error')
@@ -163,12 +181,26 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
 
       {/* 时间范围切换 */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="seg-bar" role="tablist" aria-label="统计时间范围">
+        <div
+          className="seg-bar"
+          role="tablist"
+          aria-label="统计时间范围"
+          onKeyDown={(e) =>
+            handleTablistKeyDown(
+              e,
+              RANGE_OPTIONS.map((o) => String(o.days)),
+              String(rangeDays),
+              (v) => setRangeDays(Number(v)),
+            )
+          }
+        >
           {RANGE_OPTIONS.map((opt) => (
             <button
               key={opt.days}
+              id={`tab-${opt.days}`}
               role="tab"
               aria-selected={rangeDays === opt.days}
+              tabIndex={rangeDays === opt.days ? 0 : -1}
               onClick={() => setRangeDays(opt.days)}
               className={`seg ${rangeDays === opt.days ? 'active' : ''}`}
             >
@@ -252,7 +284,7 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
                 {m ? (
                   <>
                     <p className="text-lg font-bold text-gray-900">{m.marginPct}%</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">毛利 ¥{(m.revenue - m.cost).toFixed(0)}</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">毛利 ¥{formatCount(m.revenue - m.cost)}</p>
                   </>
                 ) : (
                   <p className="text-sm text-gray-300 py-2">暂无销售</p>
@@ -319,7 +351,7 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
         )}
         {aiStatus === 'loaded' && (
           <button
-            onClick={loadAdvice}
+            onClick={() => loadAdvice(true)}
             disabled={aiLoading}
             className="mt-3 text-xs font-medium text-brand-600 hover:text-brand-700 bg-brand-50 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
           >

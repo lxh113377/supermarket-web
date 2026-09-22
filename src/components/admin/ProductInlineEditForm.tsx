@@ -103,6 +103,19 @@ export default function InlineEditForm({ product, categories, onClose, onSaved }
   // 表单控件统一类名（原先每行重复写 6 次同样的长串，改样式要改 6 处）
   const inputCls = 'border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:border-brand-400 focus:ring-1 focus:ring-brand-200 outline-none'
 
+  // 错误归属到具体字段：出错控件标 aria-invalid + aria-describedby 指向错误文案（读屏直接播报哪个字段错了）
+  const errorField = formError.includes('名称')
+    ? 'name'
+    : formError.includes('排序')
+      ? 'order'
+      : formError.includes('成本价')
+        ? 'costPrice'
+        : null
+  const errProps = (field: string) =>
+    errorField === field
+      ? ({ 'aria-invalid': true, 'aria-describedby': 'inline-edit-error' } as const)
+      : {}
+
   return (
     <div className="px-3 pb-3 pt-1 bg-brand-50/30 rounded-b-xl border border-t-0 border-brand-100 -mt-1.5">
       {/* 字段用 aria-label 关联（原先只有 placeholder，读屏不播报字段名，输入后即丢失） */}
@@ -113,11 +126,12 @@ export default function InlineEditForm({ product, categories, onClose, onSaved }
           value={form.name}
           onChange={e => setForm({ ...form, name: e.target.value })}
           className={`col-span-2 ${inputCls}`}
+          {...errProps('name')}
         />
         <input aria-label="规格" placeholder="规格" value={form.spec} onChange={e => setForm({ ...form, spec: e.target.value })} className={inputCls} />
         <input aria-label="售价" type="number" step="0.01" placeholder="价格" value={form.price} onChange={e => setForm({ ...form, price: parseFloat(e.target.value) || 0 })} className={inputCls} />
-        <input aria-label="成本价（可选）" type="number" step="0.01" min="0" placeholder="成本价（可选）" value={form.costPrice} onChange={e => setForm({ ...form, costPrice: e.target.value })} className={inputCls} />
-        <input aria-label="排序号" type="number" step="1" placeholder="排序号" value={form.order} onChange={e => setForm({ ...form, order: e.target.value })} className={inputCls} />
+        <input aria-label="成本价（可选）" type="number" step="0.01" min="0" placeholder="成本价（可选）" value={form.costPrice} onChange={e => setForm({ ...form, costPrice: e.target.value })} className={inputCls} {...errProps('costPrice')} />
+        <input aria-label="排序号" type="number" step="1" placeholder="排序号" value={form.order} onChange={e => setForm({ ...form, order: e.target.value })} className={inputCls} {...errProps('order')} />
         <input aria-label="主图 URL（可选）" placeholder="主图 URL（可选）" value={form.image} onChange={e => setForm({ ...form, image: e.target.value })} className={inputCls} />
       </div>
       <textarea
@@ -156,10 +170,10 @@ export default function InlineEditForm({ product, categories, onClose, onSaved }
           {form.enabled ? '上架' : '下架'}
         </button>
       </div>
-      {/* 校验错误即时播报 */}
+      {/* 校验错误即时播报；id 供出错字段的 aria-describedby 关联 */}
       <div role="alert" aria-live="assertive">
         {formError && (
-          <p className="mt-2 text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{formError}</p>
+          <p id="inline-edit-error" className="mt-2 text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{formError}</p>
         )}
       </div>
       <div className="flex gap-2 mt-2.5">

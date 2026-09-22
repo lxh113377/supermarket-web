@@ -5,7 +5,9 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#eab308" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https://supermarket-web.pages.dev; font-src 'self' data:; manifest-src 'self';" />
+    <!-- F2（2026-09-23 二轮收紧）：唯一的内联 style 标签（路由进度条 keyframes）已移入 index.css，
+         去掉 style-src 'unsafe-inline'。connect-src 保留 pages.dev（云端 API 白名单，铁律）。 -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https:; connect-src 'self' https://supermarket-web.pages.dev; font-src 'self' data:; manifest-src 'self';" />
     <link rel="manifest" href="./manifest.json" />
     <link rel="apple-touch-icon" href="./icon-192.png" />
     <title>江科一站通</title>

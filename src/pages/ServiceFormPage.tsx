@@ -6,42 +6,7 @@ import { createSubmission } from '../db'
 import ServiceHintCard from '../components/service/ServiceHintCard'
 import ServicePopup from '../components/service/ServicePopup'
 import type { ServiceCategory } from '../types'
-
-// 压缩图片到合理大小
-function compressImage(file: File, maxWidth = 800, quality = 0.7): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      const result = e.target?.result
-      if (typeof result !== 'string') {
-        reject(new Error('图片读取失败'))
-        return
-      }
-      const img = new Image()
-      img.onload = () => {
-        const canvas = document.createElement('canvas')
-        let { width, height } = img
-        if (width > maxWidth) {
-          height = Math.round(height * maxWidth / width)
-          width = maxWidth
-        }
-        canvas.width = width
-        canvas.height = height
-        const ctx = canvas.getContext('2d')
-        if (!ctx) {
-          reject(new Error('canvas 不可用'))
-          return
-        }
-        ctx.drawImage(img, 0, 0, width, height)
-        resolve(canvas.toDataURL('image/jpeg', quality))
-      }
-      img.onerror = reject
-      img.src = result
-    }
-    reader.onerror = reject
-    reader.readAsDataURL(file)
-  })
-}
+import { compressImageFile } from '../utils/imageCompress'
 
 export default function ServiceFormPage() {
   const { serviceId } = useParams()
@@ -100,7 +65,9 @@ export default function ServiceFormPage() {
     }
     if (valid.length === 0) { e.target.value = ''; return }
     try {
-      const compressed = await Promise.all(valid.map(f => compressImage(f)))
+      const compressed = await Promise.all(
+        valid.map(async (f) => (await compressImageFile(f, { maxSize: 800, quality: 0.7 })).dataUrl),
+      )
       setImages(prev => [...prev, ...compressed])
       setError('')
     } catch {

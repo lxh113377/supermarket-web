@@ -5,43 +5,7 @@ import { getCart, getTotalAmount, clearCart } from '../cart'
 import { createOrder } from '../db'
 import { isBusinessHours, getClosedMessage } from '../utils/businessHours'
 import { formatYuan } from '../utils/format'
-
-// 图片压缩：限制最大边 800px，质量 0.6
-function compressImage(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      const result = e.target?.result
-      if (typeof result !== 'string') {
-        reject(new Error('图片读取失败'))
-        return
-      }
-      const img = new Image()
-      img.onload = () => {
-        const canvas = document.createElement('canvas')
-        const MAX = 800
-        let { width, height } = img
-        if (width > MAX || height > MAX) {
-          if (width > height) { height = Math.round(height * MAX / width); width = MAX }
-          else { width = Math.round(width * MAX / height); height = MAX }
-        }
-        canvas.width = width
-        canvas.height = height
-        const ctx = canvas.getContext('2d')
-        if (!ctx) {
-          reject(new Error('canvas 不可用'))
-          return
-        }
-        ctx.drawImage(img, 0, 0, width, height)
-        resolve(canvas.toDataURL('image/jpeg', 0.6))
-      }
-      img.onerror = reject
-      img.src = result
-    }
-    reader.onerror = reject
-    reader.readAsDataURL(file)
-  })
-}
+import { compressImageFile } from '../utils/imageCompress'
 
 export default function OrderConfirmPage() {
   const navigate = useNavigate()
@@ -66,7 +30,7 @@ export default function OrderConfirmPage() {
       return
     }
     try {
-      const dataUrl = await compressImage(file)
+      const { dataUrl } = await compressImageFile(file, { maxSize: 800, quality: 0.6 })
       setScreenshot(dataUrl)
       setError('')
     } catch {

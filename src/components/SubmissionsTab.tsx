@@ -54,10 +54,16 @@ export default function SubmissionsTab() {
 
   useEffect(() => { fetchSubmissions() }, [fetchSubmissions])
 
-  // 自动刷新
+  // 自动刷新：页面不可见时跳过请求（后台标签页不持续打云函数），
+  // 回到前台 visibilitychange 立即补拉一次，保证切回时数据新鲜
   useEffect(() => {
-    const t = setInterval(fetchSubmissions, 30000)
-    return () => clearInterval(t)
+    const t = setInterval(() => { if (!document.hidden) fetchSubmissions() }, 30000)
+    const onVisible = () => { if (!document.hidden) fetchSubmissions() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      clearInterval(t)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [fetchSubmissions])
 
   const filtered = useMemo(() => {
