@@ -80,7 +80,10 @@ export default function InstallPrompt() {
     : '点击底部分享按钮 → 选择「添加到主屏幕」'
 
   return (
-    <div className="fixed bottom-0 inset-x-0 z-[90] px-4 pb-4 pointer-events-none">
+    /* 层级约定（浮层层级重排，2026-09-23）：
+       页面吸底/浮条 z-20~30 < 安装引导 z-[70] < 模态遮罩 z-[80]（Overlay） < 路由加载 z-[100]
+       原为 z-[90]，会盖在模态遮罩之上 —— 弹窗打开时「立即添加」按钮可被误点。 */
+    <div className="fixed bottom-0 inset-x-0 z-[70] px-4 pb-4 pointer-events-none">
       <div className="max-w-lg mx-auto bg-white rounded-2xl border border-gray-100/80 shadow-elevated p-4 flex items-center gap-3 pointer-events-auto animate-slide-up safe-bottom">
         <div className="w-10 h-10 rounded-xl brand-bar shrink-0" aria-hidden="true" />
         <div className="flex-1 min-w-0">
