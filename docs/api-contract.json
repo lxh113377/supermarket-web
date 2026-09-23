@@ -1,0 +1,230 @@
+{
+  "version": 1,
+  "source": "functions/lib/backend.js（由 scripts/api-contract.mjs --write 生成，请勿手改）",
+  "endpoints": {
+    "/web": {
+      "auth": "required（ADMIN_KEY / ADMIN_READONLY_KEY，只读密钥受 ADMIN_WRITE_ACTIONS 拦截）",
+      "actions": {
+        "login": {
+          "write": false,
+          "cacheKey": null,
+          "rateBucket": null
+        },
+        "verifyKey": {
+          "write": false,
+          "cacheKey": null,
+          "rateBucket": null
+        },
+        "getProducts": {
+          "write": false,
+          "cacheKey": null,
+          "rateBucket": null
+        },
+        "createProduct": {
+          "write": true,
+          "cacheKey": null,
+          "rateBucket": null
+        },
+        "updateProduct": {
+          "write": true,
+          "cacheKey": null,
+          "rateBucket": null
+        },
+        "deleteProduct": {
+          "write": true,
+          "cacheKey": null,
+          "rateBucket": null
+        },
+        "batchUpdateProducts": {
+          "write": true,
+          "cacheKey": null,
+          "rateBucket": null
+        },
+        "batchDeleteProducts": {
+          "write": true,
+          "cacheKey": null,
+          "rateBucket": null
+        },
+        "deleteOrder": {
+          "write": true,
+          "cacheKey": null,
+          "rateBucket": null
+        },
+        "updateOrderStatus": {
+          "write": true,
+          "cacheKey": null,
+          "rateBucket": null
+        },
+        "createOrder": {
+          "write": true,
+          "cacheKey": null,
+          "rateBucket": null
+        },
+        "recalculateOrders": {
+          "write": true,
+          "cacheKey": null,
+          "rateBucket": null
+        },
+        "getOrders": {
+          "write": false,
+          "cacheKey": null,
+          "rateBucket": null
+        },
+        "getOrder": {
+          "write": false,
+          "cacheKey": null,
+          "rateBucket": null
+        },
+        "getPublicProducts": {
+          "write": false,
+          "cacheKey": "cache:public:products",
+          "rateBucket": null
+        },
+        "getPublicCategories": {
+          "write": false,
+          "cacheKey": "cache:public:categories",
+          "rateBucket": null
+        },
+        "getAllReviews": {
+          "write": false,
+          "cacheKey": null,
+          "rateBucket": null
+        },
+        "getReviews": {
+          "write": false,
+          "cacheKey": null,
+          "rateBucket": null
+        },
+        "addPublicReview": {
+          "write": true,
+          "cacheKey": null,
+          "rateBucket": null
+        },
+        "addReview": {
+          "write": true,
+          "cacheKey": null,
+          "rateBucket": null
+        },
+        "deleteReview": {
+          "write": true,
+          "cacheKey": null,
+          "rateBucket": null
+        },
+        "seedReviews": {
+          "write": true,
+          "cacheKey": null,
+          "rateBucket": null
+        },
+        "createSubmission": {
+          "write": true,
+          "cacheKey": null,
+          "rateBucket": null
+        },
+        "getSubmissions": {
+          "write": false,
+          "cacheKey": null,
+          "rateBucket": null
+        },
+        "getSubmissionImages": {
+          "write": false,
+          "cacheKey": null,
+          "rateBucket": null
+        },
+        "updateSubmissionStatus": {
+          "write": true,
+          "cacheKey": null,
+          "rateBucket": null
+        },
+        "deleteSubmission": {
+          "write": true,
+          "cacheKey": null,
+          "rateBucket": null
+        },
+        "aiAdvice": {
+          "write": false,
+          "cacheKey": "dynamic",
+          "rateBucket": null
+        },
+        "getDashboardStats": {
+          "write": false,
+          "cacheKey": "dynamic",
+          "rateBucket": null
+        }
+      }
+    },
+    "/pub": {
+      "auth": "none（公开接口，受 PUBLIC_ACTIONS 白名单约束）",
+      "actions": {
+        "getPublicProducts": {
+          "write": false,
+          "cacheKey": "cache:public:products",
+          "rateBucket": null
+        },
+        "getPublicCategories": {
+          "write": false,
+          "cacheKey": "cache:public:categories",
+          "rateBucket": null
+        },
+        "createOrder": {
+          "write": true,
+          "cacheKey": null,
+          "rateBucket": null
+        },
+        "getReviews": {
+          "write": false,
+          "cacheKey": null,
+          "rateBucket": null
+        },
+        "addPublicReview": {
+          "write": true,
+          "cacheKey": null,
+          "rateBucket": null
+        },
+        "createSubmission": {
+          "write": true,
+          "cacheKey": null,
+          "rateBucket": null
+        },
+        "aiChat": {
+          "write": false,
+          "cacheKey": null,
+          "rateBucket": "rate:ai:{ip}"
+        }
+      }
+    }
+  },
+  "policies": {
+    "adminWriteActions": [
+      "createProduct",
+      "updateProduct",
+      "deleteProduct",
+      "batchUpdateProducts",
+      "batchDeleteProducts",
+      "createOrder",
+      "recalculateOrders",
+      "addReview",
+      "addPublicReview",
+      "seedReviews",
+      "deleteOrder",
+      "updateOrderStatus",
+      "deleteReview",
+      "createSubmission",
+      "updateSubmissionStatus",
+      "deleteSubmission"
+    ],
+    "publicWhitelist": [
+      "createOrder",
+      "getReviews",
+      "createSubmission",
+      "addPublicReview",
+      "getPublicProducts",
+      "getPublicCategories",
+      "aiChat"
+    ],
+    "publicRateLimitedWrite": [
+      "createOrder",
+      "createSubmission",
+      "addPublicReview"
+    ]
+  }
+}
