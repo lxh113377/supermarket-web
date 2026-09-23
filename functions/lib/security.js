@@ -75,6 +75,10 @@ async function checkRate(DB, kv, key, windowMs, max) {
 export const RATE_LOGIN = { windowMs: 60000, max: 5 }
 export const RATE_PUBLIC_WRITE = { windowMs: 60000, max: 20 }
 export const RATE_AI = { windowMs: 60000, max: 20 }
+// 管理端 aiAdvice 独立档（2026-09-23 P2 补齐）：该 action 触发全量订单/评价/商品查询 + Dify 推理，
+// 单次成本远高于普通读；与公开 aiChat（rate:ai:*）分桶，互不挤占。正常使用（点开看板/手动刷新）
+// 每分钟远低于 10 次，且 60s KV 缓存命中不产生额外成本，不会误伤。
+export const RATE_AI_ADVICE = { windowMs: 60000, max: 10 }
 
 // 提取真实客户端 IP：优先 CF-Connecting-IP（Cloudflare 注入，不可伪造），回退 x-forwarded-for
 export function getClientIp(request) {

@@ -5,6 +5,8 @@
 :root {
   /* 品牌渐变条（柿子黄 → 橙 → 深绿），品牌视觉链路唯一真相源 */
   --brand-bar: linear-gradient(90deg, #facc15, #f97316, #14532d);
+  /* 品牌主色唯一真相源（JS 内联样式也从此读取，如加购飞行动画圆点） */
+  --brand-500: #eab308;
   /* 看板图表色板（唯一真相源，ECharts 主题从此读取，消除硬编码色值） */
   --chart-b1: #facc15;
   --chart-b2: #14532d;
@@ -226,6 +228,30 @@ img {
 .stagger-6 { animation-delay: 0.3s; }
 .stagger-7 { animation-delay: 0.35s; }
 .stagger-8 { animation-delay: 0.4s; }
+
+/* === 列表入场动画（容器级，零 DOM 改动）===
+   给滚动容器内的列表加 .enter-stagger，其直接子元素按序淡入上浮（与逐项写
+   animate-fade-in-up + stagger-N 等价，但无需为每一项再包一层 div，列表项 key 复用
+   时 React 不会重触发动画，只有筛选后新出现的项会播放）。
+   动画曲线/时长与 tailwind.config 的 fade-in-up 保持一致，视觉上与 CartPage/
+   CategoryPage/HomePage 的逐项入场同款。 */
+@keyframes enter-stagger-in {
+  0% { opacity: 0; transform: translateY(12px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.enter-stagger > * {
+  animation: enter-stagger-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.enter-stagger > *:nth-child(1) { animation-delay: 0.03s; }
+.enter-stagger > *:nth-child(2) { animation-delay: 0.06s; }
+.enter-stagger > *:nth-child(3) { animation-delay: 0.09s; }
+.enter-stagger > *:nth-child(4) { animation-delay: 0.12s; }
+.enter-stagger > *:nth-child(5) { animation-delay: 0.15s; }
+.enter-stagger > *:nth-child(6) { animation-delay: 0.18s; }
+.enter-stagger > *:nth-child(7) { animation-delay: 0.21s; }
+.enter-stagger > *:nth-child(8) { animation-delay: 0.24s; }
+.enter-stagger > *:nth-child(9) { animation-delay: 0.27s; }
+.enter-stagger > *:nth-child(10) { animation-delay: 0.3s; }
 
 /* === 滚动条美化 === */
 ::-webkit-scrollbar {

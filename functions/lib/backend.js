@@ -15,7 +15,7 @@
 
 import { checkRate, checkRateKV, getClientIp, sha256Fingerprint, logSecurityEvent,
   checkAuth, resolveRole, resolveCorsHeaders, PUBLIC_ACTIONS,
-  RATE_LOGIN, RATE_PUBLIC_WRITE, RATE_AI } from './security.js'
+  RATE_LOGIN, RATE_PUBLIC_WRITE, RATE_AI, RATE_AI_ADVICE } from './security.js'
 import { getPublicProducts, getPublicCategories, getProducts, createProduct, updateProduct,
   deleteProduct, batchUpdateProducts, batchDeleteProducts } from './actions/products.js'
 import { createOrder, deleteOrder, updateOrderStatus, recalculateOrders, getOrders, getOrderById } from './actions/orders.js'
@@ -68,6 +68,13 @@ export async function handleAdmin(env, action, adminKey, payload = {}, request =
   const role = resolveRole(adminKey, env)
   if (role === 'readonly' && ADMIN_WRITE_ACTIONS.has(action)) {
     return { code: -1, message: '只读账号不能执行该操作' }
+  }
+  // aiAdvice 独立限流（2026-09-23 P2 补齐）：全量查询 + Dify 推理，单次成本远高于普通读。
+  // 放在鉴权之后：未认证请求不消耗配额、也不产生限流写入（KV/D1）。分桶 rate:aiadv:*，
+  // 与公开 aiChat 的 rate:ai:* 互不影响。
+  if (action === 'aiAdvice') {
+    const r = await checkRate(DB, env.RATE_KV, `rate:aiadv:${ip}`, RATE_AI_ADVICE.windowMs, RATE_AI_ADVICE.max)
+    if (r) return r
   }
 
   let result
