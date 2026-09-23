@@ -9,7 +9,7 @@
   故未做本地验证 ⇒ CI 首轮以 `continue-on-error: true` 试跑，稳定后移除该行使其具备阻断力
 - **覆盖率阈值门禁：暂缓** —— 本机 `vitest run --coverage` 会触发 worker 崩溃（exit 3221226505，多个测试文件挂掉），
   已卸载 `@vitest/coverage-v8`。判定为环境相关问题，待换环境验证后再决定是否纳入门禁
-- 其余 GitHub Actions 固定到提交 SHA（已完成 `actions/checkout`，其余待核 SHA）
+
 
 ## [0.1.0] - 2026-09-23
 
@@ -20,7 +20,7 @@
 - 产物体积预算门禁：`scripts/check-bundle-size.mjs`（从 dist/index.html 解析首屏资源，按 gzip 卡阈值：首屏 JS ≤90KB / CSS ≤11KB / 单 chunk ≤90KB；实测 77.9 / 8.7 / 58.1），CI 在 build 后执行
 - 端到端冒烟骨架：`playwright.config.ts` + `tests/e2e/smoke.spec.ts`（商品浏览/搜索/加购/后台登录 4 条），跑在 dev server 的本地演示模式；CI 新增 `e2e` job（首轮试跑）
 - 接口契约外化：`docs/api-contract.json`（`/web` 29 + `/pub` 7 = 36 个 action，含写操作/缓存键/限流桶属性）；`npm run gen:api-contract` 生成，`npm run verify:contract` 校验漂移（41 断言，已接入 `npm run verify`）
-- CI 加固：最小权限 `permissions: contents: read`；`actions/checkout` 固定到提交 SHA
+- CI 加固：三个 workflow 全部加最小权限 `permissions: contents: read`；所有 GitHub Actions（`checkout` / `setup-node` / `upload-artifact` / `download-artifact` / `github-script`）固定到提交 SHA
 
 ### 修复
 - 商品图 HTTP 强缓存 7 天 → 10 分钟 + SWR，换图最快 10 分钟可见（`b2b94af`）
