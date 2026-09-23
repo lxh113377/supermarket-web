@@ -51,6 +51,8 @@ npm run verify
 
 - 新逻辑必须有单测；改后端 action 必须补 `scripts/verify-backend.mjs` 契约断言
 - 新增/删除后端 action，或改动缓存键、限流策略后，跑 `npm run gen:api-contract` 重新生成 `docs/api-contract.json` 再提交（`npm run verify` 会校验源码与契约是否漂移）
+- 端到端冒烟：`npx playwright install chromium` 一次后，`npm run test:e2e`（自动起 dev server，跑演示模式数据）；改了页面结构/文案导致用例失败时，请同步更新 `tests/e2e/`
+- 产物体积：`npx vite build` 后 `npm run check:size`；确有必要超预算时更新脚本内 `BUDGET` 并说明原因
 - 页面级改动请在本地双视口（375 / 1280）目检一次
 - 涉及缓存/图片等资源类改动，验收请用**无头浏览器截图**确认（curl 比字节测不到 SW 与 SPA 渲染链路）
 

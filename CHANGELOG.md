@@ -5,8 +5,10 @@
 ## [未发布]
 
 ### 待办
-- 端到端冒烟测试（浏览→加购→下单→查单→后台登录）接入 CI —— 阻塞中：本机 npm 网络不通，装不了 Playwright
-- 覆盖率阈值门禁、产物体积预算门禁 —— 同上，待装 `@vitest/coverage-v8` / `size-limit`
+- **e2e 冒烟转阻断**：`tests/e2e/smoke.spec.ts`（4 条）与 CI `e2e` job 已就位，但本机 Chromium 下载过慢（195 MB，实测 10 分钟后仍 10%）未完成，
+  故未做本地验证 ⇒ CI 首轮以 `continue-on-error: true` 试跑，稳定后移除该行使其具备阻断力
+- **覆盖率阈值门禁：暂缓** —— 本机 `vitest run --coverage` 会触发 worker 崩溃（exit 3221226505，多个测试文件挂掉），
+  已卸载 `@vitest/coverage-v8`。判定为环境相关问题，待换环境验证后再决定是否纳入门禁
 - 其余 GitHub Actions 固定到提交 SHA（已完成 `actions/checkout`，其余待核 SHA）
 
 ## [0.1.0] - 2026-09-23
@@ -15,6 +17,8 @@
 - 商品图内容修正：40 号错图（呀！土豆 → 好友趣）与 18 号参数表图换实物图（`ce51d77`）
 - `aiAdvice` 独立限流（60s/10 次，分桶 `rate:aiadv:{ip}`，位于鉴权之后）（`22b5e90`）
 - 社区标准文件：`LICENSE`（MIT）、`SECURITY.md`、`CONTRIBUTING.md`、`CHANGELOG.md`
+- 产物体积预算门禁：`scripts/check-bundle-size.mjs`（从 dist/index.html 解析首屏资源，按 gzip 卡阈值：首屏 JS ≤90KB / CSS ≤11KB / 单 chunk ≤90KB；实测 77.9 / 8.7 / 58.1），CI 在 build 后执行
+- 端到端冒烟骨架：`playwright.config.ts` + `tests/e2e/smoke.spec.ts`（商品浏览/搜索/加购/后台登录 4 条），跑在 dev server 的本地演示模式；CI 新增 `e2e` job（首轮试跑）
 - 接口契约外化：`docs/api-contract.json`（`/web` 29 + `/pub` 7 = 36 个 action，含写操作/缓存键/限流桶属性）；`npm run gen:api-contract` 生成，`npm run verify:contract` 校验漂移（41 断言，已接入 `npm run verify`）
 - CI 加固：最小权限 `permissions: contents: read`；`actions/checkout` 固定到提交 SHA
 
