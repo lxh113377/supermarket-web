@@ -33,8 +33,10 @@ function localDayLabel(dayIndex) {
 }
 
 // 自然日区间聚合 订单数/营收（labels 本地 M/D；今天为末位）
-export function buildRangeData(orders, days) {
-  const now = Date.now()
+// nowMs 由 getDashboardStats 单次传入：三个聚合函数各调一次 Date.now() 会在
+// 午夜边界错开一天（分桶与标签各执一词）。默认 Date.now() 保持单测 2 参调用兼容。
+export function buildRangeData(orders, days, nowMs = Date.now()) {
+  const now = nowMs
   const labels = []
   const orderCounts = new Array(days).fill(0)
   const revenues = new Array(days).fill(0)
@@ -55,8 +57,8 @@ export function buildRangeData(orders, days) {
 }
 
 // 本期 vs 上期 环比（百分比；基数为 0 返回 null）
-export function buildDelta(orders, days) {
-  const now = Date.now()
+export function buildDelta(orders, days, nowMs = Date.now()) {
+  const now = nowMs
   const today = localDay(now)
   const half = (offsetDays) => {
     const from = (today - offsetDays - days + 1) * DAY_MS - TZ_SHIFT_MS
@@ -80,8 +82,8 @@ export function buildDelta(orders, days) {
 }
 
 // 近 N 天评价趋势（今天为末位）
-export function buildReviewTrend(reviews, days = 14) {
-  const now = Date.now()
+export function buildReviewTrend(reviews, days = 14, nowMs = Date.now()) {
+  const now = nowMs
   const counts = new Array(days).fill(0)
   const labels = []
   const today = localDay(now)
@@ -191,6 +193,8 @@ export function buildTopRevenue(orders) {
 // 数据量：社区超市量级，订单 LIMIT 5000（覆盖全年 365 天看板）足够。
 export async function getDashboardStats(DB, payload) {
   const rangeDays = Math.min(365, Math.max(1, Number(payload?.rangeDays) || 7))
+  // 单次快照时刻：三个聚合函数共用同一 nowMs，午夜边界分桶一致
+  const nowMs = Date.now()
   const orderRows = await qAll(DB,
     `SELECT _id, roomNumber, items, totalAmount, status, createdAt
      FROM orders ORDER BY createdAt DESC LIMIT 5000`)
@@ -206,9 +210,9 @@ export async function getDashboardStats(DB, payload) {
     _id: r._id, name: r.name, spec: r.spec || '', costPrice: r.costPrice == null ? null : Number(r.costPrice),
   }))
 
-  const rangeData = buildRangeData(orders, rangeDays)
-  const delta = buildDelta(orders, rangeDays)
-  const reviewTrend = buildReviewTrend(reviews, 14)
+  const rangeData = buildRangeData(orders, rangeDays, nowMs)
+  const delta = buildDelta(orders, rangeDays, nowMs)
+  const reviewTrend = buildReviewTrend(reviews, 14, nowMs)
   const margin = computeGrossMargin(orders, products)
   const pieSegments = buildPieSegments(orders)
   const topRevenue = buildTopRevenue(orders)

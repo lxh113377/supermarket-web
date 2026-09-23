@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import type { Product } from '../types'
 import { productImageUrl, productSrcSet } from '../utils/images'
 import { formatPrice } from '../utils/format'
-import { prefetchRoute } from '../routeLoaders'
+import { prefetchRoute } from '../prefetchBus'
 
 interface ProductCardProps {
   product: Product

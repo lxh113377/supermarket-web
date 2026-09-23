@@ -14,7 +14,9 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const SRC = path.join(ROOT, 'src')
-const EXTS = ['.js', '.jsx', '.mjs']
+// ⚠️ 2026-09-23 第三轮优化修复：TS 迁移（41 文件）后 EXTS 仍只含 JS 系，walk 永远 0 命中、
+// 门禁恒报"0 个模块/无环"= 静默假通过（R236 同族）。必须覆盖全部源码扩展名。
+const EXTS = ['.js', '.jsx', '.mjs', '.cjs', '.ts', '.tsx', '.mts', '.cts']
 
 function walk(dir, out = []) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {

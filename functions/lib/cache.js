@@ -59,3 +59,12 @@ export const DASHBOARD_RANGES = [1, 3, 7, 14, 30, 60, 90, 180, 365]
 export async function invalidateDashboard(env) {
   await Promise.all(DASHBOARD_RANGES.map((d) => kvCacheDel(env, `${DASHBOARD_CACHE_PREFIX}${d}`)))
 }
+
+// ── AI 建议缓存（2026-09-23 第三轮优化补失效）──
+// aiAdvice 基于全量订单/评价/商品快照做 Dify 推理，与看板同源数据；
+// 只给 60s TTL 却不配写失效 → 写操作后最长 60s 返回旧快照建议。与看板同处收口。
+export const AI_ADVICE_CACHE_KEY = 'cache:ai:advice'
+
+export async function invalidateAiAdvice(env) {
+  await kvCacheDel(env, AI_ADVICE_CACHE_KEY)
+}

@@ -2,7 +2,8 @@ import { Suspense, lazy, useEffect } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import ErrorBoundary from './components/ErrorBoundary'
 import AdminGuard from './components/AdminGuard'
-import { routeLoaders, prefetchHotRoutes } from './routeLoaders'
+import { routeLoaders } from './routeLoaders'
+import { prefetchHotRoutes } from './prefetchBus'
 
 // 与 routeLoaders 共用同一份 import 工厂：预取过的 chunk，点击时无需再下载。
 const HomePage = lazy(routeLoaders.home)

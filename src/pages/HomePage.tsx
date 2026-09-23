@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { CATEGORIES } from '../data/categories'
 import { isBusinessHours, getClosedMessage, getBusinessHoursText } from '../utils/businessHours'
 import { IconRobot } from '../components/Icons'
-import { prefetchRoute } from '../routeLoaders'
+import { prefetchRoute } from '../prefetchBus'
 
 export default function HomePage() {
   const navigate = useNavigate()

@@ -15,14 +15,20 @@ export const CATALOG_CACHE_MAX = 200
 
 export function cacheGet(key: string): unknown {
   const hit = _cache.get(key)
-  if (hit && Date.now() - hit.ts < CATALOG_CACHE_TTL) return hit.data
+  if (hit && Date.now() - hit.ts < CATALOG_CACHE_TTL) {
+    // 防缓存污染：调用方拿到数组后若原地 sort/push 会污染 60s 内所有读取方
+    //（localStore 同族问题已用 cloneArray 收口）。浅拷贝保持"每次读新容器"语义。
+    return Array.isArray(hit.data) ? hit.data.slice() : hit.data
+  }
   return null
 }
 
 export function cacheSet(key: string, data: unknown): void {
+  // 写侧同样拷贝：调用方传入后若继续改动原数组，不应反向污染缓存
+  const stored = Array.isArray(data) ? data.slice() : data
   // 命中后先删除再 set，把该键移到末尾（近似 LRU 的"最近使用"端）
   if (_cache.has(key)) _cache.delete(key)
-  _cache.set(key, { ts: Date.now(), data })
+  _cache.set(key, { ts: Date.now(), data: stored })
   while (_cache.size > CATALOG_CACHE_MAX) {
     const oldest = _cache.keys().next().value
     if (oldest === undefined) break

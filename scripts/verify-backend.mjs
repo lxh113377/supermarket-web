@@ -187,6 +187,19 @@ ok(Number(evAuth.c) >= 1, `认证失败已审计 (实际 ${evAuth.c})`)
 const rateRow = db.prepare("SELECT COUNT(*) AS c FROM rate_limits WHERE bucket LIKE 'rate:login:%'").get()
 ok(Number(rateRow.c) >= 1, `rate_limits 表有登录限流桶 (实际 ${rateRow.c})`)
 
+// ---------- 新修复：只读密钥写拦截（2026-09-23 第三轮优化）----------
+// ADMIN_WRITE_ACTIONS 曾漏掉 batch*/createOrder/recalculateOrders/add*/seedReviews/
+// createSubmission，只读密钥可绕过批量改价与种子导入。以下断言锁定收口。
+const roEnv = { DB: makeD1(db), ADMIN_KEY: 'test-key-123', ADMIN_READONLY_KEY: 'ro-key-456' }
+const roBatchUpd = await handleAdmin(roEnv, 'batchUpdateProducts', 'ro-key-456', { items: [] })
+ok(roBatchUpd.code === -1 && /只读/.test(roBatchUpd.message || ''), '只读密钥批量改价被拒')
+const roBatchDel = await handleAdmin(roEnv, 'batchDeleteProducts', 'ro-key-456', { productIds: [] })
+ok(roBatchDel.code === -1 && /只读/.test(roBatchDel.message || ''), '只读密钥批量删除被拒')
+const roSeed = await handleAdmin(roEnv, 'seedReviews', 'ro-key-456', {})
+ok(roSeed.code === -1 && /只读/.test(roSeed.message || ''), '只读密钥种子导入被拒')
+const roRead = await handleAdmin(roEnv, 'getProducts', 'ro-key-456', {})
+ok(roRead.code === 0, '只读密钥读商品列表放行（读权限不受影响）')
+
 // ---------- 未知 action ----------
 const unknown = await handleAdmin(env, 'noSuchAction', 'test-key-123', {})
 ok(unknown.code === -1, '未知 action 返回 -1')

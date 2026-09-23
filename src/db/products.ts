@@ -50,7 +50,8 @@ export async function getCategories(): Promise<Category[]> {
     }
     throw new Error(result.message || 'empty')
   } catch (e) {
-    console.warn('[db] getPublicCategories 云端失败，已回退本地缓存数据（可能过期）:', e instanceof Error ? e.message : String(e))
+    // 与 getProducts 同口径 warnOnce：弱网下分类/商品失败都会高频重试，直接 warn 会刷屏
+    warnOnce('categories', 'getPublicCategories 云端失败，已回退本地缓存数据（可能过期）', e)
     const persisted = readPersist<Category>('sm_catalog_categories')
     if (persisted) return persisted
     return getLocalCategories()

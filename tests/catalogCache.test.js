@@ -45,6 +45,23 @@ describe('catalogCache TTL 过期', () => {
   })
 })
 
+describe('读写拷贝隔离（2026-09-23 第三轮优化）', () => {
+  // 调用方原地 sort/push 不得污染 60s 内其他读取方；写侧传入后改动原数组不得反向污染
+  it('读出数组改动不污染缓存', () => {
+    cacheSet('publicProducts', [{ _id: 'p1' }, { _id: 'p2' }])
+    const got = cacheGet('publicProducts')
+    got.push({ _id: 'p3' })
+    expect(cacheGet('publicProducts')).toEqual([{ _id: 'p1' }, { _id: 'p2' }])
+  })
+
+  it('写入后改动原数组不污染缓存', () => {
+    const data = [{ _id: 'p1' }]
+    cacheSet('publicProducts', data)
+    data.push({ _id: 'p2' })
+    expect(cacheGet('publicProducts')).toEqual([{ _id: 'p1' }])
+  })
+})
+
 describe('clearCatalogCache', () => {
   // 这是管理端写商品后的失效钩子，回归会直接导致顾客端最长 60s 看到旧数据
   it('清空后全部 key 失效', () => {

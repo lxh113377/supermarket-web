@@ -8,7 +8,7 @@ import { IconCart, IconEmpty } from '../components/Icons'
 import useCart from '../hooks/useCart'
 import useProducts from '../hooks/useProducts'
 import { formatYuan } from '../utils/format'
-import { prefetchRoute } from '../routeLoaders'
+import { prefetchRoute } from '../prefetchBus'
 import type { Product } from '../types'
 
 interface FlyDotData {
