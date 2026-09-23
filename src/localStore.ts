@@ -76,14 +76,24 @@ export function getLocalProducts(): Product[] {
   // P1-4：区分「从未初始化」与「已初始化但为空」。
   // 旧写法用 list.length === 0 判定未初始化，导致管理端把商品删光后刷新又被重新 seed，
   // 表现为"删不掉"。只有键完全不存在时才播种；已存值（含空数组）一律照原样返回。
+  //
+  // 2026-09-23 第三轮优化：单次 getItem 直解（原先先 getItem 判空、readJSON 内又
+  // getItem 一次，每读两次同步 I/O；parseCache 命中时零 I/O 路径不变）。
   const raw = localStorage.getItem(PRODUCTS_KEY)
   if (raw === null) {
     const seeded = seedToLocal()
     writeJSON(PRODUCTS_KEY, seeded)
     return cloneArray(seeded)
   }
-  const list = readJSON<Product[] | null>(PRODUCTS_KEY, null)
-  return cloneArray(Array.isArray(list) ? list : [])
+  try {
+    const parsed = JSON.parse(raw) as Product[] | null
+    const list = Array.isArray(parsed) ? parsed : []
+    parseCache.set(PRODUCTS_KEY, list)
+    return cloneArray(list)
+  } catch {
+    parseCache.set(PRODUCTS_KEY, [])
+    return []
+  }
 }
 
 export function saveLocalProducts(list: Product[]): void {

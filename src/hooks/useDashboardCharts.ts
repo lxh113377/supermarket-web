@@ -37,6 +37,16 @@ export function useDashboardCharts(d: ChartData) {
     [],
   )
 
+  // 主题色一次读取：CSS 变量全站静态（index.css，无主题切换器，实测与 fallback 同值）；
+  // 原先每次 option 更新做 5 次 getComputedStyle（每次强制样式重算），数据/区间一切换就触发
+  const theme = useMemo(() => ({
+    b1: cssVar('--chart-b1', '#facc15'),
+    b2: cssVar('--chart-b2', '#14532d'),
+    b3: cssVar('--chart-b3', '#f97316'),
+    grid: cssVar('--chart-grid', '#f3f4f6'),
+    text: cssVar('--chart-text', '#9ca3af'),
+  }), [])
+
   // 图表实例生命周期（mount 一次）
   useEffect(() => {
     let cancelled = false
@@ -108,11 +118,7 @@ export function useDashboardCharts(d: ChartData) {
     ensure(reviewRef, 'review')
     ensure(pieRef, 'pie')
     ensure(topRef, 'top')
-    const b1 = cssVar('--chart-b1', '#facc15')
-    const b2 = cssVar('--chart-b2', '#14532d')
-    const b3 = cssVar('--chart-b3', '#f97316')
-    const grid = cssVar('--chart-grid', '#f3f4f6')
-    const text = cssVar('--chart-text', '#9ca3af')
+    const { b1, b2, b3, grid, text } = theme
     const noAnim = reducedMotion
 
     // 近 N 天 营收 ¥ / 订单数 双轴趋势

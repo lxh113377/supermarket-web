@@ -67,14 +67,16 @@ describe('ProductsTab 批量操作', () => {
     expect(batchUpdateProducts).not.toHaveBeenCalled()
   })
 
-  it('批量部分失败：alert 展示失败明细', async () => {
+  it('批量部分失败：内联反馈条展示失败明细（2026-09-23 第三轮优化：alert→notice，不再阻塞）', async () => {
     batchUpdateProducts.mockResolvedValue({ code: 0, data: { updated: 0, failed: [{ id: 'p1', message: '商品不存在' }], total: 1 } })
     render(<ProductsTab products={products} categories={categories} onDataChange={() => {}} />)
 
     fireEvent.click(screen.getAllByRole('checkbox')[0])
     fireEvent.click(screen.getByRole('button', { name: '上架' }))
 
-    await waitFor(() => expect(globalThis.alert).toHaveBeenCalled())
-    expect(globalThis.alert).toHaveBeenCalledWith('批量上架部分失败：1/1 未生效')
+    // 注：本仓无 @testing-library/jest-dom 依赖，toHaveTextContent 不可用，
+    // 用原生 textContent + Chai toContain 断言（全仓其他测试同口径）
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('批量上架部分失败：1/1 未生效'))
+    expect(globalThis.alert).not.toHaveBeenCalled()
   })
 })

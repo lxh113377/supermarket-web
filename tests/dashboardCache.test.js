@@ -57,6 +57,15 @@ describe('看板缓存', () => {
     expect(statsQueries(statements)).toBe(after1 * 2)
   })
 
+  it('写操作后 AI 建议缓存同步失效（2026-09-23 第三轮优化）', async () => {
+    const statements = []
+    const e = env(fakeDb({ statements }))
+    await e.RATE_KV.put('cache:ai:advice', '{}')
+    const w = await handleAdmin(e, 'deleteProduct', KEY, { productId: 'p1' }, null)
+    expect(w.code).toBe(0)
+    expect(e.RATE_KV.store.has('cache:ai:advice')).toBe(false) // 不再残留旧快照建议 60s
+  })
+
   it('invalidateDashboard 覆盖全部档位键', async () => {
     const kv = fakeKv()
     for (const d of [1, 7, 30, 365]) {

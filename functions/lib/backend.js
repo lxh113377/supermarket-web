@@ -23,13 +23,19 @@ import { getReviews, addReview, getAllReviews, deleteReview, seedReviews } from 
 import { createSubmission, getSubmissions, getSubmissionImages, updateSubmissionStatus, deleteSubmission } from './actions/submissions.js'
 import { adminAiAdvice, pubAiChat } from './actions/ai.js'
 import { getDashboardStats } from './actions/stats.js'
-import { kvCacheGetJSON, kvCacheSet, invalidatePublicCatalog, invalidateDashboard, DASHBOARD_CACHE_PREFIX } from './cache.js'
+import { kvCacheGetJSON, kvCacheSet, invalidatePublicCatalog, invalidateDashboard, invalidateAiAdvice, AI_ADVICE_CACHE_KEY, DASHBOARD_CACHE_PREFIX } from './cache.js'
 
-// 管理端写操作（审计日志覆盖范围）
+// 管理端写操作（审计日志覆盖范围 + 只读密钥拦截范围）。
+// ⚠️ 审计必须覆盖全部 DB 变更类 action：遗漏即意味着只读密钥可执行该写操作
+// （2026-09-23 第三轮优化补齐：batch*/createOrder/recalculateOrders/add*/seedReviews/createSubmission
+// 原先不在集合内，只读密钥可绕过批量改价与种子导入）。
 const ADMIN_WRITE_ACTIONS = new Set([
   'createProduct', 'updateProduct', 'deleteProduct',
+  'batchUpdateProducts', 'batchDeleteProducts',
+  'createOrder', 'recalculateOrders',
+  'addReview', 'addPublicReview', 'seedReviews',
   'deleteOrder', 'updateOrderStatus',
-  'deleteReview', 'updateSubmissionStatus', 'deleteSubmission',
+  'deleteReview', 'createSubmission', 'updateSubmissionStatus', 'deleteSubmission',
 ])
 
 // 会影响看板聚合结果的写操作（2026-09-18 R6）：成功后必须让看板缓存即时失效，
@@ -37,7 +43,7 @@ const ADMIN_WRITE_ACTIONS = new Set([
 const DASHBOARD_WRITE_ACTIONS = new Set([
   'createProduct', 'updateProduct', 'deleteProduct', 'batchUpdateProducts', 'batchDeleteProducts',
   'createOrder', 'deleteOrder', 'updateOrderStatus', 'recalculateOrders',
-  'addReview', 'deleteReview',
+  'addReview', 'addPublicReview', 'deleteReview', 'seedReviews',
   'createSubmission', 'updateSubmissionStatus', 'deleteSubmission',
 ])
 
@@ -119,10 +125,10 @@ export async function handleAdmin(env, action, adminKey, payload = {}, request =
       case 'deleteSubmission': result = await deleteSubmission(DB, payload); break
       case 'aiAdvice': {
         // M2：AI 建议 60s KV 缓存（近 30 天快照确定性高；命中免去全量订单/评价/商品查询与 Dify 调用）
-        const cached = await kvCacheGetJSON(env, 'cache:ai:advice')
+        const cached = await kvCacheGetJSON(env, AI_ADVICE_CACHE_KEY)
         if (cached) { result = cached; break }
         result = await adminAiAdvice(env, DB)
-        if (result.code === 0) await kvCacheSet(env, 'cache:ai:advice', result, 60)
+        if (result.code === 0) await kvCacheSet(env, AI_ADVICE_CACHE_KEY, result, 60)
         break
       }
       case 'getDashboardStats': {
@@ -146,9 +152,11 @@ export async function handleAdmin(env, action, adminKey, payload = {}, request =
   if (result.code === 0 && ['createProduct', 'updateProduct', 'deleteProduct', 'batchUpdateProducts', 'batchDeleteProducts'].includes(action)) {
     await invalidatePublicCatalog(env)
   }
-  // R6：看板缓存写失效（与目录缓存同处收口，保证"改完立刻看到"）
+  // R6：看板缓存写失效（与目录缓存同处收口，保证"改完立刻看到"）。
+  // AI 建议缓存同层失效：aiAdvice 基于全量订单/评价/商品快照，写操作后 60s 旧快照无意义。
   if (result.code === 0 && DASHBOARD_WRITE_ACTIONS.has(action)) {
     await invalidateDashboard(env)
+    await invalidateAiAdvice(env)
   }
   // 管理写操作 / 登录审计
   if (action === 'login' || ADMIN_WRITE_ACTIONS.has(action)) {
@@ -186,20 +194,20 @@ export async function handlePublic(env, action, payload = {}, request = null) {
         return result
       }
       case 'createOrder': {
-        // 顾客下单后看板必须立刻反映（R6 写失效）
+        // 顾客下单后看板必须立刻反映（R6 写失效）；AI 建议快照同步失效
         const r = await createOrder(DB, payload)
-        if (r.code === 0) await invalidateDashboard(env)
+        if (r.code === 0) { await invalidateDashboard(env); await invalidateAiAdvice(env) }
         return r
       }
       case 'getReviews': return await getReviews(DB, payload)
       case 'addPublicReview': {
         const r = await addReview(DB, payload)
-        if (r.code === 0) await invalidateDashboard(env)
+        if (r.code === 0) { await invalidateDashboard(env); await invalidateAiAdvice(env) }
         return r
       }
       case 'createSubmission': {
         const r = await createSubmission(DB, payload)
-        if (r.code === 0) await invalidateDashboard(env)
+        if (r.code === 0) { await invalidateDashboard(env); await invalidateAiAdvice(env) }
         return r
       }
       case 'aiChat': {

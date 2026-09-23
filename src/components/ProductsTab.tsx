@@ -107,13 +107,14 @@ export default function ProductsTab({ products, categories, onDataChange }: {
         : await batchUpdateProducts(ids.map(id => ({ productId: id, updates: { enabled: action === 'enable' } })))
       const failed = result && 'data' in result && Array.isArray(result.data?.failed) ? result.data.failed : []
       if (result && 'code' in result && result.code !== 0) {
-        alert(`批量${label}失败：` + (result.message || '未知错误'))
+        // 内联反馈条（与本文件其余失败路径一致；原生 alert 会阻塞主线程且打断批量心流）
+        showNotice('error', `批量${label}失败：` + (result.message || '未知错误'))
         return
       }
       setSelectedIds(new Set())
       onDataChange()
-      if (failed.length) alert(`批量${label}部分失败：${failed.length}/${count} 未生效`)
-    } catch (err) { alert(`批量${label}失败：` + (err instanceof Error ? err.message : '未知错误')) }
+      if (failed.length) showNotice('warn', `批量${label}部分失败：${failed.length}/${count} 未生效`)
+    } catch (err) { showNotice('error', `批量${label}失败：` + (err instanceof Error ? err.message : '未知错误')) }
   }
 
   const batchAdjustPrice = async () => {
@@ -125,9 +126,11 @@ export default function ProductsTab({ products, categories, onDataChange }: {
     const label = isPercent ? `调整为原价的 ${val}%` : `统一设为 ¥${formatPrice(val)}`
     if (!confirm(`${ids.length} 个商品${label}？`)) return
     try {
+      // id → 商品一次建索引：原先 ids.map 内 products.find 是 O(选中数×全量)，全选批量改价时浪费
+      const priceById = new Map(products.map(p => [p._id, p.price]))
       const items = ids.map(id => {
-        const p = products.find(x => x._id === id)
-        const newPrice = p ? (isPercent ? Math.round(p.price * val) / 100 : val) : val
+        const price = priceById.get(id)
+        const newPrice = price !== undefined ? (isPercent ? Math.round(price * val) / 100 : val) : val
         return { productId: id, updates: { price: Math.round(newPrice * 100) / 100 } }
       })
       const result = await batchUpdateProducts(items)

@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit && tsc -p tsconfig.backend.json",
     "test": "vitest run",
     "smoke": "node scripts/smoke-deploy.mjs",
+    "uptime": "node scripts/uptime-check.mjs",
     "verify:backend": "node scripts/verify-backend.mjs",
     "preview": "vite preview",
     "scan:secrets": "node scripts/scan-secrets.mjs",
