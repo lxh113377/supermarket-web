@@ -31,6 +31,12 @@ if (effective.length) {
   console.log('[覆盖透明化] 全部脚本均已被 npm script 引用或标注为运维手动')
 }
 
-const inVerify = new Set(['scan:secrets', 'lint', 'typecheck', 'test', 'verify:backend', 'verify'])
+// 从 verify 链里实解析，避免硬编码集合随门禁扩充而过期（曾导致 check:cycles/verify:contract 被误列为"未纳入"）
+const chain = pkg.scripts.verify || ''
+const verifyChain = [
+  ...[...chain.matchAll(/npm run ([A-Za-z0-9:_-]+)/g)].map((m) => m[1]),
+  ...[...chain.matchAll(/npm (test|start)(?![\w:-])/g)].map((m) => m[1]), // verify 链里写作 `npm test`
+]
+const inVerify = new Set(['verify', ...verifyChain])
 const outOfVerify = Object.keys(pkg.scripts).filter((k) => !inVerify.has(k))
 console.log(`[覆盖透明化] 未纳入 verify 的 npm 脚本：${outOfVerify.join('、')}（dev/preview 为本地命令；build 由 CI 单独执行；smoke 为部署后冒烟）`)
