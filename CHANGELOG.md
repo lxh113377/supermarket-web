@@ -5,10 +5,14 @@
 ## [未发布]
 
 ### 待办
-- **e2e 冒烟转阻断**：`tests/e2e/smoke.spec.ts`（4 条）与 CI `e2e` job 已就位，但本机 Chromium 下载过慢（195 MB，实测 10 分钟后仍 10%）未完成，
-  故未做本地验证 ⇒ CI 首轮以 `continue-on-error: true` 试跑，稳定后移除该行使其具备阻断力
 - **覆盖率阈值门禁：暂缓** —— 本机 `vitest run --coverage` 会触发 worker 崩溃（exit 3221226505，多个测试文件挂掉），
   已卸载 `@vitest/coverage-v8`。判定为环境相关问题，待换环境验证后再决定是否纳入门禁
+
+### 2026-09-24 追加
+- **e2e 冒烟转正式门禁**：4 条用例在 CI 实跑全绿（首页/搜索过滤/加购/后台），移除 `continue-on-error` 使 `e2e` job 具备阻断力
+- 期间修复：oxlint `no-console`（e2e 文件级豁免）、商城路由实为 `/#/shop`、演示模式商品 id 为 `p_{order}`、演示模式后台直接放行
+- 三个 workflow（ci/dispatch/uptime）全部固定 Actions 到提交 SHA 并加 `permissions: contents: read`
+- CI 状态查询通路：仓库为私有，未认证 API 404；可用本机 gh 凭据（凭据管理器 `git:https://github.com`）走 API 查询与触发 workflow_dispatch
 
 
 ## [0.1.0] - 2026-09-23
