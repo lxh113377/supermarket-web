@@ -7,6 +7,7 @@ import ProductGallery from '../components/product/ProductGallery'
 import ReviewList, { Stars } from '../components/product/ReviewList'
 import ReviewForm from '../components/product/ReviewForm'
 import EmptyState from '../components/EmptyState'
+import { Skeleton } from '../components/Skeleton'
 import { IconEmpty } from '../components/Icons'
 import { productImageUrl } from '../utils/images'
 import { formatYuan } from '../utils/format'
@@ -81,10 +82,26 @@ export default function ProductDetailPage() {
   }
 
   if (loading) {
+    // 加载态与列表页统一为骨架屏（原先是转圈 spinner，与 CustomerPage 的 SkeletonList 两种语言）
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-3" role="status" aria-live="polite">
-        <div className="w-8 h-8 border-[3px] border-brand-200 border-t-brand-500 rounded-full animate-spin" />
-        <span className="text-sm text-gray-400">加载中...</span>
+      <div className="flex flex-col h-full bg-surface" role="status" aria-live="polite" aria-label="内容加载中">
+        <div className="flex items-center px-4 py-3.5 bg-white/95 border-b border-gray-100">
+          <Skeleton className="w-9 h-9 rounded-full" />
+          <Skeleton className="h-4 w-32 rounded-md ml-3" />
+        </div>
+        <div className="flex-1 overflow-hidden">
+          <Skeleton className="w-full aspect-square rounded-none" />
+          <div className="bg-white mt-2.5 p-5 space-y-3">
+            <Skeleton className="h-5 w-2/3 rounded-md" />
+            <Skeleton className="h-4 w-1/4 rounded-md" />
+          </div>
+          <div className="bg-white mt-2.5 p-5 space-y-2.5">
+            <Skeleton className="h-4 w-1/3 rounded-md" />
+            <Skeleton className="h-3.5 w-full rounded-md" />
+            <Skeleton className="h-3.5 w-5/6 rounded-md" />
+          </div>
+        </div>
+        <span className="sr-only">内容加载中</span>
       </div>
     )
   }

@@ -30,7 +30,7 @@ function FlyDot({ x, y, tx, ty, onDone }: Omit<FlyDotData, 'id'> & { onDone: () 
     width: 20,
     height: 20,
     borderRadius: '50%',
-    background: '#eab308',
+    background: 'var(--brand-500)',
     zIndex: 60,
     pointerEvents: 'none' as const,
     transition: 'all 0.6s cubic-bezier(0.5,0,0,1)',
@@ -262,7 +262,7 @@ export default function CustomerPage() {
           />
         )}
         {/* 响应式：手机 1 列 → 平板 2 列 → 桌面 3 列（原实现桌面也只排 2 列） */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 enter-stagger">
           {filteredProducts.map(product => (
             <ProductCard
               key={product._id}

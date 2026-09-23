@@ -200,6 +200,17 @@ ok(roSeed.code === -1 && /只读/.test(roSeed.message || ''), '只读密钥种�
 const roRead = await handleAdmin(roEnv, 'getProducts', 'ro-key-456', {})
 ok(roRead.code === 0, '只读密钥读商品列表放行（读权限不受影响）')
 
+// ---------- 新修复：aiAdvice 独立限流（2026-09-23 P2 补齐）----------
+// 该 action 触发全量查询 + Dify 推理，原先无独立限流。RATE_AI_ADVICE = 60s / 10 次；
+// 第 11 次起应被拒。分桶 rate:aiadv:*，与公开 aiChat 的 rate:ai:* 互不影响。
+const aiFirst = await handleAdmin(env, 'aiAdvice', 'test-key-123', {})
+ok(aiFirst.code === 0 && aiFirst.data?.source === 'rule', `aiAdvice 正常返回（rule 兜底，source=${aiFirst.data?.source}）`)
+let aiLimited = null
+for (let i = 0; i < 12; i++) aiLimited = await handleAdmin(env, 'aiAdvice', 'test-key-123', {})
+ok(aiLimited !== null && aiLimited.code === -1 && /频繁/.test(aiLimited.message || ''), 'aiAdvice 超过 10 次/分钟被限流')
+const aiadvRow = db.prepare("SELECT COUNT(*) AS c FROM rate_limits WHERE bucket LIKE 'rate:aiadv:%'").get()
+ok(Number(aiadvRow.c) >= 1, `rate_limits 表有 aiAdvice 限流桶 (实际 ${aiadvRow.c})`)
+
 // ---------- 未知 action ----------
 const unknown = await handleAdmin(env, 'noSuchAction', 'test-key-123', {})
 ok(unknown.code === -1, '未知 action 返回 -1')
