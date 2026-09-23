@@ -29,6 +29,9 @@ export default defineConfig({
     // vitest 4 读取本字段；setup 统一注册 RTL cleanup（非 globals 模式不自动清理）
     environment: 'jsdom',
     setupFiles: ['./tests/setup.ts'],
+    // e2e（Playwright）用例由 `npm run test:e2e` 单独跑：它们需要真实浏览器与 dev server，
+    // 若被 vitest 收集会因缺少 browser fixture 而失败。
+    exclude: ['node_modules/**', 'dist/**', 'tests/e2e/**'],
   },
   resolve: {
     alias: {

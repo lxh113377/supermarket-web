@@ -62,6 +62,8 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN` 触发 `l
 
 push main 后 `deploy` job：部署 Cloudflare Pages → 线上冒烟（`_health` + 公开接口契约）→ **冒烟失败自动回滚上一生产部署**。另有 `dispatch.yml`（github.io 顾客端双发）与 `uptime.yml`（每日探活）。
 
+CI 另外两道卡口：**体积预算**（`scripts/check-bundle-size.mjs`，build 后按首屏 gzip 卡阈值：JS ≤90KB / CSS ≤11KB / 单 chunk ≤90KB）与 **e2e 冒烟**（`tests/e2e/`，Playwright 跑在 dev server 的本地演示模式，首轮试跑中）。
+
 本地等价门禁一条命令跑完：`npm run verify`（密钥扫描 → lint → 循环依赖 → typecheck → 测试 → 后端契约 → 未覆盖清单）。
 
 ## 环境变量（`.env`，仅前端构建用）
