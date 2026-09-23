@@ -27,7 +27,7 @@ jobs:
     steps:
       - name: Dispatch deploy event to github.io
         # 固定到提交 SHA（OpenSSF Pinned-Dependencies）：防止上游标签被移动导致供应链投毒
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           DISPATCH_TOKEN: ${{ secrets.GH_DISPATCH_TOKEN }}
         with:
