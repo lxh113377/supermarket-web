@@ -12,11 +12,17 @@ concurrency:
   group: ci-supermarket-web
   cancel-in-progress: true
 
+# 最小权限原则（OpenSSF Token-Permissions）：本 workflow 只读代码，
+# 部署用凭据一律走 secrets，不授予 GITHUB_TOKEN 任何写权限。
+permissions:
+  contents: read
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # 固定到提交 SHA（OpenSSF Pinned-Dependencies）：防止上游标签被移动导致供应链投毒
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - uses: actions/setup-node@v4
         with:
@@ -78,7 +84,7 @@ jobs:
       # M5 只下载 dist artifact 缺这两者 → 纯静态部署，POST 全 405、绑定全丢，且 smoke 失败无法自动回滚。
       # 故 deploy 前必须 checkout 源码（仅拉一次浅克隆，体积开销可忽略）。
       - name: Checkout source (functions/ + wrangler.toml required)
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       # M5：直接复用 build-and-test 的 dist（含构建期注入的 VITE_* env），无需重新 npm ci + build
       - name: Download dist artifact

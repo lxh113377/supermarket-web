@@ -4,6 +4,20 @@
 > 归档类型：增量（已实现的项移入归档）
 
 ## ✅ 已实现
+
+> ⚠️ 下方前 10 条为 **Cloudbase 旧架构**时期记录，架构已整体迁移到 Cloudflare Pages + Functions + D1 + KV（功能语义大多保留，实现位置已变）。新架构清单见本节末尾「**Cloudflare 架构（现行）**」。
+
+### Cloudflare 架构（现行）
+- [x] 顾客端 — 首页/分类/商城/详情/购物车/确认订单（房间号必填）/支付页（收款码，模拟）/下单成功/服务表单/AI 导购
+- [x] 管理后台 — 数据看板（echarts 按需）、商品内联编辑（禁弹窗）、订单管理、评价管理、服务表单流转
+- [x] 后端 — `/web` 29 action + `/pub` 7 action + `/_health`；服务端重算金额、字段白名单、图片 scheme 白名单
+- [x] 安全 — 严格 CSP、五安全响应头、限流四档（KV 优先/回退 D1）、常量时间密钥比较、安全事件审计（SHA-256 指纹）
+- [x] 权限分级 — `ADMIN_KEY` 全权限 + `ADMIN_READONLY_KEY` 只读（16 项 `ADMIN_WRITE_ACTIONS` 白名单拦截）
+- [x] 性能 — 11 路由全 lazy + 空闲预取、商品图双规格 WebP、目录缓存 60s + 写失效、SW 分级缓存
+- [x] 工程 — CI 六步门禁、部署后冒烟 + 失败自动回滚、每日探活、pre-commit 密钥扫描
+- [x] 社区标准文件（2026-09-23）— LICENSE(MIT) / SECURITY.md / CONTRIBUTING.md / CHANGELOG.md
+
+### 旧架构（Cloudbase）遗留记录
 - [x] 顾客购物链路 — 商品浏览/搜索/加购/下单/支付轮询，房间号+联系方式+备注+付款截图落库
 - [x] 订单服务端重算 — createOrder 服务端计价防篡改，items 冗余 subcategories（看板分类占比修复）
 - [x] 评价体系 — addPublicReview 公开提交（评分 1-5 钳制、昵称/文本截断、图片≤5张≤2MB、限流），云端优先+本地降级
