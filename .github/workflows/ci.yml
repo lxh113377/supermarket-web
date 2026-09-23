@@ -69,11 +69,9 @@ jobs:
           retention-days: 1
 
   # 端到端冒烟（对标 P0-A3）：跑在 dev server 的本地演示模式，不依赖后端与 D1。
-  # 首轮试跑：先 continue-on-error 观察真实运行结果（选择器/文案以 CI 实跑为准），
-  # 稳定后请移除 continue-on-error 使其具备阻断力。
+  # 2026-09-24 已在 CI 实跑通过（4 条用例），转为阻断性门禁；改页面结构/文案需同步更新 tests/e2e/。
   e2e:
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
