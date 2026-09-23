@@ -108,4 +108,5 @@ public/
 - 限流优先 Workers KV（跨实例），KV 异常优雅回退 D1
 - 双密钥角色：`ADMIN_KEY`（全权限）+ 可选 `ADMIN_READONLY_KEY`（只读）
 - 管理端商品编辑为内联编辑（InlineEditForm），禁弹窗/抽屉
+- 接口契约：`docs/api-contract.json` 记录 `/web` 29 + `/pub` 7 共 36 个 action 及其属性（是否写操作 / KV 缓存键 / 限流桶），由 `npm run gen:api-contract` 从源码生成，`npm run verify` 校验是否漂移
 - 评价晒图：压缩后 base64 入 D1（≤3 图 × ≤800KB，技术债，量大后建议迁 R2）

@@ -5,9 +5,9 @@
 ## [未发布]
 
 ### 待办
-- 端到端冒烟测试（浏览→加购→下单→查单→后台登录）接入 CI
-- 覆盖率阈值门禁、产物体积预算门禁
-- `/web` 29 + `/pub` 7 个 action 的接口契约外化（JSON Schema / OpenAPI）
+- 端到端冒烟测试（浏览→加购→下单→查单→后台登录）接入 CI —— 阻塞中：本机 npm 网络不通，装不了 Playwright
+- 覆盖率阈值门禁、产物体积预算门禁 —— 同上，待装 `@vitest/coverage-v8` / `size-limit`
+- 其余 GitHub Actions 固定到提交 SHA（已完成 `actions/checkout`，其余待核 SHA）
 
 ## [0.1.0] - 2026-09-23
 
@@ -15,6 +15,7 @@
 - 商品图内容修正：40 号错图（呀！土豆 → 好友趣）与 18 号参数表图换实物图（`ce51d77`）
 - `aiAdvice` 独立限流（60s/10 次，分桶 `rate:aiadv:{ip}`，位于鉴权之后）（`22b5e90`）
 - 社区标准文件：`LICENSE`（MIT）、`SECURITY.md`、`CONTRIBUTING.md`、`CHANGELOG.md`
+- 接口契约外化：`docs/api-contract.json`（`/web` 29 + `/pub` 7 = 36 个 action，含写操作/缓存键/限流桶属性）；`npm run gen:api-contract` 生成，`npm run verify:contract` 校验漂移（41 断言，已接入 `npm run verify`）
 - CI 加固：最小权限 `permissions: contents: read`；`actions/checkout` 固定到提交 SHA
 
 ### 修复
