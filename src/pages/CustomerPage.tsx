@@ -1,12 +1,14 @@
-import React, { useEffect, useMemo, useRef, useState, useDeferredValue, useCallback } from 'react'
+import React, { useCallback, useEffect, useDeferredValue, useMemo, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import TopNav from '../components/TopNav'
 import ProductCard from '../components/ProductCard'
+import FlyDot from '../components/shop/FlyDot'
 import EmptyState from '../components/EmptyState'
 import { SkeletonList } from '../components/Skeleton'
 import { IconCart, IconEmpty } from '../components/Icons'
 import useCart from '../hooks/useCart'
 import useProducts from '../hooks/useProducts'
+import { useShopFilters, SORT_OPTIONS } from '../hooks/useShopFilters'
 import { formatYuan } from '../utils/format'
 import { prefetchRoute } from '../prefetchBus'
 import type { Product } from '../types'
@@ -19,66 +21,37 @@ interface FlyDotData {
   ty: number
 }
 
-// ---- 加购飞行动画 ----
-function FlyDot({ x, y, tx, ty, onDone }: Omit<FlyDotData, 'id'> & { onDone: () => void }) {
-  const endX = tx - 10
-  const endY = ty - 10
-  const [style, setStyle] = useState<React.CSSProperties>({
-    position: 'fixed',
-    left: x,
-    top: y,
-    width: 20,
-    height: 20,
-    borderRadius: '50%',
-    background: 'var(--brand-500)',
-    zIndex: 60,
-    pointerEvents: 'none' as const,
-    transition: 'all 0.6s cubic-bezier(0.5,0,0,1)',
-    boxShadow: '0 2px 8px rgba(234,179,8,0.4)',
-  })
-
-  // onDone 通过 ref 持有，避免 effect 依赖不稳定的内联回调导致动画重复触发
-  const onDoneRef = useRef(onDone)
-  // 渲染提交后同步最新回调（react/refs 要求不在渲染期写 ref；timeout 读取时序不变）
-  useEffect(() => { onDoneRef.current = onDone })
-
-  useEffect(() => {
-    setStyle(s => ({ ...s, left: endX, top: endY, width: 6, height: 6, opacity: 0 }))
-    const t = setTimeout(() => onDoneRef.current(), 650)
-    return () => clearTimeout(t)
-  }, [endX, endY])
-
-  return <div style={style} />
-}
-
 export default function CustomerPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const { add, remove, totalCount, totalAmount, getQuantity } = useCart()
   const { categories, products, loading, error, refresh } = useProducts()
-  const [activeTop, setActiveTop] = useState('')
-  const [activeSub, setActiveSub] = useState('')
-  const [search, setSearch] = useState('')
+  const { category, subId, q, sort, selectCategory, selectSub, setQuery, setSortBy } =
+    useShopFilters(categories)
   const [toast, setToast] = useState('')
-  const [showSearch, setShowSearch] = useState(false)
+  const [showSearch, setShowSearch] = useState(() => q !== '')
   const [flyDots, setFlyDots] = useState<FlyDotData[]>([])
-  const [sortBy, setSortBy] = useState('default')
   const cartBtnRef = useRef<HTMLDivElement | null>(null)
 
-  const deferredSearch = useDeferredValue(search)
+  // 搜索框的值走本地草稿，不直接绑 URL 派生的 q：中文输入法在「每次按键都往返写
+  // URL」的受控输入下会丢字（组合输入未完成就被回写覆盖）。URL 仍是筛选的唯一真相，
+  // 草稿只是编辑缓冲；外部改地址（返回键 / 深链）时由下面的 effect 把缓冲对齐。
+  const [draftQ, setDraftQ] = useState(q)
+  useEffect(() => { setDraftQ(q) }, [q])
+
+  const deferredQ = useDeferredValue(q)
 
   // 当前顶级分类的子分类 ID 集合
   const currentTopSubIds = useMemo(() => {
-    const cat = categories.find(c => c._id === activeTop) || categories[0]
-    if (!cat) return new Set()
-    return new Set(cat.subcategories.map(s => s.id))
-  }, [categories, activeTop])
+    if (!category) return new Set<string>()
+    return new Set(category.subcategories.map(s => s.id))
+  }, [category])
 
   const filteredProducts = useMemo(() => {
     let list
-    if (activeSub) {
+    if (subId) {
       // 选了具体子分类：按子分类过滤
-      list = products.filter(p => p.subcategories?.includes(activeSub))
+      list = products.filter(p => p.subcategories?.includes(subId))
     } else {
       // "全部"：只显示当前顶级分类下的商品
       list = products.filter(p =>
@@ -86,27 +59,27 @@ export default function CustomerPage() {
       )
     }
 
-    if (deferredSearch) {
-      const q = deferredSearch.toLowerCase()
+    if (deferredQ) {
+      const needle = deferredQ.toLowerCase()
       list = list.filter(p =>
-        p.name.toLowerCase().includes(q) ||
-        (p.spec || '').toLowerCase().includes(q)
+        p.name.toLowerCase().includes(needle) ||
+        (p.spec || '').toLowerCase().includes(needle)
       )
     }
     // 排序
-    if (sortBy === 'price-asc') list = [...list].sort((a, b) => a.price - b.price)
-    else if (sortBy === 'price-desc') list = [...list].sort((a, b) => b.price - a.price)
+    if (sort === 'price-asc') list = [...list].sort((a, b) => a.price - b.price)
+    else if (sort === 'price-desc') list = [...list].sort((a, b) => b.price - a.price)
     return list
-  }, [products, activeSub, currentTopSubIds, deferredSearch, sortBy])
+  }, [products, subId, currentTopSubIds, deferredQ, sort])
 
   // 搜索建议
   const suggestions = useMemo(() => {
-    if (!search || search.length < 1) return []
-    const q = search.toLowerCase()
+    if (!draftQ || draftQ.length < 1) return []
+    const needle = draftQ.toLowerCase()
     return products.filter(p =>
-      p.name.toLowerCase().includes(q) || (p.spec || '').toLowerCase().includes(q)
+      p.name.toLowerCase().includes(needle) || (p.spec || '').toLowerCase().includes(needle)
     ).slice(0, 5)
-  }, [products, search])
+  }, [products, draftQ])
 
   // toast 定时器需可清理：原实现每次 showToast 直接 setTimeout 且无人回收，
   // 组件卸载（如点返回）后仍会执行 setState，产生「已卸载组件更新」告警。
@@ -142,16 +115,27 @@ export default function CustomerPage() {
     }
   }, [add, showToast])
 
+  // 减数量也要播报：原先每张商品卡自带一个 aria-live 报数字，55 张卡就是 55 个
+  // live region，加一次购读屏会连播一屏。现统一收敛到页面级这一条 toast。
   const handleRemove = useCallback((product: Product) => {
     remove(product._id)
-  }, [remove])
+    showToast('已减少 ' + product.name)
+  }, [remove, showToast])
 
   const removeDot = (id: number) => setFlyDots(prev => prev.filter(d => d.id !== id))
 
   if (loading) {
     return (
       <div className="flex flex-col h-full bg-surface">
-        <TopNav categories={[]} activeSub="" onSubChange={() => {}} onSearchToggle={() => {}} showSearch={false} />
+        <TopNav
+          categories={[]}
+          activeTop=""
+          activeSub=""
+          onTopChange={() => {}}
+          onSubChange={() => {}}
+          onSearchToggle={() => {}}
+          showSearch={false}
+        />
         <div className="flex-1 overflow-y-auto p-4 pb-24">
           <SkeletonList rows={6} />
         </div>
@@ -176,7 +160,9 @@ export default function CustomerPage() {
 
   return (
     <div className="flex flex-col h-full bg-surface">
-      {/* 返回栏 */}
+      {/* 返回栏：标题取 URL 命中的真实分类，不再依赖 location.state.title
+          （CategoryPage 从来没传过这个字段，导致从「生活›超市」进来恒显「全部商品」，
+          而下方导航高亮的是「饮品」——两处说法打架）。 */}
       <div className="flex items-center px-4 py-2.5 bg-white/95 backdrop-blur-sm border-b border-gray-100">
         <button
           onClick={() => (location.state?.fromCategory ? navigate(-1) : navigate('/'))}
@@ -186,14 +172,15 @@ export default function CustomerPage() {
           ←
         </button>
         <span className="ml-2 text-sm font-semibold text-gray-800">
-          {location.state?.title || categories.find((c) => c._id === activeTop)?.name || '全部商品'}
+          {category?.name || '全部商品'}
         </span>
       </div>
       <TopNav
         categories={categories}
-        activeSub={activeSub}
-        onSubChange={setActiveSub}
-        onTopChange={setActiveTop}
+        activeTop={category?._id ?? ''}
+        activeSub={subId}
+        onTopChange={selectCategory}
+        onSubChange={selectSub}
         onSearchToggle={() => setShowSearch(!showSearch)}
         showSearch={showSearch}
       />
@@ -206,8 +193,8 @@ export default function CustomerPage() {
             className="input-base"
             placeholder="搜索商品名称…"
             aria-label="搜索商品名称"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={draftQ}
+            onChange={(e) => { setDraftQ(e.target.value); setQuery(e.target.value) }}
             autoFocus
           />
           {suggestions.length > 0 && (
@@ -215,7 +202,7 @@ export default function CustomerPage() {
               {suggestions.map(p => (
                 <button
                   key={p._id}
-                  onClick={() => { setSearch(p.name); setShowSearch(false) }}
+                  onClick={() => { setDraftQ(p.name); setQuery(p.name); setShowSearch(false) }}
                   className="w-full text-left px-4 py-3 text-sm hover:bg-brand-50/50 flex justify-between items-center transition-colors duration-150 border-b border-gray-50 last:border-0"
                 >
                   <span className="text-gray-700">{p.name}{p.spec ? ` (${p.spec})` : ''}</span>
@@ -230,16 +217,12 @@ export default function CustomerPage() {
       {/* 排序：选中态原先只靠 pill-active 类着色表达，读屏与键盘用户拿不到「当前按什么排」，
           故补 role=group + aria-pressed；排序确实改变了下方列表顺序，文案与行为一致。 */}
       <div className="px-4 pb-2.5 flex gap-2" role="group" aria-label="商品排序方式">
-        {[
-          { key: 'default', label: '默认' },
-          { key: 'price-asc', label: '价格↑' },
-          { key: 'price-desc', label: '价格↓' },
-        ].map(s => (
+        {SORT_OPTIONS.map(s => (
           <button
             key={s.key}
             onClick={() => setSortBy(s.key)}
-            aria-pressed={sortBy === s.key}
-            className={sortBy === s.key ? 'pill-active' : 'pill-inactive'}
+            aria-pressed={sort === s.key}
+            className={sort === s.key ? 'pill-active' : 'pill-inactive'}
           >
             {s.label}
           </button>
@@ -250,12 +233,12 @@ export default function CustomerPage() {
           作为 aria-live 区域播报，避免视力正常用户也要靠数卡片才知道筛完了 */}
       <p className="px-4 pb-2 text-xs text-gray-500" role="status" aria-live="polite">
         共 {filteredProducts.length} 件
-        {deferredSearch && <> · 匹配「{deferredSearch}」</>}
-        {sortBy !== 'default' && <> · 按{sortBy === 'price-asc' ? '价格升序' : '价格降序'}</>}
+        {deferredQ && <> · 匹配「{deferredQ}」</>}
+        {sort !== 'default' && <> · 按{sort === 'price-asc' ? '价格升序' : '价格降序'}</>}
       </p>
 
       <div className="flex-1 overflow-y-auto p-4 pb-32">
-        {filteredProducts.length === 0 && !deferredSearch && (
+        {filteredProducts.length === 0 && !deferredQ && (
           <EmptyState
             className="mt-10"
             icon={<IconCart className="w-6 h-6" />}
@@ -263,11 +246,11 @@ export default function CustomerPage() {
             description="换个分类看看，或稍后再来"
           />
         )}
-        {filteredProducts.length === 0 && deferredSearch && (
+        {filteredProducts.length === 0 && deferredQ && (
           <EmptyState
             className="mt-10"
             icon={<IconEmpty className="w-6 h-6" />}
-            title={`未找到「${deferredSearch}」相关商品`}
+            title={`未找到「${deferredQ}」相关商品`}
             description="试试更短的关键词，或换个说法"
           />
         )}
