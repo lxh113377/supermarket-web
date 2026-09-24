@@ -95,6 +95,11 @@
           "cacheKey": null,
           "rateBucket": null
         },
+        "getOrderStatus": {
+          "write": false,
+          "cacheKey": null,
+          "rateBucket": null
+        },
         "addPublicReview": {
           "write": true,
           "cacheKey": null,
@@ -175,6 +180,11 @@
           "cacheKey": null,
           "rateBucket": null
         },
+        "getOrderStatus": {
+          "write": false,
+          "cacheKey": null,
+          "rateBucket": null
+        },
         "addPublicReview": {
           "write": true,
           "cacheKey": null,
@@ -219,7 +229,8 @@
       "addPublicReview",
       "getPublicProducts",
       "getPublicCategories",
-      "aiChat"
+      "aiChat",
+      "getOrderStatus"
     ],
     "publicRateLimitedWrite": [
       "createOrder",

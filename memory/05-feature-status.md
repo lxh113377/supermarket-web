@@ -10,7 +10,9 @@
 ### Cloudflare 架构（现行）
 - [x] 顾客端 — 首页/分类/商城/详情/购物车/确认订单（房间号必填）/支付页（收款码，模拟）/下单成功/服务表单/AI 导购
 - [x] 管理后台 — 数据看板（echarts 按需）、商品内联编辑（禁弹窗）、订单管理、评价管理、服务表单流转
-- [x] 后端 — `/web` 29 action + `/pub` 7 action + `/_health`；服务端重算金额、字段白名单、图片 scheme 白名单
+- [x] 后端 — `/web` 30 action + `/pub` 8 action + `/_health`；服务端重算金额、字段白名单、图片 scheme 白名单
+- [x] 履约闭环（2026-09-24 对标轮）— 订单 5 态状态机（pending→paid→delivering→completed，旁路 cancelled；服务端 ORDER_TRANSITIONS 强制，status TEXT 零迁移）；顾客侧 `/pub getOrderStatus` 进度轮询（修复旧轮询误用 adminCall 必然鉴权失败的缺陷）；前后端迁移表 parity 测试锁定
+- [x] e2e — 7 用例（下单链路/空表单防误/管理端流转/冒烟4）；vite.config.e2e.js 空 envDir 隔离本机 .env
 - [x] 安全 — 严格 CSP、五安全响应头、限流四档（KV 优先/回退 D1）、常量时间密钥比较、安全事件审计（SHA-256 指纹）
 - [x] 权限分级 — `ADMIN_KEY` 全权限 + `ADMIN_READONLY_KEY` 只读（16 项 `ADMIN_WRITE_ACTIONS` 白名单拦截）
 - [x] 性能 — 11 路由全 lazy + 空闲预取、商品图双规格 WebP、目录缓存 60s + 写失效、SW 分级缓存

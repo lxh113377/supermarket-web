@@ -37,3 +37,5 @@ cloudbaserc.json
 *.njsproj
 *.sln
 *.sw?
+coverage/
+test-results/

@@ -42,6 +42,21 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
   }
 }
 
+// 顾客侧订单进度（/pub getOrderStatus，免密钥；本地模式读 localStorage）
+export async function getOrderStatus(orderId: string): Promise<{ status: string; updatedAt?: string } | null> {
+  if (!IS_CLOUD) {
+    const o = getLocalOrders().find((x) => x._id === orderId)
+    return o ? { status: o.status, updatedAt: o.updatedAt ? String(o.updatedAt) : undefined } : null
+  }
+  try {
+    const r = await publicCall<{ status: string; updatedAt?: string }>('getOrderStatus', { orderId })
+    return r.code === 0 && r.data ? r.data : null
+  } catch (e) {
+    console.warn('[db] getOrderStatus failed:', e instanceof Error ? e.message : String(e))
+    return null
+  }
+}
+
 // 查询全量订单（管理端看板/列表；后端 getOrders 默认 pageSize=50，直接取 data 会截断，
 // 这里按 hasMore 循环拉全量，避免看板聚合/搜索/翻页只覆盖最新 N 单。maxPages 防异常死循环）
 // H1-1 增量模式：since 为上次同步游标（ISO）时只拉 updatedAt 更大的订单（新建+状态变更），

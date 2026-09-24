@@ -12,6 +12,7 @@ import { getCart, saveCart } from '../src/cart'
 const mocks = vi.hoisted(() => ({
   createOrder: vi.fn(),
   getOrderById: vi.fn(),
+  getOrderStatus: vi.fn(),
   getProducts: vi.fn(),
   navigate: vi.fn(),
 }))
@@ -19,6 +20,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../src/db', () => ({
   createOrder: mocks.createOrder,
   getOrderById: mocks.getOrderById,
+  getOrderStatus: mocks.getOrderStatus,
   getProducts: mocks.getProducts,
 }))
 
@@ -127,17 +129,28 @@ describe('下单主链路（加购 → 确认 → 支付）', () => {
     expect(screen.queryByRole('button', { name: '我已付款' })).toBeNull()
   })
 
-  it('PaymentPage：轮询到订单 paid 显示付款已确认', async () => {
-    mocks.getOrderById.mockResolvedValue({ status: 'paid' })
+  it('PaymentPage：轮询到订单 paid 显示付款已确认（/pub getOrderStatus，顾客免密钥）', async () => {
+    mocks.getOrderStatus.mockResolvedValue({ status: 'paid', updatedAt: '2026-09-24T00:00:00Z' })
     vi.useFakeTimers()
     render(<PaymentPage />)
     // 先选支付方式（paid 确认界面仅在 method 选定后渲染）
     fireEvent.click(screen.getByRole('button', { name: '微信支付' }))
-    // advanceTimersByTimeAsync 会执行 timer 回调并 flush 其 async 续体（getOrderById → setPaid）
+    // advanceTimersByTimeAsync 会执行 timer 回调并 flush 其 async 续体（getOrderStatus → setState）
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5000)
     })
     expect(screen.getByText('付款已确认')).toBeTruthy()
-    expect(mocks.getOrderById).toHaveBeenCalledWith('o1')
+    expect(mocks.getOrderStatus).toHaveBeenCalledWith('o1')
+  })
+
+  it('PaymentPage：订单进入配送中显示「订单进度：配送中」', async () => {
+    mocks.getOrderStatus.mockResolvedValue({ status: 'delivering', updatedAt: '2026-09-24T00:00:00Z' })
+    vi.useFakeTimers()
+    render(<PaymentPage />)
+    fireEvent.click(screen.getByRole('button', { name: '微信支付' }))
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+    expect(screen.getByText('付款已确认')).toBeTruthy()
+    expect(screen.getByText('订单进度：配送中')).toBeTruthy()
+    vi.useRealTimers()
   })
 })

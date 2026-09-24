@@ -3,10 +3,10 @@
 面向宿舍/小区场景的在线超市购物系统。顾客端浏览商品、加购下单、扫码支付；管理后台管理商品、订单、评价与服务表单。
 
 ![CI](https://github.com/lxh113377/supermarket-web/actions/workflows/ci.yml/badge.svg)
-![tests](https://img.shields.io/badge/tests-168%20passed-brightgreen)
+![tests](https://img.shields.io/badge/tests-176%20passed-brightgreen)
 ![license](https://img.shields.io/badge/license-MIT-blue)
 
-**文档**：[贡献指南](CONTRIBUTING.md) · [安全策略](SECURITY.md) · [更新日志](CHANGELOG.md)
+**文档**：[架构文档](docs/ARCHITECTURE.md) · [贡献指南](CONTRIBUTING.md) · [安全策略](SECURITY.md) · [更新日志](CHANGELOG.md)
 
 ## 功能一览
 
@@ -14,7 +14,8 @@
 |---|---|
 | 顾客端 | 首页 / 分类 / 商城 / 商品详情 / 购物车 / 确认订单 / 支付页 / 下单成功 / 服务表单 / AI 导购 |
 | 管理后台 | 数据看板（echarts）/ 商品管理（内联编辑）/ 订单管理 / 评价管理 / 服务表单处理 |
-| 后端 | `/web` 管理 29 action、`/pub` 公开 7 action、`/_health` 探活；D1 + KV；限流 / 审计 / 双密钥角色 |
+| 后端 | `/web` 管理 30 action、`/pub` 公开 8 action、`/_health` 探活；D1 + KV；限流 / 审计 / 双密钥角色 |
+| 履约 | 订单 5 态状态机（待支付→已支付→配送中→已送达，旁路已取消）；顾客侧 `/pub getOrderStatus` 进度轮询 |
 | PWA | 可安装（含微信与 iOS 手动引导）、Service Worker 缓存静态资源 |
 
 - **前端**：React 19 + Vite 8 + TypeScript + Tailwind CSS 3 + react-router 7（HashRouter）

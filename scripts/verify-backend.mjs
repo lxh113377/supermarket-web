@@ -94,6 +94,32 @@ ok(getOrder.code === 0 && Array.isArray(getOrder.data.items) && getOrder.data.it
 const orders = await handleAdmin(env, 'getOrders', 'test-key-123', { page: 1, pageSize: 50 })
 ok(orders.code === 0 && orders.data.some((o) => o._id === order.data.id), 'getOrders 包含刚下的单')
 
+// ---------- 订单履约状态机 + 顾客侧进度（2026-09-24 对标补齐）----------
+// 独立建单，避免干扰既有断言对该单状态的潜在依赖
+const lifeOrder = await handlePublic(env, 'createOrder', { roomNumber: '306', items: [{ productId: 'p001', quantity: 1 }] })
+const lid = lifeOrder.data?.id
+ok(!!lid, '状态机测试单创建成功')
+const sBogus = await handleAdmin(env, 'updateOrderStatus', 'test-key-123', { orderId: lid, status: 'bogus' })
+ok(sBogus.code === -1 && /参数无效/.test(sBogus.message || ''), '非法状态值被拒（参数无效）')
+const sSkip = await handleAdmin(env, 'updateOrderStatus', 'test-key-123', { orderId: lid, status: 'delivering' })
+ok(sSkip.code === -1 && /不允许/.test(sSkip.message || ''), '跨态迁移被拒（pending→delivering）')
+const sPaid = await handleAdmin(env, 'updateOrderStatus', 'test-key-123', { orderId: lid, status: 'paid' })
+ok(sPaid.code === 0, '合法迁移：pending→paid')
+const sSkip2 = await handleAdmin(env, 'updateOrderStatus', 'test-key-123', { orderId: lid, status: 'completed' })
+ok(sSkip2.code === -1, '跨态迁移被拒（paid→completed）')
+ok((await handleAdmin(env, 'updateOrderStatus', 'test-key-123', { orderId: lid, status: 'delivering' })).code === 0, '合法迁移：paid→delivering')
+ok((await handleAdmin(env, 'updateOrderStatus', 'test-key-123', { orderId: lid, status: 'completed' })).code === 0, '合法迁移：delivering→completed')
+const sBack = await handleAdmin(env, 'updateOrderStatus', 'test-key-123', { orderId: lid, status: 'paid' })
+ok(sBack.code === -1 && /不允许/.test(sBack.message || ''), '终态不可回退（completed→paid 被拒）')
+const stPub = await handlePublic(env, 'getOrderStatus', { orderId: lid })
+ok(stPub.code === 0 && stPub.data?.status === 'completed' && stPub.data?.orderId === lid, '顾客侧 /pub getOrderStatus 返回 completed')
+const stNoKey = await handlePublic(env, 'getOrderStatus', {})
+ok(stNoKey.code === -1, 'getOrderStatus 缺订单号被拒')
+const stMiss = await handlePublic(env, 'getOrderStatus', { orderId: 'o_not_exist' })
+ok(stMiss.code === -1 && /不存在/.test(stMiss.message || ''), 'getOrderStatus 订单不存在被拒')
+const stAdmin = await handleAdmin(env, 'getOrderStatus', '', { orderId: lid })
+ok(stAdmin.code === 0 && stAdmin.data?.status === 'completed', '/web 回退路径 getOrderStatus 免密钥可用（PUBLIC_ACTIONS）')
+
 // ---------- 种子评价（需在写评价前，验证幂等）----------
 const seed = await handleAdmin(env, 'seedReviews', 'test-key-123', {})
 ok(seed.code === 0 && seed.data.added === 20, `seedReviews 写入 20 条 (实际 ${seed.data?.added})`)

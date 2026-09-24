@@ -5,9 +5,11 @@ import {
   upsertLocalProducts,
   deleteLocalProduct,
   deleteLocalProducts,
+  getLocalOrders,
   updateLocalOrderStatus,
   deleteLocalOrder,
 } from './localStore'
+import { canTransitionOrder } from './utils/orderStatus'
 import type { Order } from './types'
 import { adminCall, publicCall, loginAdmin, verifyAdminKey } from './api/client'
 import {
@@ -94,6 +96,10 @@ export async function batchDeleteProducts(productIds: string[]): Promise<{ code:
 
 export async function updateOrderStatus(orderId: string, status: string): Promise<{ code: number; message?: string; data?: unknown } | { ok: true }> {
   if (!IS_CLOUD) {
+    // 本地演示模式与云端同规则强制状态机（迁移表单源见 src/utils/orderStatus.ts）
+    const cur = getLocalOrders().find((o) => o._id === orderId)
+    if (cur && !canTransitionOrder(cur.status, status))
+      return { code: -1, message: `不允许的状态流转: ${cur.status} → ${status}` }
     updateLocalOrderStatus(orderId, status as Order['status'])
     return { ok: true }
   }

@@ -9,6 +9,14 @@
 > 外层 `超市web/超市/memory/`（工作区）。两者内容**不同**（07 主卷 SHA256 不一致），
 > 属历史遗留的双份结构，尚未合并。**本轮的权威记录在外层**：`deliverables/前端深度优化方案-2026-09-23.md` §6。
 
+## 2026-09-24 — GitHub 开源对标轮（履约闭环 + 门禁加深）
+
+- 对标报告与改进清单：外层 `deliverables/GitHub开源项目对标分析报告-2026-09-24.md`（对标 litemall/Medusa/Saleor/Vercel Commerce，七维 + P0/P1/P2）。
+- **已落地（本轮）**：① 订单 5 态状态机（服务端 `ORDER_TRANSITIONS` 强制，TEXT 列零迁移）+ 管理端合法迁移下拉；② 顾客侧 `/pub getOrderStatus` + 支付页进度（**顺带修复**：旧轮询误用 `adminCall('getOrder')`，顾客端无密钥必然失败）；③ e2e 4→7 用例 + `vite.config.e2e.js` 空 envDir 修复"本机 e2e 必挂"（本机 .env 致云端模式）；④ CI 新增 `check:cycles`/`verify:contract` 阻断步 + v8 覆盖率 artifact（本机覆盖率可用，CHANGELOG 旧"worker 崩溃"待办作废）；⑤ `docs/ARCHITECTURE.md` + README 架构入口。
+- 门禁终态：lint 0/0 ｜ tsc 0 错 ｜ vitest **176/176**（28 文件）｜ verify:backend **66/66** ｜ 契约 /web 30 + /pub 8（43 断言）｜ e2e 7/7 ｜ build+体积 3/3。
+- **P0（本轮唯一可执行下一步）**：推送 main 触发 CI 双端发布后，按 `chaoshi-web-deploy` skill 清单做线上验证——重点：`curl -sX POST https://supermarket-web.pages.dev/pub -d '{"action":"getOrderStatus","payload":{"orderId":"<真实单号>"}}'` 返回 `{code:0,data:{status}}`；旧 3 态订单不受影响。
+- **P1 待办（对标报告 P2 列，各需前置条件）**：C1 库存（需生产 D1 `ALTER TABLE products ADD COLUMN stock INTEGER DEFAULT -1` + 扣减链路，单独部署窗口）；C2 R2 直传；C5 D1 定时备份。
+
 ## 2026-09-23 — 第三轮全栈优化（接口+缓存优先 / 11 项，已提交 + 双端上线）
 
 > 来源会话：opencode `ses_f3405631`（09:56–10:19，产出改动但**未提交**）；本轮由 CodeBuddy 会话复核、修正瑕疵、提交并部署。

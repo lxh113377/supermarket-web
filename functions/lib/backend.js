@@ -18,7 +18,7 @@ import { checkRate, checkRateKV, getClientIp, sha256Fingerprint, logSecurityEven
   RATE_LOGIN, RATE_PUBLIC_WRITE, RATE_AI, RATE_AI_ADVICE } from './security.js'
 import { getPublicProducts, getPublicCategories, getProducts, createProduct, updateProduct,
   deleteProduct, batchUpdateProducts, batchDeleteProducts } from './actions/products.js'
-import { createOrder, deleteOrder, updateOrderStatus, recalculateOrders, getOrders, getOrderById } from './actions/orders.js'
+import { createOrder, deleteOrder, updateOrderStatus, recalculateOrders, getOrders, getOrderById, getOrderStatus } from './actions/orders.js'
 import { getReviews, addReview, getAllReviews, deleteReview, seedReviews } from './actions/reviews.js'
 import { createSubmission, getSubmissions, getSubmissionImages, updateSubmissionStatus, deleteSubmission } from './actions/submissions.js'
 import { adminAiAdvice, pubAiChat } from './actions/ai.js'
@@ -117,6 +117,8 @@ export async function handleAdmin(env, action, adminKey, payload = {}, request =
       }
       case 'getAllReviews': result = await getAllReviews(DB); break
       case 'getReviews': result = await getReviews(DB, payload); break
+      // 与 getPublicProducts/getReviews 同构：PUBLIC_ACTIONS 免鉴权，/web 回退路径也可用（client.ts 无 /pub 配置时）
+      case 'getOrderStatus': result = await getOrderStatus(DB, payload.orderId); break
       case 'addPublicReview': result = await addReview(DB, payload); break
       case 'addReview': {
         result = await addReview(DB, payload)
@@ -207,6 +209,7 @@ export async function handlePublic(env, action, payload = {}, request = null) {
         return r
       }
       case 'getReviews': return await getReviews(DB, payload)
+      case 'getOrderStatus': return await getOrderStatus(DB, payload.orderId)
       case 'addPublicReview': {
         const r = await addReview(DB, payload)
         if (r.code === 0) { await invalidateDashboard(env); await invalidateAiAdvice(env) }

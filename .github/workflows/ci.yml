@@ -38,11 +38,28 @@ jobs:
       - name: Lint (oxlint)
         run: npm run lint
 
-      - name: Test (vitest)
-        run: npm test
+      - name: Test (vitest, with v8 coverage)
+        # 一次跑测兼产出覆盖率（避免全量套件跑两遍）；失败仍然阻断
+        run: npx vitest run --coverage
 
       - name: Typecheck
         run: npm run typecheck
+
+      # 对标 P1-B2（2026-09-24）：本地 verify 链的 check:cycles / verify:contract 此前只在
+      # npm run verify 手动跑，CI 不拦 → 循环依赖或契约文档漂移可以静默进 main。
+      - name: Import cycle check
+        run: npm run check:cycles
+
+      - name: API contract drift check
+        run: npm run verify:contract
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 7
 
       - name: Build
         # 坑27 防线（2026-09-05）：dist 由 deploy job 复用，此处必须烘焙线上端点，
