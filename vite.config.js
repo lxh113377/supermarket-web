@@ -45,13 +45,14 @@ export default defineConfig({
       include: ['src/**'],
       exclude: ['src/**/*.d.ts', 'src/**/index*'],
       thresholds: {
-        // 棘轮历史（statements）19.5 → 23 → 35 → 47 → 57（六轮：图表 option 抽纯函数 + 
-        // DashboardTab/ProductRow/db.reviews/确认支付剩余分支）。只允许上升：让覆盖率下滑的
-        // 改动必须显式改这里，逼出一次评审。
-        statements: 57,
-        branches: 53,
-        functions: 50,
-        lines: 59,
+        // 棘轮历史（statements）19.5 → 23 → 35 → 47 → 57 → 74（七轮：H1 管理端两 Tab +
+        // H2 详情页/评价链/图集/遮罩/登录闸/预取总线）。branches 两次采样 68.71/68.76（差 1 条，
+        // 来自 5s 轮询的时序分支），故阈值取 68 留 0.7pt 余量；其余三项双跑完全一致。
+        // 只允许上升：让覆盖率下滑的改动必须显式改这里，逼出一次评审。
+        statements: 74,
+        branches: 68,
+        functions: 69,
+        lines: 76,
       },
     },
   },
