@@ -133,7 +133,28 @@ export default function ProductDetailPage() {
         if (cancelled) return
         setCatalog(products)
         setCategories(cats)
-        setProduct(products.find((p) => p._id === id || String(p.order) === id) || null)
+        /**
+         * 三级寻址，顺序不能换：
+         *   ① `_id` 精确相等 —— 同环境内的正常链接（商城卡片、相关推荐都这么生成）；
+         *   ② `order` 十进制字符串 —— 可移植形式 `/product/16`；
+         *   ③ 把参数里的非数字全部剥掉再按 order 比 —— 兜住跨环境粘贴的链接。
+         * 为什么要第 ③ 级：`_id` 命名按数据来源不同而不同（本地模式 `p_<order>`、
+         * D1 种子 `p001` 三位补零、管理端新建 `p_<36时间戳><随机>`），
+         * 于是从本地复制出来的 `/product/p_16` 在线上必然 404。先精确后归一，
+         * 保证归一只在"这个环境里根本没有这个 _id"时才生效，不会把管理端生成的
+         * 先精确后归一，保证归一只在"这个环境里根本没有这个 _id"时才生效。
+         * 归一必须**只认形如 order 的 id**（`p16` / `p_16` / `p-16` / `p016` / 零填充裸数字）：
+         * 管理端新建的商品 `_id` 是 `p_<36时间戳><随机>`，若一律剥非数字，
+         * `p_mufyndudcyu1ji` 会缩成 "1" 并**静默命中 order 1 的另一个商品** ——
+         * 那比干净地报「商品不存在」糟糕得多。
+         */
+        const m = id == null ? null : /^(?:p[_-]?)?0*(\d{1,4})$/i.exec(String(id))
+        const byDigits = m ? Number(m[1]) : NaN
+        setProduct(
+          products.find((p) => p._id === id || String(p.order) === id)
+            ?? (Number.isFinite(byDigits) ? products.find((p) => Number(p.order) === byDigits) : null)
+            ?? null,
+        )
       } catch {
         if (!cancelled) {
           setCatalog([])
