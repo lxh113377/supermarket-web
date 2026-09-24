@@ -29,9 +29,10 @@
     "migrate": "node scripts/migrate.mjs",
     "audit:deps": "npm audit --registry=https://registry.npmjs.org --audit-level=high",
     "maintain:purge-events": "node scripts/purge-security-events.mjs",
-    "verify": "npm run scan:secrets && npm run lint && npm run check:cycles && npm run verify:contract && npm run verify:schema && npm run verify:licenses && npm run typecheck && npm test && npm run verify:backend && node scripts/list-uncovered.mjs",
+    "verify": "npm run scan:secrets && npm run lint && npm run check:cycles && npm run verify:contract && npm run verify:schema && npm run verify:licenses && npm run verify:changelog && npm run typecheck && npm test && npm run verify:backend && node scripts/list-uncovered.mjs",
     "test:coverage": "vitest run --coverage",
-    "verify:licenses": "node scripts/check-licenses.mjs"
+    "verify:licenses": "node scripts/check-licenses.mjs",
+    "verify:changelog": "node scripts/check-changelog.mjs"
   },
   "dependencies": {
     "echarts": "^5.6.0",

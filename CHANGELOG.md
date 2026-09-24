@@ -8,6 +8,7 @@
 - **E1/E2** 新增 3 个测试文件 15 用例（228/228，37 文件）：`adminPage.test.tsx`（tablist 键盘流转、订单增量首拉、商品错误横幅禁静默回退、云端空态种子、本地徽标）、`customerPage.test.tsx`（真实 useProducts/useCart：加载/排序/搜索空态/加购 toast+浮球/错误重试）、`inlineEditForm.test.tsx`（stock '' 不发送、非法值行内拦截、costPrice 归一、create/update 双出口、服务端拒绝行内展示）
 - 覆盖率 statements 35.68→**47.63%**、branches 43.52、functions 41.39、lines **50.14%**；棘轮上调 47/43/41/50（双跑数值一致，确定性强）
 - **E3 如实顺延**：useDashboardCharts 拉起需 canvas 桩或抽纯函数小重构，性价比让位，仍列 P1
+- **F2 CHANGELOG 门禁（同轮直接落地）**：`scripts/check-changelog.mjs`——PR 对目标分支 / push 对 HEAD~1 取 diff，触及 `src|functions` 而 CHANGELOG 无新增内容行 → CI 红；`--relaxed` hotfix 逃生门（warning 留痕）；diff 取不到时**拒绝放行不静默跳过**。正/反例双向实测（反例经临时分支验证 exit 1 后无痕清理）。进 `npm run verify` 链与 CI
 - 报告：外层 `deliverables/GitHub开源项目对标分析报告-第五轮-2026-09-24.md`；后端/UI 零改动
 
 ### 2026-09-24 追加五（对标第四轮：覆盖率破 30% + extraneous 定性纠偏）

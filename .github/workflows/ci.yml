@@ -71,6 +71,10 @@ jobs:
       - name: Production license gate
         run: npm run verify:licenses
 
+      # 对标第五轮 F2：改了 src/functions 必须带 CHANGELOG 条目（changesets 思想个人化；--relaxed 留 hotfix 逃生门且 CI 留痕）
+      - name: CHANGELOG entry gate
+        run: npm run verify:changelog
+
       - name: Upload coverage report
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
