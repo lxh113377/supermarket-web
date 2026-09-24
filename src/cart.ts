@@ -40,18 +40,24 @@ export function getItemQuantity(cart: Cart, productId: string): number {
   return cart.items.find(item => item.productId === productId)?.quantity || 0
 }
 
-export function addToCart(cart: Cart, product: Product): Cart {
+/**
+ * 加入购物车。qty 支持一次加多件 —— 详情页的「数量」步进器需要它。
+ * 不能靠调用方循环 add()：useCart 的 cartRef 在 effect 里才同步，
+ * 同一批同步调用会读到同一个旧 cart，第二件覆盖第一件，最终只加 1 件。
+ */
+export function addToCart(cart: Cart, product: Product, qty = 1): Cart {
+  const n = Number.isFinite(qty) && qty >= 1 ? Math.floor(qty) : 1
   const items = [...cart.items]
   const existing = items.find(item => item.productId === product._id)
   if (existing) {
-    existing.quantity += 1
+    existing.quantity += n
   } else {
     items.push({
       productId: product._id,
       name: product.name,
       spec: product.spec,
       price: product.price,
-      quantity: 1,
+      quantity: n,
       subcategories: product.subcategories,
     })
   }

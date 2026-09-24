@@ -227,8 +227,9 @@ export default function CustomerPage() {
         </div>
       )}
 
-      {/* 排序 */}
-      <div className="px-4 pb-2.5 flex gap-2">
+      {/* 排序：选中态原先只靠 pill-active 类着色表达，读屏与键盘用户拿不到「当前按什么排」，
+          故补 role=group + aria-pressed；排序确实改变了下方列表顺序，文案与行为一致。 */}
+      <div className="px-4 pb-2.5 flex gap-2" role="group" aria-label="商品排序方式">
         {[
           { key: 'default', label: '默认' },
           { key: 'price-asc', label: '价格↑' },
@@ -237,12 +238,21 @@ export default function CustomerPage() {
           <button
             key={s.key}
             onClick={() => setSortBy(s.key)}
+            aria-pressed={sortBy === s.key}
             className={sortBy === s.key ? 'pill-active' : 'pill-inactive'}
           >
             {s.label}
           </button>
         ))}
       </div>
+
+      {/* 筛选结果计数：分类/子分类/搜索/排序任一变化都会改写这里的数字，
+          作为 aria-live 区域播报，避免视力正常用户也要靠数卡片才知道筛完了 */}
+      <p className="px-4 pb-2 text-xs text-gray-500" role="status" aria-live="polite">
+        共 {filteredProducts.length} 件
+        {deferredSearch && <> · 匹配「{deferredSearch}」</>}
+        {sortBy !== 'default' && <> · 按{sortBy === 'price-asc' ? '价格升序' : '价格降序'}</>}
+      </p>
 
       <div className="flex-1 overflow-y-auto p-4 pb-32">
         {filteredProducts.length === 0 && !deferredSearch && (

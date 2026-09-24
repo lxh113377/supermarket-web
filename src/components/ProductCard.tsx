@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import type { Product } from '../types'
 import { productImageUrl, productSrcSet } from '../utils/images'
 import { formatPrice } from '../utils/format'
+import { variantGroupOf } from '../data/variants-demo'
+import { groupImageOrders } from '../utils/variants'
 import { prefetchRoute } from '../prefetchBus'
 
 interface ProductCardProps {
@@ -23,6 +25,9 @@ function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
     : product.name
   const imgSrc = productImageUrl(product.order)
   const imgSrcSet = productSrcSet(product.order)
+  // 该商品在演示变体层里有几条真实记录（无变体组时为 0，不显示角标）
+  const group = variantGroupOf(product.order)
+  const variantCount = group ? groupImageOrders(group).length : 0
 
   const goDetail = () => {
     if (!disabled) navigate(`/product/${product._id}`)
@@ -90,6 +95,14 @@ function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
         </div>
         <p className={`text-base font-bold mt-0.5 ${disabled ? 'text-gray-400' : 'text-brand-600'}`}>
           <span className="text-xs font-medium">¥</span>{formatPrice(product.price)}
+          {/* 卡面只标这一条记录自己的真实价格，不用「¥x 起」——
+              那样点进详情默认选中的是这一条本身，价格会对不上。
+              变体数量另用角标提示，进详情页由选择器承载。 */}
+          {variantCount > 1 && (
+            <span className="ml-1.5 align-middle text-[10px] font-medium text-gray-400 border border-gray-200 rounded-md px-1 py-px">
+              {variantCount} 种规格
+            </span>
+          )}
         </p>
       </div>
 

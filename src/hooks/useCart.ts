@@ -25,8 +25,8 @@ export default function useCart() {
     saveCart(newCart)
   }, [])
 
-  const add = useCallback((product: Product) => {
-    persistAndSet(addToCart(cartRef.current, product))
+  const add = useCallback((product: Product, qty = 1) => {
+    persistAndSet(addToCart(cartRef.current, product, qty))
   }, [persistAndSet])
 
   const remove = useCallback((productId: string) => {
