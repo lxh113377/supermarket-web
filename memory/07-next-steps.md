@@ -9,6 +9,24 @@
 > 外层 `超市web/超市/memory/`（工作区）。两者内容**不同**（07 主卷 SHA256 不一致），
 > 属历史遗留的双份结构，尚未合并。**本轮的权威记录在外层**：`deliverables/前端深度优化方案-2026-09-23.md` §6。
 
+## 2026-09-24 — 对标第二轮（幂等 / 迁移账目 / 供应链门禁 / XSS 收口）
+
+- **对标集扩到 5 个**（新增 **Vendure** 8,468★）+ 维度 7→9（加「数据完整性与迁移」「供应链与 CI 安全」）。报告：外层 `deliverables/GitHub开源项目对标分析报告-第二轮-2026-09-24.md`；交付记录：`对标第二轮交付记录-2026-09-24.md`。
+- **A1 下单幂等（已上线并线上实证）**：`orders.idempotencyKey` + 部分唯一索引；键 `房间号@requestId#fnv1a(载荷指纹)`；无 requestId 的旧包走 90s 内容指纹兜底（顾客端 SW 长缓存 ⇒ 旧包必然存在，这层不是假想需求）；去重在扣库存前，冲突时回补库存。`requestId` 是**仅传输**字段，**不进** ORDER_FIELDS（该对称契约由 `tests/authWhitelist`/`shared.test` 锁）。
+- **A2 迁移账目**：`schema_migrations` + `scripts/migrate.mjs`（status/apply/baseline/mark）+ `verify:schema` 漂移门禁（已进 `npm run verify` 与 CI）+ `db/rollback-*.sql`。**生产已 apply 并 PRAGMA 实证**。
+- **A3 echarts XSS**：GHSA-fgmj-fm8m-jvvx（<6.1.0）真实命中，汇点是 tooltip 把入库文本拼成 HTML → `renderMode:'plainText'` 收口，**不升 major**（升版不改变"拼 HTML"的形态，且冲击 `echarts/lib/*` 深路径布局）；`tests/chartXss.test.ts` 静态不变量防回归。
+- **A3 依赖审计进 CI**：必须 `--registry=https://registry.npmjs.org`——**npmmirror 未实现 audit 端点**（实测 `NOT_IMPLEMENTED`），不指 registry 会得到一个"在跑但没数据"的假门禁。
+- **A4 状态流转乐观锁**：`UPDATE ... AND status = 读到的旧值`（对标 litemall `updateWithOptimisticLocker`）；抢占失败要回补"误取消恢复"刚扣的库存。
+- **A5 `stalePendingReport`（只读）**：**有意不抄**对标定时自动砍单——本项目线下确认制下 pending 可能是"已转账待确认"，砍单会误杀真单。**线上盘出 49 单超时 pending**（真实积压，下轮接 UI）。
+- **B1 覆盖率口径纠偏**：钉死 `include:['src/**']` 后真实值 **19.68%**（此前 43.72% 只算"被测试加载的文件"，可靠新增未测文件静默维持）；阈值棘轮 19.5/18/17.5/21，只升不降。
+- **B2 首屏 77.9→86.4KB 归因**：`react-vendor` 66.0KB gz 占首屏 **76%**（react 19.3 + vite 8.3 抬基线），无可削业务代码 → 预算按实测 ×1.10 重设 95KB + 门禁打印首屏构成 top3（**下次一跳直接知道谁吃的**）。
+- 提交：`59a4eab`（29 文件）+ `73e83a8`（migrate 工具自修）。门禁终态：lint 0/0（140 文件）｜tsc 0 错｜vitest **182/182**（29 文件）｜verify-backend **101/101**｜契约 **44**｜schema 漂移 **16/16**｜e2e **8/8**｜体积 **3/3**。
+- ⚠️ **本轮踩到并修掉的两个工具脚枪**（下次写同类工具必须前置）：① `baseline` 无脑回记会把**未执行**的迁移一起吞掉（症状：apply 显示 0 待应用、列永远不建）→ 现逐个校验对象是否真在库里；② `--yes` 判断必须**先于** TTY 检查，否则自动化环境永远被拒。
+- ⚠️ **驳回两条自动化调研主张**（子代理初稿，逐文件实测不成立）：「workflow 未锁 SHA」（实际 15 处全锁）、「dify.js baseUrl 来自用户输入可外发密钥」（实际只来自服务端 env）。**自动化产出进结论前必须抽验数据流。**
+- **P0（下轮开工项）**：B4 页面层覆盖率 19.68% → ≥30%（按 `tests/orderFlow.test.tsx` 的 RTL 模式补 `OrderQueryPage`/`CartPage`/`PaymentPage`，每轮抬阈值）；B5 `stalePendingReport` 接 `OrdersTab`（内联展开，禁弹窗）。
+- **P1**：C2 SQL 计数回归门禁（`makeD1` 里计 `prepare()` 次数 + 基线 JSON，约 40 行无新依赖，D1 读配额是真约束）；C1 license 门禁（本项目 MIT，需拦 GPL 传染）。
+- **P2/阻塞**：C5 备份激活仍需用户配 `CF_D1_BACKUP_TOKEN`（**未激活期间 `migrate apply --remote` 前必须手工全量导出**，本轮已照此执行）；C3 超时自动释放阻塞于 C4 真实支付资质；C6 echarts 6 升级评估（已缓解，可从容）。
+
 ## 2026-09-24 — 用户裁决轮（库存 + 订单查询 + D1 备份 + dependabot）
 
 - **库存防超卖（对标 C1）**：`products.stock`（-1=不限售）；下单守卫式占用（条件 UPDATE 防并发，失败同请求补偿回补）、取消/删除进行中单回补、误取消恢复重新占用；管理端内联编辑库存字段 + 缺货/低库存角标；公开接口下发 stock。生产迁移 `db/migrate-stock.sql` 已 `--remote` 执行（PRAGMA 实证列存在，全量备份先落 `_backup/d1/supermarket-2026-09-24.sql` 1.44MB）。
