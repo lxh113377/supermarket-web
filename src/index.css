@@ -79,20 +79,6 @@ button {
   outline: none;
 }
 
-/* === 触控目标扩展（无障碍/可用性）===
-   若干圆形按钮视觉尺寸仅 32px，低于 Apple HIG 44px / Android 48px 建议。
-   用伪元素向外扩命中区，视觉尺寸与布局完全不变。
-   --tap-x / --tap-y 可按需覆盖（默认 6px：32px 按钮 → 44px）。
-   ⚠️ 使用处需保证相邻控件的水平间距 ≥ (2 × --tap-x)，否则命中区会重叠导致误触。 */
-.tap-44 {
-  position: relative;
-}
-.tap-44::after {
-  content: '';
-  position: absolute;
-  inset: calc(-1 * var(--tap-y, 6px)) calc(-1 * var(--tap-x, 6px));
-}
-
 /* === 固定悬浮层的安全区定位 ===
    iPhone 底部小黑条会盖住 fixed bottom 的浮层（如购物车结算条）。 */
 .safe-offset-bottom {
@@ -129,6 +115,24 @@ img {
 
 /* === 设计系统：全局组件类 === */
 @layer components {
+  /* === 触控目标扩展（无障碍/可用性）===
+     若干圆形按钮视觉尺寸仅 32px，低于 Apple HIG 44px / Android 48px 建议。
+     用伪元素向外扩命中区，视觉尺寸与布局完全不变。
+     --tap-x / --tap-y 可按需覆盖（默认 6px：32px 按钮 → 44px）。
+     ⚠️ 使用处需保证相邻控件的水平间距 ≥ (2 × --tap-x)，否则命中区会重叠导致误触。
+     ⚠️ 必须留在 @layer components 内，不能挪到裸 CSS：裸 CSS 优先级高于所有 layer，
+        它的 `position: relative` 会盖掉 Tailwind utilities 层的 `absolute`，
+        于是 `tap-44 absolute` 的角标按钮全部退化成流式排布（实测曾把轮播箭头挤到图片下方，
+        评价晒图与服务表单的删除角标同受影响）。 */
+  .tap-44 {
+    position: relative;
+  }
+  .tap-44::after {
+    content: '';
+    position: absolute;
+    inset: calc(-1 * var(--tap-y, 6px)) calc(-1 * var(--tap-x, 6px));
+  }
+
   /* 卡片基础样式 */
   .card-base {
     @apply bg-white rounded-2xl border border-gray-100/80 shadow-card transition-all duration-300;

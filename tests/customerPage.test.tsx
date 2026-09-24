@@ -86,4 +86,46 @@ describe('CustomerPage 商城页', () => {
     fireEvent.click(screen.getByRole('button', { name: '重试' }))
     expect(await screen.findByText(/农夫山泉/)).toBeTruthy()
   })
+
+  it('排序选中态可被辅助技术读出（aria-pressed），且整组有组名', async () => {
+    render(<CustomerPage />)
+    await screen.findByText(/农夫山泉/)
+    const group = screen.getByRole('group', { name: '商品排序方式' })
+    expect(group).toBeTruthy()
+    expect(screen.getByRole('button', { name: '默认' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: '价格↑' }).getAttribute('aria-pressed')).toBe('false')
+    fireEvent.click(screen.getByRole('button', { name: '价格↑' }))
+    expect(screen.getByRole('button', { name: '价格↑' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: '默认' }).getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it('结果计数随筛选/搜索/排序改写（文案与实际行为一致）', async () => {
+    render(<CustomerPage />)
+    // 页面上 role=status 有两个（加购 toast 容器与本计数区），故按文本定位
+    const counter = async () => (await screen.findByText(/^共 \d+ 件/)).textContent
+    expect(await counter()).toBe('共 2 件')
+    fireEvent.click(screen.getByRole('button', { name: '价格↑' }))
+    await waitFor(() => expect(counter()).resolves.toContain('按价格升序'))
+    fireEvent.click(screen.getByRole('button', { name: '搜索商品' }))
+    fireEvent.change(screen.getByLabelText('搜索商品名称'), { target: { value: '可乐' } })
+    await waitFor(() => expect(counter()).resolves.toContain('共 1 件'))
+    await waitFor(() => expect(counter()).resolves.toContain('匹配「可乐」'))
+  })
+
+  it('属于演示变体组的商品卡标出规格数；不带的商品不凭空长出一个规格', async () => {
+    // order 6 = 康师傅冰红茶，真实落在「康师傅 1L 茶饮 · 口味」组（8 条真实记录）
+    // order 22 = 有糖可乐，不在任何演示变体组里
+    h.getProducts.mockResolvedValue([
+      { _id: 'p6', name: '康师傅冰红茶', spec: '1L', price: 3.66, order: 6, enabled: true, subcategories: ['s1'] },
+      { _id: 'p22', name: '有糖可乐', spec: '罐装330ml', price: 2.66, order: 22, enabled: true, subcategories: ['s1'] },
+    ])
+    render(<CustomerPage />)
+    expect(await screen.findByText('8 种规格')).toBeTruthy()
+    expect(screen.getAllByText(/种规格/).length).toBe(1) // 只有变体组那条带角标
+    // 卡面价 = 本条记录的真实单价（¥ 符号在嵌套 span 内，故按直接文本 3.66 / 2.66 定位）
+    const cardOf = (n: string) => screen.getByText(n).closest('p')!
+    expect(cardOf('3.66').textContent).toContain('¥')
+    expect(cardOf('3.66').textContent).toContain('8 种规格')
+    expect(cardOf('2.66').textContent).not.toContain('种规格') // 无变体组 → 不凭空长出角标
+  })
 })

@@ -29,9 +29,11 @@ export default defineConfig({
     // vitest 4 读取本字段；setup 统一注册 RTL cleanup（非 globals 模式不自动清理）
     environment: 'jsdom',
     setupFiles: ['./tests/setup.ts'],
-    // e2e（Playwright）用例由 `npm run test:e2e` 单独跑：它们需要真实浏览器与 dev server，
-    // 若被 vitest 收集会因缺少 browser fixture 而失败。
-    exclude: ['node_modules/**', 'dist/**', 'tests/e2e/**'],
+    // e2e（Playwright）用例由 `npm run test:e2e` / `npm run test:visual` 单独跑：它们需要真实
+    // 浏览器与 server，若被 vitest 收集会因缺少 browser fixture 而失败。
+    // e2e-visual 是跑生产构建的那一套（CSP 会拦 dev 注入的 <style>，几何判据只能在 prod 下成立），
+    // 新增 e2e* 目录时记得一并加进来。
+    exclude: ['node_modules/**', 'dist/**', 'tests/e2e/**', 'tests/e2e-visual/**'],
     // 覆盖率棘轮（2026-09-24 对标第二轮 B1，补上一轮"暂不设阈值"的欠账）。
     // 分母钉死为 src/**：上一轮记的 43.72% 是"仅被测试加载到的文件"口径，新增未测文件不会
     // 让数字下降，可被绕过；钉死后的真实口径是 **19.68%**（页面层基本没测）。
@@ -45,14 +47,16 @@ export default defineConfig({
       include: ['src/**'],
       exclude: ['src/**/*.d.ts', 'src/**/index*'],
       thresholds: {
-        // 棘轮历史（statements）19.5 → 23 → 35 → 47 → 57 → 74（七轮：H1 管理端两 Tab +
-        // H2 详情页/评价链/图集/遮罩/登录闸/预取总线）。branches 两次采样 68.71/68.76（差 1 条，
-        // 来自 5s 轮询的时序分支），故阈值取 68 留 0.7pt 余量；其余三项双跑完全一致。
+        // 棘轮历史（statements）19.5 → 23 → 35 → 47 → 57 → 74 → 76（详情页变体层：
+        // variants 纯函数 34 例 + 详情页变体交互 16 例 + ProductGallery 缩略图列 7 例 + 列表页 3 例）。
+        // 本轮实测四项全部上升：statements 76.5 / branches 70.67 / functions 72.09 / lines 78.14。
+        // branches 历史上曾因 5s 轮询的时序分支出现 68.71/68.76 双跑差 1 条，故历来留 ~0.7pt 余量；
+        // 本轮按同样口径取 70（实测 70.67）。
         // 只允许上升：让覆盖率下滑的改动必须显式改这里，逼出一次评审。
-        statements: 74,
-        branches: 68,
-        functions: 69,
-        lines: 76,
+        statements: 76,
+        branches: 70,
+        functions: 72,
+        lines: 78,
       },
     },
   },
