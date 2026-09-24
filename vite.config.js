@@ -32,6 +32,25 @@ export default defineConfig({
     // e2e（Playwright）用例由 `npm run test:e2e` 单独跑：它们需要真实浏览器与 dev server，
     // 若被 vitest 收集会因缺少 browser fixture 而失败。
     exclude: ['node_modules/**', 'dist/**', 'tests/e2e/**'],
+    // 覆盖率棘轮（2026-09-24 对标第二轮 B1，补上一轮"暂不设阈值"的欠账）。
+    // 分母钉死为 src/**：上一轮记的 43.72% 是"仅被测试加载到的文件"口径，新增未测文件不会
+    // 让数字下降，可被绕过；钉死后的真实口径是 **19.68%**（页面层基本没测）。
+    // 阈值取当前实测下取整（Vendure 的 reset-coverage-thresholds 做法）：只允许上升，
+    // 让覆盖率下滑的改动必须显式改这里，逼出一次评审。functions/ 由 verify:backend 的
+    // 101 条契约断言负责，不计入本口径。
+    coverage: {
+      provider: 'v8',
+      reporter: ['text-summary', 'html'],
+      reportsDirectory: './coverage',
+      include: ['src/**'],
+      exclude: ['src/**/*.d.ts', 'src/**/index*'],
+      thresholds: {
+        statements: 19.5,
+        branches: 18,
+        functions: 17.5,
+        lines: 21,
+      },
+    },
   },
   resolve: {
     alias: {

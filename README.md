@@ -6,7 +6,7 @@
 ![tests](https://img.shields.io/badge/tests-176%20passed-brightgreen)
 ![license](https://img.shields.io/badge/license-MIT-blue)
 
-**文档**：[架构文档](docs/ARCHITECTURE.md) · [贡献指南](CONTRIBUTING.md) · [安全策略](SECURITY.md) · [更新日志](CHANGELOG.md)
+**文档**：[架构文档](docs/ARCHITECTURE.md) · [API 契约（人读版）](docs/API.md) · [决策记录 ADR](docs/adr/) · [贡献指南](CONTRIBUTING.md) · [安全策略](SECURITY.md) · [更新日志](CHANGELOG.md)
 
 ## 功能一览
 
@@ -59,13 +59,15 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN` 触发 `l
 
 ## CI
 
-`.github/workflows/ci.yml` 单 job 六步：secret 扫描 → oxlint → vitest（**168 用例 / 27 文件**）→ typecheck（前后端双配置）→ build（注入线上端点）→ 后端契约验证（`node scripts/verify-backend.mjs`，54 断言）。
+`.github/workflows/ci.yml` 的 Test job 依序跑：**依赖漏洞审计**（`npm audit`，见下）→ 密钥扫描 → oxlint → vitest（**182 用例 / 29 文件**，带 v8 覆盖率并卡棘轮阈值）→ typecheck（前后端双配置）→ 循环依赖检查 → API 契约漂移 → **schema 漂移** → build（注入线上端点）→ 体积预算 → 后端契约验证（`scripts/verify-backend.mjs`，**101 断言**，node:sqlite 模拟 D1）。
+
+依赖审计固定走官方源（`npm run audit:deps`）：本机/镜像源 npmmirror **未实现 audit 端点**（实测 `NOT_IMPLEMENTED`），不指 registry 会让审计静默拿不到数据；端点故障时 npm audit 非 0 退出，不会假绿。
 
 push main 后 `deploy` job：部署 Cloudflare Pages → 线上冒烟（`_health` + 公开接口契约）→ **冒烟失败自动回滚上一生产部署**。另有 `dispatch.yml`（github.io 顾客端双发）与 `uptime.yml`（每日探活）。
 
-CI 另外两道卡口：**体积预算**（`scripts/check-bundle-size.mjs`，build 后按首屏 gzip 卡阈值：JS ≤90KB / CSS ≤11KB / 单 chunk ≤90KB）与 **e2e 冒烟**（`tests/e2e/`，Playwright 跑在 dev server 的本地演示模式，首轮试跑中）。
+CI 另外两道卡口：**体积预算**（`scripts/check-bundle-size.mjs`，按首屏 gzip 卡阈值：JS ≤95KB / CSS ≤11KB / 单 chunk ≤90KB，并打印首屏构成 top3 便于归因；基线归因见 `docs/adr/0004`）与 **e2e 冒烟**（`tests/e2e/`，Playwright **8 用例**跑在 dev server 的本地演示模式，阻断性门禁）。
 
-本地等价门禁一条命令跑完：`npm run verify`（密钥扫描 → lint → 循环依赖 → typecheck → 测试 → 后端契约 → 未覆盖清单）。
+本地等价门禁一条命令跑完：`npm run verify`（密钥扫描 → lint → 循环依赖 → 契约漂移 → schema 漂移 → typecheck → 测试 → 后端契约 → 未覆盖清单）。
 
 ## 环境变量（`.env`，仅前端构建用）
 
@@ -111,5 +113,6 @@ public/
 - 限流优先 Workers KV（跨实例），KV 异常优雅回退 D1
 - 双密钥角色：`ADMIN_KEY`（全权限）+ 可选 `ADMIN_READONLY_KEY`（只读）
 - 管理端商品编辑为内联编辑（InlineEditForm），禁弹窗/抽屉
-- 接口契约：`docs/api-contract.json` 记录 `/web` 29 + `/pub` 7 共 36 个 action 及其属性（是否写操作 / KV 缓存键 / 限流桶），由 `npm run gen:api-contract` 从源码生成，`npm run verify` 校验是否漂移
+- 接口契约：`docs/api-contract.json` 记录 `/web` 31 + `/pub` 8 共 39 个 action 及其属性（是否写操作 / KV 缓存键 / 限流桶），由 `npm run gen:api-contract` 从源码生成、`npm run verify:contract` 校验漂移，人读版由 `npm run docs:api` 渲染为 `docs/API.md`
+- 数据库迁移：`npm run migrate status|apply|baseline`（`schema_migrations` 账目表 + checksum 防改历史），`npm run verify:schema` 拦「迁移未回写 schema.sql」（详见 `docs/adr/0005`）
 - 评价晒图：压缩后 base64 入 D1（≤3 图 × ≤800KB，技术债，量大后建议迁 R2）

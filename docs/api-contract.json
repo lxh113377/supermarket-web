@@ -65,6 +65,11 @@
           "cacheKey": null,
           "rateBucket": null
         },
+        "stalePendingReport": {
+          "write": false,
+          "cacheKey": null,
+          "rateBucket": null
+        },
         "getOrders": {
           "write": false,
           "cacheKey": null,

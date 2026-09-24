@@ -13,6 +13,8 @@ export function pickProductFields(data: Record<string, unknown>): Record<string,
   return clean
 }
 
+// requestId 不在此列：它是**仅传输**的幂等键，不入库，由 src/db/orders.ts 单独附加，
+// 以保持本列表与服务端"存储白名单"的对称契约（tests/authWhitelist / shared.test 锁定）。
 export const ORDER_FIELDS: string[] = ['roomNumber', 'items', 'wechat', 'remark', 'paymentScreenshot']
 export function pickOrderFields(data: Record<string, unknown>): Record<string, unknown> {
   const clean: Record<string, unknown> = {}

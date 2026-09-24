@@ -34,6 +34,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # 对标第二轮 A3（2026-09-24）：依赖漏洞审计进阻断门禁。
+      # 显式 --registry=npmjs 是本机/镜像源的必需项——npmmirror 未实现 audit 端点
+      # （实测返回 NOT_IMPLEMENTED），不指 registry 会让审计静默拿不到数据。
+      # 端点故障时 npm audit 以非 0 退出（不假绿）；high/critical 阻断，moderate 打印留痕。
+      - name: Dependency audit (npm audit, high+)
+        run: npm run audit:deps
+
       - name: Secret scan
         run: node scripts/scan-secrets.mjs
 
@@ -54,6 +61,11 @@ jobs:
 
       - name: API contract drift check
         run: npm run verify:contract
+
+      # 对标第二轮 A2：迁移引入的对象必须回写 schema.sql，否则测试库（verify-backend 每次
+      # 从 schema.sql 重建 :memory:）与线上 D1 漂移——症状是"全绿但线上 no column named"。
+      - name: Schema drift check (migrations vs schema.sql)
+        run: npm run verify:schema
 
       - name: Upload coverage report
         if: always()

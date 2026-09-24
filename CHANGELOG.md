@@ -4,6 +4,19 @@
 
 ## [未发布]
 
+### 2026-09-24 追加三（对标第二轮：幂等 / 迁移账目 / 供应链门禁 / XSS 收口）
+- **下单幂等（A1）**：`orders.idempotencyKey` + **部分唯一索引**（`WHERE ... IS NOT NULL`，历史单零影响）；键 = `房间号@requestId#fnv1a(载荷指纹)`；不带 requestId 的调用方（顾客端 SW 长缓存下的旧包）走 90s 内容指纹兜底；去重判定在扣库存之前，真并发撞唯一索引时回补本请求库存再返回既有单；响应新增 `deduplicated` 标记。对标纠偏：**litemall 实际没有任何幂等**（`order_sn` 无唯一索引），做幂等的是 Medusa / Saleor
+- **状态流转乐观锁（A4）**：`UPDATE ... WHERE _id = ? AND status = 读到的旧值`，并发迁移只有一个胜出，落败方收到"订单已被他人更新，请刷新后重试"；抢占失败时回补"误取消恢复"刚扣的库存
+- **超时未支付单只读盘点（A5）**：新增 `/web stalePendingReport`（不进写操作集合）——按账龄列 pending 单、标记是否附付款截图、统计被占用的有限库存。**有意不做**定时自动砍单（本项目线下确认制下 pending 可能是"已转账待确认"），见 `docs/adr/0003`
+- **D1 迁移账目与漂移门禁（A2）**：`schema_migrations` 表 + `scripts/migrate.mjs`（`status|apply|baseline|mark`；默认 `--local`，生产须显式 `--remote` 且逐字确认，非交互环境拒执行；checksum 防改历史）+ `scripts/check-schema-drift.mjs`（迁移引入的表/索引/列必须已在 `schema.sql`，未识别 DDL 判 FAIL）+ `db/rollback-*.sql` 回滚脚本；`verify:schema` 已进 `npm run verify` 与 CI
+- **echarts XSS 收口（A3）**：`npm audit`（官方源）命中 GHSA-fgmj-fm8m-jvvx（echarts <6.1.0），真实汇点是营收柱 tooltip 把入库文本拼成 HTML → 统一 `renderMode: 'plainText'`（不升 major 版本，理由见 `docs/adr/0004`）；新增 `tests/chartXss.test.ts` 静态不变量断言
+- **依赖漏洞审计进 CI**：`npm run audit:deps`（固定 `--registry=https://registry.npmjs.org`，因 npmmirror 实测未实现 audit 端点会静默无数据；high+ 阻断，端点故障非 0 退出）
+- **覆盖率棘轮（B1）**：`vite.config.js` 钉死 `include: ['src/**']` 后阈值 19.5/18/17.5/21。**口径纠偏**：此前记的 45.8%/43.72% 是"仅被测试加载文件"口径，src 全域真实值为 **19.68%**（页面层基本没测），棘轮只升不降
+- **首屏预算按归因重设（B2）**：77.9KB → 86.4KB 的增量逐块归因为 `react-vendor` 66.0KB gz（占首屏 76%，react 19.3 + vite 8.3 抬基线），预算 90 → 95KB（实测 ×1.10），门禁新增"首屏构成 top3"输出
+- **文档（B3）**：`docs/adr/0001-0005` 五条决策记录（状态机 / 幂等 / 库存与不自动砍单 / 预算与 XSS / 迁移账目）；`scripts/gen-api-doc.mjs` 由契约渲染人读版 `docs/API.md`（39 action，`npm run docs:api`）；README 的 CI/契约/迁移段落回写为实测数字
+- 门禁终态：lint 0/0（140 文件）｜tsc 双配置 0 错｜vitest **182/182**（29 文件）｜verify-backend **101/101**｜契约 **44**｜schema 漂移 **16/16**｜e2e **8/8**｜体积 **3/3**
+- 核验纪律：子代理初稿两条高危主张（workflow 未锁 SHA、`dify.js` 密钥可被客户端外发）经逐文件实测**驳回**——15 处 `uses:` 全部锁 SHA、`DIFY_BASE_URL` 只来自服务端 env
+
 ### 2026-09-24 追加二（用户裁决轮：库存 + 订单查询 + D1 备份）
 - **库存管理与防超卖**（对标 C1）：`products.stock`（-1=不限售，存量商品迁移后行为不变）；下单即占用（守卫式条件 UPDATE 防并发超卖，任一失败同请求内补偿回补）；取消/删除进行中单回补、误取消恢复重新占用；管理端内联编辑新增库存字段 + 行内「缺货/低库存」角标；顾客端公开接口下发 stock
 - **订单查询页** `#/order-query`（对标 litemall 订单跟踪）：输单号看 5 步进度；成功页展示订单号 + 复制 + 查询入口（sessionStorage 兜底跨导航找回单号）

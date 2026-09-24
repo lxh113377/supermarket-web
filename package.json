@@ -22,10 +22,14 @@
     "check:cycles": "node scripts/check-import-cycles.mjs",
     "gen:api-contract": "node scripts/api-contract.mjs --write",
     "verify:contract": "node scripts/api-contract.mjs",
+    "docs:api": "node scripts/gen-api-doc.mjs",
     "check:size": "node scripts/check-bundle-size.mjs",
     "verify:images": "python scripts/verify_images.py",
+    "verify:schema": "node scripts/check-schema-drift.mjs",
+    "migrate": "node scripts/migrate.mjs",
+    "audit:deps": "npm audit --registry=https://registry.npmjs.org --audit-level=high",
     "maintain:purge-events": "node scripts/purge-security-events.mjs",
-    "verify": "npm run scan:secrets && npm run lint && npm run check:cycles && npm run verify:contract && npm run typecheck && npm test && npm run verify:backend && node scripts/list-uncovered.mjs",
+    "verify": "npm run scan:secrets && npm run lint && npm run check:cycles && npm run verify:contract && npm run verify:schema && npm run typecheck && npm test && npm run verify:backend && node scripts/list-uncovered.mjs",
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {

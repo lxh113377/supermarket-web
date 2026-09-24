@@ -19,12 +19,16 @@ import { fileURLToPath } from 'node:url'
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const dist = join(root, 'dist')
 
-// 预算（gzip 后字节）。基准来自 2026-09-23 实测：首屏 JS 77.9KB / CSS 8.7KB / 最大 chunk 58.1KB，
-// 预算取实测上浮 15%~50%，既能拦住回归又不至于频繁误报。改这里前请先跑 --baseline 复核。
+// 预算（gzip 后字节）。基准：2026-09-23 实测首屏 JS 77.9KB → 2026-09-24 复测 86.4KB。
+// 增量的实测归因：react-vendor 单块 66.0KB（占首屏 76%），来自 dependabot 轮 react 19.2→19.3
+// + vite 8.2→8.3（rolldown 代码生成）整体抬了运行时基线；首屏其余部分（入口 5.2 + router 13.6
+// + client/fields/runtime ≈ 1.6）无新增业务代码可削——HashRouter 首屏必须载 router，非懒加载能解。
+// 因此这里按"实测 ×1.10"重设基线（而非放宽判据）：预算仍会拦住下一次无归因的增长。
+// 改这里前请先跑 --baseline 复核，并在 CHANGELOG 写清归因。
 const BUDGET = {
-  firstLoadJs: 90 * 1024,    // 首屏 JS（实测 77.9）
-  firstLoadCss: 11 * 1024,   // 首屏 CSS（实测 8.7）
-  largestChunk: 90 * 1024,   // 单个 chunk 上限（实测 58.1，防某个懒加载页面/依赖膨胀）
+  firstLoadJs: 95 * 1024,    // 首屏 JS（2026-09-24 实测 86.4）
+  firstLoadCss: 11 * 1024,   // 首屏 CSS（实测 8.8）
+  largestChunk: 90 * 1024,   // 单个 chunk 上限（实测最大 react-vendor 66.0，防懒加载页面/依赖膨胀）
 }
 
 const htmlPath = join(dist, 'index.html')
@@ -44,13 +48,20 @@ const rel = (u) => join(dist, u.replace(/^\.?\//, ''))
 
 let firstJs = 0
 let firstCss = 0
+const firstParts = []
 for (const u of refs) {
   const p = rel(u)
   if (!existsSync(p)) continue
   const size = gz(p)
+  firstParts.push({ name: u.replace(/^\.?\/assets\//, ''), size })
   if (u.endsWith('.css')) firstCss += size
   else firstJs += size
 }
+
+// 归因输出：预算被吃掉时先看得见"谁吃的"，不用二次手工分析
+const attr = firstParts.filter((x) => x.name.endsWith('.js')).sort((a, b) => b.size - a.size)
+  .slice(0, 3).map((x) => `${x.name} ${(x.size / 1024).toFixed(1)}K`).join(' ｜ ')
+console.log(`INFO  首屏 JS 构成 top3（gzip）：${attr}`)
 
 const assetsDir = join(dist, 'assets')
 const chunks = existsSync(assetsDir)

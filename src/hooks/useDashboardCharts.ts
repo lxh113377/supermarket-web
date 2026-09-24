@@ -12,6 +12,11 @@ export interface ChartData {
 }
 
 // ECharts 主题工具（从 CSS 变量读取，消除硬编码色值）
+// XSS 收口（2026-09-24 对标第二轮 A3；GHSA-fgmj-fm8m-jvvx 影响 echarts <6.1.0）：
+// tooltip 默认 renderMode:'html' 会把 formatter 返回值当 HTML 注入，而图表 name 取自入库文本
+// （商品名/分类名）。plainText 走 textContent，从根上消除该汇点——比"升到 6.1 但继续拼 HTML"更彻底。
+const TOOLTIP_BASE = { renderMode: 'plainText' } as const
+
 function cssVar(name: string, fallback: string): string {
   if (typeof window === 'undefined' || !window.getComputedStyle) return fallback
   const v = window.getComputedStyle(document.documentElement).getPropertyValue(name).trim()
@@ -127,7 +132,7 @@ export function useDashboardCharts(d: ChartData) {
       trend.setOption({
         animation: !noAnim,
         color: [b1, b2],
-        tooltip: { trigger: 'axis' },
+        tooltip: { trigger: 'axis', ...TOOLTIP_BASE },
         legend: { data: ['营收', '订单'], right: 0, top: 0, icon: 'circle', itemWidth: 8, itemHeight: 8, textStyle: { color: text, fontSize: 11 } },
         grid: { left: 8, right: 8, top: 30, bottom: rangeDays >= 90 ? 28 : 0, containLabel: true },
         xAxis: { type: 'category', data: rangeData.labels, axisLine: { lineStyle: { color: grid } }, axisLabel: { color: text, fontSize: 10 } },
@@ -163,7 +168,7 @@ export function useDashboardCharts(d: ChartData) {
     if (review) {
       review.setOption({
         animation: !noAnim,
-        tooltip: { trigger: 'axis' },
+        tooltip: { trigger: 'axis', ...TOOLTIP_BASE },
         grid: { left: 8, right: 8, top: 20, bottom: 4, containLabel: true },
         xAxis: { type: 'category', data: reviewTrend.labels, axisLine: { lineStyle: { color: grid } }, axisLabel: { color: text, fontSize: 10 } },
         yAxis: { type: 'value', minInterval: 1, axisLabel: { color: text, fontSize: 9 }, splitLine: { lineStyle: { color: grid } } },
@@ -191,7 +196,7 @@ export function useDashboardCharts(d: ChartData) {
       pie.setOption({
         animation: !noAnim,
         color: [b1, b2],
-        tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+        tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)', ...TOOLTIP_BASE },
         legend: { bottom: 0, left: 'center', icon: 'circle', itemWidth: 8, itemHeight: 8, textStyle: { color: text, fontSize: 11 } },
         series: [
           {
@@ -211,7 +216,7 @@ export function useDashboardCharts(d: ChartData) {
       const values = topRevenue.map((t) => Math.round(t.revenue)).reverse()
       top.setOption({
         animation: !noAnim,
-        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: (params: Array<{ name: string; value: number }>) => `${params[0].name}<br/>营收 ¥${params[0].value}` },
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, ...TOOLTIP_BASE, formatter: (params: Array<{ name: string; value: number }>) => `${params[0].name}\n营收 ¥${params[0].value}` },
         grid: { left: 8, right: 48, top: 8, bottom: 4, containLabel: true },
         xAxis: { type: 'value', axisLabel: { color: text, fontSize: 9 }, splitLine: { lineStyle: { color: grid } } },
         yAxis: { type: 'category', data: names, axisLine: { lineStyle: { color: grid } }, axisLabel: { color: text, fontSize: 10 } },
