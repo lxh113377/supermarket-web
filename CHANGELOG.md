@@ -4,6 +4,16 @@
 
 ## [未发布]
 
+### 2026-09-24 追加七（对标第六轮：图表 option 抽纯函数 + 看板/商品行/评价门面测试，覆盖率 57.25%）
+- **F1 小重构（行为不变）**：`useDashboardCharts` 的 4 张图 option 构造逐字段搬到 `src/utils/chartOptions.ts`（主题/动效改为入参，`readChartTheme` 与 `TOOLTIP_BASE` 一并外移），hook 只剩"实例生命周期 + setOption 触发"。**为什么**：原写法只有真挂 echarts/canvas 才走到，等于 4 张图的全部配置零测试；抽出后 chartOptions 与 hook 双双 100% 覆盖
+- **F1 新增测试 3 文件 32 用例**：`chartOptions.test.ts`（16：tooltip 运行时 plainText、rangeDays>=90 才挂 dataZoom、TOP 倒序+前 3 名强调色、reducedMotion 关动画、非 hex 变量退兜底色）、`dashboardChartsHook.test.tsx`（6：echarts 全模块 mock——10 个按需模块注册、晚出现容器补建实例、resize 联动、卸载 dispose+监听注销、import 未回即卸载不建实例）、`dashboardTab.test.tsx`（10：KPI/日均/毛利三态/三处空态/区间点击与方向键/CSV 导出 Blob 内容/加载失败两种降级）；DashboardTab 68.83→**92.2%**
+- **XSS 静态门禁随重构扩展**：`chartXss.test.ts` 改为**并扫** hook 与 chartOptions 两个文件（只读单文件会让门禁在重构后静默失焦），并补"四张图 tooltip 一个都不能少"计数判据
+- **F2 确认/支付页剩余分支 +13 用例**：非营业时间强制下单、空购物车拦截、aria-invalid 与错误节点关联、截图三道闸（未选/超 5MB/压缩失败）、截图随单字段、支付页无单号重定向、sessionStorage 续单号、支付宝提示弹窗、轮询到 cancelled、轮询失败不误报已付、0 金额不渲染价格行；PaymentPage 80→**97.5%**
+- **G 批（零成本高价值面）+39 用例**：`productRow.test.tsx`（12，35.71→92.85%：库存角标三态、上下架开关文案与 aria-pressed、内联展开回调时序、键盘等价点击）、`dbReviews.test.ts`（11，src/db/reviews.ts 1.81→100%：字段白名单裁剪、云端失败降级本地、60s 缓存与精确失效、管理端写删抛错口径）、`smallUtils.test.ts`（10，format/images/rovingTabs 全 100%）、`successAndNotFound.test.tsx`（6，成功页复制/查询/跨导航兜底 + 404 页，两文件原 0%）
+- 覆盖率 statements 47.63→**57.25%**、branches **53.87%**、functions **50.76%**、lines **59.66%**（313 用例 / 45 文件）；棘轮上调 **57/53/50/59**
+- 后端与数据层零改动；`verify:backend` 仍 102/102、契约/schema/license/changelog 全绿、首屏体积 86.4KB 无变化（图表代码在管理端 chunk）、e2e 8/8
+
+
 ### 2026-09-24 追加六（对标第五轮：管理壳/商城页/内联编辑表单测试，覆盖率 47.63%）
 - **E1/E2** 新增 3 个测试文件 15 用例（228/228，37 文件）：`adminPage.test.tsx`（tablist 键盘流转、订单增量首拉、商品错误横幅禁静默回退、云端空态种子、本地徽标）、`customerPage.test.tsx`（真实 useProducts/useCart：加载/排序/搜索空态/加购 toast+浮球/错误重试）、`inlineEditForm.test.tsx`（stock '' 不发送、非法值行内拦截、costPrice 归一、create/update 双出口、服务端拒绝行内展示）
 - 覆盖率 statements 35.68→**47.63%**、branches 43.52、functions 41.39、lines **50.14%**；棘轮上调 47/43/41/50（双跑数值一致，确定性强）

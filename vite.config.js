@@ -45,10 +45,13 @@ export default defineConfig({
       include: ['src/**'],
       exclude: ['src/**/*.d.ts', 'src/**/index*'],
       thresholds: {
-        statements: 47,
-        branches: 43,
-        functions: 41,
-        lines: 50,
+        // 棘轮历史（statements）19.5 → 23 → 35 → 47 → 57（六轮：图表 option 抽纯函数 + 
+        // DashboardTab/ProductRow/db.reviews/确认支付剩余分支）。只允许上升：让覆盖率下滑的
+        // 改动必须显式改这里，逼出一次评审。
+        statements: 57,
+        branches: 53,
+        functions: 50,
+        lines: 59,
       },
     },
   },

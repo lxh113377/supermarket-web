@@ -8,7 +8,11 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, it, expect } from 'vitest'
 
-const src = readFileSync(fileURLToPath(new URL('../src/hooks/useDashboardCharts.ts', import.meta.url)), 'utf8')
+// 两处都要扫：option 构造（含 tooltip）在六轮抽到 chartOptions.ts，生命周期/深路径 import 留在 hook。
+// 只读单文件会让门禁在重构后静默失去判据（R263「判据自身坏了」同族）。
+const files = ['../src/utils/chartOptions.ts', '../src/hooks/useDashboardCharts.ts'] as const
+const sources = files.map((p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8'))
+const src = sources.join('\n')
 
 describe('看板 echarts 配置 XSS 收口', () => {
   it('存在 tooltip 配置（判据本身不能是空的）', () => {
@@ -20,6 +24,11 @@ describe('看板 echarts 配置 XSS 收口', () => {
     expect(lines.length).toBeGreaterThan(0)
     const missing = lines.filter((l) => !l.includes('TOOLTIP_BASE'))
     expect(missing, `以下 tooltip 未收口：\n${missing.join('\n')}`).toEqual([])
+  })
+
+  it('四张图的 tooltip 一个都不能少（防重构中漏搬某张图）', () => {
+    const optionTooltips = sources[0].split('\n').filter((l) => l.includes('tooltip: {')).length
+    expect(optionTooltips).toBe(4)
   })
 
   it('TOOLTIP_BASE 必须是 plainText', () => {
