@@ -13,6 +13,13 @@
 - 覆盖率 statements 47.63→**57.25%**、branches **53.87%**、functions **50.76%**、lines **59.66%**（313 用例 / 45 文件）；棘轮上调 **57/53/50/59**
 - 后端与数据层零改动；`verify:backend` 仍 102/102、契约/schema/license/changelog 全绿、首屏体积 86.4KB 无变化（图表代码在管理端 chunk）、e2e 8/8
 
+### 2026-09-24 追加八（**定性纠偏 + 门禁自修**：CHANGELOG 门禁在 CI 浅克隆里必红）
+- **事实纠正（重要）**：上一轮记录的"CI `70ca0b9` completed success"**不成立**——GitHub API 实测 run #114 与本轮 #115 均 `failure`，失败步都是 `CHANGELOG entry gate`。连带后果：70ca0b9/bcaba62 两次 push 的 **pages.dev deploy job 未执行**（生产仍是 6a726ca 的构建；两轮改动均为测试/门禁类，运行时行为无差异，但"已上线"的说法此前是错的）；github.io 的 dispatch 与 CI 相互独立，故顾客端照常构建
+- **根因**：`actions/checkout` 默认 `fetch-depth: 1` → CI 里没有 `HEAD~1` 对象 → 门禁的 fail-closed 分支（取不到 diff 就拒绝放行）被浅克隆触发。**本地全历史永远复现不出来**，属"判据自身坏了/环境变了判据没变"同族（R263）
+- **两处治本（缺一不算修完）**：① `ci.yml` build-and-test 的 checkout 加 `fetch-depth: 0`（仓库仅 117 提交 / 13MB，成本可忽略），并写明原因；② `check-changelog.mjs` 内置**浅克隆自愈**——缺 rev 时 `git fetch --no-tags --deepen=3 origin` 后重试，仍失败才拒绝，且在拒绝日志里直接指出"给 checkout 加 fetch-depth: 0"
+- **对照实证（正反例都跑）**：`git clone --depth 1` 出的浅克隆里，旧脚本 exit 1（原样复现 CI 报错），换上新脚本 exit 0 且历史自动加深到 4 提交；同仓库再造一个"只改 src 不改 CHANGELOG"的提交 → 新脚本仍 exit 1（自愈没有把门禁改成假绿）。临时克隆实测后已删除
+
+
 
 ### 2026-09-24 追加六（对标第五轮：管理壳/商城页/内联编辑表单测试，覆盖率 47.63%）
 - **E1/E2** 新增 3 个测试文件 15 用例（228/228，37 文件）：`adminPage.test.tsx`（tablist 键盘流转、订单增量首拉、商品错误横幅禁静默回退、云端空态种子、本地徽标）、`customerPage.test.tsx`（真实 useProducts/useCart：加载/排序/搜索空态/加购 toast+浮球/错误重试）、`inlineEditForm.test.tsx`（stock '' 不发送、非法值行内拦截、costPrice 归一、create/update 双出口、服务端拒绝行内展示）

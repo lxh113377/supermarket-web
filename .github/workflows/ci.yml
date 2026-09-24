@@ -24,7 +24,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # 固定到提交 SHA（OpenSSF Pinned-Dependencies）：防止上游标签被移动导致供应链投毒
+      # fetch-depth: 0（六轮实测必需）：CHANGELOG 门禁要比对上一个提交 / PR base，
+      # 默认 depth=1 时 CI 里没有 HEAD~1 对象 → 门禁连续两轮误红（拒绝放行的 fail-closed
+      # 行为被浅克隆触发）。仓库仅 117 提交 / 13MB，全量拉取成本可忽略。
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
