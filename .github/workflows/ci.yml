@@ -7,9 +7,11 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# 同一 workflow 组内：连续 push main 时取消旧 run，防止两次 deploy job 并发导致旧构建覆盖新构建
+# 同一 workflow 组内：连续 push main 时取消旧 run，防止两次 deploy job 并发导致旧构建覆盖新构建。
+# ⚠️ 必须按 ref 分组（2026-09-24 治本）：固定组名会让 PR run 与 main run 互相取消
+# （dependabot 多 PR 场景 5/5 全卡 unstable，即部署 skill §2.1 实测坑#1 的根因修复）
 concurrency:
-  group: ci-supermarket-web
+  group: ci-supermarket-web-${{ github.ref }}
   cancel-in-progress: true
 
 # 最小权限原则（OpenSSF Token-Permissions）：本 workflow 只读代码，
