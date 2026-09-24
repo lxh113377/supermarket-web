@@ -85,7 +85,7 @@ export const products: SeedProduct[] = [
   { name: '卫龙大面筋辣条', spec: '', price: 0.88, subcategories: ['snacks'], order: 38 },
   { name: '仔仔棒', spec: '', price: 0.08, subcategories: ['snacks'], order: 39 },
   { name: '好丽友好有趣薯片', spec: '40g', price: 2.66, subcategories: ['snacks'], order: 40 },
-  { name: '光头哇一根葱', spec: '', price: 0.33, subcategories: ['snacks'], order: 41 },
+  { name: '光头娃一根葱', spec: '', price: 0.33, subcategories: ['snacks'], order: 41 },
   { name: '纳宝帝nabati威化饼干', spec: '16g', price: 0.33, subcategories: ['snacks'], order: 42 },
   { name: '脆脆鲨', spec: '', price: 0.88, subcategories: ['snacks'], order: 43 },
   { name: '山椒猪皮', spec: '', price: 0.33, subcategories: ['snacks'], order: 44 },
