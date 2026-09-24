@@ -40,6 +40,17 @@ npm run dev            # http://localhost:5173
 
 无 `.env` 的 `VITE_CB_API_BASE` 时自动降级为本地演示模式（数据存 localStorage）。
 
+### 管理端「云端模式」的浏览器验收（不需要生产密钥）
+
+演示模式进不了云端分支（看板聚合在服务端，demo 下会显示"看板数据加载失败"），而用生产密钥做浏览器验收等于把密钥写进对话/日志——禁止。为此提供一条隔离通道：
+
+```bash
+npm run build:stub   # 用 tests/env-stub/.env.stub 烘焙同源端点（/web、/pub）
+npm run serve:stub   # http://localhost:5182，静态伺服 dist-stub + 假 /web /pub 响应
+```
+
+密钥随便填（假桩一律放行），即可在真浏览器里跑「登录 → 看板 → 真 echarts 出图」这条路径（六轮的 canvas 正反例就是这么做出来的）。⚠️ 该产物严禁上线。
+
 ## 部署
 
 ### Cloudflare Pages（管理后台 + 后端 API）
@@ -59,7 +70,7 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN` 触发 `l
 
 ## CI
 
-`.github/workflows/ci.yml` 的 Test job 依序跑：**依赖漏洞审计**（`npm audit`，见下）→ 密钥扫描 → oxlint → vitest（**313 用例 / 45 文件**，带 v8 覆盖率并卡棘轮阈值 57/53/50/59）→ typecheck（前后端双配置）→ 循环依赖检查 → API 契约漂移 → **schema 漂移** → **license 白名单** → **CHANGELOG 门禁** → build（注入线上端点）→ 体积预算 → 后端契约验证（`scripts/verify-backend.mjs`，**102 断言**，node:sqlite 模拟 D1）。
+`.github/workflows/ci.yml` 的 Test job 依序跑：**依赖漏洞审计**（`npm audit`，见下）→ 密钥扫描 → oxlint → vitest（**319 用例 / 46 文件**，带 v8 覆盖率并卡棘轮阈值 57/53/50/59）→ typecheck（前后端双配置）→ 循环依赖检查 → API 契约漂移 → **schema 漂移** → **license 白名单** → **CHANGELOG 门禁** → build（注入线上端点）→ 体积预算 → 后端契约验证（`scripts/verify-backend.mjs`，**102 断言**，node:sqlite 模拟 D1）。
 
 依赖审计固定走官方源（`npm run audit:deps`）：本机/镜像源 npmmirror **未实现 audit 端点**（实测 `NOT_IMPLEMENTED`），不指 registry 会让审计静默拿不到数据；端点故障时 npm audit 非 0 退出，不会假绿。
 

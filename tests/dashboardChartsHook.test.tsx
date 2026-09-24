@@ -12,9 +12,26 @@ type Stub = { setOption: ReturnType<typeof vi.fn>; resize: ReturnType<typeof vi.
 
 const h = vi.hoisted(() => {
   const made: Array<{ key: string; stub: unknown }> = []
+  const loaded: string[] = []
+  const rec = (name: string) => {
+    loaded.push(name)
+    return {}
+  }
   return {
     made,
-    use: vi.fn(),
+    loaded,
+    rec,
+    // use 必须复刻真库语义（echarts/lib/extension.js：非函数入参会走 ext.install(...)）。
+    // 上一版这里放的是空 vi.fn()，于是"把 side-effect 模块当 use() 入参"这个致命错误
+    // （生产包里 line.default 恒 undefined → TypeError → 四张图静默空白）被 mock 完全掩盖。
+    use: vi.fn((list: unknown[]) => {
+      for (const item of list as Array<{ install?: unknown }>) {
+        if (typeof item === 'function') continue
+        if (!item || typeof (item as { install?: unknown }).install !== 'function') {
+          throw new TypeError("Cannot read properties of undefined (reading 'install')")
+        }
+      }
+    }),
     init: vi.fn((el: HTMLElement) => {
       const stub = { setOption: vi.fn(), resize: vi.fn(), dispose: vi.fn(), key: el.dataset.key || '' }
       made.push({ key: stub.key, stub })
@@ -24,16 +41,18 @@ const h = vi.hoisted(() => {
 })
 
 vi.mock('echarts/core', () => ({ use: h.use, init: h.init }))
-vi.mock('echarts/lib/chart/line', () => ({ default: { t: 'line' } }))
-vi.mock('echarts/lib/chart/pie', () => ({ default: { t: 'pie' } }))
-vi.mock('echarts/lib/chart/bar', () => ({ default: { t: 'bar' } }))
-vi.mock('echarts/lib/component/grid', () => ({ default: { t: 'grid' } }))
-vi.mock('echarts/lib/component/tooltip', () => ({ default: { t: 'tooltip' } }))
-vi.mock('echarts/lib/component/legend', () => ({ default: { t: 'legend' } }))
-vi.mock('echarts/lib/component/dataZoom', () => ({ default: { t: 'dz' } }))
-vi.mock('echarts/lib/component/dataZoomInside', () => ({ default: { t: 'divi' } }))
-vi.mock('echarts/lib/component/dataZoomSlider', () => ({ default: { t: 'dsl' } }))
-vi.mock('echarts/renderers', () => ({ CanvasRenderer: { t: 'canvas' } }))
+// 深路径 chart/component 模块在真库里**没有任何导出**（纯 side-effect 自注册），mock 保持同形，
+// 这样任何"取 .default 再塞进 use()"的写法会立刻在上面的 use 里炸掉。
+vi.mock('echarts/lib/chart/line', () => h.rec('line'))
+vi.mock('echarts/lib/chart/pie', () => h.rec('pie'))
+vi.mock('echarts/lib/chart/bar', () => h.rec('bar'))
+vi.mock('echarts/lib/component/grid', () => h.rec('grid'))
+vi.mock('echarts/lib/component/tooltip', () => h.rec('tooltip'))
+vi.mock('echarts/lib/component/legend', () => h.rec('legend'))
+vi.mock('echarts/lib/component/dataZoom', () => h.rec('dataZoom'))
+vi.mock('echarts/lib/component/dataZoomInside', () => h.rec('dataZoomInside'))
+vi.mock('echarts/lib/component/dataZoomSlider', () => h.rec('dataZoomSlider'))
+vi.mock('echarts/renderers', () => ({ CanvasRenderer: { install: () => undefined }, SVGRenderer: { install: () => undefined } }))
 
 const DATA: ChartData = {
   rangeData: { labels: ['9/1', '9/2'], orderCounts: [1, 2], revenues: [10, 20] },
@@ -78,13 +97,16 @@ afterEach(() => {
 })
 
 describe('useDashboardCharts 生命周期', () => {
-  it('注册 10 个按需模块（含 CanvasRenderer）并为已挂载容器各建一个实例', async () => {
+  it('9 个按需模块按 side-effect 引入，use() 只收渲染器（真库语义判据）', async () => {
     render(<Harness />)
     await waitFor(() => expect(h.init).toHaveBeenCalledTimes(4))
     expect(h.use).toHaveBeenCalledTimes(1)
-    expect(h.use.mock.calls[0][0]).toHaveLength(10)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect((h.use.mock.calls[0][0] as any[]).some((m) => m?.t === 'canvas')).toBe(true)
+    // 传入项必须全部"可安装"——这正是修复前炸掉的地方（9 个 undefined 混进来）
+    const installs = h.use.mock.calls[0][0] as unknown[]
+    expect(installs).toHaveLength(1)
+    expect(h.loaded.slice().sort()).toEqual([
+      'bar', 'dataZoom', 'dataZoomInside', 'dataZoomSlider', 'grid', 'legend', 'line', 'pie', 'tooltip',
+    ])
   })
 
   it('echarts 就绪后每张图都收到 plainText tooltip 的 option（P0-2 重跑路径）', async () => {

@@ -59,6 +59,7 @@ functions/lib/
 3. **契约单源**——`docs/api-contract.json` 由 `scripts/api-contract.mjs` 从 backend.js 静态解析生成；CI `verify:contract` 防漂移，`PUBLIC_ACTIONS` 与 /pub case 集合必须完全对齐。
 4. **订单状态机**——合法迁移唯一表在 orders.js `ORDER_TRANSITIONS`；status 列 TEXT 无 CHECK，扩态零迁移，但前端 `utils/orderStatus.ts` 必须同步（有 parity 测试）。
 5. **图表 tooltip 恒为 plainText**——图表 name 取自入库文本（商品名/分类名），echarts <6.1.0 的 html renderMode 会把它拼进 DOM（GHSA-fgmj-fm8m-jvvx 汇点）。新增一张图必须展开 `TOOLTIP_BASE`；`tests/chartXss.test.ts` 并扫 hook 与 `utils/chartOptions.ts`，并按"4 张图 = 4 处 tooltip"计数防漏搬。
+6. **echarts 按需模块只能 import，不能塞进 `use()`**——`echarts/lib/chart/*` 与 `lib/component/*` 是纯 side-effect 自注册模块（全文件零 export），`X.default === undefined`；把它们（连同 undefined）传给 `core.use()` 会在 `ext.install(...)` 处抛 TypeError，且发生在 async IIFE 内**不弹任何界面错误**，症状只有"看板四张图静默空白"。需要显式 `use()` 的只有 `echarts/renderers`。判据：`tests/chartRealRender.test.ts`（真库 SSR 渲染）+ `dashboardChartsHook` 的 mock 复刻了这条 install 语义。
 
 ## 4. 数据层（db/）
 

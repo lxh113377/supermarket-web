@@ -49,8 +49,14 @@ export function useDashboardCharts(d: ChartData) {
       // 注意：必须走 lib 深路径而非 echarts/charts|components barrel——echarts package.json
       // 把 lib/chart/*、lib/component/* 全部声明为 sideEffects，barrel 一旦引入即整包保留
       // （实测全量 gzip ~340KB、barrel 按需 ~327KB，深路径仅 ~1/3）。
-      const [core, line, pie, bar, grid, tooltip, legend, dz, dzi, dzs, renderers] = await Promise.all([
-        import('echarts/core'),
+      //
+      // ⚠️ 六轮实测（生产包 dist/assets/line-*.js 的 module namespace `keys=[] / hasDefault=false`）：
+      // `echarts/lib/chart/*`、`echarts/lib/component/*` 是**纯 side-effect 自注册模块**
+      // （line.js 末尾自己 `use(install)`，全文件零 export）。把它们当 `core.use([...])` 入参等价于
+      // `use(undefined)` → echarts/extension.js 走到 `ext.install(...)` 抛 TypeError；
+      // 又因为在 async IIFE 内，整个 init 链静默中断，**症状是看板四张图永久空白且页面不报错**。
+      // 只有 renderers 例外：`echarts/renderers` 只导出不自注册，必须显式 use()。
+      await Promise.all([
         import('echarts/lib/chart/line'),
         import('echarts/lib/chart/pie'),
         import('echarts/lib/chart/bar'),
@@ -60,17 +66,13 @@ export function useDashboardCharts(d: ChartData) {
         import('echarts/lib/component/dataZoom'),
         import('echarts/lib/component/dataZoomInside'),
         import('echarts/lib/component/dataZoomSlider'),
+      ])
+      const [core, renderers] = await Promise.all([
+        import('echarts/core'),
         import('echarts/renderers'),
       ])
       if (cancelled) return
-      const installs = [
-        line.default, pie.default, bar.default,
-        grid.default, tooltip.default, legend.default,
-        dz.default, dzi.default, dzs.default,
-        renderers.CanvasRenderer,
-      ]
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      core.use(installs as any)
+      core.use([renderers.CanvasRenderer])
       const echarts = core
       echartsRef.current = echarts
       const hosts: Array<[RefObject<HTMLDivElement | null>, string]> = [

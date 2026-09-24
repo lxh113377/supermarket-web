@@ -4,6 +4,16 @@
 
 ## [未发布]
 
+### 2026-09-24 追加九（**P0 修复**：看板四张图在生产包里静默空白——真库渲染测试把它炸了出来）
+- **缺陷**：`useDashboardCharts` 把 9 个 `echarts/lib/chart|component/*` 深路径模块的 `.default` 收进 `core.use([...])`。这些模块是**纯 side-effect 自注册**文件（`line.js` 末尾自己 `use(install)`，全文件零 export），`X.default` 恒 undefined → echarts `extension.js:109 ext.install(...)` 抛 TypeError → 发生在 async IIFE 内且无 catch → **init 链整体中断：四张图永久空白、页面不弹任何错**。实测生产包证据：`dist/assets/line-*.js` 的 module namespace `keys=[] / hasDefault=false`；浏览器内 `import()` 该 chunk 同样拿不到 default
+- **影响窗口**：hook 拆分自 2026-09-05（H1-2）起；此前所有单测把 echarts 整包 mock、e2e 又只跑演示模式（demo 下 `getDashboardStats` 无本地实现，看板直接显示"加载失败"），**两层判据都摸不到这段代码**——所以它活了 19 天
+- **修复**：9 个模块改为"只 import 不塞 use()"，`core.use([renderers.CanvasRenderer])`（renderers 是唯一只导出不自注册的模块）；并把成因写进代码注释，防止后人"顺手加回 use"
+- **判据补三道（缺一都会再犯）**：① 新增 `tests/chartRealRender.test.ts` 用 echarts 官方 SSR（`init(null,null,{renderer:'svg',ssr:true})`）在 node 里**真渲染**，不依赖 canvas/浏览器/密钥，并含一条"深路径模块无 default 导出、仅 import 即注册"的判据自证；② `tests/dashboardChartsHook.test.tsx` 的 mock 改具**真库语义**——`use` 复刻 `ext.install` 校验、9 个深路径 mock 保持"零导出"同形，于是 `X.default` 写法当场炸（原 mock 是空 vi.fn()，正是它掩盖了这个 P0）；③ 新增本地云端模式验收桩 `scripts/local-api-stub.mjs` + `vite.config.stub.js` + `tests/env-stub/.env.stub`（`npm run build:stub && npm run serve:stub`），**假密钥 + 假 /web** 打通"登录→看板→真 echarts 出图"的浏览器路径，绕开"用生产密钥做验收=密钥进日志"的禁忌
+- **对照实证（正反例双向）**：同一 harness、同一脚本，修复后构建 → 看板 4 个 canvas（687×392 / 687×308 / 687×392 / 687×448）；回退到 `bcaba62` 版 hook 重新构建 → 已登录、9 个 tab 在、`看板数据加载失败` 未出现，但 **canvas 数 0**（与线上症状完全一致，且控制台无可见报错=当初漏检的原因）
+- 顺带定性一条噪声：e2e 里每例打印的 `Applying inline style violates CSP style-src 'self'` 经定位来自 **`@vite/client` 注入的 dev 覆盖层样式**，生产构建页面控制台零消息 ⇒ 顾客端/管理端真实样式不受影响，M4 观察项关闭
+- 本轮附带发现（**未修，登记待办**）：演示模式下看板永远显示"看板数据加载失败"——H1-2 把聚合下沉到 `stats.js` 后本地模式没有对应实现。要么补本地聚合（与服务端有漂移风险），要么把错误文案改成明确"演示模式无看板聚合"；后者零风险，待用户裁决
+
+
 ### 2026-09-24 追加七（对标第六轮：图表 option 抽纯函数 + 看板/商品行/评价门面测试，覆盖率 57.25%）
 - **F1 小重构（行为不变）**：`useDashboardCharts` 的 4 张图 option 构造逐字段搬到 `src/utils/chartOptions.ts`（主题/动效改为入参，`readChartTheme` 与 `TOOLTIP_BASE` 一并外移），hook 只剩"实例生命周期 + setOption 触发"。**为什么**：原写法只有真挂 echarts/canvas 才走到，等于 4 张图的全部配置零测试；抽出后 chartOptions 与 hook 双双 100% 覆盖
 - **F1 新增测试 3 文件 32 用例**：`chartOptions.test.ts`（16：tooltip 运行时 plainText、rangeDays>=90 才挂 dataZoom、TOP 倒序+前 3 名强调色、reducedMotion 关动画、非 hex 变量退兜底色）、`dashboardChartsHook.test.tsx`（6：echarts 全模块 mock——10 个按需模块注册、晚出现容器补建实例、resize 联动、卸载 dispose+监听注销、import 未回即卸载不建实例）、`dashboardTab.test.tsx`（10：KPI/日均/毛利三态/三处空态/区间点击与方向键/CSV 导出 Blob 内容/加载失败两种降级）；DashboardTab 68.83→**92.2%**
