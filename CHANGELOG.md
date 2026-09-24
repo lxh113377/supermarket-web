@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 2026-09-24 追加五（对标第四轮：覆盖率破 30% + extraneous 定性纠偏）
+- **D1** `src/db` 三门面（orders/products/submissions，含云端失败→持久缓存→本地兜底、离线队列、分页去重、重入锁）+ ReviewsTab/SubmissionsTab 组件测试共 **+18 用例（213/213）**；覆盖率 statements 23.65→**35.68%**、branches **32.47%**、functions **31.04%**、lines **37.43%**，阈值棘轮上调 35/32/31/36
+- **D3 结论纠偏（重要）**：清装（`npm ci`）后 `@img/sharp-wasm32` **仍然出现**——它不是"镜像安装残留"，而是 wrangler(dev)→sharp 的**合法 dev 树平台可选二进制**；license 门禁按 `--omit=dev` 生产树过滤的语义因此被实证正确（prod 树 10/10 白名单）。上一轮报告"残留信号弹"的定性作废，以本条为准
+- 报告：外层 `deliverables/GitHub开源项目对标分析报告-第四轮-2026-09-24.md`；后端与 UI 代码零改动（纯测试/配置轮）
+
 ### 2026-09-24 追加四（对标第三轮：覆盖率棘轮 + 超时单工作台 + SQL/license 门禁）
 - **B4** 页面层测试 +13（OrderQueryPage 6 / CartPage 4 / OrdersTab 超时面板 3；195/195），覆盖率 19.68→**23.65%**（stmts），`vite.config` 阈值棘轮上调 23/21/20/24（只升不降）
 - **B5** `stalePendingReport` 接 OrdersTab：超时未确认订单**内联面板**（汇总/占用明细/"已传付款截图"徽标/逐单"取消并释放库存"复用状态机+回补路径；只读密钥静默不显示；遵守禁弹窗铁律）

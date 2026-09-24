@@ -9,6 +9,15 @@
 > 外层 `超市web/超市/memory/`（工作区）。两者内容**不同**（07 主卷 SHA256 不一致），
 > 属历史遗留的双份结构，尚未合并。**本轮的权威记录在外层**：`deliverables/前端深度优化方案-2026-09-23.md` §6。
 
+## 2026-09-24 — 对标第四轮（测试纵深 + D3 清装纠偏）
+
+- **D1 已完成**：`tests/dbFacades.test.ts`(11) + `tests/adminTabs.test.tsx`(7)，213/213；覆盖率 stmts **35.68%** / branches 32.47 / funcs 31.04 / lines 37.43，棘轮上调 **35/32/31/36**。零功能改动（刻意）。
+- **D3 结论纠偏**：`npm ci` 清装后 `@img/sharp-wasm32` 仍出现 → 它是 wrangler(dev)→sharp 的合法 dev 树平台可选二进制，**不是**残留；license 门禁 `--omit=dev` 语义被清装反向证实（prod 10/10，清装前后一致）。
+- 报告：外层 `deliverables/GitHub开源项目对标分析报告-第四轮-2026-09-24.md`（第三轮报告同步加了纠偏注）。
+- **P0（下轮 E1）**：路由大件测试 AdminPage(110 句未测)+CustomerPage(104)，复用 hoisted IS_CLOUD getter mock 模式，预期再 +8~10pp。
+- P1：E2 ProductInlineEditForm（1.58%，含 stock 归一化断言）；E3 useDashboardCharts 抽纯函数再测。
+- 不变：D2 运营处置等管理员实操；D4 等用户配 `CF_D1_BACKUP_TOKEN`；D5 等 R2。
+
 ## 2026-09-24 — 对标第三轮（覆盖率棘轮 / 超时单工作台 / SQL 配额门禁 / license 门禁）
 
 - **已落地**：B4 页面层测试 +13（195/195，覆盖率 23.65%，阈值棘轮 23/21/20/24）；B5 stalePendingReport→OrdersTab 内联面板（禁弹窗铁律遵守，只读密钥静默降级，取消复用状态机+库存回补同一路径）；C1 单 action SQL 语句峰值基线 `docs/sql-baseline.json`（30 action，写路径 +1 吸收限流窗抖动）；C2 license 白名单门禁（生产树 10/10，extraneous 过滤，未知即拦）→ verify 链 + CI。
