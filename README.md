@@ -59,7 +59,7 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN` 触发 `l
 
 ## CI
 
-`.github/workflows/ci.yml` 的 Test job 依序跑：**依赖漏洞审计**（`npm audit`，见下）→ 密钥扫描 → oxlint → vitest（**182 用例 / 29 文件**，带 v8 覆盖率并卡棘轮阈值）→ typecheck（前后端双配置）→ 循环依赖检查 → API 契约漂移 → **schema 漂移** → build（注入线上端点）→ 体积预算 → 后端契约验证（`scripts/verify-backend.mjs`，**101 断言**，node:sqlite 模拟 D1）。
+`.github/workflows/ci.yml` 的 Test job 依序跑：**依赖漏洞审计**（`npm audit`，见下）→ 密钥扫描 → oxlint → vitest（**313 用例 / 45 文件**，带 v8 覆盖率并卡棘轮阈值 57/53/50/59）→ typecheck（前后端双配置）→ 循环依赖检查 → API 契约漂移 → **schema 漂移** → **license 白名单** → **CHANGELOG 门禁** → build（注入线上端点）→ 体积预算 → 后端契约验证（`scripts/verify-backend.mjs`，**102 断言**，node:sqlite 模拟 D1）。
 
 依赖审计固定走官方源（`npm run audit:deps`）：本机/镜像源 npmmirror **未实现 audit 端点**（实测 `NOT_IMPLEMENTED`），不指 registry 会让审计静默拿不到数据；端点故障时 npm audit 非 0 退出，不会假绿。
 
@@ -67,7 +67,7 @@ push main 后 `deploy` job：部署 Cloudflare Pages → 线上冒烟（`_health
 
 CI 另外两道卡口：**体积预算**（`scripts/check-bundle-size.mjs`，按首屏 gzip 卡阈值：JS ≤95KB / CSS ≤11KB / 单 chunk ≤90KB，并打印首屏构成 top3 便于归因；基线归因见 `docs/adr/0004`）与 **e2e 冒烟**（`tests/e2e/`，Playwright **8 用例**跑在 dev server 的本地演示模式，阻断性门禁）。
 
-本地等价门禁一条命令跑完：`npm run verify`（密钥扫描 → lint → 循环依赖 → 契约漂移 → schema 漂移 → typecheck → 测试 → 后端契约 → 未覆盖清单）。
+本地等价门禁一条命令跑完：`npm run verify`（密钥扫描 → lint → 循环依赖 → 契约漂移 → schema 漂移 → license → CHANGELOG → typecheck → 测试 → 后端契约 → 未覆盖清单）。
 
 ## 环境变量（`.env`，仅前端构建用）
 

@@ -37,6 +37,7 @@ flowchart LR
 | 本地存储 | `localStore.ts` | localStorage 模拟全业务（演示模式 / 下单兜底）；商品读写带浅拷贝防缓存污染 |
 | 缓存 | `catalogCache.ts` 等 | 目录 60s + 写失效；`dashboardCache` 由后端 KV 承担 |
 | 状态机 | `utils/orderStatus.ts` | 订单 5 态迁移表；**与 `functions/lib/actions/orders.js` 后端表逐字段 parity（`tests/orderStatus.test.ts` 锁定）**；本地模式在此强制，云端在服务端强制 |
+| 图表 | `hooks/useDashboardCharts.ts` + `utils/chartOptions.ts` | 两层分工：hook 只管实例生命周期（动态 import / init / resize / dispose / setOption 触发），**option 形态是纯函数**（主题与 reducedMotion 作入参）→ 不挂 canvas 即可直测；echarts 只走 `lib/*` 深路径（barrel 声明 sideEffects 会整包拖入）；tooltip 一律 `renderMode:'plainText'` |
 | PWA | `public/sw.js` + manifest | 分级缓存（静态 SWR / 图片 10min）；`CACHE_VERSION` 构建期自动注入 |
 
 ## 3. 后端（functions/，Cloudflare Pages Functions，ES module，不迁 TS）
@@ -57,6 +58,7 @@ functions/lib/
 2. **写失效收口**——任何改 `orders/products/reviews/submissions` 的 action 必须同时进 `ADMIN_WRITE_ACTIONS`、`DASHBOARD_WRITE_ACTIONS`（如影响聚合），否则缓存/审计出现口子（2026-09-23 曾漏 8 项，verify-backend 已锁断言）。
 3. **契约单源**——`docs/api-contract.json` 由 `scripts/api-contract.mjs` 从 backend.js 静态解析生成；CI `verify:contract` 防漂移，`PUBLIC_ACTIONS` 与 /pub case 集合必须完全对齐。
 4. **订单状态机**——合法迁移唯一表在 orders.js `ORDER_TRANSITIONS`；status 列 TEXT 无 CHECK，扩态零迁移，但前端 `utils/orderStatus.ts` 必须同步（有 parity 测试）。
+5. **图表 tooltip 恒为 plainText**——图表 name 取自入库文本（商品名/分类名），echarts <6.1.0 的 html renderMode 会把它拼进 DOM（GHSA-fgmj-fm8m-jvvx 汇点）。新增一张图必须展开 `TOOLTIP_BASE`；`tests/chartXss.test.ts` 并扫 hook 与 `utils/chartOptions.ts`，并按"4 张图 = 4 处 tooltip"计数防漏搬。
 
 ## 4. 数据层（db/）
 
@@ -69,14 +71,17 @@ functions/lib/
 | 门禁 | 命令 | 拦截什么 |
 |---|---|---|
 | 密钥扫描 | `scan-secrets.mjs` | 明文密钥入库（pre-commit 也跑） |
-| lint | `oxlint --max-warnings 0` | 135 文件 0 容忍 |
-| 循环依赖 | `check-import-cycles.mjs` | 8 扩展名全扫描（曾因只扫 .js 静默假通过） |
-| 契约漂移 | `api-contract.mjs` | action 集合/写标记/白名单三方对账 |
+| lint | `oxlint --max-warnings 0` | 0 容忍（warning 也算失败） |
+| 循环依赖 | `check-import-cycles.mjs` | 8 扩展名全扫描，实测 73 模块 0 环（曾因只扫 .js 静默假通过） |
+| 契约漂移 | `api-contract.mjs` | action 集合/写标记/白名单三方对账（/web 31 + /pub 8） |
+| schema 漂移 | `check-schema-drift.mjs`（`verify:schema`） | 迁移引入的表/索引/列必须在 `schema.sql` 就位 |
 | 类型 | 双 tsconfig（前端 + functions） | TS 7 strict 0 错 |
-| 单测 | vitest（28 文件 175 用例）+ coverage(v8) | 组件/域逻辑/前后端 parity |
-| 后端契约 | `verify-backend.mjs`（node:sqlite 模拟 D1） | 66 断言：鉴权/限流/状态机/审计/写失效 |
-| 体积 | `check-bundle-size.mjs` | 首屏 JS 90KB / CSS 11KB / chunk 90KB gzip 预算 |
-| e2e | playwright（7 用例，演示模式） | 下单链路 + 管理端流转 |
+| 单测 | vitest（45 文件 313 用例）+ coverage(v8) | 组件/域逻辑/前后端 parity；阈值棘轮 57/53/50/59（只升不降） |
+| 后端契约 | `verify-backend.mjs`（node:sqlite 模拟 D1） | 102 断言：鉴权/限流/状态机/审计/写失效 + 每 action SQL 语句峰值基线（`docs/sql-baseline.json`） |
+| 依赖 license | `check-licenses.mjs` | 生产树 GPL/LGPL/AGPL/SSPL/Elastic 与未知许可一律拦 |
+| CHANGELOG | `check-changelog.mjs` | 触及 `src\|functions` 却没写变更记录 → 红（`--relaxed` 留 warning 逃生门） |
+| 体积 | `check-bundle-size.mjs` | 首屏 JS ≤95KB / CSS ≤11KB / 单 chunk ≤90KB（gzip 预算，实测 86.4/8.8/66.0） |
+| e2e | playwright（8 用例，演示模式） | 下单链路 + 管理端流转 |
 | 部署 | CI 六步 + 双端发布 + 冒烟 + 失败回滚 + 每日探活 | 见 `.github/workflows/` |
 
 ## 6. 已知取舍与演化路线

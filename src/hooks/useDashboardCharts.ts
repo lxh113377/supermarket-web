@@ -1,28 +1,18 @@
 // ECharts 看板图表生命周期封装（从 DashboardTab 拆出）
-// 职责：动态 import echarts（仅管理端 chunk 增重）+ 实例初始化 + resize/dispose + option 更新
-// 纯函数聚合（buildRangeData 等）仍在 DashboardTab 供 vitest 直测，此处只管图表副作用。
+// 职责：动态 import echarts（仅管理端 chunk 增重）+ 实例初始化 + resize/dispose + setOption 触发
+// option 形态本身在 src/utils/chartOptions.ts（纯函数，可直测）；聚合纯函数（buildRangeData 等）
+// 已下沉服务端 functions/lib/actions/stats.js。此处只管"实例什么时候建、什么时候重绘"这类副作用。
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import {
+  buildPieOption,
+  buildReviewOption,
+  buildTopOption,
+  buildTrendOption,
+  readChartTheme,
+  type ChartData,
+} from '../utils/chartOptions'
 
-export interface ChartData {
-  rangeData: { labels: string[]; orderCounts: number[]; revenues: number[] }
-  pieSegments: Array<{ name: string; value: number }>
-  topRevenue: Array<{ name: string; revenue: number; qty: number }>
-  reviewTrend: { counts: number[]; labels: string[] }
-  rangeDays: number
-}
-
-// ECharts 主题工具（从 CSS 变量读取，消除硬编码色值）
-// XSS 收口（2026-09-24 对标第二轮 A3；GHSA-fgmj-fm8m-jvvx 影响 echarts <6.1.0）：
-// tooltip 默认 renderMode:'html' 会把 formatter 返回值当 HTML 注入，而图表 name 取自入库文本
-// （商品名/分类名）。plainText 走 textContent，从根上消除该汇点——比"升到 6.1 但继续拼 HTML"更彻底。
-const TOOLTIP_BASE = { renderMode: 'plainText' } as const
-
-function cssVar(name: string, fallback: string): string {
-  if (typeof window === 'undefined' || !window.getComputedStyle) return fallback
-  const v = window.getComputedStyle(document.documentElement).getPropertyValue(name).trim()
-  const hex = /^#[0-9a-fA-F]{3,8}$/.test(v) ? v : ''
-  return hex || fallback
-}
+export type { ChartData }
 
 export function useDashboardCharts(d: ChartData) {
   const trendRef = useRef<HTMLDivElement>(null)
@@ -44,13 +34,7 @@ export function useDashboardCharts(d: ChartData) {
 
   // 主题色一次读取：CSS 变量全站静态（index.css，无主题切换器，实测与 fallback 同值）；
   // 原先每次 option 更新做 5 次 getComputedStyle（每次强制样式重算），数据/区间一切换就触发
-  const theme = useMemo(() => ({
-    b1: cssVar('--chart-b1', '#facc15'),
-    b2: cssVar('--chart-b2', '#14532d'),
-    b3: cssVar('--chart-b3', '#f97316'),
-    grid: cssVar('--chart-grid', '#f3f4f6'),
-    text: cssVar('--chart-text', '#9ca3af'),
-  }), [])
+  const theme = useMemo(readChartTheme, [])
 
   // 图表实例生命周期（mount 一次）
   useEffect(() => {
@@ -123,118 +107,15 @@ export function useDashboardCharts(d: ChartData) {
     ensure(reviewRef, 'review')
     ensure(pieRef, 'pie')
     ensure(topRef, 'top')
-    const { b1, b2, b3, grid, text } = theme
-    const noAnim = reducedMotion
 
     // 近 N 天 营收 ¥ / 订单数 双轴趋势
-    const trend = chartsRef.current.trend
-    if (trend) {
-      trend.setOption({
-        animation: !noAnim,
-        color: [b1, b2],
-        tooltip: { trigger: 'axis', ...TOOLTIP_BASE },
-        legend: { data: ['营收', '订单'], right: 0, top: 0, icon: 'circle', itemWidth: 8, itemHeight: 8, textStyle: { color: text, fontSize: 11 } },
-        grid: { left: 8, right: 8, top: 30, bottom: rangeDays >= 90 ? 28 : 0, containLabel: true },
-        xAxis: { type: 'category', data: rangeData.labels, axisLine: { lineStyle: { color: grid } }, axisLabel: { color: text, fontSize: 10 } },
-        yAxis: [
-          { type: 'value', name: '¥', nameTextStyle: { color: text, fontSize: 9 }, axisLabel: { color: text, fontSize: 9 }, splitLine: { lineStyle: { color: grid } } },
-          { type: 'value', name: '单', nameTextStyle: { color: text, fontSize: 9 }, axisLabel: { color: text, fontSize: 9 }, splitLine: { show: false } },
-        ],
-        dataZoom: rangeDays >= 90 ? [{ type: 'inside', start: 0, end: 100 }, { type: 'slider', height: 16, bottom: 2 }] : [],
-        series: [
-          {
-            name: '营收', type: 'line', smooth: true, symbol: 'circle', symbolSize: 4, yAxisIndex: 0,
-            data: rangeData.revenues, lineStyle: { width: 2.5, color: b1 }, itemStyle: { color: b1 },
-            areaStyle: {
-              color: {
-                type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-                colorStops: [
-                  { offset: 0, color: b1 + '3d' },
-                  { offset: 1, color: b1 + '0a' },
-                ],
-              },
-            },
-          },
-          {
-            name: '订单', type: 'line', smooth: true, symbol: 'circle', symbolSize: 4, yAxisIndex: 1,
-            data: rangeData.orderCounts, lineStyle: { width: 2, color: b2 }, itemStyle: { color: b2 },
-          },
-        ],
-      }, true)
-    }
-
+    chartsRef.current.trend?.setOption(buildTrendOption(rangeData, theme, { rangeDays, reducedMotion }), true)
     // 近 14 天评价趋势（单线）
-    const review = chartsRef.current.review
-    if (review) {
-      review.setOption({
-        animation: !noAnim,
-        tooltip: { trigger: 'axis', ...TOOLTIP_BASE },
-        grid: { left: 8, right: 8, top: 20, bottom: 4, containLabel: true },
-        xAxis: { type: 'category', data: reviewTrend.labels, axisLine: { lineStyle: { color: grid } }, axisLabel: { color: text, fontSize: 10 } },
-        yAxis: { type: 'value', minInterval: 1, axisLabel: { color: text, fontSize: 9 }, splitLine: { lineStyle: { color: grid } } },
-        series: [
-          {
-            name: '评价', type: 'line', smooth: true, symbol: 'circle', symbolSize: 4,
-            data: reviewTrend.counts, lineStyle: { width: 2.5, color: b2 }, itemStyle: { color: b2 },
-            areaStyle: {
-              color: {
-                type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-                colorStops: [
-                  { offset: 0, color: b2 + '30' },
-                  { offset: 1, color: b2 + '08' },
-                ],
-              },
-            },
-          },
-        ],
-      }, true)
-    }
-
+    chartsRef.current.review?.setOption(buildReviewOption(reviewTrend, theme, { reducedMotion }), true)
     // 饮品/食品 环形占比
-    const pie = chartsRef.current.pie
-    if (pie) {
-      pie.setOption({
-        animation: !noAnim,
-        color: [b1, b2],
-        tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)', ...TOOLTIP_BASE },
-        legend: { bottom: 0, left: 'center', icon: 'circle', itemWidth: 8, itemHeight: 8, textStyle: { color: text, fontSize: 11 } },
-        series: [
-          {
-            type: 'pie', radius: ['55%', '76%'], center: ['50%', '44%'], padAngle: 3,
-            itemStyle: { borderRadius: 6 }, label: { show: false },
-            data: pieSegments.length ? pieSegments : [],
-          },
-        ],
-        // 空态提示由 DashboardTab 的 HTML overlay 负责（不再注册 GraphicComponent，省 ~87KB gz）
-      }, true)
-    }
-
+    chartsRef.current.pie?.setOption(buildPieOption(pieSegments, theme, { reducedMotion }), true)
     // 热销 TOP10 横向条形（按营收，前 3 名强调色）
-    const top = chartsRef.current.top
-    if (top) {
-      const names = topRevenue.map((t) => t.name).reverse()
-      const values = topRevenue.map((t) => Math.round(t.revenue)).reverse()
-      top.setOption({
-        animation: !noAnim,
-        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, ...TOOLTIP_BASE, formatter: (params: Array<{ name: string; value: number }>) => `${params[0].name}\n营收 ¥${params[0].value}` },
-        grid: { left: 8, right: 48, top: 8, bottom: 4, containLabel: true },
-        xAxis: { type: 'value', axisLabel: { color: text, fontSize: 9 }, splitLine: { lineStyle: { color: grid } } },
-        yAxis: { type: 'category', data: names, axisLine: { lineStyle: { color: grid } }, axisLabel: { color: text, fontSize: 10 } },
-        series: [
-          {
-            type: 'bar', barWidth: 10, data: values,
-            label: { show: true, position: 'right', color: text, fontSize: 9, formatter: '¥{c}' },
-            itemStyle: {
-              borderRadius: [0, 5, 5, 0],
-              color: (p: { dataIndex: number }) => {
-                const rank = topRevenue.length - 1 - p.dataIndex
-                return rank < 3 ? b3 : b1
-              },
-            },
-          },
-        ],
-      }, true)
-    }
+    chartsRef.current.top?.setOption(buildTopOption(topRevenue, theme, { reducedMotion }), true)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rangeData, pieSegments, topRevenue, reviewTrend, rangeDays, reducedMotion, chartsReady])
 
