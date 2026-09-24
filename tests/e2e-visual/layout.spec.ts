@@ -213,3 +213,98 @@ test('tap-44 不得压过 Tailwind 的 absolute（角标按钮定位回归锁）
   expect(m.prevCentered).toBe(true)
   expect(m.nextOnRight).toBe(true)
 })
+
+/* ================= 商城页 /shop（阶段二「暖白画廊」两端各自设计） ================= */
+
+async function openShop(page: import('@playwright/test').Page, path: string, vp = DESKTOP) {
+  await page.setViewportSize(vp)
+  await page.goto(`/#${path}`)
+  await expect(page.getByRole('status').filter({ hasText: /^共 \d+ 件/ })).toBeVisible({ timeout: 20_000 })
+  await assertCssLive(page)
+}
+
+test('桌面 1440 /shop：左侧分类栏与商品画廊真正并排，刊头在画廊上方', async ({ page }) => {
+  await openShop(page, '/shop/drinks')
+  const nav = await page.getByRole('navigation', { name: '商品分类导航' }).boundingBox()
+  const title = await page.getByRole('heading', { level: 1, name: '饮品' }).boundingBox()
+  const firstCard = await page.locator('[aria-label^="查看"][role="button"]').first().boundingBox()
+  expect(nav && title && firstCard).toBeTruthy()
+  // 分类栏整体在画廊左侧
+  expect(nav!.x + nav!.width).toBeLessThanOrEqual(firstCard!.x + 4)
+  // 刊头在画廊上方，而不是被挤到侧栏里
+  expect(title!.y).toBeLessThan(firstCard!.y)
+  // 侧栏不得喧宾夺主：直接量它占视口宽度的比例（此前误用 firstCard.x 作分母，
+  // 那个值里含页面左内边距，会把 padding 当成侧栏宽度，判据本身是错的）
+  expect(nav!.width).toBeLessThan(DESKTOP.width * 0.25)
+  // 画廊拿走的宽度必须明显大于侧栏
+  expect(firstCard!.width * 2).toBeGreaterThan(nav!.width)
+})
+
+test('手机 390 /shop：双列大图、只一个分类导航实例、无横向溢出', async ({ page }) => {
+  await openShop(page, '/shop/food/snacks', MOBILE)
+  await expect(page.getByRole('navigation', { name: '商品分类导航' })).toHaveCount(1)
+  // 窄屏不渲染桌面刊头（两套布局是条件渲染，不是 CSS 隐藏）
+  await expect(page.getByRole('heading', { level: 1 })).toHaveCount(0)
+  const cols = await page.evaluate(() => {
+    const grid = document.querySelector('.grid-cols-2')
+    if (!grid) return null
+    return getComputedStyle(grid).gridTemplateColumns.split(' ').length
+  })
+  expect(cols, '窄屏应为双列网格').toBe(2)
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+  expect(overflow, '390px 视口出现横向溢出').toBeLessThanOrEqual(1)
+})
+
+test('平板 768 /shop：三列且无横向溢出', async ({ page }) => {
+  await openShop(page, '/shop/drinks', TABLET)
+  const cols = await page.evaluate(() => {
+    const grid = document.querySelector('.sm\\:grid-cols-3') || document.querySelector('[class*="grid-cols-"]')
+    return grid ? getComputedStyle(grid).gridTemplateColumns.split(' ').length : 0
+  })
+  expect(cols).toBeGreaterThanOrEqual(3)
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+  expect(overflow, '768px 视口出现横向溢出').toBeLessThanOrEqual(1)
+})
+
+/**
+ * 回归锁：价格原先用 brand-600 (#ca8a04)，对白底只有 2.82:1，
+ * 连 AA 大字标准 3:1 都不过。阶段二改 brand-700 (#a16207) 后达 4.79:1。
+ */
+test('商城价格文字对比度过 AA（brand-700，不再是 brand-600 的 2.82:1）', async ({ page }) => {
+  await openShop(page, '/shop/drinks')
+  const c = await page.evaluate(() => {
+    const price = [...document.querySelectorAll('p.tabular-nums')][0]
+    const card = price.closest('[role="button"]')!
+    const parse = (s: string) => s.match(/\d+/g)!.slice(0, 3).map(Number)
+    const lin = (v: number) => { const x = v / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4 }
+    const lum = ([r, g, b]: number[]) => 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+    const fg = parse(getComputedStyle(price).color)
+    const bg = parse(getComputedStyle(document.querySelector('.bg-surface')!).backgroundColor)
+    const l1 = lum(fg), l2 = lum(bg)
+    return { fg: getComputedStyle(price).color, ratio: (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05), card: !!card }
+  })
+  expect(c.fg).toBe('rgb(161, 98, 7)') // brand-700 #a16207
+  expect(c.ratio).toBeGreaterThanOrEqual(4.5)
+})
+
+/**
+ * 上架商品里「农夫山泉矿泉水」「怡宝矿泉水」各出现两次，只有 spec 能区分。
+ * 钉住"同名卡必须给出不同规格行"，防止以后又把规格降级成品名括号附注。
+ */
+test('同名商品靠独立规格行可区分（规格不得退回品名括号附注）', async ({ page }) => {
+  await openShop(page, '/shop/drinks')
+  const rows = await page.evaluate(() => {
+    const cards = [...document.querySelectorAll('[role="button"][aria-label^="查看"]')]
+    return cards.map((el) => {
+      const h = el.querySelector('h3')
+      const spec = h ? h.nextElementSibling : null
+      return { name: h?.textContent?.trim() ?? '', spec: spec?.textContent?.trim() ?? '' }
+    })
+  })
+  const dupes = rows.filter((r) => r.name === '农夫山泉矿泉水')
+  expect(dupes.length, '本地目录里应有两条同名农夫山泉').toBeGreaterThanOrEqual(2)
+  expect(new Set(dupes.map((d) => d.spec)).size).toBe(dupes.length) // 规格两两不同
+  expect(dupes.every((d) => d.spec.length > 0)).toBe(true)          // 且都真的渲染出来了
+})

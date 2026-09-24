@@ -126,12 +126,18 @@ test('参数表存在且标明字段未经加工', async ({ page }) => {
   await expect(page.getByText(/取自商品目录真实记录/)).toBeVisible()
 })
 
-test('面包屑与同类商品是真链接，可导航回 生活 › 零食饮料', async ({ page }) => {
+test('面包屑取真实分类，点子类深链可回到商城对应视图', async ({ page }) => {
   await open(page, 16)
   const crumb = page.getByRole('navigation', { name: '面包屑' })
-  await expect(crumb.getByRole('link', { name: '生活' })).toHaveAttribute('href', /#\/category\/life/)
-  await crumb.getByRole('link', { name: '零食饮料' }).click()
+  // 商品 16 = 盒装东鹏特饮，真实归类在 饮品 › 提神（energy）
+  await expect(crumb.getByRole('link', { name: '饮品' })).toHaveAttribute('href', /#\/shop\/drinks/)
+  await expect(crumb.getByRole('link', { name: '提神' })).toHaveAttribute('href', /#\/shop\/drinks\/energy/)
+  await expect(crumb.getByRole('link', { name: '零食饮料' })).toHaveCount(0)
+  await crumb.getByRole('link', { name: '提神' }).click()
   await expect(page.getByRole('navigation', { name: '商品分类导航' })).toBeVisible()
+  await expect(page).toHaveURL(/#\/shop\/drinks\/energy/)
+  // 深链落地后必须真的按子类过滤，而不是回到默认分类
+  await expect(page.getByRole('button', { name: '切换到提神分类' })).toHaveAttribute('aria-pressed', 'true')
 })
 
 test('列表页筛选有真实行为：搜索后结果数与卡片同步变化', async ({ page }) => {
