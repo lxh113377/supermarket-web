@@ -2,7 +2,7 @@
 // 阶段一重构后筛选态以 URL 为唯一真相，故本文件走真实 MemoryRouter + 路由表，
 // 不再 mock useNavigate/useLocation（mock 掉就等于测不到深链）。
 // db / cloudbase / prefetchBus 仍打桩。
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { useEffect } from 'react'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
@@ -222,5 +222,68 @@ describe('CustomerPage 商城页', () => {
     renderShop()
     await screen.findByText(/农夫山泉/)
     expect(document.querySelectorAll('[aria-live]').length).toBe(2)
+  })
+})
+
+/**
+ * 窄屏分支（阶段二「两端各自设计」）。
+ *
+ * 必须单独测：jsdom 没有 matchMedia，useIsNarrow() 恒返回 false，
+ * 上面整组用例其实只跑到了桌面那一套 JSX。若不显式打桩，手机端布局
+ * 就是零覆盖 —— 而它才是这个项目的主战场（微信内 H5）。
+ */
+describe('CustomerPage 窄屏布局（手机/平板）', () => {
+  const stubNarrow = (matches: boolean) => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: matches && query.includes('1023.98'),
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    }))
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    localStorage.clear()
+    lastLoc = ''
+    h.getCategories.mockResolvedValue(cats)
+    h.getProducts.mockResolvedValue([pWater, pCola, pSnack, pFill])
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('窄屏走顶部横条那套：不渲染桌面刊头 h1', async () => {
+    stubNarrow(true)
+    renderShop('/shop/food/snacks')
+    await screen.findByText(/薯片/)
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull()
+    // 只存在一个分类导航实例（两套布局是条件渲染，不是 CSS 隐藏）
+    expect(screen.getAllByRole('navigation', { name: '商品分类导航' })).toHaveLength(1)
+  })
+
+  it('窄屏下子类以滑轨呈现，且网格是双列', async () => {
+    stubNarrow(true)
+    renderShop('/shop/food')
+    await screen.findByText(/薯片/)
+    // 桌面版只展开当前大类的子类为竖排列表；窄屏是横向滑轨，全部子类都在
+    expect(screen.getByRole('button', { name: '切换到零食分类' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '切换到垫腹分类' })).toBeTruthy()
+    const grid = document.querySelector('.grid-cols-2')
+    expect(grid, '窄屏应为双列大图网格').not.toBeNull()
+    expect(grid?.querySelectorAll('[role="button"][aria-label^="查看"]').length).toBe(2)
+  })
+
+  it('宽屏走桌面那套：渲染刊头 h1 与左侧分类栏', async () => {
+    stubNarrow(false)
+    renderShop('/shop/food')
+    await screen.findByText(/薯片/)
+    expect(screen.getByRole('heading', { level: 1, name: '食品' })).toBeTruthy()
+    expect(screen.getByText('分类')).toBeTruthy()
   })
 })

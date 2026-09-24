@@ -9,6 +9,7 @@ import { IconCart, IconEmpty } from '../components/Icons'
 import useCart from '../hooks/useCart'
 import useProducts from '../hooks/useProducts'
 import { useShopFilters, SORT_OPTIONS } from '../hooks/useShopFilters'
+import { useIsNarrow } from '../hooks/useMediaQuery'
 import { formatYuan } from '../utils/format'
 import { prefetchRoute } from '../prefetchBus'
 import type { Product } from '../types'
@@ -28,6 +29,7 @@ export default function CustomerPage() {
   const { categories, products, loading, error, refresh } = useProducts()
   const { category, subId, q, sort, selectCategory, selectSub, setQuery, setSortBy } =
     useShopFilters(categories)
+  const narrow = useIsNarrow()
   const [toast, setToast] = useState('')
   const [showSearch, setShowSearch] = useState(() => q !== '')
   const [flyDots, setFlyDots] = useState<FlyDotData[]>([])
@@ -124,18 +126,79 @@ export default function CustomerPage() {
 
   const removeDot = (id: number) => setFlyDots(prev => prev.filter(d => d.id !== id))
 
+  const activeSubName = category?.subcategories.find(s => s.id === subId)?.name
+
+  // TopNav 在两种布局里位置不同（手机在滚动容器之上、桌面在滚动容器内的左栏），
+  // 且必须只存在一个实例，所以按断点条件渲染而不是 CSS 隐藏。
+  const nav = (
+    <TopNav
+      categories={categories}
+      activeTop={category?._id ?? ''}
+      activeSub={subId}
+      onTopChange={selectCategory}
+      onSubChange={selectSub}
+      onSearchToggle={() => setShowSearch(!showSearch)}
+      showSearch={showSearch}
+    />
+  )
+
+  const searchPanel = showSearch && (
+    <div className="pb-3 animate-slide-down">
+      <input
+        type="search"
+        className="input-base"
+        placeholder="搜索商品名称或规格…"
+        aria-label="搜索商品名称"
+        value={draftQ}
+        onChange={(e) => { setDraftQ(e.target.value); setQuery(e.target.value) }}
+        autoFocus
+      />
+      {suggestions.length > 0 && (
+        <div className="mt-2 bg-white border border-gray-100 rounded-xl shadow-elevated overflow-hidden animate-scale-in">
+          {suggestions.map(p => (
+            <button
+              key={p._id}
+              onClick={() => { setDraftQ(p.name); setQuery(p.name); setShowSearch(false) }}
+              className="w-full text-left px-4 py-3 text-sm hover:bg-brand-50/50 flex justify-between items-center transition-colors duration-150 border-b border-gray-50 last:border-0"
+            >
+              <span className="text-gray-700">{p.name}{p.spec ? ` (${p.spec})` : ''}</span>
+              <span className="text-brand-700 text-xs font-semibold">{formatYuan(p.price)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+
+  const sortRow = (
+    <div className="flex gap-2" role="group" aria-label="商品排序方式">
+      {SORT_OPTIONS.map(s => (
+        <button
+          key={s.key}
+          onClick={() => setSortBy(s.key)}
+          aria-pressed={sort === s.key}
+          className={sort === s.key ? 'pill-active' : 'pill-inactive'}
+        >
+          {s.label}
+        </button>
+      ))}
+    </div>
+  )
+
+  // 筛选结果计数：分类/子分类/搜索/排序任一变化都会改写这里的数字，
+  // 作为 aria-live 区域播报，避免视力正常用户也要靠数卡片才知道筛完了
+  const counterRow = (
+    <p className="text-xs text-gray-500" role="status" aria-live="polite">
+      共 {filteredProducts.length} 件
+      {deferredQ && <> · 匹配「{deferredQ}」</>}
+      {sort !== 'default' && <> · 按{sort === 'price-asc' ? '价格升序' : '价格降序'}</>}
+    </p>
+  )
+
   if (loading) {
     return (
       <div className="flex flex-col h-full bg-surface">
-        <TopNav
-          categories={[]}
-          activeTop=""
-          activeSub=""
-          onTopChange={() => {}}
-          onSubChange={() => {}}
-          onSearchToggle={() => {}}
-          showSearch={false}
-        />
+        {nav}
         <div className="flex-1 overflow-y-auto p-4 pb-24">
           <SkeletonList rows={6} />
         </div>
@@ -158,11 +221,110 @@ export default function CustomerPage() {
     )
   }
 
+  const grid = (
+    <>
+      {filteredProducts.length === 0 && !deferredQ && (
+        <EmptyState
+          className="mt-10"
+          icon={<IconCart className="w-6 h-6" />}
+          title="暂无该类商品"
+          description="换个分类看看，或稍后再来"
+        />
+      )}
+      {filteredProducts.length === 0 && deferredQ && (
+        <EmptyState
+          className="mt-10"
+          icon={<IconEmpty className="w-6 h-6" />}
+          title={`未找到「${deferredQ}」相关商品`}
+          description="试试更短的关键词，或换个说法"
+        />
+      )}
+      {/* 图注式网格：手机双列（微信内拇指区刚好一屏四件）→ 平板三列 → 桌面四列。
+          旧版是手机单列横排小图，桌面也才三列，图片只有 56px，等于没有图。 */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 lg:gap-5 enter-stagger">
+        {filteredProducts.map(product => (
+          <ProductCard
+            key={product._id}
+            product={product}
+            quantity={getQuantity(product._id)}
+            onAdd={handleAdd}
+            onRemove={handleRemove}
+          />
+        ))}
+      </div>
+    </>
+  )
+
+  /* ---------------- 桌面：刊头 + 左侧分类栏 + 右侧画廊 ---------------- */
+  if (!narrow) {
+    return (
+      <div className="flex flex-col h-full bg-surface">
+        <div className="flex items-center px-6 lg:px-10 py-4 bg-white/80 backdrop-blur-sm border-b border-gray-100">
+          <button
+            onClick={() => (location.state?.fromCategory ? navigate(-1) : navigate('/'))}
+            aria-label="返回"
+            className="w-9 h-9 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200 -ml-2 mr-3"
+          >
+            ←
+          </button>
+          <span className="text-sm font-semibold tracking-[0.2em] text-gray-400">江科一站通</span>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 lg:px-10 py-6 pb-28">
+          <div className="flex gap-8 items-start max-w-[80rem] mx-auto">
+            {nav}
+
+            <div className="flex-1 min-w-0">
+              {/* 刊头：分类当卷名，子类与件数当副题 —— 这是"杂志"隐喻的落点 */}
+              <div className="flex items-end justify-between gap-4 flex-wrap pb-4 mb-5 border-b border-gray-200">
+                <div className="min-w-0">
+                  <h1 className="text-3xl font-bold tracking-tight text-gray-900 leading-none">
+                    {category?.name || '全部商品'}
+                  </h1>
+                  <p className="text-xs text-gray-400 mt-2 tracking-wide">
+                    {activeSubName || '全部'}
+                  </p>
+                </div>
+                <div className="flex flex-col items-end gap-2.5">
+                  {sortRow}
+                  {counterRow}
+                </div>
+              </div>
+
+              {searchPanel}
+              {grid}
+            </div>
+          </div>
+        </div>
+
+        {totalCount > 0 && (
+          <div className="safe-offset-bottom fixed left-5 right-5 z-30 animate-slide-up" ref={cartBtnRef}>
+            <button
+              onClick={() => navigate('/cart')}
+              onMouseEnter={() => prefetchRoute('cart')}
+              onFocus={() => prefetchRoute('cart')}
+              aria-label={`查看购物车，共 ${totalCount} 件，合计 ${formatYuan(totalAmount)}`}
+              className="w-full max-w-2xl mx-auto bg-gray-900 hover:bg-gray-800 text-white py-4 rounded-2xl shadow-float flex items-center justify-center gap-3 transition-all duration-200 active:scale-[0.98]"
+            >
+              <span className="font-medium">购物车</span>
+              <span className="bg-brand-500 px-2.5 py-0.5 rounded-full text-xs font-bold">
+                {totalCount} 件
+              </span>
+              <span className="font-bold text-brand-300">{formatYuan(totalAmount)}</span>
+            </button>
+          </div>
+        )}
+        {toastLayer(toast)}
+        {flyDots.map(d => (
+          <FlyDot key={d.id} x={d.x} y={d.y} tx={d.tx} ty={d.ty} onDone={() => removeDot(d.id)} />
+        ))}
+      </div>
+    )
+  }
+
+  /* ---------------- 手机 / 平板：顶部横条 + 双列大图 ---------------- */
   return (
     <div className="flex flex-col h-full bg-surface">
-      {/* 返回栏：标题取 URL 命中的真实分类，不再依赖 location.state.title
-          （CategoryPage 从来没传过这个字段，导致从「生活›超市」进来恒显「全部商品」，
-          而下方导航高亮的是「饮品」——两处说法打架）。 */}
       <div className="flex items-center px-4 py-2.5 bg-white/95 backdrop-blur-sm border-b border-gray-100">
         <button
           onClick={() => (location.state?.fromCategory ? navigate(-1) : navigate('/'))}
@@ -175,119 +337,17 @@ export default function CustomerPage() {
           {category?.name || '全部商品'}
         </span>
       </div>
-      <TopNav
-        categories={categories}
-        activeTop={category?._id ?? ''}
-        activeSub={subId}
-        onTopChange={selectCategory}
-        onSubChange={selectSub}
-        onSearchToggle={() => setShowSearch(!showSearch)}
-        showSearch={showSearch}
-      />
+      {nav}
 
-      {/* 搜索栏 */}
-      {showSearch && (
-        <div className="px-4 pb-2.5 animate-slide-down">
-          <input
-            type="search"
-            className="input-base"
-            placeholder="搜索商品名称…"
-            aria-label="搜索商品名称"
-            value={draftQ}
-            onChange={(e) => { setDraftQ(e.target.value); setQuery(e.target.value) }}
-            autoFocus
-          />
-          {suggestions.length > 0 && (
-            <div className="mt-2 bg-white border border-gray-100 rounded-xl shadow-elevated overflow-hidden animate-scale-in">
-              {suggestions.map(p => (
-                <button
-                  key={p._id}
-                  onClick={() => { setDraftQ(p.name); setQuery(p.name); setShowSearch(false) }}
-                  className="w-full text-left px-4 py-3 text-sm hover:bg-brand-50/50 flex justify-between items-center transition-colors duration-150 border-b border-gray-50 last:border-0"
-                >
-                  <span className="text-gray-700">{p.name}{p.spec ? ` (${p.spec})` : ''}</span>
-                  <span className="text-brand-600 text-xs font-semibold">{formatYuan(p.price)}</span>
-                </button>
-              ))}
-            </div>
-          )}
+      <div className="flex-1 overflow-y-auto px-4 pt-3 pb-32">
+        {searchPanel}
+        <div className="flex items-center justify-between gap-3 flex-wrap pb-2">
+          {sortRow}
+          {counterRow}
         </div>
-      )}
-
-      {/* 排序：选中态原先只靠 pill-active 类着色表达，读屏与键盘用户拿不到「当前按什么排」，
-          故补 role=group + aria-pressed；排序确实改变了下方列表顺序，文案与行为一致。 */}
-      <div className="px-4 pb-2.5 flex gap-2" role="group" aria-label="商品排序方式">
-        {SORT_OPTIONS.map(s => (
-          <button
-            key={s.key}
-            onClick={() => setSortBy(s.key)}
-            aria-pressed={sort === s.key}
-            className={sort === s.key ? 'pill-active' : 'pill-inactive'}
-          >
-            {s.label}
-          </button>
-        ))}
+        {grid}
       </div>
 
-      {/* 筛选结果计数：分类/子分类/搜索/排序任一变化都会改写这里的数字，
-          作为 aria-live 区域播报，避免视力正常用户也要靠数卡片才知道筛完了 */}
-      <p className="px-4 pb-2 text-xs text-gray-500" role="status" aria-live="polite">
-        共 {filteredProducts.length} 件
-        {deferredQ && <> · 匹配「{deferredQ}」</>}
-        {sort !== 'default' && <> · 按{sort === 'price-asc' ? '价格升序' : '价格降序'}</>}
-      </p>
-
-      <div className="flex-1 overflow-y-auto p-4 pb-32">
-        {filteredProducts.length === 0 && !deferredQ && (
-          <EmptyState
-            className="mt-10"
-            icon={<IconCart className="w-6 h-6" />}
-            title="暂无该类商品"
-            description="换个分类看看，或稍后再来"
-          />
-        )}
-        {filteredProducts.length === 0 && deferredQ && (
-          <EmptyState
-            className="mt-10"
-            icon={<IconEmpty className="w-6 h-6" />}
-            title={`未找到「${deferredQ}」相关商品`}
-            description="试试更短的关键词，或换个说法"
-          />
-        )}
-        {/* 响应式：手机 1 列 → 平板 2 列 → 桌面 3 列（原实现桌面也只排 2 列） */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 enter-stagger">
-          {filteredProducts.map(product => (
-            <ProductCard
-              key={product._id}
-              product={product}
-              quantity={getQuantity(product._id)}
-              onAdd={handleAdd}
-              onRemove={handleRemove}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Toast：补 role="status" + aria-live —— 加购成功这类瞬时反馈此前读屏完全听不到 */}
-      <div
-        className="fixed top-16 left-1/2 -translate-x-1/2 z-50 pointer-events-none"
-        role="status"
-        aria-live="polite"
-      >
-        {toast && (
-          <div className="bg-gray-900/90 backdrop-blur-sm text-white text-sm px-5 py-2.5 rounded-full shadow-float animate-scale-in">
-            {toast}
-          </div>
-        )}
-      </div>
-
-      {/* 飞行动画 */}
-      {flyDots.map(d => (
-        <FlyDot key={d.id} x={d.x} y={d.y} tx={d.tx} ty={d.ty} onDone={() => removeDot(d.id)} />
-      ))}
-
-      {/* 购物车浮球 - 更圆润 */}
-      {/* 底部位置改用 .safe-offset-bottom：原 bottom-5 会被 iPhone 底部小黑条盖住结算入口 */}
       {totalCount > 0 && (
         <div className="safe-offset-bottom fixed left-5 right-5 z-30 animate-slide-up" ref={cartBtnRef}>
           <button
@@ -305,7 +365,27 @@ export default function CustomerPage() {
           </button>
         </div>
       )}
+      {toastLayer(toast)}
+      {flyDots.map(d => (
+        <FlyDot key={d.id} x={d.x} y={d.y} tx={d.tx} ty={d.ty} onDone={() => removeDot(d.id)} />
+      ))}
+    </div>
+  )
+}
 
+/** 瞬时反馈统一走这一条页面级 live region（取代旧版每卡一个 aria-live） */
+function toastLayer(toast: string) {
+  return (
+    <div
+      className="fixed top-16 left-1/2 -translate-x-1/2 z-50 pointer-events-none"
+      role="status"
+      aria-live="polite"
+    >
+      {toast && (
+        <div className="bg-gray-900/90 backdrop-blur-sm text-white text-sm px-5 py-2.5 rounded-full shadow-float animate-scale-in">
+          {toast}
+        </div>
+      )}
     </div>
   )
 }

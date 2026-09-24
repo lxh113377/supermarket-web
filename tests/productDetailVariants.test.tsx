@@ -222,11 +222,16 @@ describe('参数与相关推荐', () => {
     expect(screen.getByText('共 2 条 · 取自真实商品目录')).toBeTruthy()
   })
 
-  it('面包屑把页面接回 首页 › 生活 › 零食饮料 的真实入口', async () => {
+  it('面包屑取商品自己的真实分类，且两级都指向可点回去的 /shop 深链', async () => {
     page()
     await screen.findByLabelText('购买数量')
     const nav = screen.getByRole('navigation', { name: '面包屑' })
     const hrefs = Array.from(nav.querySelectorAll('a')).map((a) => a.getAttribute('href'))
-    expect(hrefs).toEqual(['/', '/category/life', '/shop'])
+    // 打桩目录只有一个大类 drinks / 子类 energy(提神)，商品 16 落在其中
+    expect(hrefs).toEqual(['/', '/shop/drinks', '/shop/drinks/energy'])
+    expect(nav.textContent).toContain('饮品')
+    expect(nav.textContent).toContain('提神')
+    // 写死的「生活 › 零食饮料」必须彻底消失：它与商城页显示的「食品 › 零食」互相矛盾
+    expect(nav.textContent).not.toContain('零食饮料')
   })
 })

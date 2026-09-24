@@ -15,6 +15,7 @@ import { Skeleton } from '../components/Skeleton'
 import { IconEmpty } from '../components/Icons'
 import { productImageUrl, productSrcSet } from '../utils/images'
 import { formatYuan } from '../utils/format'
+import { useIsNarrow } from '../hooks/useMediaQuery'
 import { variantGroupOf } from '../data/variants-demo'
 import {
   groupImageOrders,
@@ -43,28 +44,6 @@ function optionLabel(group: VariantGroup, axisId: string, optionId: string): str
   if (optionId === '') return '（无）'
   const axis = group.axes.find((a) => a.id === axisId)
   return axis?.options.find((o) => o.id === optionId)?.label ?? optionId
-}
-
-/**
- * 是否为窄屏（< lg 断点 1024px）。吸底加购栏按它**条件渲染**而不是只藏 CSS：
- * 两份「加入购物车」同时存在于 DOM 会让辅助技术读到两个同名主操作，
- * 也会让 e2e 的严格模式选择器直接失败（实测踩过）。
- * jsdom / 无 matchMedia 环境返回 false（按桌面处理），此时只渲染右栏那一个。
- */
-function useIsNarrow(): boolean {
-  const [narrow, setNarrow] = useState(() =>
-    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
-      ? window.matchMedia('(max-width: 1023.98px)').matches
-      : false)
-  useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
-    const mq = window.matchMedia('(max-width: 1023.98px)')
-    const onChange = (e: MediaQueryListEvent) => setNarrow(e.matches)
-    mq.addEventListener('change', onChange)
-    setNarrow(mq.matches)
-    return () => mq.removeEventListener('change', onChange)
-  }, [])
-  return narrow
 }
 
 export default function ProductDetailPage() {
@@ -243,6 +222,18 @@ export default function ProductDetailPage() {
   const inBag = getQuantity(cartProduct?._id ?? '')
   const narrow = useIsNarrow()
 
+  /**
+   * 面包屑取商品自己的真实分类，而不是写死「生活 › 零食饮料」。
+   * 原先硬编码导致商城页显示「食品 › 零食」、点进详情却变成「生活 › 零食饮料」，
+   * 两页当面互相矛盾；且 /shop 深链做好之后，这两级现在是**真的可点回去**的。
+   */
+  const crumb = useMemo(() => {
+    const subs = product?.subcategories ?? []
+    const cat = categories.find(c => c.subcategories.some(s => subs.includes(s.id)))
+    const sub = cat?.subcategories.find(s => subs.includes(s.id))
+    return { cat, sub }
+  }, [categories, product])
+
   if (loading) {
     // 加载态与列表页统一为骨架屏（原先是转圈 spinner，与 CustomerPage 的 SkeletonList 两种语言）
     return (
@@ -299,14 +290,30 @@ export default function ProductDetailPage() {
       </div>
 
       <div className="flex-1 overflow-y-auto pb-28 lg:pb-10 w-full">
-        {/* 面包屑：把这一页接回「首页 › 生活 › 零食饮料」的真实入口 */}
+        {/* 面包屑：首页 › 大类 › 子类 › 当前商品，两级分类均可点回商城对应视图 */}
         <nav aria-label="面包屑" className="max-w-6xl mx-auto px-4 lg:px-6 pt-3">
           <ol className="flex items-center gap-1.5 text-xs text-gray-400 list-none m-0 p-0 flex-wrap">
-            <li><Link to="/" className="hover:text-brand-600 text-gray-500">首页</Link></li>
-            <li aria-hidden="true">›</li>
-            <li><Link to="/category/life" className="hover:text-brand-600 text-gray-500">生活</Link></li>
-            <li aria-hidden="true">›</li>
-            <li><Link to="/shop" className="hover:text-brand-600 text-gray-500">零食饮料</Link></li>
+            <li><Link to="/" className="hover:text-brand-700 text-gray-500">首页</Link></li>
+            {crumb.cat && (
+              <>
+                <li aria-hidden="true">›</li>
+                <li>
+                  <Link to={`/shop/${crumb.cat._id}`} className="hover:text-brand-700 text-gray-500">
+                    {crumb.cat.name}
+                  </Link>
+                </li>
+              </>
+            )}
+            {crumb.sub && (
+              <>
+                <li aria-hidden="true">›</li>
+                <li>
+                  <Link to={`/shop/${crumb.cat!._id}/${crumb.sub.id}`} className="hover:text-brand-700 text-gray-500">
+                    {crumb.sub.name}
+                  </Link>
+                </li>
+              </>
+            )}
             <li aria-hidden="true">›</li>
             <li className="text-gray-700 truncate max-w-[12rem]" aria-current="page">{effName}</li>
           </ol>
@@ -339,7 +346,7 @@ export default function ProductDetailPage() {
                   <span className="text-xs text-gray-400">{avgRating} 分 · {productReviews.length} 条评价</span>
                 </div>
               )}
-              <p className="text-3xl font-bold text-brand-600 mt-4 tabular-nums">{formatYuan(effPrice)}</p>
+              <p className="text-3xl font-bold text-brand-700 mt-4 tabular-nums">{formatYuan(effPrice)}</p>
               {combo && Number(effOrder) !== Number(product.order) && (
                 <p className="text-xs text-gray-400 mt-1">
                   价格随所选规格变化 · 当前对应目录编号 {String(effOrder)}
@@ -467,7 +474,7 @@ export default function ProductDetailPage() {
       {narrow && (
         <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-gray-100 px-4 py-3 z-20 safe-bottom">
           <div className="flex items-center gap-3 w-full max-w-3xl mx-auto">
-            <span className="text-xl font-bold text-brand-600 tabular-nums shrink-0">{formatYuan(effPrice)}</span>
+            <span className="text-xl font-bold text-brand-700 tabular-nums shrink-0">{formatYuan(effPrice)}</span>
             <button
               type="button"
               onClick={() => setSummaryOpen(true)}

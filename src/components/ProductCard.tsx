@@ -16,13 +16,23 @@ interface ProductCardProps {
   onRemove: (product: Product) => void
 }
 
+/**
+ * 图注式商品卡（阶段二「暖白画廊」）。
+ *
+ * 与旧版的根本差别：旧卡是 56px 小缩略图 + 文字横排，图片只是个符号；
+ * 新卡让图片当主角（1:1 满幅、白底自然融入暖白页底），文字退成图注。
+ *
+ * 一个由真实数据逼出来的决定：上架 28 件里「农夫山泉矿泉水」和「怡宝矿泉水」
+ * 各出现两次，**只有 spec 能区分**（1.5L vs 550ml / 2.08L vs 550ml）。
+ * 所以规格从旧版的括号附注提升为独立一行，不再挤在品名后面。
+ *
+ * 价格色由 brand-600(#ca8a04) 改为 brand-700(#a16207)：前者对白底只有 2.82:1，
+ * 连 AA 大字标准 3:1 都不过；后者 4.71:1，正文级也够。
+ */
 function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
   const navigate = useNavigate()
   const disabled = product.enabled === false
   const [imgErr, setImgErr] = useState(false)
-  const displayName = product.spec
-    ? `${product.name} (${product.spec})`
-    : product.name
   const imgSrc = productImageUrl(product.order)
   const imgSrcSet = productSrcSet(product.order)
   // 该商品在演示变体层里有几条真实记录（无变体组时为 0，不显示角标）
@@ -38,11 +48,11 @@ function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
       // P0-9：补按钮语义与键盘可达（Enter/Space 进详情），键盘用户可操作商品卡
       role={disabled ? undefined : 'button'}
       tabIndex={disabled ? -1 : 0}
-      aria-label={disabled ? undefined : `查看${displayName}详情`}
-      className={`flex items-center gap-3 p-3.5 rounded-2xl transition-all duration-300 ${
+      aria-label={disabled ? undefined : `查看${product.name}${product.spec ? ` ${product.spec}` : ''}详情`}
+      className={`group relative flex flex-col overflow-hidden rounded-2xl text-left transition-all duration-300 ${
         disabled
           ? 'bg-gray-50 opacity-50 grayscale border border-gray-100'
-          : 'bg-white border border-gray-100/80 shadow-card hover:shadow-elevated hover:-translate-y-0.5 cursor-pointer active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-brand-500'
+          : 'bg-white/60 border border-transparent hover:border-brand-200 hover:shadow-elevated cursor-pointer active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-brand-500'
       }`}
       onClick={goDetail}
       onMouseEnter={() => {
@@ -58,43 +68,86 @@ function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
         }
       }}
     >
-      {/* 商品缩略图：显式 width/height 固定占位（消除 CLS）+ decoding="async"（解码不阻塞主线程） */}
-      <div className="w-14 h-14 rounded-xl overflow-hidden bg-gray-50 border border-gray-100/60 shrink-0">
+      {/* 图区：1:1 满幅。商品图本身多为白底，用 object-contain 不裁切包装信息，
+          白底与卡片底色相接看不出边界；hover 时轻微放大，是「画廊里凑近看」的动作隐喻。 */}
+      <div className="relative w-full aspect-square overflow-hidden bg-white">
         {imgSrc && !imgErr ? (
           <img
             src={imgSrc}
             srcSet={imgSrcSet}
-            sizes="56px"
-            width={56}
-            height={56}
+            sizes="(max-width: 639px) 46vw, (max-width: 1023px) 30vw, 240px"
+            width={400}
+            height={400}
             alt={product.name}
             loading="lazy"
             decoding="async"
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain p-2 transition-transform duration-500 ease-out group-hover:scale-[1.06]"
             onError={() => setImgErr(true)}
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-xl bg-gradient-to-br from-brand-50 to-orange-50">
-            <span aria-hidden="true">
+          <div className="w-full h-full flex flex-col items-center justify-center gap-1 bg-gradient-to-br from-brand-50 to-orange-50">
+            <span className="text-4xl" aria-hidden="true">
               {product.subcategories?.includes('snacks') || product.subcategories?.includes('filling') ? '🍜' : '🥤'}
             </span>
+            <span className="text-[10px] text-gray-400">示意图 · 非商品实拍</span>
+          </div>
+        )}
+
+        {/* 已加购件数：角标压在图左上，取代旧版挤在按钮中间的数字 */}
+        {quantity > 0 && !disabled && (
+          <span
+            className="absolute top-2 left-2 min-w-[1.5rem] h-6 px-1.5 rounded-full bg-brand-500 text-white text-xs font-bold flex items-center justify-center tabular-nums shadow-soft"
+            aria-hidden="true"
+          >{quantity}</span>
+        )}
+
+        {/* 加购控件压在图右下：卡片其余区域整块可点进详情，操作与浏览互不干扰 */}
+        {!disabled && (
+          <div className="absolute right-2 bottom-2 flex items-center gap-3">
+            {quantity > 0 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onRemove(product)
+                }}
+                aria-label={`减少${product.name}`}
+                className="tap-44 w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm border border-gray-200 text-gray-600 flex items-center justify-center text-base leading-none shadow-soft hover:bg-white hover:border-brand-300 transition-all duration-200 active:scale-90"
+              >
+                <span aria-hidden="true">-</span>
+              </button>
+            )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onAdd(product, e)
+              }}
+              aria-label={`添加${product.name}`}
+              className="tap-44 w-9 h-9 rounded-full bg-brand-500 text-white flex items-center justify-center text-lg leading-none shadow-elevated hover:bg-brand-600 transition-all duration-200 active:scale-90"
+            >
+              <span aria-hidden="true">+</span>
+            </button>
           </div>
         )}
       </div>
 
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
-          <h3 className={`text-sm font-medium leading-tight truncate ${disabled ? 'text-gray-400' : 'text-gray-900'}`}>
-            {displayName}
-          </h3>
-          {disabled && (
-            <span className="text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded-md font-medium shrink-0">
-              已下架
-            </span>
-          )}
-        </div>
-        <p className={`text-base font-bold mt-0.5 ${disabled ? 'text-gray-400' : 'text-brand-600'}`}>
-          <span className="text-xs font-medium">¥</span>{formatPrice(product.price)}
+      {/* 图注区 */}
+      <div className="flex flex-col flex-1 min-w-0 px-3 pt-2.5 pb-3">
+        <h3 className={`text-sm font-semibold leading-snug line-clamp-2 ${disabled ? 'text-gray-400' : 'text-gray-900'}`}>
+          {product.name}
+        </h3>
+        {/* 规格独立成行：同名商品（农夫山泉矿泉水 / 怡宝矿泉水）全靠它区分，不能缩成附注 */}
+        {product.spec ? (
+          <p className={`text-xs mt-1 ${disabled ? 'text-gray-400' : 'text-gray-500'}`}>{product.spec}</p>
+        ) : (
+          <p className="text-xs mt-1 text-transparent select-none" aria-hidden="true">·</p>
+        )}
+        {disabled && (
+          <span className="self-start mt-1.5 text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded-md font-medium">
+            已下架
+          </span>
+        )}
+        <p className={`text-xl font-bold mt-1.5 tabular-nums ${disabled ? 'text-gray-400' : 'text-brand-700'}`}>
+          <span className="text-xs font-semibold align-top">¥</span>{formatPrice(product.price)}
           {/* 卡面只标这一条记录自己的真实价格，不用「¥x 起」——
               那样点进详情默认选中的是这一条本身，价格会对不上。
               变体数量另用角标提示，进详情页由选择器承载。 */}
@@ -105,43 +158,6 @@ function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
           )}
         </p>
       </div>
-
-      {!disabled && (
-        // gap 由 10px 提到 12px：配合 .tap-44 的命中区扩展，避免相邻按钮命中区重叠误触。
-        // 原先这里是 <div onClick={stopPropagation}>（无语义、无键盘支持），
-        // 改为在每个按钮自身阻止冒泡 —— 少一层非语义交互壳。
-        <div className="flex items-center gap-3">
-          {quantity > 0 && (
-            <>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onRemove(product)
-                }}
-                aria-label={`减少${product.name}`}
-                className="tap-44 w-8 h-8 rounded-full bg-gray-50 border border-gray-200 text-gray-500 flex items-center justify-center text-sm hover:bg-gray-100 hover:border-gray-300 transition-all duration-200 active:scale-90"
-              >
-                <span aria-hidden="true">-</span>
-              </button>
-              {/* 刻意不加 aria-live：列表里每张卡各挂一个 live region，加一次购
-                  读屏就会连播一屏数字。增减数量的播报统一由页面级 toast 承担。 */}
-              <span className="text-sm font-semibold w-5 text-center text-gray-800">
-                {quantity}
-              </span>
-            </>
-          )}
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onAdd(product, e)
-            }}
-            aria-label={`添加${product.name}`}
-            className="tap-44 w-8 h-8 rounded-full bg-brand-500 text-white flex items-center justify-center text-sm shadow-soft hover:bg-brand-600 hover:shadow-elevated transition-all duration-200 active:scale-90"
-          >
-            <span aria-hidden="true">+</span>
-          </button>
-        </div>
-      )}
     </div>
   )
 }
