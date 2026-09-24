@@ -17,11 +17,13 @@ export interface ProductForm {
   images: string[]
   description: string
   order: number | string
+  /** 库存储值串：''=不限售/不修改（禁把空串送服务端，Number('')===0 会被判为缺货） */
+  stock: string
 }
 
 export const emptyForm: ProductForm = {
   name: '', spec: '', price: 0, costPrice: '', subcategories: [],
-  enabled: true, image: '', images: [], description: '', order: '',
+  enabled: true, image: '', images: [], description: '', order: '', stock: '',
 }
 
 interface InlineEditFormProps {
@@ -44,6 +46,7 @@ export default function InlineEditForm({ product, categories, onClose, onSaved }
     description: product.description || '',
     images: Array.isArray(product.images) ? product.images : [],
     order: product.order ?? '',
+    stock: typeof product.stock === 'number' && product.stock >= 0 ? String(product.stock) : '',
   })
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
@@ -83,6 +86,16 @@ export default function InlineEditForm({ product, categories, onClose, onSaved }
         costPrice = Math.round(n * 100) / 100
       }
       payload.costPrice = costPrice
+      let stock: number | undefined
+      const stockStr = form.stock.trim()
+      if (stockStr !== '') {
+        if (!/^-?\d+$/.test(stockStr) || Number(stockStr) < -1) {
+          setFormError('库存必须为整数（-1 或留空表示不限售）')
+          return
+        }
+        stock = Number(stockStr)
+      }
+      payload.stock = stock
       if (!isNew && !product._id) {
         setFormError('缺少商品 ID，无法保存')
         return
@@ -110,7 +123,9 @@ export default function InlineEditForm({ product, categories, onClose, onSaved }
       ? 'order'
       : formError.includes('成本价')
         ? 'costPrice'
-        : null
+        : formError.includes('库存')
+          ? 'stock'
+          : null
   const errProps = (field: string) =>
     errorField === field
       ? ({ 'aria-invalid': true, 'aria-describedby': 'inline-edit-error' } as const)
@@ -131,6 +146,7 @@ export default function InlineEditForm({ product, categories, onClose, onSaved }
         <input aria-label="规格" placeholder="规格" value={form.spec} onChange={e => setForm({ ...form, spec: e.target.value })} className={inputCls} />
         <input aria-label="售价" type="number" step="0.01" placeholder="价格" value={form.price} onChange={e => setForm({ ...form, price: parseFloat(e.target.value) || 0 })} className={inputCls} />
         <input aria-label="成本价（可选）" type="number" step="0.01" min="0" placeholder="成本价（可选）" value={form.costPrice} onChange={e => setForm({ ...form, costPrice: e.target.value })} className={inputCls} {...errProps('costPrice')} />
+        <input aria-label="库存（留空不限售）" type="number" step="1" min="-1" placeholder="库存（留空=不限售）" value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} className={inputCls} {...errProps('stock')} />
         <input aria-label="排序号" type="number" step="1" placeholder="排序号" value={form.order} onChange={e => setForm({ ...form, order: e.target.value })} className={inputCls} {...errProps('order')} />
         <input aria-label="主图 URL（可选）" placeholder="主图 URL（可选）" value={form.image} onChange={e => setForm({ ...form, image: e.target.value })} className={inputCls} />
       </div>

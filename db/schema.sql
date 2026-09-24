@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS products (
   images        TEXT DEFAULT '[]',
   description   TEXT DEFAULT '',
   reviews       TEXT DEFAULT '[]',
+  stock         INTEGER DEFAULT -1,
   createdAt     TEXT,
   updatedAt     TEXT
 );

@@ -62,7 +62,7 @@ functions/lib/
 
 - `schema.sql`：7 表 + 13 索引（`db/` 内迁移文件按时间序，D1 用 `wrangler d1 execute` 应用——走 `chaoshi-web-deploy` skill）。
 - 数组/对象字段以 JSON 文本存（`items`/`images`/`subcategories`），读写经 `db.js` jparse/jstringify。
-- 未做但已规划：**库存字段**（对标报告 C1：`stock INTEGER DEFAULT -1` + 下单扣减；需生产 D1 迁移，见 deliverables 对标报告实施路径）。
+- **库存（2026-09-24 已实现，对标 C1）**：`products.stock INTEGER DEFAULT -1`（-1=不限售）；下单即占用（守卫式条件 UPDATE 防并发超卖，同请求失败补偿回补）；取消/删除进行中单回补、completed 视为消耗、误取消恢复重新占用；迁移 `db/migrate-stock.sql`，**顺序铁律：先 `--remote` 迁移、后部署引用 stock 的代码**。
 
 ## 5. 质量门禁链（全部本地可跑，`npm run verify` 串联）
 
@@ -82,4 +82,5 @@ functions/lib/
 ## 6. 已知取舍与演化路线
 
 - **不做**：顾客账号体系（单店免登录是产品决策）、微服务拆分、迁移 TS 到 functions（部署编译链成本）。
-- **待做（对标报告 P2）**：库存防超卖（C1）、R2 图片直传（C2）、营销简化版（C3）、真实支付（C4，资质门槛）、D1 自动备份（C5）。
+- **待做（对标报告 P2）**：R2 图片直传（C2）、营销简化版（C3）、真实支付（C4=资质门槛，已归档不做）、顾客账号体系（C6=定位取舍）。D1 自动备份（C5）已上 cron 链路（缺 CF_D1_BACKUP_TOKEN 时告警跳过）。
+- **管理员改判**（用户裁决 2026-09-24：暂不加）——终态（completed）不可回退是刻意设计；若运营确需强制改态，加双确认通道而非放开迁移表。

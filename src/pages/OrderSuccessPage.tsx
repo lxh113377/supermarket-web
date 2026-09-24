@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { formatYuan } from '../utils/format'
 
@@ -8,6 +9,11 @@ export default function OrderSuccessPage() {
   const room = state?.room || ''
   const orderId = state?.orderId || ''
   const totalAmount = state?.totalAmount || 0
+  const [copied, setCopied] = useState(false)
+  // 供「订单查询」页跨导航找回单号（微信内被刷掉 location.state 的兜底）
+  useEffect(() => {
+    if (orderId) sessionStorage.setItem('sm_query_order', orderId)
+  }, [orderId])
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-surface items-center justify-center p-6 animate-fade-in">
@@ -38,6 +44,9 @@ export default function OrderSuccessPage() {
           {totalAmount > 0 && (
             <p className={`text-sm text-brand-600 font-semibold ${building || room ? 'mt-2' : ''}`}>{formatYuan(totalAmount)}</p>
           )}
+          {orderId && (
+            <p className="text-xs text-gray-400 mt-3 font-mono break-all">订单号：{orderId}</p>
+          )}
         </div>
 
         <div className="space-y-3 animate-fade-in-up stagger-3">
@@ -47,6 +56,24 @@ export default function OrderSuccessPage() {
           >
             去支付
           </button>
+          {orderId && (
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(orderId).then(() => setCopied(true)).catch(() => setCopied(false))
+                }}
+                className="btn-secondary flex-1 py-3 rounded-2xl text-sm"
+              >
+                {copied ? '已复制 ✓' : '复制订单号'}
+              </button>
+              <button
+                onClick={() => navigate('/order-query', { state: { orderId } })}
+                className="btn-secondary flex-1 py-3 rounded-2xl text-sm"
+              >
+                查询订单状态
+              </button>
+            </div>
+          )}
           <button
             onClick={() => navigate('/')}
             className="btn-secondary w-full py-3.5 rounded-2xl text-sm"

@@ -12,6 +12,9 @@
 - [x] 管理后台 — 数据看板（echarts 按需）、商品内联编辑（禁弹窗）、订单管理、评价管理、服务表单流转
 - [x] 后端 — `/web` 30 action + `/pub` 8 action + `/_health`；服务端重算金额、字段白名单、图片 scheme 白名单
 - [x] 履约闭环（2026-09-24 对标轮）— 订单 5 态状态机（pending→paid→delivering→completed，旁路 cancelled；服务端 ORDER_TRANSITIONS 强制，status TEXT 零迁移）；顾客侧 `/pub getOrderStatus` 进度轮询（修复旧轮询误用 adminCall 必然鉴权失败的缺陷）；前后端迁移表 parity 测试锁定
+- [x] 库存防超卖（2026-09-24 裁决轮，对标 C1）— products.stock（-1 不限售）；下单守卫式占用/取消与删除回补/误取消恢复重占用；管理端内联编辑库存字段 + 缺货/低库存角标；verify-backend +18 断言
+- [x] 订单查询页 #/order-query（2026-09-24，对标 litemall 订单跟踪）— 输单号看 5 步进度；成功页单号展示/复制/查询入口，sessionStorage 跨导航兜底
+- [x] D1 每日备份链路（C5）— d1-backup.yml cron 04:00 北京，缺 CF_D1_BACKUP_TOKEN 告警跳过（用户待配 token）
 - [x] e2e — 7 用例（下单链路/空表单防误/管理端流转/冒烟4）；vite.config.e2e.js 空 envDir 隔离本机 .env
 - [x] 安全 — 严格 CSP、五安全响应头、限流四档（KV 优先/回退 D1）、常量时间密钥比较、安全事件审计（SHA-256 指纹）
 - [x] 权限分级 — `ADMIN_KEY` 全权限 + `ADMIN_READONLY_KEY` 只读（16 项 `ADMIN_WRITE_ACTIONS` 白名单拦截）

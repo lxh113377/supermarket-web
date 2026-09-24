@@ -17,6 +17,7 @@ export const routeLoaders = {
   assistant: () => import('./pages/AssistantPage'),
   orderConfirm: () => import('./pages/OrderConfirmPage'),
   orderSuccess: () => import('./pages/OrderSuccessPage'),
+  orderQuery: () => import('./pages/OrderQueryPage'),
   payment: () => import('./pages/PaymentPage'),
   admin: () => import('./pages/AdminPage'),
   notFound: () => import('./pages/NotFoundPage'),
