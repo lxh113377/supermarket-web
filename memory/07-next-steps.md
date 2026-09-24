@@ -20,8 +20,9 @@
 - **新发现（未修，待裁决 M4）**：演示模式看板永远"看板数据加载失败"——H1-2 聚合下沉服务端后本地模式无对应实现。选项①补客户端聚合（漂移风险）②改文案说明演示模式无聚合（零风险）。
 - **观察项关闭**：e2e 的 `Applying inline style violates CSP` = `@vite/client` dev 覆盖层注入，生产构建页控制台零消息 ⇒ 不处理。
 - 报告：外层 `deliverables/GitHub开源项目对标分析报告-第六轮-2026-09-24.md`；CHANGELOG 追加七/八/九。
-- **P0（下轮 H1）**：OrdersTab(44%) + ProductsTab(48%) 专项——最后一块高频写路径没测的大石，预计再 +4~6pp。**H2 同轮可做**：ProductDetailPage + 评价链（ReviewForm/ReviewList/ProductGallery 全 0%）。
-- **H0（需用户 1 分钟）**：线上管理端登录后目视复核看板四张图（本轮只有本地假桩 harness + 产物级判据）。
+- **P0（下轮 H1）**：OrdersTab(44%) + ProductsTab(48%) 专项——最后一块高频写路径没测的大石，预计再 +4~6pp。[推荐:R196-01]（agent 自动）
+- **H2 同轮可做**：ProductDetailPage + 评价链（ReviewForm/ReviewList/ProductGallery 全 0%）。[推荐:R196-02]（agent 自动）
+- **H0（需用户 1 分钟）**：线上管理端登录后目视复核看板四张图（本轮只有本地假桩 harness + 产物级判据）。[推荐:R196-03]（用户操作）
 - P1：M5 auth/client/localStore 门面测试；M6 ErrorBoundary + 启动链；M3 自建 PR 流试点（本轮两条 P0 都属"main 直推事后才发现"，PR 复核可在合并前拦住）。
 - 不变：D2 49 单运营处置等管理员实操；D4 等用户配 `CF_D1_BACKUP_TOKEN`；D5 等 R2；changesets 仅观察。
 
