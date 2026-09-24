@@ -7,6 +7,14 @@ import { isBusinessHours, getClosedMessage } from '../utils/businessHours'
 import { formatYuan } from '../utils/format'
 import { compressImageFile } from '../utils/imageCompress'
 
+// 下单幂等键：一次页面挂载（= 一次下单意图）一把键，弱网重试/双击复用同一条。
+// "改过内容再提交算不算新单"由服务端按键+载荷指纹判定（functions/lib/actions/orders.js），
+// 客户端不自作主张换键，避免两处规则漂移。
+function newRequestKey(): string {
+  return `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`
+}
+
+
 export default function OrderConfirmPage() {
   const navigate = useNavigate()
   const cart = getCart()
@@ -21,6 +29,9 @@ export default function OrderConfirmPage() {
 
   const totalAmount = getTotalAmount(cart)
   const open = isBusinessHours()
+
+  // 本次下单意图的幂等键：挂载时生成一次，重试/双击复用同一条
+  const requestKey = useRef(newRequestKey())
 
   const handleScreenshot = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -61,6 +72,7 @@ export default function OrderConfirmPage() {
         remark: remark.trim() || undefined,
         items: cart.items,
         paymentScreenshot: screenshot || undefined,
+        requestId: requestKey.current,
       })
       clearCart()
       navigate('/order-success', { state: { building: building.trim(), room: room.trim(), orderId: result.id, localFallback: result.localFallback, totalAmount } })

@@ -18,7 +18,7 @@ import { checkRate, checkRateKV, getClientIp, sha256Fingerprint, logSecurityEven
   RATE_LOGIN, RATE_PUBLIC_WRITE, RATE_AI, RATE_AI_ADVICE } from './security.js'
 import { getPublicProducts, getPublicCategories, getProducts, createProduct, updateProduct,
   deleteProduct, batchUpdateProducts, batchDeleteProducts } from './actions/products.js'
-import { createOrder, deleteOrder, updateOrderStatus, recalculateOrders, getOrders, getOrderById, getOrderStatus } from './actions/orders.js'
+import { createOrder, deleteOrder, updateOrderStatus, recalculateOrders, getOrders, getOrderById, getOrderStatus, stalePendingReport } from './actions/orders.js'
 import { getReviews, addReview, getAllReviews, deleteReview, seedReviews } from './actions/reviews.js'
 import { createSubmission, getSubmissions, getSubmissionImages, updateSubmissionStatus, deleteSubmission } from './actions/submissions.js'
 import { adminAiAdvice, pubAiChat } from './actions/ai.js'
@@ -98,6 +98,8 @@ export async function handleAdmin(env, action, adminKey, payload = {}, request =
       case 'updateOrderStatus': result = await updateOrderStatus(DB, payload); break
       case 'createOrder': result = await createOrder(DB, payload); break
       case 'recalculateOrders': result = await recalculateOrders(DB); break
+      // 超时未支付单盘点（只读，对标第二轮 A5）：不进 ADMIN_WRITE_ACTIONS，只读密钥也可查
+      case 'stalePendingReport': result = await stalePendingReport(DB, payload); break
       case 'getOrders': result = await getOrders(DB, payload); break
       case 'getOrder': result = { code: 0, data: await getOrderById(DB, payload.orderId) }; break
       case 'getPublicProducts': {

@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS orders (
   wechat            TEXT DEFAULT '',
   remark            TEXT DEFAULT '',
   paymentScreenshot TEXT DEFAULT '',
+  idempotencyKey    TEXT,
   createdAt         TEXT,
   updatedAt         TEXT
 );
@@ -72,6 +73,8 @@ CREATE INDEX IF NOT EXISTS idx_submissions_createdAt ON submissions (createdAt);
 -- 优化批次（2026-08-28）：看板 90/365 天聚合 + status/roomNumber 筛选 + enabled 过滤走索引，降低 D1 全表扫配额成本
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders (status);
 CREATE INDEX IF NOT EXISTS idx_orders_roomNumber ON orders (roomNumber);
+-- 下单幂等（2026-09-24 A1）：部分唯一索引，只约束带幂等键的新单，历史单/匿名直连单为 NULL 不受影响
+CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_idempotency ON orders (idempotencyKey) WHERE idempotencyKey IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_products_enabled ON products (enabled);
 CREATE INDEX IF NOT EXISTS idx_reviews_createdAt ON reviews (createdAt);
 

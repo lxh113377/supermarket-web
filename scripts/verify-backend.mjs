@@ -153,6 +153,76 @@ ok(updStock.data?.stock === 100000, 'createProduct 大库存透传')
 const badStock = await handleAdmin(env, 'updateProduct', 'test-key-123', { productId: updStock.data._id, stock: 'abc' })
 ok(badStock.code === 0 && (await (async () => (await handleAdmin(env, 'getProducts', 'test-key-123', {})).data.find((p) => p._id === updStock.data._id)?.stock)()) === -1, '非法库存值归一为 -1 不限售')
 await handleAdmin(env, 'deleteProduct', 'test-key-123', { productId: updStock.data._id })
+// ---------- 下单幂等（2026-09-24 对标第二轮 A1，对标 Medusa/Saleor/Vendure 三重防线）----------
+// 前序断言已消耗 rate:write 配额；幂等与限流是两件事，本组从干净桶开始，互不污染
+db.prepare("DELETE FROM rate_limits WHERE bucket LIKE 'rate:write:%'").run()
+const countRoom = (room) => Number(db.prepare('SELECT COUNT(*) AS c FROM orders WHERE roomNumber = ?').get(room).c)
+const stockProd = await handleAdmin(env, 'createProduct', 'test-key-123', { name: '幂等测试可乐', price: 3, stock: 5 })
+const spid = stockProd.data._id
+const stockNow = async () => (await handleAdmin(env, 'getProducts', 'test-key-123', {})).data.find((p) => p._id === spid)?.stock
+const iBody = (extra = {}) => ({ roomNumber: '309', items: [{ productId: spid, quantity: 2 }], requestId: 'verify-idem-1', ...extra })
+
+const iFirst = await handlePublic(env, 'createOrder', iBody())
+const iRetry = await handlePublic(env, 'createOrder', iBody())
+ok(iFirst.code === 0 && iRetry.code === 0 && iRetry.data.id === iFirst.data.id,
+  `同一 requestId 重复提交返回同一单号 (${iFirst.data?.id})`)
+ok(iRetry.data.deduplicated === true, '重复提交响应带 deduplicated 标记（调用方可区分新单/复用）')
+ok(countRoom('309') === 1, `重复提交库内只有 1 张单 (实际 ${countRoom('309')})`)
+ok(await stockNow() === 3, `去重路径未双扣库存：5-2=3 (实际 ${await stockNow()})`)
+
+const iEdited = await handlePublic(env, 'createOrder', iBody({ remark: '要冰的' }))
+ok(iEdited.code === 0 && iEdited.data.id !== iFirst.data.id, '同键但载荷指纹变了 → 视为新单（不静默丢编辑）')
+
+const legacy = () => handlePublic(env, 'createOrder', { roomNumber: '310', items: [{ productId: 'p001', quantity: 1 }] })
+const lFirst = await legacy()
+const lRetry = await legacy()
+ok(lFirst.code === 0 && lRetry.data.id === lFirst.data.id && lRetry.data.deduplicated === true,
+  '无 requestId 的旧客户端（SW 长缓存）内容重发命中 90s 指纹兜底')
+const lChanged = await handlePublic(env, 'createOrder', { roomNumber: '310', items: [{ productId: 'p001', quantity: 1 }], remark: '加急' })
+ok(lChanged.data.id !== lFirst.data.id, '无 requestId 时内容不同 → 正常下新单')
+const keyRow = db.prepare('SELECT idempotencyKey FROM orders WHERE _id = ?').get(iFirst.data.id)
+ok(/^309@verify-idem-1#[0-9a-f]{8}$/.test(keyRow?.idempotencyKey || ''), `幂等键入库可追溯 (实际 ${keyRow?.idempotencyKey})`)
+const nullKeyRow = db.prepare('SELECT idempotencyKey FROM orders WHERE _id = ?').get(lFirst.data.id)
+ok(nullKeyRow?.idempotencyKey == null, '无 requestId 的订单幂等键为 NULL（部分唯一索引不误伤）')
+
+// ---------- 状态流转乐观锁（对标 litemall updateWithOptimisticLocker）----------
+// 必须用**真实并发**测：handler 每次都重读 status，先改库再迁移只是"读到最新值"，不构成竞争。
+// 两个迁移同时进来 → 双双读到 pending → UPDATE 带 `AND status = ?`，只有一个是 1 变更。
+const { updateOrderStatus } = await import(pathToFileURL(join(root, 'functions', 'lib', 'actions', 'orders.js')).href)
+const oLive = await handlePublic(env, 'createOrder', { roomNumber: '311', items: [{ productId: 'p001', quantity: 1 }] })
+const race = await Promise.all([
+  updateOrderStatus(env.DB, { orderId: oLive.data.id, status: 'paid' }),
+  updateOrderStatus(env.DB, { orderId: oLive.data.id, status: 'cancelled' }),
+])
+const winners = race.filter((r) => r.code === 0).length
+ok(winners === 1, `并发迁移只有一个胜出（乐观锁生效，实际成功 ${winners}/2）`)
+const afterRace = await handleAdmin(env, 'getOrder', 'test-key-123', { orderId: oLive.data.id })
+const loser = race.find((r) => r.code === -1)
+ok(loser && /他人更新|刷新/.test(loser.message || ''), `落败方收到可重试提示: ${loser?.message}`)
+ok(afterRace.data?.status === 'paid' || afterRace.data?.status === 'cancelled',
+  `落库状态与胜者一致、无第三种脏值 (实际 ${afterRace.data?.status})`)
+
+// ---------- 超时未支付单盘点（对标 litemall OrderUnpaidTask，只盘不砍）----------
+const stale = await handlePublic(env, 'createOrder', { roomNumber: '312', items: [{ productId: spid, quantity: 1 }] })
+db.prepare('UPDATE orders SET createdAt = ? WHERE _id = ?').run(new Date(Date.now() - 90 * 60_000).toISOString(), stale.data.id)
+const rp = await handleAdmin(env, 'stalePendingReport', 'test-key-123', { minutes: 60 })
+ok(rp.code === 0 && rp.data.count >= 1, `stalePendingReport 盘出超时 pending 单 (实际 ${rp.data?.count})`)
+const rpRow = (rp.data.orders || []).find((o) => o.id === stale.data.id)
+ok(rpRow && rpRow.ageMinutes >= 89 && rpRow.hasPaymentProof === false,
+  `盘点项含账龄与支付凭证标记 (age=${rpRow?.ageMinutes}min proof=${rpRow?.hasPaymentProof})`)
+const rpTie = (rp.data.stockReserved || []).find((s) => s.productId === spid)
+ok(rpTie && rpTie.reserved >= 1, `超时单占用有限库存被统计 (${spid} reserved=${rpTie?.reserved})`)
+ok((await handleAdmin(env, 'getOrderStatus', '', { orderId: stale.data.id })).data?.status === 'pending',
+  '盘点是只读的：超时单状态未被自动改动（线下确认制下不自动砍单）')
+const rpPub = await handlePublic(env, 'stalePendingReport', { minutes: 60 })
+ok(rpPub.code === -1, 'stalePendingReport 未泄漏到公开端点（/pub 白名单外）')
+
+// 清理本组测试数据（回归基线，防后续计数断言漂移）
+for (const id of [iFirst.data.id, iEdited.data.id, lFirst.data.id, lChanged.data.id, oLive.data.id, stale.data.id]) {
+  await handleAdmin(env, 'deleteOrder', 'test-key-123', { orderId: id })
+}
+await handleAdmin(env, 'deleteProduct', 'test-key-123', { productId: spid })
+
 const pubWithStock = await handlePublic(env, 'getPublicProducts', {})
 ok(pubWithStock.data.every((p) => typeof p.stock === 'number'), 'getPublicProducts 均带数值 stock（顾客端可售判断依据）')
 

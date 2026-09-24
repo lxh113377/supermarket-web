@@ -101,6 +101,34 @@ describe('下单主链路（加购 → 确认 → 支付）', () => {
     expect(getCart().items).toHaveLength(0)
   })
 
+  it('OrderConfirmPage：失败重试复用同一把幂等键，重新挂载才换新键（对标 A1）', async () => {
+    saveCart(cartWith(1))
+    const fillAndSubmit = () => {
+      fireEvent.change(screen.getByPlaceholderText('例如：36栋'), { target: { value: '36栋' } })
+      fireEvent.change(screen.getByPlaceholderText('例如：501'), { target: { value: '305' } })
+      fireEvent.click(screen.getByRole('button', { name: '确认支付' }))
+    }
+    mocks.createOrder.mockRejectedValueOnce(new Error('网络中断'))
+    const { unmount } = render(<OrderConfirmPage />)
+    fillAndSubmit()
+    await waitFor(() => expect(screen.getByText(/提交订单失败/)).toBeTruthy())
+    // 失败不清空购物车，用户直接重试：必须复用同一个 requestId，服务端才会去重
+    fillAndSubmit()
+    await waitFor(() => expect(mocks.createOrder).toHaveBeenCalledTimes(2))
+    const [first, second] = mocks.createOrder.mock.calls
+    expect(typeof first[0].requestId).toBe('string')
+    expect(first[0].requestId.length).toBeGreaterThan(6)
+    expect(second[0].requestId).toBe(first[0].requestId)
+
+    unmount()
+    saveCart(cartWith(1))
+    render(<OrderConfirmPage />)
+    fillAndSubmit()
+    await waitFor(() => expect(mocks.createOrder).toHaveBeenCalledTimes(3))
+    const third = mocks.createOrder.mock.calls[2]
+    expect(third[0].requestId).not.toBe(first[0].requestId)
+  })
+
   it('OrderConfirmPage：未填楼栋号阻止提交并提示', async () => {
     saveCart(cartWith(1))
     render(<OrderConfirmPage />)

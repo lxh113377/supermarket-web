@@ -3,6 +3,64 @@
 import { qAll, qFirst, qRun, jparse, nowISO, genId, insert } from '../db.js'
 import { isSafeImageUrl } from '../security.js'
 
+// ── 下单幂等（2026-09-24 对标第二轮 A1）──
+// 对标：Medusa HTTP 层 `Idempotency-Key` + 表内 UNIQUE(index, key)；litemall cart_checkout 唯一索引
+//       + @DistributedLock 双层。本项目取同构的两层：
+//   ① 带 requestId 的新客户端：服务端把 `房间号@requestId` 存进 idempotencyKey，
+//      由**部分唯一索引**在 DB 层兜住并发（唯一约束是最后防线，不靠应用层判断）。
+//   ② 不带 requestId 的调用方（顾客端 Service Worker 长缓存，新版 bundle 铺开前旧包仍在下单；
+//      以及直接 POST /pub 的集成方）：90s 内容指纹兜底，只对**完全相同**的载荷去重。
+// 有 requestId 时**不**走 ②：换了 key 就是有意下新单，指纹会把合法的第二单吞掉。
+export const DEDUPE_WINDOW_MS = 90 * 1000
+
+function fnv1a(str) {
+  let h = 0x811c9dc5
+  for (let i = 0; i < str.length; i += 1) {
+    h ^= str.charCodeAt(i)
+    h = Math.imul(h, 0x01000193) >>> 0
+  }
+  return h.toString(16).padStart(8, '0')
+}
+
+// 键 = 房间号@requestId#载荷指纹。折叠指纹是刻意偏离 Medusa/Saleor 的地方：
+// 纯键语义下"改过内容再用旧键提交"会静默返回旧单、丢掉这次编辑；
+// 本项目顾客端要经 Service Worker 长缓存铺开，必须假设存在不守键约定的调用方。
+export function idempotencyKey(roomNumber, requestId, fingerprint) {
+  if (typeof requestId !== 'string') return null
+  const req = requestId.trim().replace(/[^\w:.-]/g, '').slice(0, 64)
+  if (!req) return null
+  return `${String(roomNumber).trim().slice(0, 40)}@${req}#${fnv1a(fingerprint)}`
+}
+
+// 内容指纹：只取"用户改一下就变成另一单"的字段，忽略服务端生成的 id/时间戳
+export function orderFingerprint({ roomNumber, wechat, remark, totalAmount, items, paymentScreenshot }) {
+  const lines = (Array.isArray(items) ? items : [])
+    .map((i) => `${i.productId}x${i.quantity}`)
+    .sort()
+    .join(',')
+  const shot = typeof paymentScreenshot === 'string' ? `#${paymentScreenshot.length}` : ''
+  return [roomNumber, wechat, remark, Number(totalAmount).toFixed(2), lines, shot].join('\u0000')
+}
+
+export async function findByFingerprint(DB, { roomNumber, fingerprint }) {
+  const since = new Date(Date.now() - DEDUPE_WINDOW_MS).toISOString()
+  // idx_orders_roomNumber + idx_orders_createdAt 支撑；status 限定进行中单
+  // （已完成/已取消的历史单不参与去重：顾客隔天再买同样的东西是真单）
+  const rows = await qAll(DB,
+    `SELECT _id, totalAmount, items, wechat, remark, paymentScreenshot FROM orders
+     WHERE roomNumber = ? AND createdAt >= ? AND status IN ('pending','paid')
+     ORDER BY createdAt DESC LIMIT 10`,
+    [roomNumber, since])
+  for (const r of rows) {
+    const fp = orderFingerprint({
+      roomNumber, wechat: r.wechat, remark: r.remark, totalAmount: r.totalAmount,
+      items: jparse(r.items, []), paymentScreenshot: r.paymentScreenshot,
+    })
+    if (fp === fingerprint) return r
+  }
+  return null
+}
+
 export async function createOrder(DB, payload) {
   const { roomNumber, items, wechat, remark, paymentScreenshot } = payload
   if (!roomNumber || !Array.isArray(items) || !items.length) return { code: -1, message: '订单数据不完整' }
@@ -34,17 +92,51 @@ export async function createOrder(DB, payload) {
   // 防超卖（2026-09-24 对标 C1）：下单即占用库存；不限售项（stock=-1，代码侧读取时判定）
   // 不进入扣减集合——守卫 SQL 的 `stock >= 0` 条件若命中不限售行会把 -1 扣成负数。
   // 守卫式扣减（条件 UPDATE）防并发窗口超卖，任一失败回补本单已扣项后整体拒绝。
+  const room = String(roomNumber).trim()
+  const wechatNorm = String(wechat || '').slice(0, 50)
+  const remarkNorm = String(remark || '').slice(0, 200)
+  const shot = typeof paymentScreenshot === 'string' ? paymentScreenshot : ''
+  const totalRounded = Math.round(total * 100) / 100
+  const fingerprint = orderFingerprint({
+    roomNumber: room, wechat: wechatNorm, remark: remarkNorm,
+    totalAmount: totalRounded, items: verified, paymentScreenshot: shot,
+  })
+  const key = idempotencyKey(room, payload.requestId, fingerprint)
+
+  // 幂等前置检查（在扣库存之前）：命中即直接复用既有单，本请求不动库存
+  if (key) {
+    const hit = await qFirst(DB, `SELECT _id, totalAmount FROM orders WHERE idempotencyKey = ?`, [key])
+    if (hit) return { code: 0, data: { id: hit._id, totalAmount: hit.totalAmount, deduplicated: true } }
+  } else {
+    const dup = await findByFingerprint(DB, { roomNumber: room, fingerprint })
+    if (dup) return { code: 0, data: { id: dup._id, totalAmount: dup.totalAmount, deduplicated: true } }
+  }
+
   const stockItems = verified.filter((it) => Number(byId.get(it.productId).stock) >= 0)
   const stockErr = await reserveStock(DB, stockItems)
   if (stockErr) return stockErr
   const ts = nowISO()
   const doc = {
-    _id: genId('o_'), roomNumber: String(roomNumber).trim(), items: verified,
-    wechat: String(wechat || '').slice(0, 50), remark: String(remark || '').slice(0, 200),
-    paymentScreenshot: typeof paymentScreenshot === 'string' ? paymentScreenshot : '',
-    totalAmount: Math.round(total * 100) / 100, status: 'pending', createdAt: ts, updatedAt: ts,
+    _id: genId('o_'), roomNumber: room, items: verified,
+    wechat: wechatNorm, remark: remarkNorm,
+    paymentScreenshot: shot,
+    totalAmount: totalRounded, status: 'pending', createdAt: ts, updatedAt: ts,
   }
-  await insert(DB, 'orders', doc)
+  if (key) doc.idempotencyKey = key
+  try {
+    await insert(DB, 'orders', doc)
+  } catch (e) {
+    // 落库失败必须回补本请求已占用的库存，否则失败一次就凭空少一份可售库存
+    if (stockItems.length) await releaseStock(DB, stockItems)
+    const msg = e instanceof Error ? e.message : String(e)
+    if (key && /UNIQUE constraint failed/i.test(msg) && /idempotencyKey/i.test(msg)) {
+      // 并发窗口：另一请求已用同一把 key 落库，把那张单返回给本调用方
+      const hit = await qFirst(DB, `SELECT _id, totalAmount FROM orders WHERE idempotencyKey = ?`, [key])
+      if (hit) return { code: 0, data: { id: hit._id, totalAmount: hit.totalAmount, deduplicated: true } }
+    }
+    console.error('[orders] createOrder 落库失败，库存已回补:', msg)
+    return { code: -1, message: '订单创建失败，请重试' }
+  }
   return { code: 0, data: { id: doc._id, totalAmount: doc.totalAmount } }
 }
 
@@ -88,6 +180,45 @@ export async function deleteOrder(DB, payload) {
   return { code: 0 }
 }
 
+// 超时未支付单盘点（对标 litemall OrderUnpaidTask / Saleor checkout_cleaner 的「只盘不砍」版）
+// 为什么不照抄自动取消：本项目支付是**线下确认制**（顾客转账 → 管理员手工置 paid），
+// pending 超时可能是"已转账待确认"，定时自动取消会误杀真单。因此这里只出报表，
+// 取消仍由管理员逐单决定（走 updateOrderStatus，库存回补路径与用户取消完全同一条）。
+export async function stalePendingReport(DB, payload) {
+  const minutes = Math.min(Math.max(Number(payload?.minutes) || 60, 1), 7 * 24 * 60)
+  const cutoff = new Date(Date.now() - minutes * 60_000).toISOString()
+  const rows = await qAll(DB,
+    `SELECT _id, roomNumber, totalAmount, items, paymentScreenshot, createdAt FROM orders
+     WHERE status = 'pending' AND createdAt < ? ORDER BY createdAt ASC LIMIT 200`,
+    [cutoff])
+  if (!rows.length) return { code: 0, data: { thresholdMinutes: minutes, count: 0, orders: [], stockReserved: [] } }
+
+  // 这些单占用了多少"有限库存"（不限售项 stock<0 不计入占用）
+  const productIds = [...new Set(rows.flatMap((r) => jparse(r.items, []).map((i) => i.productId)))]
+  const prods = await qAll(DB,
+    `SELECT _id, name, stock FROM products WHERE _id IN (${productIds.map(() => '?').join(',')})`, productIds)
+  const prodById = new Map(prods.map((p) => [p._id, p]))
+  const tied = new Map()
+  const nowMs = Date.now()
+  const orders = rows.map((r) => {
+    const items = jparse(r.items, [])
+    for (const it of items) {
+      const p = prodById.get(it.productId)
+      if (!p || Number(p.stock) < 0) continue
+      const cur = tied.get(it.productId) || { productId: it.productId, name: p.name, reserved: 0 }
+      cur.reserved += Number(it.quantity) || 0
+      tied.set(it.productId, cur)
+    }
+    return {
+      id: r._id, roomNumber: r.roomNumber, totalAmount: r.totalAmount,
+      ageMinutes: Math.max(0, Math.round((nowMs - Date.parse(r.createdAt)) / 60_000)),
+      // 有截图 = 顾客已自称付款，属"待确认"而非"跑单"，管理端据此分优先级处理
+      hasPaymentProof: Boolean(r.paymentScreenshot),
+    }
+  })
+  return { code: 0, data: { thresholdMinutes: minutes, count: orders.length, orders, stockReserved: [...tied.values()] } }
+}
+
 // 订单履约状态机（2026-09-24 对标 litemall 订单域补齐）：
 // pending(待支付) → paid(已支付) → delivering(配送中) → completed(已送达)，任意未完成态可 cancelled。
 // status 列为 TEXT 无 CHECK 约束，扩态零迁移；迁移合法性在此处单点强制。
@@ -114,8 +245,16 @@ export async function updateOrderStatus(DB, payload) {
     const err = await reserveStock(DB, items)
     if (err) return err
   }
-  const res = await qRun(DB, `UPDATE orders SET status = ?, updatedAt = ? WHERE _id = ?`, [status, nowISO(), orderId])
-  if (!res.meta?.changes) return { code: -1, message: '订单不存在' }
+  // 乐观锁（对标 litemall OrderUtil.updateWithOptimisticLocker / Medusa updateWithOptimisticLocker）：
+  // 上面的合法性判定基于"读到的 cur.status"，两个管理员同时点同一单会双双通过。
+  // 把读到的状态写进 WHERE 条件，0 变更即说明有人抢先改过，本次迁移作废。
+  const res = await qRun(DB, `UPDATE orders SET status = ?, updatedAt = ? WHERE _id = ? AND status = ?`,
+    [status, nowISO(), orderId, cur.status])
+  if (!res.meta?.changes) {
+    // 抢占失败时，本请求刚为"误取消恢复"扣下的库存必须回补，否则凭空少一份可售库存
+    if (cur.status === 'cancelled' && status === 'pending' && items.length) await releaseStock(DB, items)
+    return { code: -1, message: '订单已被他人更新，请刷新后重试' }
+  }
   return { code: 0 }
 }
 
