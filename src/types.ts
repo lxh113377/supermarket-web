@@ -66,7 +66,7 @@ export interface Order {
   roomNumber: string
   items: OrderItem[]
   totalAmount?: number
-  status: 'pending' | 'paid' | 'cancelled'
+  status: 'pending' | 'paid' | 'delivering' | 'completed' | 'cancelled'
   wechat?: string
   remark?: string
   paymentScreenshot?: string

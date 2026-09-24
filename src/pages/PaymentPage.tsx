@@ -1,14 +1,16 @@
 import {  useEffect, useState  } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { getOrderById } from '../db'
+import { getOrderStatus } from '../db'
 import { IS_CLOUD } from '../cloudbase'
 import Overlay from '../components/Overlay'
 import { formatYuan } from '../utils/format'
+import { orderStatusLabel } from '../utils/orderStatus'
 
 export default function PaymentPage() {
   const [method, setMethod] = useState<string | null>(null)
-  const [paid, setPaid] = useState(false)
+  const [orderStatus, setOrderStatus] = useState<string | null>(null)
   const [showTip, setShowTip] = useState(false)
+  const paid = !!orderStatus && orderStatus !== 'pending' && orderStatus !== 'cancelled'
   const { state } = useLocation()
   const navigate = useNavigate()
 
@@ -28,9 +30,11 @@ export default function PaymentPage() {
     let cancelled = false
     const check = async () => {
       try {
-        const order = await getOrderById(orderId)
+        // 对标补齐（2026-09-24）：走 /pub getOrderStatus（顾客免密钥）。
+        // 旧实现误用 adminCall('getOrder')，顾客端无会话密钥必然鉴权失败，轮询形同虚设。
+        const s = await getOrderStatus(orderId)
         // P0-7：卸载后不再 setState
-        if (!cancelled && order?.status === 'paid') setPaid(true)
+        if (!cancelled && s && s.status !== 'pending') setOrderStatus(s.status)
       } catch {}
     }
     const timer = setInterval(check, 5000)
@@ -86,6 +90,14 @@ export default function PaymentPage() {
               </div>
               <p className="text-lg font-bold text-green-600">付款已确认</p>
               <p className="text-sm text-gray-400 mt-2">客服将尽快处理你的订单</p>
+              {orderStatus && orderStatus !== 'paid' && (
+                <p className="text-sm font-medium text-gray-600 mt-1.5">订单进度：{orderStatusLabel(orderStatus)}</p>
+              )}
+            </div>
+          ) : orderStatus === 'cancelled' ? (
+            <div className="text-center animate-fade-in-up">
+              <p className="text-lg font-bold text-red-500">该订单已取消</p>
+              <p className="text-sm text-gray-400 mt-2">如有问题请联系商家</p>
             </div>
           ) : (
             <div className="text-center w-full max-w-sm animate-fade-in-up flex flex-col items-center">

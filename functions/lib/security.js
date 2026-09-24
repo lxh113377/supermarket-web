@@ -6,7 +6,7 @@ import { qFirst, qRun, nowISO } from './db.js'
 // 公开 action 集合（checkAuth / handleAdmin / handlePublic 共用单源）
 export const PUBLIC_ACTIONS = new Set([
   'createOrder', 'getReviews', 'createSubmission', 'addPublicReview',
-  'getPublicProducts', 'getPublicCategories', 'aiChat',
+  'getPublicProducts', 'getPublicCategories', 'aiChat', 'getOrderStatus',
 ])
 
 // 恒定时间字符串比较，防时序侧信道攻击（替代 adminKey !== env.ADMIN_KEY）。

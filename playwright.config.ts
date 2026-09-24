@@ -24,7 +24,7 @@ export default defineConfig({
   },
   projects: [{ name: 'chromium', use: { browserName: 'chromium' } }],
   webServer: {
-    command: `npx vite dev --port ${PORT} --strictPort`,
+    command: `npx vite dev --port ${PORT} --strictPort --config vite.config.e2e.js`,
     url: BASE,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

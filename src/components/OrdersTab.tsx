@@ -6,6 +6,7 @@ import EmptyState from './EmptyState'
 import { SkeletonTable } from './Skeleton'
 import { IconEmpty } from './Icons'
 import { formatPrice, formatYuan } from '../utils/format'
+import { orderStatusLabel, nextOrderStatuses, ORDER_STATUS_LABELS } from '../utils/orderStatus'
 import type { Order } from '../types'
 
 export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
@@ -16,6 +17,7 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [notice, setNotice] = useState('')
   // P0-4 分页：订单全量渲染在数据量大时卡顿，按页渲染
   const PAGE_SIZE = 20
   const [page, setPage] = useState(1)
@@ -36,12 +38,14 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
 
   const handleStatus = async (orderId: string, status: string) => {
     try {
-      await updateOrderStatus(orderId, status)
+      const res = await updateOrderStatus(orderId, status)
+      if (res && 'code' in res && res.code !== 0) throw new Error(res.message || '更新失败')
+      setNotice(`订单状态已更新为「${orderStatusLabel(status)}」`)
       // 状态变更后拉增量即可（更新后的订单 updatedAt 必然大于游标）
       const { orders } = await getAllOrders()
       onOrdersChange(orders)
     } catch (err) {
-      alert('更新失败：' + (err instanceof Error ? err.message : '未知错误'))
+      setNotice('更新失败：' + (err instanceof Error ? err.message : '未知错误'))
     }
   }
 
@@ -55,20 +59,21 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
       }
       const { orders } = await getAllOrders()
       onOrdersChange(orders)
+      setNotice('订单已删除')
     } catch (err) {
-      alert('删除失败：' + (err instanceof Error ? err.message : '未知错误'))
+      setNotice('删除失败：' + (err instanceof Error ? err.message : '未知错误'))
     } finally {
       setDeleting(null)
     }
   }
 
   const copyOrder = (order: Order) => {
-    const text = `房间号：${order.roomNumber}\n${order.items.map(i => i.name + (i.spec ? '(' + i.spec + ')' : '') + ' x' + i.quantity + ' ¥' + formatPrice((i.price ?? 0) * i.quantity)).join('\n')}\n合计：${formatYuan(order.totalAmount ?? 0)}\n状态：${order.status === 'pending' ? '待支付' : order.status === 'paid' ? '已支付' : '已取消'}`
-    navigator.clipboard.writeText(text).then(() => alert('已复制到剪贴板'))
+    const text = `房间号：${order.roomNumber}\n${order.items.map(i => i.name + (i.spec ? '(' + i.spec + ')' : '') + ' x' + i.quantity + ' ¥' + formatPrice((i.price ?? 0) * i.quantity)).join('\n')}\n合计：${formatYuan(order.totalAmount ?? 0)}\n状态：${orderStatusLabel(order.status)}`
+    navigator.clipboard.writeText(text).then(() => setNotice('已复制到剪贴板'))
   }
 
   const exportCSV = (): void => {
-    const statusLabel = (s: string) => s === 'pending' ? '待支付' : s === 'paid' ? '已支付' : '已取消'
+    const statusLabel = orderStatusLabel
     const rows = orders.flatMap(o =>
       o.items.map(i => [
         String(o.roomNumber),
@@ -132,12 +137,13 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
           className="border border-gray-200 rounded-lg px-2 py-2 text-sm"
         >
           <option value="all">全部</option>
-          <option value="pending">待支付</option>
-          <option value="paid">已支付</option>
-          <option value="cancelled">已取消</option>
+          {Object.entries(ORDER_STATUS_LABELS).map(([v, label]) => <option key={v} value={v}>{label}</option>)}
         </select>
         <button onClick={exportCSV} className="px-2.5 py-2 bg-white border border-gray-200 rounded-lg text-xs text-gray-600">CSV</button>
       </div>
+      {notice && (
+        <p role="status" aria-live="polite" className="text-xs text-gray-600 bg-brand-50 border border-brand-100 rounded-lg px-3 py-2">{notice}</p>
+      )}
       {visible.map(order => (
         <div key={order._id} className="bg-white p-3 rounded-lg border border-gray-100">
           <div className="flex justify-between items-start gap-2 mb-2">
@@ -160,9 +166,9 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
                 onChange={(e) => handleStatus(order._id, e.target.value)}
                 className="text-sm border border-gray-300 rounded px-2 py-1"
               >
-                <option value="pending">待支付</option>
-                <option value="paid">已支付</option>
-                <option value="cancelled">已取消</option>
+                {nextOrderStatuses(order.status).map((s) => (
+                  <option key={s} value={s}>{orderStatusLabel(s)}</option>
+                ))}
               </select>
               <button
                 onClick={() => handleDelete(order._id)}

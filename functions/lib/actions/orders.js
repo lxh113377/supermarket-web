@@ -49,12 +49,35 @@ export async function deleteOrder(DB, payload) {
   return { code: 0 }
 }
 
+// 订单履约状态机（2026-09-24 对标 litemall 订单域补齐）：
+// pending(待支付) → paid(已支付) → delivering(配送中) → completed(已送达)，任意未完成态可 cancelled。
+// status 列为 TEXT 无 CHECK 约束，扩态零迁移；迁移合法性在此处单点强制。
+export const ORDER_TRANSITIONS = {
+  pending: ['paid', 'cancelled'],
+  paid: ['delivering', 'cancelled'],
+  delivering: ['completed', 'cancelled'],
+  completed: [],
+  cancelled: ['pending'],
+}
+
 export async function updateOrderStatus(DB, payload) {
   const { orderId, status } = payload
-  if (!orderId || !['pending', 'paid', 'cancelled'].includes(status)) return { code: -1, message: '参数无效' }
+  if (!orderId || !Object.prototype.hasOwnProperty.call(ORDER_TRANSITIONS, status)) return { code: -1, message: '参数无效' }
+  const cur = await qFirst(DB, `SELECT status FROM orders WHERE _id = ?`, [orderId])
+  if (!cur) return { code: -1, message: '订单不存在' }
+  if (!(ORDER_TRANSITIONS[cur.status] || []).includes(status))
+    return { code: -1, message: `不允许的状态流转: ${cur.status} → ${status}` }
   const res = await qRun(DB, `UPDATE orders SET status = ?, updatedAt = ? WHERE _id = ?`, [status, nowISO(), orderId])
   if (!res.meta?.changes) return { code: -1, message: '订单不存在' }
   return { code: 0 }
+}
+
+// 顾客侧订单进度（公开只读）：仅回状态与更新时间，订单号即凭证（genId 时间戳+随机，不可枚举）
+export async function getOrderStatus(DB, orderId) {
+  if (!orderId || typeof orderId !== 'string') return { code: -1, message: '缺少订单号' }
+  const row = await qFirst(DB, `SELECT status, updatedAt FROM orders WHERE _id = ?`, [orderId])
+  if (!row) return { code: -1, message: '订单不存在' }
+  return { code: 0, data: { orderId, status: row.status, updatedAt: row.updatedAt } }
 }
 
 // 2026-09-18 双向迭代 R6：修正写入由「逐条 UPDATE」改为「分批 CASE WHEN 批量 UPDATE」，
