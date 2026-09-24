@@ -215,21 +215,62 @@ if (cmd === 'mark') {
   process.exit(0)
 }
 
+// baseline 的安全阀：只允许回记"对象在该库确实已存在"的迁移。
+// 反例（本仓 2026-09-24 实测踩过）：无脑把全部迁移记为基线，会把**尚未执行**的新迁移
+// 一起吞掉——apply 随后显示 0 待应用，列永远不建，代码上线直接 no column named。
+function parseDdlTargets(sqlText) {
+  const clean = sqlText.split('\n').filter((l) => !l.trimStart().startsWith('--')).join('\n')
+  const targets = []
+  for (const stmt of clean.split(';').map((s) => s.replace(/\s+/g, ' ').trim()).filter(Boolean)) {
+    const t = /^CREATE TABLE IF NOT EXISTS (\w+)/i.exec(stmt)
+      || /^CREATE (?:UNIQUE )?INDEX (?:IF NOT EXISTS )?(\w+)/i.exec(stmt)
+    if (t) { targets.push({ kind: /INDEX/i.test(stmt) ? 'index' : 'table', name: t[1] }); continue }
+    const a = /^ALTER TABLE (\w+) ADD COLUMN (\w+)/i.exec(stmt)
+    if (a) { targets.push({ kind: 'column', table: a[1], name: a[2] }); continue }
+    if (/^(UPDATE|INSERT|DELETE|PRAGMA)\b/i.test(stmt)) continue
+    targets.push({ kind: 'unknown', name: stmt.slice(0, 50) })
+  }
+  return targets
+}
+
+function catalog() {
+  const rows = d1('SELECT type, name, sql FROM sqlite_master')
+  const names = new Set(rows.map((r) => r.name))
+  const ddl = new Map(rows.filter((r) => r.type === 'table').map((r) => [r.name, String(r.sql || '')]))
+  return { names, ddl }
+}
+
+function migrationIsApplied(m, cat) {
+  for (const t of parseDdlTargets(m.text)) {
+    if (t.kind === 'table' || t.kind === 'index') { if (!cat.names.has(t.name)) return `缺 ${t.kind} ${t.name}` }
+    else if (t.kind === 'column') {
+      const sql = cat.ddl.get(t.table) || ''
+      if (!new RegExp(`\\b${t.name}\\b`).test(sql)) return `缺列 ${t.table}.${t.name}`
+    } else return `未识别 DDL：${t.name}`
+  }
+  return null
+}
+
 // Flyway 的 baseline 语义：给"库已存在（由 schema.sql 全量建好 / 迁移早已人工跑过）"
 // 的存量库建立起点，避免把历史迁移重放一遍（裸 ALTER 重放必报错）。
 if (cmd === 'baseline') {
   ensureLedger()
   const ledger = applied() ?? []
+  const cat = catalog()
   const reasonIdx = args.indexOf('--reason')
   const reason = reasonIdx >= 0 ? args[reasonIdx + 1] : '基线：本库对象已就位，历史迁移不回重放'
   let marked = 0
+  const skipped = []
   for (const m of all) {
     if (ledger.some((r) => r.name === m.file)) continue
+    const missing = migrationIsApplied(m, cat)
+    if (missing) { skipped.push(`${m.file}（${missing}）`); continue }
     d1(`INSERT INTO ${LEDGER} (name, checksum, appliedAt, note) VALUES ('${m.file}', '${m.checksum}', '${new Date().toISOString()}', '${reason} (pre-${mode})')`)
     console.log(`BASELINED ${m.file}`)
     marked += 1
   }
-  console.log(`\n==== ${mode}：${marked} 个历史迁移已记为基线（未执行任何 DDL）====`)
+  for (const s of skipped) console.log(`SKIP ${s} —— 对象不在本库，属未执行迁移，不记基线`)
+  console.log(`\n==== ${mode}：${marked} 个历史迁移记为基线（未执行任何 DDL）/ ${skipped.length} 个待应用 ====`)
   process.exit(0)
 }
 
@@ -237,14 +278,14 @@ fail(`未知子命令 ${cmd}（可用：status | apply | mark | baseline）`)
 
 // 生产迁移是不可逆动作：非交互环境（CI）直接拒执行，交互式要求逐字输入库名。
 async function confirmRemote(pending) {
-  const isTty = process.stdin.isTTY && !args.includes('--yes')
   console.log(`\n⚠️  即将对**生产** D1（supermarket）执行 ${pending.length} 个迁移：${pending.map((m) => m.file).join(', ')}`)
   console.log('   前置铁律（chaoshi-web-deploy skill）：先全量导出备份并确认文件大小非 0。')
-  if (!isTty) fail('非交互环境禁止自动执行生产迁移（需 TTY 确认或显式 --yes）。')
+  // --yes 必须先判：否则自动化（stdin 非 TTY）永远进不去，显式授权形同虚设（2026-09-24 实测踩到）
   if (args.includes('--yes')) {
-    console.log('   --yes 已给出，继续。')
+    console.log('   已给出 --yes（自动化场景），继续。')
     return
   }
+  if (!process.stdin.isTTY) fail('非交互环境且未给 --yes，拒绝执行生产迁移。')
   const rl = createInterface({ input: process.stdin, output: process.stdout })
   const answer = await new Promise((res) => rl.question('   输入 supermarket 确认执行：', res))
   rl.close()
