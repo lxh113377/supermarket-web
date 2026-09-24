@@ -1,24 +1,34 @@
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
+import { Skeleton } from './Skeleton'
 import type { Category } from '../types'
 
 interface TopNavProps {
   categories: Category[]
+  /** 受控：当前大类完全由 URL 派生，组件内不再自存一份（原先两份靠回调单向同步会错位） */
+  activeTop: string
   activeSub: string
+  onTopChange: (id: string) => void
   onSubChange: (id: string) => void
   onSearchToggle: () => void
   showSearch: boolean
-  onTopChange?: (id: string) => void
 }
 
-export default function TopNav({ categories, activeSub, onSubChange, onSearchToggle, showSearch, onTopChange }: TopNavProps) {
-  const [activeTop, setActiveTop] = useState(categories[0]?._id || '')
+export default function TopNav({
+  categories,
+  activeTop,
+  activeSub,
+  onTopChange,
+  onSubChange,
+  onSearchToggle,
+  showSearch,
+}: TopNavProps) {
   // 选中子分类后自动滚到可见区：原实现横向滚动条不会跟随，手机上常出现
   // 「点了沙发分类，但标签在屏幕外，看不出选了什么」。
   const activeSubRef = useRef<HTMLButtonElement | null>(null)
   const mountedRef = useRef(false)
 
   const currentCategory = useMemo(
-    () => categories.find(c => c._id === activeTop) || categories[0],
+    () => categories.find(c => c._id === activeTop),
     [categories, activeTop]
   )
 
@@ -31,12 +41,25 @@ export default function TopNav({ categories, activeSub, onSubChange, onSearchTog
     activeSubRef.current?.scrollIntoView?.({ inline: 'center', block: 'nearest' })
   }, [activeSub])
 
-  if (!currentCategory) return null
-
   const handleTopChange = (id: string) => {
-    setActiveTop(id)
+    // 切大类时清空子分类筛选：由调用方写回 URL，本组件不再持有状态
     onSubChange('')
-    if (onTopChange) onTopChange(id)
+    onTopChange(id)
+  }
+
+  // 目录尚未到达时渲染骨架占位而不是整条导航消失：原先返回 null 会让导航栏在数据
+  // 到达后重新挂载，选中态归零，用户看到「分类条闪一下又跳回第一个」。
+  if (!currentCategory) {
+    return (
+      <nav aria-label="商品分类导航" aria-busy="true" className="bg-white/95 backdrop-blur-sm border-b border-gray-100 sticky top-0 z-20 shadow-soft">
+        <div className="flex items-center gap-2 px-3 py-3.5 max-w-5xl mx-auto">
+          {[0, 1, 2].map(i => <Skeleton key={i} className="h-4 flex-1 rounded-md" />)}
+        </div>
+        <div className="flex gap-2 px-3 py-2.5 bg-surface-warm max-w-5xl mx-auto">
+          {[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-7 w-16 rounded-full" />)}
+        </div>
+      </nav>
+    )
   }
 
   return (

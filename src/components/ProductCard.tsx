@@ -123,7 +123,9 @@ function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
               >
                 <span aria-hidden="true">-</span>
               </button>
-              <span className="text-sm font-semibold w-5 text-center text-gray-800" aria-live="polite">
+              {/* 刻意不加 aria-live：列表里每张卡各挂一个 live region，加一次购
+                  读屏就会连播一屏数字。增减数量的播报统一由页面级 toast 承担。 */}
+              <span className="text-sm font-semibold w-5 text-center text-gray-800">
                 {quantity}
               </span>
             </>

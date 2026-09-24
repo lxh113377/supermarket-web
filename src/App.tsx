@@ -59,7 +59,9 @@ export default function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/category/:categoryId" element={<CategoryPage />} />
           <Route path="/service/:serviceId" element={<ServiceFormPage />} />
-          <Route path="/shop" element={<CustomerPage />} />
+          {/* 分类/子分类进路径，搜索与排序进 query：这样「食品›零食」是一个可分享、
+              可刷新、可后退的地址，而不再只是组件内一份随时会丢的 useState。 */}
+          <Route path="/shop/:categoryId?/:subId?" element={<CustomerPage />} />
           <Route path="/product/:id" element={<ProductDetailPage />} />
           <Route path="/cart" element={<CartPage />} />
           <Route path="/assistant" element={<AssistantPage />} />
