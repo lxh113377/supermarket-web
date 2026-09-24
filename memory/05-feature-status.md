@@ -16,6 +16,8 @@
 - [x] 订单查询页 #/order-query（2026-09-24，对标 litemall 订单跟踪）— 输单号看 5 步进度；成功页单号展示/复制/查询入口，sessionStorage 跨导航兜底
 - [x] 超时单工作台（对标第三轮 B5）— OrdersTab 内联面板接 `stalePendingReport`：汇总/库存占用明细/"已传付款截图"徽标/逐单取消（复用状态机+回补路径；禁弹窗；只读密钥静默降级）
 - [x] 工程防线（对标第三轮 C1/C2/B4）— 单 action SQL 语句峰值基线 `docs/sql-baseline.json`（verify-backend 内置，N+1 回归 CI 红）；生产依赖 license 白名单门禁 `verify:licenses`（GPL/AGPL/LGPL/SSPL/Elastic/未知拦）；页面层覆盖率 19.68%→23.65%，阈值棘轮 23/21/20/24
+- [x] 看板图表修复 + 可测性分层（对标第六轮 F1/P0）— echarts option 构造抽为 `utils/chartOptions.ts` 纯函数（主题/动效入参），hook 只管实例生命周期；**修掉生产包"四张图静默空白"**（side-effect 自注册模块被当 `use()` 入参 → `use(undefined)` 抛错被 async IIFE 吞）；新增 SSR 真库渲染测试 + 本地云端模式验收桩 `npm run build:stub && npm run serve:stub`（假密钥，无需生产密钥即可浏览器复核看板）
+- [x] 工程防线（对标第六轮）— CHANGELOG 门禁浅克隆自愈 + CI `fetch-depth: 0`；覆盖率 319 用例 / stmts 57.25%，棘轮 57/53/50/59
 - [x] D1 每日备份链路（C5）— d1-backup.yml cron 04:00 北京，缺 CF_D1_BACKUP_TOKEN 告警跳过（用户待配 token）
 - [x] e2e — 7 用例（下单链路/空表单防误/管理端流转/冒烟4）；vite.config.e2e.js 空 envDir 隔离本机 .env
 - [x] 安全 — 严格 CSP、五安全响应头、限流四档（KV 优先/回退 D1）、常量时间密钥比较、安全事件审计（SHA-256 指纹）
