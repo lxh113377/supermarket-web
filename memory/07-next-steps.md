@@ -14,8 +14,9 @@
 - 对标报告与改进清单：外层 `deliverables/GitHub开源项目对标分析报告-2026-09-24.md`（对标 litemall/Medusa/Saleor/Vercel Commerce，七维 + P0/P1/P2）。
 - **已落地（本轮）**：① 订单 5 态状态机（服务端 `ORDER_TRANSITIONS` 强制，TEXT 列零迁移）+ 管理端合法迁移下拉；② 顾客侧 `/pub getOrderStatus` + 支付页进度（**顺带修复**：旧轮询误用 `adminCall('getOrder')`，顾客端无密钥必然失败）；③ e2e 4→7 用例 + `vite.config.e2e.js` 空 envDir 修复"本机 e2e 必挂"（本机 .env 致云端模式）；④ CI 新增 `check:cycles`/`verify:contract` 阻断步 + v8 覆盖率 artifact（本机覆盖率可用，CHANGELOG 旧"worker 崩溃"待办作废）；⑤ `docs/ARCHITECTURE.md` + README 架构入口。
 - 门禁终态：lint 0/0 ｜ tsc 0 错 ｜ vitest **176/176**（28 文件）｜ verify:backend **66/66** ｜ 契约 /web 30 + /pub 8（43 断言）｜ e2e 7/7 ｜ build+体积 3/3。
-- **P0（本轮唯一可执行下一步）**：推送 main 触发 CI 双端发布后，按 `chaoshi-web-deploy` skill 清单做线上验证——重点：`curl -sX POST https://supermarket-web.pages.dev/pub -d '{"action":"getOrderStatus","payload":{"orderId":"<真实单号>"}}'` 返回 `{code:0,data:{status}}`；旧 3 态订单不受影响。
+- **P0（本轮唯一可执行下一步）**：~~推送后线上验证~~ ✅ **已完成（2026-09-24 线上实测）**：CI run 35963451061 success（head 5db9efc）+ dispatch + github.io run 35963461764 success；①28 商品 ②2 分类 ④错误密钥被拒 ⑥CORS 精确回显 ⑦gh.io 200 且 sw 指纹 `sm-v1790230428269`（CI 新构建）；**订单状态机端到端**：/pub createOrder(pending) → /pub getOrderStatus(pending) → /web updateOrderStatus(paid) → getOrderStatus(paid) → 非法 paid→completed 被拒 → deleteOrder 清理 → getOrderStatus「订单不存在」，全链路生产验证通过。
 - **P1 待办（对标报告 P2 列，各需前置条件）**：C1 库存（需生产 D1 `ALTER TABLE products ADD COLUMN stock INTEGER DEFAULT -1` + 扣减链路，单独部署窗口）；C2 R2 直传；C5 D1 定时备份。
+- **P1 观察**：dependabot 新开 2 个更新 run（autoprefixer / react 系，2026-09-24），下轮按 09-05 先例逐个评估（major 关/小版本合）。
 
 ## 2026-09-23 — 第三轮全栈优化（接口+缓存优先 / 11 项，已提交 + 双端上线）
 
