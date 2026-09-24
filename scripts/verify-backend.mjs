@@ -1,7 +1,7 @@
 // 本地后端契约验证：用 node:sqlite 模拟 D1 绑定，直接跑 functions/lib/backend.js 全部 action。
 // 不需要 Cloudflare 账号 / wrangler / 网络。D1 即 SQLite，SQL 语法与运行时完全一致。
 import { DatabaseSync } from 'node:sqlite'
-import { readFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 
@@ -13,11 +13,28 @@ db.exec(readFileSync(join(root, 'db', 'schema.sql'), 'utf8'))
 db.exec(readFileSync(join(root, 'db', 'seed.sql'), 'utf8'))
 
 // ---- 模拟 D1 绑定（对齐 D1 的 prepare/bind/all/first/run 异步接口）----
+// C1（对标第三轮）：每次 action 调用的 SQL 语句条数归因计数。
+// 动机：D1 免费档有每日语句执行数上限，循环里逐条 SELECT/UPDATE 的回归（N+1）必须在本门禁变红，
+// 而不是等线上配额被打爆。基线 docs/sql-baseline.json 记录"单次调用峰值"，只允许下降；上升须显式改基线。
+let SQL_CTX = 'bootstrap'
+let SQL_RUN = 0
+const SQL_PEAK = {}
+function beginSql(name) {
+  endSql()
+  SQL_CTX = name
+}
+function endSql() {
+  if (SQL_CTX !== 'bootstrap') SQL_PEAK[SQL_CTX] = Math.max(SQL_PEAK[SQL_CTX] || 0, SQL_RUN)
+  SQL_CTX = 'bootstrap'
+  SQL_RUN = 0
+}
+
 function makeD1(db) {
   // D1 接受 boolean 并自动存为 0/1、undefined 视为 null；node:sqlite 不接受 boolean，这里模拟 D1 的类型转换。
   const coerce = (v) => (typeof v === 'boolean' ? (v ? 1 : 0) : v === undefined ? null : v)
   return {
     prepare(sql) {
+      if (SQL_CTX !== 'bootstrap') SQL_RUN++
       const stmt = db.prepare(sql)
       let bound = []
       return {
@@ -42,7 +59,15 @@ function makeD1(db) {
 }
 
 const backendUrl = pathToFileURL(join(root, 'functions', 'lib', 'backend.js')).href
-const { handleAdmin, handlePublic } = await import(backendUrl)
+const _backend = await import(backendUrl)
+function wrapHandle(raw, prefix) {
+  return async (env, action, ...rest) => {
+    beginSql(prefix + action)
+    try { return await raw(env, action, ...rest) } finally { endSql() }
+  }
+}
+const handleAdmin = wrapHandle(_backend.handleAdmin, 'A:')
+const handlePublic = wrapHandle(_backend.handlePublic, 'P:')
 const env = { DB: makeD1(db), ADMIN_KEY: 'test-key-123' }
 
 let pass = 0, fail = 0
@@ -346,6 +371,28 @@ ok(Number(aiadvRow.c) >= 1, `rate_limits 表有 aiAdvice 限流桶 (实际 ${aia
 // ---------- 未知 action ----------
 const unknown = await handleAdmin(env, 'noSuchAction', 'test-key-123', {})
 ok(unknown.code === -1, '未知 action 返回 -1')
+
+// ---------- C1：单次调用 SQL 语句数基线（只降不升）----------
+const SQL_BASELINE_PATH = join(root, 'docs', 'sql-baseline.json')
+const UPDATE_BASELINE = process.argv.includes('--update-sql-baseline')
+if (UPDATE_BASELINE) {
+  writeFileSync(SQL_BASELINE_PATH, JSON.stringify({ updatedAt: new Date().toISOString(), peakStatements: SQL_PEAK }, null, 2) + '\n')
+  console.log(`[sql-baseline] 已写入实测峰值 ${Object.keys(SQL_PEAK).length} 个 action → docs/sql-baseline.json`)
+} else {
+  let baseline = null
+  try { baseline = JSON.parse(readFileSync(SQL_BASELINE_PATH, 'utf8')).peakStatements } catch { /* 缺文件按失败处理 */ }
+  if (!baseline) {
+    ok(false, 'sql-baseline.json 缺失/损坏（跑 node scripts/verify-backend.mjs --update-sql-baseline 生成）')
+  } else {
+    const keys = new Set([...Object.keys(baseline), ...Object.keys(SQL_PEAK)])
+    for (const k of keys) {
+      const b = baseline[k], actual = SQL_PEAK[k] || 0
+      if (b === undefined) { ok(false, `SQL 基线缺 action ${k}（新增调用路径？--update-sql-baseline 确认后入册）`); continue }
+      if (actual > b) { ok(false, `SQL 语句数回归 ${k}: 峰值 ${actual} > 基线 ${b}`) }
+    }
+    ok(Object.keys(baseline).every((k) => SQL_PEAK[k] !== undefined), '基线内全部 action 本轮均有执行')
+  }
+}
 
 console.log(`\n==== 结果: ${pass} 通过 / ${fail} 失败 ====`)
 if (fail) { console.log('失败项:'); fails.forEach((f) => console.log('  - ' + f)); process.exit(1) }

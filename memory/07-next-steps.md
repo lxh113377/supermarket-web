@@ -9,6 +9,14 @@
 > 外层 `超市web/超市/memory/`（工作区）。两者内容**不同**（07 主卷 SHA256 不一致），
 > 属历史遗留的双份结构，尚未合并。**本轮的权威记录在外层**：`deliverables/前端深度优化方案-2026-09-23.md` §6。
 
+## 2026-09-24 — 对标第三轮（覆盖率棘轮 / 超时单工作台 / SQL 配额门禁 / license 门禁）
+
+- **已落地**：B4 页面层测试 +13（195/195，覆盖率 23.65%，阈值棘轮 23/21/20/24）；B5 stalePendingReport→OrdersTab 内联面板（禁弹窗铁律遵守，只读密钥静默降级，取消复用状态机+库存回补同一路径）；C1 单 action SQL 语句峰值基线 `docs/sql-baseline.json`（30 action，写路径 +1 吸收限流窗抖动）；C2 license 白名单门禁（生产树 10/10，extraneous 过滤，未知即拦）→ verify 链 + CI。
+- **意外发现**：本机 node_modules 有 extraneous `@img/sharp-wasm32`（LGPL 复合许可，历史镜像安装残留、非 lock 依赖）——下轮清装验证（D3）。
+- 报告：外层 `deliverables/GitHub开源项目对标分析报告-第三轮-2026-09-24.md`。
+- **P0（下轮）**：D1 覆盖率继续爬坡——DashboardTab/AdminPage 两大件进 30%+（AdminPage 886 行是最大未测块）；D2 面板上线后**用一次真实 49 单超时积压做处置演练**（有截图优先确认；无截图逐单取消——禁自动批量）。
+- P1：D3 extraneous 清装验证；P2：D4 备份 token 激活（用户配 `CF_D1_BACKUP_TOKEN` 后跑一次 workflow_dispatch 核验 artifact）、D5 R2 直传（沿用第二轮队列）。
+
 ## 2026-09-24 — 对标第二轮（幂等 / 迁移账目 / 供应链门禁 / XSS 收口）
 
 - **对标集扩到 5 个**（新增 **Vendure** 8,468★）+ 维度 7→9（加「数据完整性与迁移」「供应链与 CI 安全」）。报告：外层 `deliverables/GitHub开源项目对标分析报告-第二轮-2026-09-24.md`；交付记录：`对标第二轮交付记录-2026-09-24.md`。

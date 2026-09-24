@@ -14,6 +14,8 @@
 - [x] 履约闭环（2026-09-24 对标轮）— 订单 5 态状态机（pending→paid→delivering→completed，旁路 cancelled；服务端 ORDER_TRANSITIONS 强制，status TEXT 零迁移）；顾客侧 `/pub getOrderStatus` 进度轮询（修复旧轮询误用 adminCall 必然鉴权失败的缺陷）；前后端迁移表 parity 测试锁定
 - [x] 库存防超卖（2026-09-24 裁决轮，对标 C1）— products.stock（-1 不限售）；下单守卫式占用/取消与删除回补/误取消恢复重占用；管理端内联编辑库存字段 + 缺货/低库存角标；verify-backend +18 断言
 - [x] 订单查询页 #/order-query（2026-09-24，对标 litemall 订单跟踪）— 输单号看 5 步进度；成功页单号展示/复制/查询入口，sessionStorage 跨导航兜底
+- [x] 超时单工作台（对标第三轮 B5）— OrdersTab 内联面板接 `stalePendingReport`：汇总/库存占用明细/"已传付款截图"徽标/逐单取消（复用状态机+回补路径；禁弹窗；只读密钥静默降级）
+- [x] 工程防线（对标第三轮 C1/C2/B4）— 单 action SQL 语句峰值基线 `docs/sql-baseline.json`（verify-backend 内置，N+1 回归 CI 红）；生产依赖 license 白名单门禁 `verify:licenses`（GPL/AGPL/LGPL/SSPL/Elastic/未知拦）；页面层覆盖率 19.68%→23.65%，阈值棘轮 23/21/20/24
 - [x] D1 每日备份链路（C5）— d1-backup.yml cron 04:00 北京，缺 CF_D1_BACKUP_TOKEN 告警跳过（用户待配 token）
 - [x] e2e — 7 用例（下单链路/空表单防误/管理端流转/冒烟4）；vite.config.e2e.js 空 envDir 隔离本机 .env
 - [x] 安全 — 严格 CSP、五安全响应头、限流四档（KV 优先/回退 D1）、常量时间密钥比较、安全事件审计（SHA-256 指纹）

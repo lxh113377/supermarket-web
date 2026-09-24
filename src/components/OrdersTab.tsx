@@ -1,5 +1,5 @@
-import {  useState, useMemo  } from 'react'
-import { updateOrderStatus, deleteOrder } from '../auth'
+import { useState, useMemo, useEffect } from 'react'
+import { updateOrderStatus, deleteOrder, adminCall } from '../auth'
 import { getAllOrders } from '../db'
 import { buildCsvText } from '../utils/csv'
 import EmptyState from './EmptyState'
@@ -21,6 +21,43 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
   // P0-4 分页：订单全量渲染在数据量大时卡顿，按页渲染
   const PAGE_SIZE = 20
   const [page, setPage] = useState(1)
+
+  // 超时待确认订单报表（stalePendingReport，对标第二轮 A5）：只报告不自动砍单——
+  // 线下确认制下 pending 可能是"已转账待确认"，取消由管理员逐单决定（同一条库存回补路径）
+  interface StaleOrder { id: string; roomNumber: string; totalAmount?: number; ageMinutes: number; hasPaymentProof: boolean }
+  interface StaleReport { thresholdMinutes: number; count: number; orders: StaleOrder[]; stockReserved: { productId: string; name: string; reserved: number }[] }
+  const [stale, setStale] = useState<StaleReport | null>(null)
+  const [staleOpen, setStaleOpen] = useState(false)
+  const [staleLoading, setStaleLoading] = useState(false)
+
+  const loadStale = async () => {
+    setStaleLoading(true)
+    try {
+      const r = await adminCall<StaleReport>('stalePendingReport', { minutes: 60 })
+      setStale(r.code === 0 && r.data ? r.data : null)
+    } catch {
+      setStale(null) // 只读密钥被拒等场景：静默不展示面板，不打断订单主操作
+    } finally {
+      setStaleLoading(false)
+    }
+  }
+  useEffect(() => {
+    if (!loading && orders.length) void loadStale()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading])
+
+  const cancelStale = async (orderId: string) => {
+    try {
+      const res = await updateOrderStatus(orderId, 'cancelled')
+      if (res && 'code' in res && res.code !== 0) throw new Error(res.message || '取消失败')
+      setNotice('超时订单已取消并释放占用库存')
+      await loadStale()
+      const { orders } = await getAllOrders()
+      onOrdersChange(orders)
+    } catch (err) {
+      setNotice('取消失败：' + (err instanceof Error ? err.message : '未知错误'))
+    }
+  }
 
   const filtered = useMemo(() => {
     let list = orders
@@ -143,6 +180,43 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
       </div>
       {notice && (
         <p role="status" aria-live="polite" className="text-xs text-gray-600 bg-brand-50 border border-brand-100 rounded-lg px-3 py-2">{notice}</p>
+      )}
+      {stale && stale.count > 0 && (
+        <div className="bg-amber-50 border border-amber-200/80 rounded-lg px-3 py-2">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <button
+              onClick={() => setStaleOpen(!staleOpen)}
+              aria-expanded={staleOpen}
+              className="text-xs text-amber-800 font-medium underline-offset-2 hover:underline text-left"
+            >
+              {staleOpen ? '收起' : '展开'}超时未确认订单 {stale.count} 单（超过 {stale.thresholdMinutes} 分钟）
+              {stale.stockReserved.length > 0 && ` · 占用有限库存 ${stale.stockReserved.reduce((s, x) => s + x.reserved, 0)} 件`}
+            </button>
+            <button onClick={() => void loadStale()} disabled={staleLoading} className="text-xs text-amber-700 px-2 py-1 rounded border border-amber-200 disabled:opacity-50">
+              {staleLoading ? '刷新中' : '刷新'}
+            </button>
+          </div>
+          {staleOpen && (
+            <div className="mt-2 space-y-1.5">
+              {stale.stockReserved.length > 0 && (
+                <p className="text-[11px] text-amber-700">
+                  占用明细：{stale.stockReserved.map((x) => `${x.name}×${x.reserved}`).join('、')}
+                </p>
+              )}
+              {stale.orders.map((o) => (
+                <div key={o.id} className="flex items-center justify-between gap-2 bg-white/70 rounded px-2 py-1.5">
+                  <span className="text-xs text-gray-700 truncate min-w-0">
+                    {o.roomNumber} · {formatYuan(o.totalAmount ?? 0)} · {o.ageMinutes} 分钟前
+                    {o.hasPaymentProof && <span className="ml-1 text-[10px] text-green-700 bg-green-100 px-1 py-0.5 rounded">已传付款截图</span>}
+                  </span>
+                  <button onClick={() => void cancelStale(o.id)} className="text-[11px] text-red-500 hover:text-red-700 px-2 py-1 shrink-0">
+                    取消并释放库存
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
       {visible.map(order => (
         <div key={order._id} className="bg-white p-3 rounded-lg border border-gray-100">
