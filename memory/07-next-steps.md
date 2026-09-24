@@ -9,6 +9,13 @@
 > 外层 `超市web/超市/memory/`（工作区）。两者内容**不同**（07 主卷 SHA256 不一致），
 > 属历史遗留的双份结构，尚未合并。**本轮的权威记录在外层**：`deliverables/前端深度优化方案-2026-09-23.md` §6。
 
+## 2026-09-24 — 对标第五轮（管理壳/商城页/内联表单测试，覆盖率 47.63%）
+
+- **E1/E2 已完成**：AdminPage(5)+CustomerPage(5)+ProductInlineEditForm(5) 共 15 用例（228/228）；四指标 47.63/43.52/41.39/50.14，棘轮上调 47/43/41/50（双跑一致）。CustomerPage 用真实 useProducts/useCart（一并拉起两 hook）。
+- **E3 顺延**（useDashboardCharts 需 canvas 桩或小重构）；**P0（下轮 F1）**：DashboardTab + useDashboardCharts 专项（先抽 option 构造纯函数，再测；预计 +4~5pp 且消掉 ESM/canvas 耦合）。
+- P1：F2 OrderConfirmPage/PaymentPage 剩余分支；F3 `stalePendingReport` 49 单运营处置（人）。P2：D4 备份 token（用户）、D5 R2。
+- 报告：外层 `deliverables/GitHub开源项目对标分析报告-第五轮-2026-09-24.md`。
+
 ## 2026-09-24 — 对标第四轮（测试纵深 + D3 清装纠偏）
 
 - **D1 已完成**：`tests/dbFacades.test.ts`(11) + `tests/adminTabs.test.tsx`(7)，213/213；覆盖率 stmts **35.68%** / branches 32.47 / funcs 31.04 / lines 37.43，棘轮上调 **35/32/31/36**。零功能改动（刻意）。
