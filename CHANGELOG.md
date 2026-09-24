@@ -4,6 +4,13 @@
 
 ## [未发布]
 
+### 2026-09-24 追加四（对标第三轮：覆盖率棘轮 + 超时单工作台 + SQL/license 门禁）
+- **B4** 页面层测试 +13（OrderQueryPage 6 / CartPage 4 / OrdersTab 超时面板 3；195/195），覆盖率 19.68→**23.65%**（stmts），`vite.config` 阈值棘轮上调 23/21/20/24（只升不降）
+- **B5** `stalePendingReport` 接 OrdersTab：超时未确认订单**内联面板**（汇总/占用明细/"已传付款截图"徽标/逐单"取消并释放库存"复用状态机+回补路径；只读密钥静默不显示；遵守禁弹窗铁律）
+- **C1** 单 action SQL 语句峰值基线：verify-backend 内置计数器，`docs/sql-baseline.json` 30 action（6 次采样并集；审计/限流写路径 +1 吸收 60s 真实窗分支抖动，读路径精确）——N+1/循环语句回归从此 CI 红
+- **C2** `scripts/check-licenses.mjs` 生产依赖 license 白名单（GPL/LGPL/AGPL/SSPL/Elastic 与未知许可一律拦），过滤 extraneous（本机实测揪出历史镜像残留 `@img/sharp-wasm32`，含 LGPL 复合条款但**非 lock 依赖**）；已进 `npm run verify` 与 CI
+- 报告：外层 `deliverables/GitHub开源项目对标分析报告-第三轮-2026-09-24.md`
+
 ### 2026-09-24 追加三（对标第二轮：幂等 / 迁移账目 / 供应链门禁 / XSS 收口）
 - **下单幂等（A1）**：`orders.idempotencyKey` + **部分唯一索引**（`WHERE ... IS NOT NULL`，历史单零影响）；键 = `房间号@requestId#fnv1a(载荷指纹)`；不带 requestId 的调用方（顾客端 SW 长缓存下的旧包）走 90s 内容指纹兜底；去重判定在扣库存之前，真并发撞唯一索引时回补本请求库存再返回既有单；响应新增 `deduplicated` 标记。对标纠偏：**litemall 实际没有任何幂等**（`order_sn` 无唯一索引），做幂等的是 Medusa / Saleor
 - **状态流转乐观锁（A4）**：`UPDATE ... WHERE _id = ? AND status = 读到的旧值`，并发迁移只有一个胜出，落败方收到"订单已被他人更新，请刷新后重试"；抢占失败时回补"误取消恢复"刚扣的库存
