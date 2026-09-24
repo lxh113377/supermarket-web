@@ -27,6 +27,8 @@ export interface Product {
   image?: string
   images?: string[]
   description?: string
+  /** 库存（-1=不限售；下单即占用、取消回补，服务端强制。见 functions/lib/actions/orders.js） */
+  stock?: number
   /** 商品内嵌评价（接口若一并下发则为 Review[]，此前写 unknown[] 会让下游必须强转） */
   reviews?: Review[]
   createdAt?: Date | string

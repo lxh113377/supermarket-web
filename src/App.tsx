@@ -14,6 +14,7 @@ const ProductDetailPage = lazy(routeLoaders.product)
 const CartPage = lazy(routeLoaders.cart)
 const OrderConfirmPage = lazy(routeLoaders.orderConfirm)
 const OrderSuccessPage = lazy(routeLoaders.orderSuccess)
+const OrderQueryPage = lazy(routeLoaders.orderQuery)
 const PaymentPage = lazy(routeLoaders.payment)
 const AdminPage = lazy(routeLoaders.admin)
 const NotFoundPage = lazy(routeLoaders.notFound)
@@ -64,6 +65,7 @@ export default function App() {
           <Route path="/assistant" element={<AssistantPage />} />
           <Route path="/order-confirm" element={<OrderConfirmPage />} />
           <Route path="/order-success" element={<OrderSuccessPage />} />
+          <Route path="/order-query" element={<OrderQueryPage />} />
           <Route path="/payment" element={<PaymentPage />} />
           <Route path="/admin" element={<AdminGuard><AdminPage /></AdminGuard>} />
           <Route path="*" element={<NotFoundPage />} />

@@ -13,7 +13,7 @@ export async function createOrder(DB, payload) {
   }
   const ids = items.map((it) => it.productId)
   const rows = await qAll(DB,
-    `SELECT _id, name, spec, price, enabled, subcategories FROM products WHERE _id IN (${ids.map(() => '?').join(',')})`,
+    `SELECT _id, name, spec, price, enabled, subcategories, stock FROM products WHERE _id IN (${ids.map(() => '?').join(',')})`,
     ids)
   const byId = new Map(rows.map((p) => [p._id, p]))
   let total = 0
@@ -31,6 +31,12 @@ export async function createOrder(DB, payload) {
     })
     total += (Number(p.price) || 0) * qty
   }
+  // 防超卖（2026-09-24 对标 C1）：下单即占用库存；不限售项（stock=-1，代码侧读取时判定）
+  // 不进入扣减集合——守卫 SQL 的 `stock >= 0` 条件若命中不限售行会把 -1 扣成负数。
+  // 守卫式扣减（条件 UPDATE）防并发窗口超卖，任一失败回补本单已扣项后整体拒绝。
+  const stockItems = verified.filter((it) => Number(byId.get(it.productId).stock) >= 0)
+  const stockErr = await reserveStock(DB, stockItems)
+  if (stockErr) return stockErr
   const ts = nowISO()
   const doc = {
     _id: genId('o_'), roomNumber: String(roomNumber).trim(), items: verified,
@@ -42,10 +48,43 @@ export async function createOrder(DB, payload) {
   return { code: 0, data: { id: doc._id, totalAmount: doc.totalAmount } }
 }
 
+// 库存占用：逐 item 守卫式 UPDATE（WHERE stock>=qty），0 变更=库存不足；
+// 失败时回补此前已成功扣减的条目（同请求内补偿，D1 无跨语句事务时的最小正确实现）
+export async function reserveStock(DB, items) {
+  const done = []
+  for (const it of items) {
+    const res = await qRun(DB,
+      `UPDATE products SET stock = stock - ?, updatedAt = ? WHERE _id = ? AND stock >= 0 AND stock >= ?`,
+      [it.quantity, nowISO(), it.productId, it.quantity])
+    if (!res.meta?.changes) {
+      if (done.length) await releaseStock(DB, done)
+      return { code: -1, message: `库存不足: ${it.name}` }
+    }
+    done.push(it)
+  }
+  return null
+}
+
+// 库存释放（取消订单回补）：仅回补在售管理的有限库存（stock>=0），不限售项不动
+export async function releaseStock(DB, items) {
+  for (const it of items) {
+    await qRun(DB,
+      `UPDATE products SET stock = CASE WHEN stock >= 0 THEN stock + ? ELSE stock END, updatedAt = ? WHERE _id = ?`,
+      [it.quantity, nowISO(), it.productId])
+  }
+}
+
 export async function deleteOrder(DB, payload) {
   const { orderId } = payload
   if (!orderId) return { code: -1, message: '缺少 orderId' }
+  // 删除进行中订单（pending/paid/delivering）= 库存占用作废，需回补；
+  // cancelled 已在取消时释放、completed 视为已交付消耗，均不回补（防删除历史单凭空加库存）
+  const cur = await qFirst(DB, `SELECT status, items FROM orders WHERE _id = ?`, [orderId])
   await qRun(DB, `DELETE FROM orders WHERE _id = ?`, [orderId])
+  if (cur && !['cancelled', 'completed'].includes(cur.status)) {
+    const items = jparse(cur.items, [])
+    if (items.length) await releaseStock(DB, items)
+  }
   return { code: 0 }
 }
 
@@ -63,10 +102,18 @@ export const ORDER_TRANSITIONS = {
 export async function updateOrderStatus(DB, payload) {
   const { orderId, status } = payload
   if (!orderId || !Object.prototype.hasOwnProperty.call(ORDER_TRANSITIONS, status)) return { code: -1, message: '参数无效' }
-  const cur = await qFirst(DB, `SELECT status FROM orders WHERE _id = ?`, [orderId])
+  const cur = await qFirst(DB, `SELECT status, items FROM orders WHERE _id = ?`, [orderId])
   if (!cur) return { code: -1, message: '订单不存在' }
   if (!(ORDER_TRANSITIONS[cur.status] || []).includes(status))
     return { code: -1, message: `不允许的状态流转: ${cur.status} → ${status}` }
+  const items = jparse(cur.items, [])
+  // 取消 = 释放本单占用的有限库存（不限售项由 releaseStock 内 CASE 条件天然跳过）
+  if (status === 'cancelled' && items.length) await releaseStock(DB, items)
+  // 误取消恢复（cancelled→pending）= 重新占用；库存已被别人占走则拒绝恢复，状态不动
+  if (cur.status === 'cancelled' && status === 'pending' && items.length) {
+    const err = await reserveStock(DB, items)
+    if (err) return err
+  }
   const res = await qRun(DB, `UPDATE orders SET status = ?, updatedAt = ? WHERE _id = ?`, [status, nowISO(), orderId])
   if (!res.meta?.changes) return { code: -1, message: '订单不存在' }
   return { code: 0 }

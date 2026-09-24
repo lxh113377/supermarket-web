@@ -120,6 +120,42 @@ ok(stMiss.code === -1 && /不存在/.test(stMiss.message || ''), 'getOrderStatus
 const stAdmin = await handleAdmin(env, 'getOrderStatus', '', { orderId: lid })
 ok(stAdmin.code === 0 && stAdmin.data?.status === 'completed', '/web 回退路径 getOrderStatus 免密钥可用（PUBLIC_ACTIONS）')
 
+// ---------- 库存与防超卖（2026-09-24 用户裁决 C1）----------
+const sp = await handleAdmin(env, 'createProduct', 'test-key-123', { name: '库存测试汽水', price: 3.0, stock: 2 })
+ok(sp.code === 0 && sp.data?.stock === 2, `createProduct 带 stock=2 生效 (实际 ${sp.data?.stock})`)
+const sid = sp.data._id
+const stockOf = async () => (await handleAdmin(env, 'getProducts', 'test-key-123', {})).data.find((p) => p._id === sid)?.stock
+const overOrder = await handlePublic(env, 'createOrder', { roomNumber: '307', items: [{ productId: sid, quantity: 3 }] })
+ok(overOrder.code === -1 && /库存不足/.test(overOrder.message || ''), 'stock=2 下单数量3 被拒')
+ok(await stockOf() === 2, '被拒订单未扣减库存（补偿路径干净）')
+const okOrder = await handlePublic(env, 'createOrder', { roomNumber: '307', items: [{ productId: sid, quantity: 2 }] })
+ok(okOrder.code === 0, 'stock=2 下单数量2 成功（占用全部库存）')
+ok(await stockOf() === 0, `下单后库存扣至 0 (实际 ${await stockOf()})`)
+const soldOutOrder = await handlePublic(env, 'createOrder', { roomNumber: '307', items: [{ productId: sid, quantity: 1 }] })
+ok(soldOutOrder.code === -1, '库存 0 再下单被拒')
+ok((await handleAdmin(env, 'updateOrderStatus', 'test-key-123', { orderId: okOrder.data.id, status: 'cancelled' })).code === 0, '取消占用订单')
+ok(await stockOf() === 2, '取消回补库存至 2')
+ok((await handleAdmin(env, 'updateOrderStatus', 'test-key-123', { orderId: okOrder.data.id, status: 'pending' })).code === 0, '误取消恢复 pending → 重新占用')
+ok(await stockOf() === 0, '重占用后库存回到 0')
+ok((await handleAdmin(env, 'updateOrderStatus', 'test-key-123', { orderId: okOrder.data.id, status: 'cancelled' })).code === 0, '再次取消回补')
+const hog = await handlePublic(env, 'createOrder', { roomNumber: '308', items: [{ productId: sid, quantity: 2 }] })
+ok(hog.code === 0, '他单占满库存')
+const denyRestore = await handleAdmin(env, 'updateOrderStatus', 'test-key-123', { orderId: okOrder.data.id, status: 'pending' })
+ok(denyRestore.code === -1 && /库存不足/.test(denyRestore.message || ''), '恢复时库存已被占用 → 拒绝且状态不动')
+ok((await handleAdmin(env, 'getOrderStatus', '', { orderId: okOrder.data.id })).data?.status === 'cancelled', '被拒恢复后订单仍为 cancelled')
+// 删除进行中单（hog=pending）= 占用作废回补
+await handleAdmin(env, 'deleteOrder', 'test-key-123', { orderId: hog.data.id })
+ok(await stockOf() === 2, `删除 pending 单回补库存 (实际 ${await stockOf()})`)
+await handleAdmin(env, 'deleteOrder', 'test-key-123', { orderId: okOrder.data.id })
+await handleAdmin(env, 'deleteProduct', 'test-key-123', { productId: sid })
+const updStock = await handleAdmin(env, 'createProduct', 'test-key-123', { name: '库存测试水', price: 1, stock: 100000 })
+ok(updStock.data?.stock === 100000, 'createProduct 大库存透传')
+const badStock = await handleAdmin(env, 'updateProduct', 'test-key-123', { productId: updStock.data._id, stock: 'abc' })
+ok(badStock.code === 0 && (await (async () => (await handleAdmin(env, 'getProducts', 'test-key-123', {})).data.find((p) => p._id === updStock.data._id)?.stock)()) === -1, '非法库存值归一为 -1 不限售')
+await handleAdmin(env, 'deleteProduct', 'test-key-123', { productId: updStock.data._id })
+const pubWithStock = await handlePublic(env, 'getPublicProducts', {})
+ok(pubWithStock.data.every((p) => typeof p.stock === 'number'), 'getPublicProducts 均带数值 stock（顾客端可售判断依据）')
+
 // ---------- 种子评价（需在写评价前，验证幂等）----------
 const seed = await handleAdmin(env, 'seedReviews', 'test-key-123', {})
 ok(seed.code === 0 && seed.data.added === 20, `seedReviews 写入 20 条 (实际 ${seed.data?.added})`)

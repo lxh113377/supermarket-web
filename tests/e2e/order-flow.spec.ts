@@ -28,6 +28,8 @@ async function placeDemoOrder(page: import('@playwright/test').Page) {
   await page.getByLabel(/房间号/).fill('501')
   // 营业时间按钮文案随时间变化，两者皆视为提交入口
   await page.getByRole('button', { name: /确认支付|仍要下单/ }).click()
+  // 等成功页挂载：其 useEffect 写入 sm_query_order（查询页自动回填依赖此），防"点完立刻 goto"竞态
+  await expect(page.getByText('下单成功')).toBeVisible()
 }
 
 test('下单链路：加购 → 填写地址 → 提交 → 下单成功（含房间号回显）', async ({ page }) => {
@@ -40,6 +42,16 @@ test('下单防误：楼栋/房间未填时阻止提交并播报', async ({ page
   await page.goto('/#/order-confirm')
   await page.getByRole('button', { name: /确认支付|仍要下单/ }).click()
   await expect(page.getByRole('alert')).toContainText(/楼栋|房间/)
+})
+
+test('订单查询页：下单后凭 sessionStorage 单号自动查出「待支付」进度', async ({ page }) => {
+  await placeDemoOrder(page)
+  await page.goto('/#/order-query')
+  await expect(page.getByText('订单查询')).toBeVisible()
+  // 自动查询（成功页写入 sm_payment_order）：5 步进度第一步高亮
+  await expect(page.getByText('订单号', { exact: true })).toBeVisible()
+  await expect(page.locator('ol li')).toHaveCount(4)
+  await expect(page.getByText('待支付').first()).toBeVisible()
 })
 
 test('管理端订单：新单以待支付出现，状态流转选项符合状态机', async ({ page }) => {
