@@ -18,6 +18,8 @@
     "uptime": "node scripts/uptime-check.mjs",
     "verify:backend": "node scripts/verify-backend.mjs",
     "preview": "vite preview",
+    "build:stub": "vite build --config vite.config.stub.js --outDir dist-stub --mode stub",
+    "serve:stub": "node scripts/local-api-stub.mjs --dir dist-stub --port 5182",
     "scan:secrets": "node scripts/scan-secrets.mjs",
     "check:cycles": "node scripts/check-import-cycles.mjs",
     "gen:api-contract": "node scripts/api-contract.mjs --write",
