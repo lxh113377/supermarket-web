@@ -9,6 +9,16 @@
 > 外层 `超市web/超市/memory/`（工作区）。两者内容**不同**（07 主卷 SHA256 不一致），
 > 属历史遗留的双份结构，尚未合并。**本轮的权威记录在外层**：`deliverables/前端深度优化方案-2026-09-23.md` §6。
 
+## 2026-09-24 — 用户裁决轮（库存 + 订单查询 + D1 备份 + dependabot）
+
+- **库存防超卖（对标 C1）**：`products.stock`（-1=不限售）；下单守卫式占用（条件 UPDATE 防并发，失败同请求补偿回补）、取消/删除进行中单回补、误取消恢复重新占用；管理端内联编辑库存字段 + 缺货/低库存角标；公开接口下发 stock。生产迁移 `db/migrate-stock.sql` 已 `--remote` 执行（PRAGMA 实证列存在，全量备份先落 `_backup/d1/supermarket-2026-09-24.sql` 1.44MB）。
+- **订单查询页 `#/order-query`（对标 litemall 订单跟踪，方案 A）**：5 步进度时间线 + 取消态提示 + pending 去支付按钮；成功页展示/复制订单号 + 查询入口（`sm_query_order` 跨导航兜底）。
+- **D1 每日备份**：`d1-backup.yml` cron 04:00 北京；**用户待办：配仓库 secret `CF_D1_BACKUP_TOKEN`（Cloudflare API Token，D1:Read）**——缺 token 时该 workflow 显式 warning 跳过（不假绿）。
+- **dependabot 8 PR**：5 minor（#12/#11/#10/#9/#5）本地统一解析一次合并（npm 实际落 oxlint 1.85.0 / wrangler 4.137.0 / react 19.3.0 / vite 8.3.0 / autoprefixer 10.6.1，组内更高 minor 属允许漂移）；3 major 关闭附理由（github-script v9 = 实测坑，checkout/setup-node 留专项轮）。
+- **根因修复**：ci.yml `concurrency.group` 改按 ref 分组——原固定组名让 PR run 与 main run 互相取消，dependabot 批量合并 5/5 卡 unstable（部署 skill §2.1 坑#1 的治本）。
+- 线上实测：农夫山泉临时 stock=1 → 数量2 被拒（库存不足）→ 数量1 成功 → 取消 → 还原 -1；测试单全部删除；浏览器级查询页正/负例通过（无 CSP 报错）。
+- 门禁终态：lint 0/0、tsc 0 错、vitest 176/176、verify-backend **84/84**、e2e **8/8**、契约 43、体积 3/3。
+
 ## 2026-09-24 — GitHub 开源对标轮（履约闭环 + 门禁加深）
 
 - 对标报告与改进清单：外层 `deliverables/GitHub开源项目对标分析报告-2026-09-24.md`（对标 litemall/Medusa/Saleor/Vercel Commerce，七维 + P0/P1/P2）。
