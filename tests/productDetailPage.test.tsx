@@ -91,6 +91,43 @@ describe('加载与兜底', () => {
     await waitFor(() => expect(screen.getAllByText('可乐').length).toBeGreaterThan(0))
     expect(m.getProducts).toHaveBeenCalled()
   })
+
+  /**
+   * 跨环境可寻址：_id 命名按来源不同（本地 p_<order>、D1 种子 p001 式、管理端随机串），
+   * 从某一环境复制出来的链接在另一环境里必须还能落到同一商品，而不是白屏式 404。
+   */
+  it.each(['p12', 'p_12', 'p-12', 'p012', 'P0012', '12', '012'])(
+    '参数 %s 都能归一到 order 12 命中同一商品', async (id) => {
+      m.id = id
+      render(<MemoryRouter><ProductDetailPage /></MemoryRouter>)
+      await waitFor(() => expect(screen.getAllByText('可乐').length).toBeGreaterThan(0))
+      expect(screen.queryByText(/商品不存在或已下架/)).toBeNull()
+    })
+
+  it('管理端随机 _id 不得被剥数字后静默命中别的商品', async () => {
+    // 目录里放一条 order=1 的商品：若归一实现是"一律剥掉非数字"，
+    // p_mufyndudcyu1ji 会缩成 "1" 并静默渲染出冰糖雪梨 —— 那比报「商品不存在」糟糕得多。
+    // 这条用例就是用来钉住"归一只认形如 order 的 id"的。
+    m.getProducts.mockResolvedValue([
+      product,
+      { _id: 'p1', name: '冰糖雪梨', spec: '1L', price: 3.5, order: 1 } as unknown as Product,
+    ])
+    m.id = 'p_mufyndudcyu1ji'
+    render(<MemoryRouter><ProductDetailPage /></MemoryRouter>)
+    await waitFor(() => expect(screen.getByText(/商品不存在或已下架/)).toBeTruthy())
+    expect(screen.queryByText('冰糖雪梨')).toBeNull()
+    expect(screen.queryByText('可乐')).toBeNull()
+  })
+
+  it('纯数字参数按 order 命中，非商品 id 的乱码不给归一', async () => {
+    m.getProducts.mockResolvedValue([
+      product,
+      { _id: 'p1', name: '冰糖雪梨', spec: '1L', price: 3.5, order: 1 } as unknown as Product,
+    ])
+    m.id = '1'
+    render(<MemoryRouter><ProductDetailPage /></MemoryRouter>)
+    await waitFor(() => expect(screen.getAllByText('冰糖雪梨').length).toBeGreaterThan(0))
+  })
 })
 
 describe('详情内容', () => {

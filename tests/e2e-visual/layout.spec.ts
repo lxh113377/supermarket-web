@@ -183,6 +183,32 @@ test('推荐卡与主图不产生布局位移（CLS 友好：图片有固有尺�
 })
 
 /**
+ * 上架素材底色不一（白底抠图 vs 深色/场景底实拍），四列并排时深色图会形成硬边黑方块。
+ * 缓解方案是纯 CSS 的统一图区底板 + `mix-blend-mode: multiply`（白底素材的白边与底板
+ * 相乘后消失）。这里钉住"所有卡片共用同一块底板、且图片确实参与混合"，
+ * 防止以后有人把 .gallery-figure 改回逐卡 bg-white。
+ */
+test('图区底板全站统一且图片参与 multiply 混合（素材底色不一致的缓解判据）', async ({ page }) => {
+  await openShop(page, '/shop/drinks')
+  const m = await page.evaluate(() => {
+    const figs = [...document.querySelectorAll('.gallery-figure')]
+    const bgs = new Set(figs.map((el) => getComputedStyle(el).backgroundColor))
+    const blends = new Set([...figs]
+      .map((el) => {
+        const img = el.querySelector('img')
+        return img ? getComputedStyle(img).mixBlendMode : null
+      })
+      .filter((v): v is string => v !== null))
+    return { figures: figs.length, distinctBg: bgs.size, bg: [...bgs][0], distinctBlend: blends.size, blend: [...blends][0] }
+  })
+  expect(m.figures).toBeGreaterThan(4)
+  expect(m.distinctBg, '所有卡片必须共用同一块图区底板').toBe(1)
+  expect(m.bg).toBe('rgb(246, 245, 242)')
+  expect(m.blend).toBe('multiply')
+  expect(m.distinctBlend).toBe(1)
+})
+
+/**
  * 回归锁：.tap-44 曾写在裸 CSS 区（优先级高于所有 @layer），它的 position:relative
  * 会盖掉 Tailwind utilities 层的 absolute ⇒ 所有 `tap-44 absolute` 角标按钮退化成流式排布。
  * 实测表现：轮播箭头被挤到图片下方，且把 group 高度从 420 撑到 484。

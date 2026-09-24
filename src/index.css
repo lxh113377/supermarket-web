@@ -180,6 +180,25 @@ img {
     @apply pill bg-white text-gray-600 border border-gray-200 hover:border-brand-300 hover:text-brand-600;
   }
 
+  /* 图注式画廊的图区底板（阶段二）。
+     上架素材底色不一：有白底抠图，也有深色/场景底实拍。四列并排时深色图会形成
+     硬边黑方块，与浅色图交错成"没对齐"的观感。这里不裁切包装信息（object-contain
+     保留），改用两件事统一色调：
+       ① 一块中性暖灰底板 + 顶部高光、底部内阴影，让每张图都"摆在同一块台面上"；
+       ② 图片本身 mix-blend-multiply —— 白底素材的白色部分与底板相乘后等于底板色，
+          白边直接消失，抠图与场景图被拉到同一明度基调上。
+     代价：极暗素材会略微更沉，但换来整排卡片的一致性，值得。 */
+  .gallery-figure {
+    background-color: #f6f5f2;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.85),
+      inset 0 -18px 26px -20px rgba(17, 24, 39, 0.22);
+  }
+  .gallery-figure > img {
+    mix-blend-mode: multiply;
+  }
+  /* 用户偏好减少动效时，缩放过渡已由全局规则压到 0.01ms，这里只需保证混合模式不影响可读性 */
+
   /* 骨架屏闪光 */
   .skeleton-shimmer {
     @apply bg-gradient-to-r from-gray-100 via-gray-200 to-gray-100 rounded-lg;

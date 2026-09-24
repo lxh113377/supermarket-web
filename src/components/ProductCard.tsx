@@ -68,9 +68,9 @@ function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
         }
       }}
     >
-      {/* 图区：1:1 满幅。商品图本身多为白底，用 object-contain 不裁切包装信息，
-          白底与卡片底色相接看不出边界；hover 时轻微放大，是「画廊里凑近看」的动作隐喻。 */}
-      <div className="relative w-full aspect-square overflow-hidden bg-white">
+      {/* 图区：1:1 满幅，底板与混合模式见 index.css 的 .gallery-figure。
+          深色/场景底素材靠统一底板 + multiply 拉到与白底抠图同一基调。 */}
+      <div className="gallery-figure relative w-full aspect-square overflow-hidden">
         {imgSrc && !imgErr ? (
           <img
             src={imgSrc}
