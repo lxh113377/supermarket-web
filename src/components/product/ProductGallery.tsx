@@ -27,6 +27,10 @@ export default function ProductGallery({ product, gallery }: {
     : (product?._id ? parseInt(String(product._id).replace(/\D/g, ''), 10) : null)
   const imgSrc = product?.image || productImageUrl(orderNum)
   const imgSrcSet = product.image ? undefined : productSrcSet(orderNum)
+  // 单图时也必须用 gallery[0]：父页传入的 gallery 可能来自 product.images（与按 order 拼的
+  // /images/{order}.webp 不是同一张），只认 imgSrc 会显示错图（七轮 H2 实测修正）
+  const singleSrc = gallery.length === 1 ? gallery[0] : imgSrc
+  const singleSrcSet = singleSrc === imgSrc ? imgSrcSet : undefined
 
   const prev = () => setGalleryIdx((i) => (i - 1 + gallery.length) % gallery.length)
   const next = () => setGalleryIdx((i) => (i + 1) % gallery.length)
@@ -97,10 +101,10 @@ export default function ProductGallery({ product, gallery }: {
             ))}
           </div>
         </div>
-      ) : imgSrc && !galleryErr[0] ? (
+      ) : singleSrc && !galleryErr[0] ? (
         <img
-          src={imgSrc}
-          srcSet={imgSrcSet}
+          src={singleSrc}
+          srcSet={singleSrcSet}
           sizes="(max-width: 640px) 100vw, 600px"
           width={600}
           height={288}

@@ -4,6 +4,15 @@
 
 ## [未发布]
 
+### 2026-09-25 追加十（对标第七轮：H1 管理端两 Tab + H2 顾客端详情链，覆盖率 74.71%）
+- **顺带修掉一个真实缺陷**：`ProductGallery` 在 `gallery` 只有一张图时走的是"按 order 拼路径"的分支，**忽略调用方传入的那张图** ⇒ 商品只挂一张自定义图（`product.images.length === 1`）时详情页显示错图。改为 `singleSrc = gallery.length === 1 ? gallery[0] : imgSrc`，且 `srcSet` 仅在该图确为 order 路径图时才挂（外链/上传图没有 sm/ 版本）。新增用例锁死（`/uploads/real-photo.jpg` 必须赢过 `/images/12.webp`）
+- **H1 管理端两大件**（原 44%/48%）：`ordersTab.test.tsx` 16 例（骨架/空态/搜索与状态筛选/分页 20 条一页与边界禁用/合法迁移下拉与终态单选项/状态更新成功-拒绝-抛错三态/删除二次确认与失败/复制文本四要素/CSV 表头与逐商品行 + BOM **字节层**断言）+ `productsTab.test.tsx` 24 例（**批量改价取整口径**：数字=统一价、`33%`=按原价四舍五入到分、非数字拦截且不发请求；部分失败必须 warn 不得吞 failed 明细；未选中不渲染批量栏；新增/编辑一律内联展开且全程 `role=dialog` 为空；含并回的旧 4 例）
+- **H2 顾客端与基础设施**：`productDetailPage.test.tsx` 15（骨架语言统一/未找到与接口抛错同一空态/order 与 _id 双寻址/云端+本地合并与低分高分排序/发布后 refreshReviews/云端失败降级/快速切商品 cancelled 守卫/加购与件数）+ `reviewForm.test.tsx` 13（晒图三道闸：张数上限、类型与 10MB、压缩后 2MB；**上传失败不提交评价**）+ `reviewList.test.tsx` 13 + `productGallery.test.tsx` 11 + `overlay.test.tsx` 11（焦点陷阱/遮罩与 Esc 开关语义/滚动锁与焦点归还；jsdom 需把 `offsetParent` 定义为"有父元素即可见"才测得到过滤分支）+ `adminGuard.test.tsx` 11（会话续登三分支/空钥与纯空格/错钥与网络异常文案区分）+ `prefetchBus.test.ts` 10（工厂不覆盖、去重、**失败后撤销标记允许重试**、150ms 与 idle 回退、300ms 错峰）+ `imageCompress.test.ts` 8（横竖图与"只缩不放"、四类失败面）+ `reviewImagesUtil.test.ts` 6
+- 用例 319 → **453**（46 → 56 文件：新增 11 个文件，其中 productsTab 与旧 ProductsTab 同名合并为 1 个）；覆盖率 statements 57.25→**74.71%**、branches **68.76%**（双跑 68.71/68.76，差 1 条 5s 轮询时序分支）、functions **69.81%**、lines **76.39%**；棘轮上调 **74/68/69/76**
+- **⚠️ 本轮我自己踩到并纠正的回归（大小写文件名冲突）**：新建 `tests/productsTab.test.tsx` 与已存在的 `tests/ProductsTab.test.tsx`（第三轮的 4 条批量操作用例）在 Windows 大小写不敏感文件系统上是**同一个文件**——`Write` 静默覆盖旧内容，`git status` 只表现为 `M` 而非 `??`。发现时已丢 4 例；已把这 4 例（含"部分失败绝不回退原生 alert"这条第三轮不变量）**并入新文件并复跑通过**（该文件 20→24 例，总数由 449→453）。**纪律补一条**：新建测试文件前必须先 `git status`/`ls` 核对同名（大小写不敏感）文件，`M` 状态的"新文件"＝覆盖事故而非新增
+- 后端与数据层零改动；`verify:backend` 102/102、契约 44/schema 16/license/changelog 全绿
+
+
 ### 2026-09-24 追加九（**P0 修复**：看板四张图在生产包里静默空白——真库渲染测试把它炸了出来）
 - **缺陷**：`useDashboardCharts` 把 9 个 `echarts/lib/chart|component/*` 深路径模块的 `.default` 收进 `core.use([...])`。这些模块是**纯 side-effect 自注册**文件（`line.js` 末尾自己 `use(install)`，全文件零 export），`X.default` 恒 undefined → echarts `extension.js:109 ext.install(...)` 抛 TypeError → 发生在 async IIFE 内且无 catch → **init 链整体中断：四张图永久空白、页面不弹任何错**。实测生产包证据：`dist/assets/line-*.js` 的 module namespace `keys=[] / hasDefault=false`；浏览器内 `import()` 该 chunk 同样拿不到 default
 - **影响窗口**：hook 拆分自 2026-09-05（H1-2）起；此前所有单测把 echarts 整包 mock、e2e 又只跑演示模式（demo 下 `getDashboardStats` 无本地实现，看板直接显示"加载失败"），**两层判据都摸不到这段代码**——所以它活了 19 天

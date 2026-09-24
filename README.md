@@ -70,7 +70,7 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN` 触发 `l
 
 ## CI
 
-`.github/workflows/ci.yml` 的 Test job 依序跑：**依赖漏洞审计**（`npm audit`，见下）→ 密钥扫描 → oxlint → vitest（**319 用例 / 46 文件**，带 v8 覆盖率并卡棘轮阈值 57/53/50/59）→ typecheck（前后端双配置）→ 循环依赖检查 → API 契约漂移 → **schema 漂移** → **license 白名单** → **CHANGELOG 门禁** → build（注入线上端点）→ 体积预算 → 后端契约验证（`scripts/verify-backend.mjs`，**102 断言**，node:sqlite 模拟 D1）。
+`.github/workflows/ci.yml` 的 Test job 依序跑：**依赖漏洞审计**（`npm audit`，见下）→ 密钥扫描 → oxlint → vitest（**453 用例 / 56 文件**，带 v8 覆盖率并卡棘轮阈值 74/68/69/76）→ typecheck（前后端双配置）→ 循环依赖检查 → API 契约漂移 → **schema 漂移** → **license 白名单** → **CHANGELOG 门禁** → build（注入线上端点）→ 体积预算 → 后端契约验证（`scripts/verify-backend.mjs`，**102 断言**，node:sqlite 模拟 D1）。
 
 依赖审计固定走官方源（`npm run audit:deps`）：本机/镜像源 npmmirror **未实现 audit 端点**（实测 `NOT_IMPLEMENTED`），不指 registry 会让审计静默拿不到数据；端点故障时 npm audit 非 0 退出，不会假绿。
 
