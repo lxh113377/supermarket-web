@@ -87,7 +87,22 @@ if (wantRun) {
 }
 if (!runs.length) fail('该仓没有任何匹配 run（不是"CI 绿"）', 4)
 
-const report = { repo: `${OWNER}/${REPO}`, runs: [], classes: { green: 0, realRed: 0, infraRed: 0 }, hasStepFailJob: false }
+const report = { repo: `${OWNER}/${REPO}`, runs: [], classes: { green: 0, realRed: 0, infraRed: 0 }, hasStepFailJob: false, blockedBy: null }
+// 0-step 秒红的"为什么"不在 jobs 里，在 check-run annotations 里（2026-09-25 实测：
+// 本仓拿不到 runner 的原文就是这么取到的，不必再靠人工开已登录浏览器看红条）。
+// 只取第一条 failure annotation，取不到不影响判类（看守判据默认 fail-open + 记 UNVERIFIED）。
+let bannerProbed = false
+function probeBanner(url) {
+  if (bannerProbed || !url) return
+  bannerProbed = true
+  try {
+    const a = gh(new URL(url).pathname + '/annotations', tok)
+    const msgs = ((a.json || []).filter((x) => x.annotation_level === 'failure').map((x) => x.message)).filter(Boolean)
+    report.blockedBy = msgs.length ? msgs[0] : `annotations 为空 http=${a.code}（未取到原文）`
+  } catch (e) {
+    report.blockedBy = `annotations 请求异常：${e instanceof Error ? e.message : String(e)}`
+  }
+}
 for (const run of runs) {
   const j = gh(`/repos/${OWNER}/${REPO}/actions/runs/${run.id}/jobs${wantAttempt ? `?attempt=${wantAttempt}` : ''}`, tok)
   const jobs = (j.json && j.json.jobs) || []
@@ -105,7 +120,7 @@ for (const run of runs) {
     else if (job.conclusion === 'failure' && nSteps === 0 && dur !== null && dur <= 12) cls = 'infra-0step'
     else if (job.conclusion === 'failure') cls = 'real-red'
     entry.jobs.push({ name: job.name, conclusion: job.conclusion, steps: nSteps, secs: dur == null ? null : Math.round(dur), cls })
-    if (cls === 'infra-0step') report.classes.infraRed++
+    if (cls === 'infra-0step') { report.classes.infraRed++; probeBanner(job.check_run_url) }
     if (cls === 'real-red') { report.classes.realRed++; report.hasStepFailJob = true }
     if (cls === 'green') report.classes.green++
   }
@@ -125,6 +140,7 @@ else {
   console.log(`\n分类计数：绿=${c.green}  真判据红(有 step)=${c.realRed}  账号级(0 step ≤12s)=${c.infraRed}`)
   if (c.realRed > 0) console.log('→ 有真判据红：去 GitHub 看该 job 的 step 日志，改代码，别改判据。')
   if (c.infraRed > 0) console.log('→ 存在 0-step 秒红：**没拿到 runner**，与本次改动无关。')
+  if (c.infraRed > 0 && report.blockedBy) console.log(`  平台原文（check-run annotations）：${report.blockedBy}`)
   if (c.infraRed > 0 && c.realRed === 0) console.log('  已排除项见 docs/ci-triage-runbook.md；禁止本地绕过 CI 发版（除非用户点名）。')
 }
 
