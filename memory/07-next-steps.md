@@ -14,8 +14,11 @@
 - [ ] **`0b9e405`（防线轮 K1+K2）已提交已推送，但线上未更新** —— GitHub Actions 未执行任何 step。
   - **实测证据**：run `36110097808` 两次 attempt，`build-and-test` / `e2e` / `e2e-cloud-stub` 三个 job **全部 0 step、4–5 秒即 failure**（连 `Set up job` 都没有）；`deploy` 正确 `skipped`；`dispatch.yml`（本轮**零改动**）同样 0-step 失败 ⇒ github.io 未被触发。
   - **线上实况**：pages.dev `sw.js` = `sm-v1790316391610`、github.io = `sm-v1790316300946`，两端均仍是 `5ea17e0` 的构建。
-  - **归因状态（如实记，未证实）**：最可能是**账号级 Actions 计量分钟耗尽**（supermarket-web 是私有仓，Free 每月 2000 分钟；今天 09-25 接近月末）。本机 PAT **无 `admin:billing` 作用域**，读不到用量，故这是排除法结论不是实测。反证已排除"改动本身有问题"：GitHub 已成功解析新 YAML（run 里规划出了 `e2e-cloud-stub`），且本地 `npm run verify` exit 0、`--coverage` 三跑 exit 0、`test:e2e` 20/20、`test:stub` 3/3、反例 18/18 全红。
-  - **可执行指令**：① 用户在 GitHub → Settings → Billing 看 Actions 分钟数并处理（买量 / 等 10-01 重置 / 临时转公开）；② 恢复后重跑该 run（`POST /repos/lxh113377/supermarket-web/actions/runs/36110097808/rerun-failed-jobs`，已用两次，均需先解配额）或 `workflow_dispatch` 触发一次完整 CI；③ 完成后按 §6 清单核两端 `sw.js` 指纹是否变新 + `wrangler pages deployment list` 看 Production 部署，才算上线。**禁止**用本地 `wrangler pages deploy` 绕过 CI 发版（除非用户明确点名要走急救通道）。
+  - **归因状态（2026-09-25 已用对照实验收紧，非推断）**：最可能是**账号级 Actions 计量分钟耗尽**（supermarket-web 私有仓，Free 每月 2000 分钟，今天 09-25 接近月末）。本机 PAT **无 `admin:billing` 作用域**（实测 billing 端点 `http=404`）⇒ 用量读不到。
+    - **已用实验排除"改动导致"**：本轮**零改动**的 `uptime.yml` 手动 dispatch（run `36115775548`，dispatch 返回 204）同样 **job `probe` steps=0、08:57:51→08:57:54 即 failure**；该 workflow 最后一次变更是 `5fda761`（`git diff HEAD~2 -- .github/workflows/uptime.yml` 为空）。一行本轮代码都不含的 workflow 以同一形态死 ⇒ 非判据红、非 YAML 语法、非 job 配置。另 `deploy: skipped` 与 run 里规划出 `e2e-cloud-stub` 两条，反证新 YAML 被 GitHub 解析成功。
+    - **时间线分界**：私有仓 Uptime 定时 `05:49:06 success`、CI `06:00/06:04 success`，**07:54 起整仓全红**（含 `f8e415d` 那次推送）⇒ 存在"从此时刻起不可用"的清晰分界。
+    - **未排除的一侧**：GitHub 全局 runner 故障。唯一判别法 = 触发**公开仓** lxh113377.github.io 的 deploy.yml（公开仓不计分钟），但**它会真的发布顾客端** ⇒ 造成半发布（pages.dev 仍旧构建），须用户点名才做。
+  - **可执行指令**：① 用户在 GitHub → Settings → Billing 查 Actions 分钟数并处理（买量 / 等 10-01 重置 / 临时转公开）；② 恢复后重跑 run `36110097808`（`rerun-failed-jobs`；配额未解时只会再白红一次）或 `workflow_dispatch` 跑一次完整 CI；③ 完成后按部署 skill §6 核两端 `sw.js` 指纹是否变新 + `wrangler pages deployment list` 看 Production 部署，才算上线。**禁止**用本地 `wrangler pages deploy` 绕过 CI 发版（除非用户明确点名走急救通道）。
   - **同时注意**：本轮起 `deploy.needs = [build-and-test, e2e, e2e-cloud-stub]`，任一红即不部署；而 `dispatch.yml` 是独立 workflow，**仍会照发 github.io** ⇒ 两端可能不同步，验证只认 bundle/`sw.js` 指纹（坑 36）。
 
 
