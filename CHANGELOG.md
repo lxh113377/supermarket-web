@@ -22,6 +22,14 @@
 - **顺带把停摆归因从"只能开浏览器看红条"升级为 API 硬证据**：失败 job 的 `check_run_url` + `/annotations` 直接给出原文 —— *"The job was not started because recent account payments have failed or your spending limit needs to be increased."* ⇒ 账号计费/消费上限，与本月分钟数（57.6%）和本次提交都无关。`scripts/ci-status.mjs` 已内置（exit 3 时打印「平台原文」行，`--json` 落 `blockedBy` 字段，取不到只记 UNVERIFIED 不改判类），runbook §2 ⑤/§4.2 与 `memory/07-next-steps.md` P0 同步更正。
 - **同轮自我翻案（重要，别当已解决）**：上面那句"与本月分钟数（57.6%）无关"是**错的**。登录态浏览器实测 `github.com/settings/billing` Actions 面板：`2,000 min used / 2,000 min included`（100% 红）、`Billable usage $0 = $22.23 consumed − $22.23 discounts`、`limits reset in 6 days`、`Next payment due = -` ⇒ **真因是 Free 计划分钟用满，且并没有欠费**。逐 job 累加之所以算成 57.6%：只统计了已完成 run，**漏算 cancelled run 与超额计费分钟**。已同步改回三处（`docs/ci-triage-runbook.md` §2 ⑤/§3、`memory/07-next-steps.md` P0 新增翻案条、全局记忆 `reference-github-actions-zero-step-jobs.md`）+ `chaoshi-web-deploy` 坑 39 追加更正。**纪律**：账号级用量只认 Billing 页；`admin:billing` 读不到时"读不到"不等于"反证成功"。`rerun-failed-jobs` 已实测（201 → attempt=2 仍 3 秒 0-step）⇒ 非瞬时，需等重置 / 抬上限并加支付方式 / 临时转公开三选一。
 
+### 2026-09-25 追加二十（解停摆：先作废泄露密钥 → 仓库转公开 → CI 恢复）
+
+- **停摆解法选了"转公开"**（用户拍板）。动手前实测发现**不能直接转**：`git log --all -S<真值>` 命中 **10 个提交**的 diff 含生产后台密钥真值，最早在 **`wrangler.toml` 的 `[vars]`**（`4034aff` 2026-09-18 才把文档明文改成掩码）。HEAD 树干净、`.dev.vars`/`.env` 均未跟踪，但**历史 blob 抹不掉** ⇒ 直接公开等于把后台密钥交出去（可改价、删单、读订单里的房间号/微信号）。
+- **顺序：先让泄露值作废，再公开**（用户批准"先轮换再公开"）：① 生成新随机密钥 → `wrangler pages secret put ADMIN_KEY`（Success）；② **立即重部一次**让新 secret 生效（Pages 的 secret 是部署时注入，坑 19）——`rm -rf dist` + `npm run build`（新 `CACHE_VERSION sm-v1790337036424`，产物含 `specOptions`）+ `wrangler pages deploy dist --commit-dirty=true` → `09c4e1d2.supermarket-web.pages.dev`；③ 同步本地 `.dev.vars`；④ 全树 `scan-secrets` 通过后才 `PATCH {"private":false}` 转公开。
+- **线上复验（不是推断）**：新密钥 `/web login` → `{"code":0,"role":"admin"}`；**旧密钥 → `{"code":-1,"message":"认证失败"}`**（泄露值确认作废）；`/pub getPublicProducts` 28 条上架、乐事 8 个口味首项「原味」；`sw.js` 指纹 = 本次新构建。
+- **CI 恢复实证**：转公开后 `workflow_dispatch` 触发 run `36132121389` = **success**，`build-and-test` 22 steps / 46s、`e2e` 10 steps / 63s、`e2e-cloud-stub` 10 steps / 53s ⇒ **公开仓拿得到 runner**，与"分钟耗尽"结论一致。但 `deploy` = `skipped` —— 该 job 只认 `push`，dispatch 不触发部署 ⇒ 本轮改用"提交 + push main"走完整链路（CI 自动部 pages.dev，`dispatch.yml` 再驱动 github.io 顾客端构建）。
+- **仓库可见性已变更**：`supermarket-web` 现为 **public**（原 private）。本仓文档、部署 skill 与 `memory/AGENTS.md` 里"私有仓 / 未认证 API 一律 404 / `DEPLOY_SOURCE_TOKEN` 跨仓取私有源码"等表述自此**部分失真**，已另行更正；`ADMIN_KEY` 真值只存 Pages secret 与本地 `.dev.vars`，文档一律掩码。
+
 
 ### 2026-09-25 追加十八（防线轮 K1+K2：门面故障路径进断言 + 真渲染接成可拦部署的 CI 门禁）
 
