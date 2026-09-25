@@ -4,6 +4,28 @@
 
 ## [未发布]
 
+### 2026-09-25 追加十八（防线轮 K1+K2：门面故障路径进断言 + 真渲染接成可拦部署的 CI 门禁）
+
+- **这轮不改界面**，改的是"出问题的时候谁知道"。三块门面（`src/auth.ts` 16%、`src/api/client.ts` 9.5%、`src/localStore.ts` ~53%）是所有云端读写的唯一出口，此前**超时/非 JSON/`code` 缺失/网络抛错四类真实故障路径一条都没断言过**。
+- **K2 接的是真浏览器层**：`build:stub`（生产构建 + `VITE_CB_API_BASE=/web` 走云端模式）+ 假 `/web` `/pub` 桩 + Playwright 访 `#/admin`，断言看板四张图各自真的建出了 canvas 且全程零未捕获异常。此前这条路径**只有人工开过 localhost:5182 一次**，全仓没有任何代码断言过 canvas 尺寸，四个浏览器 spec 的 `pageerror`/`console` 也只 `console.log`、从不 `expect`。
+- **⚠️ 修掉一处"判据假安全感"的账目错误（本轮实测）**：CHANGELOG 与 `ci.yml` 注释自 2026-09-24 起写着「移除 continue-on-error 使 `e2e` job 具备阻断力」—— 实际 `deploy.needs` 从来只有 `build-and-test`，**`e2e` 红了照样部署**。文案承诺的能力在磁盘上不存在。本轮把 `needs` 改为 `[build-and-test, e2e, e2e-cloud-stub]`，这才是那句话第一次成立。
+- **两处真实缺陷（写失败/抛错时缓存不失效）**，做 K1 时必然撞出来、经批准当场修：
+  - `src/db/reviews.ts` 三处失效写在成功分支里：`addReview` 的 `cacheDel` 关在 `if (result.code === 0)` 内；`addCloudReview` 在 :86 抛错**早于**其后的两次 `cacheDel`；`deleteCloudReview` 抛错早于全清。⇒ 请求已落库但响应丢失/超时时，评价脏读满 60s（`CATALOG_CACHE_TTL`）。
+  - `updateOrderStatus` / `deleteOrder` 的云端分支**完全没有失效**。
+  - 收口方式是把 `src/auth.ts` 已有的 `finally` 语义上提成 `catalogCache.withCacheInvalidation(fn, invalidate = clearCatalogCache)`。评价侧**必须传精确键**：直接复用全清会把商品/分类缓存一起抹掉，那是过度失效（60s 内所有顾客端读多打一次云函数）。缺陷是"时机"，原本的失效"范围"是对的。
+- **纠正我自己的一处误判**：原以为脏读面是后台的「缺货/低库存」角标。实测 `getAdminProducts()`（`src/db/products.ts:86-91`）**根本没有接缓存**，角标一直新鲜；真正会脏的是**顾客端库存显示**（`getProducts()` 把含 `stock` 的 `getPublicProducts` 载荷缓存进 `publicProducts`，而订单状态变更在服务端改 `products.stock`）。修法不变，但描述必须按实测写。
+- **新判据**：用例 560 → **631**（60 → 63 文件）。新增 `tests/apiClient.test.ts` 26、`tests/localStore.test.ts` 29、`tests/authWriteInvalidate.test.ts` 8，另扩 `catalogCache` +3、`dbReviews` +5；加 Playwright `tests/e2e-stub/dashboard-cloud.spec.ts` 3 条（不在 vitest 口径内）。
+- **反例自证 18/18**（一次性变异脚本，产物建在仓库外）：每条判据都配一个"朴素/回退"变异体并实跑，全部变红才允许通过 —— 含 `finally` 退回仅成功失效、撤掉 order 包裹、reviews 三处退回原缺陷写法、去掉 `AbortError` 映射、去掉 `res.json().catch` 兜底、去掉 `typeof code === 'number'` 判定、AI 超时退回 15s、去掉 `cloneArray`、播种判定退回 `length === 0`、`rating` 去掉未填默认等。K2 另跑两个变异（把 `core.use` 退回喂零 export 的深路径模块 = 复现 19 天前那起事故）：canvas 判据报「宿主内没有 canvas（静默空白回归）」，`pageerror` 判据**单独也变红**并报出事故原句 `e.install is not a function`。
+- **写自己的脚本踩到的坑（已修，记为纪律）**：还原时用文本模式 + `newline=''` 写文件，把三个 CRLF 源文件整体转成 LF，`git diff` 一度显示 `localStore.ts` 206/206 全文件重写（我根本没改过它）。⇒ 变异/补丁类脚本必须**二进制读写**，并把"还原后 sha256 一致"当作硬退出条件（本次正是这条自检抓到）。修完 `localStore.ts` 回干净，其余两个文件回到真实小 diff。
+- **顺带证伪三条待办/口径**：①「其余 GitHub Actions 待 pin 到 SHA」不成立，13 处 `uses:` 全是完整 SHA；②「4176 端口 `reuseExistingServer` 静默复用旧构建」是**本机专属**风险（CI 下该项恒为 false），且本轮 `test:visual` 未接 CI，故从 P0 降为本机注记；新配置反过来把该项设为**恒 false**（宁可响亮失败也不测旧产物）。③ 本机实跑撞到 5182 被上一会话遗留的桩进程占着、且伺服的是改动前的旧 `dist-stub` —— 正是这条判据要防的场景，停掉进程后由配置自建产物才继续。
+- **新发现（本轮未修，已登记 07）**：① `getLocalCategories()` 直返 `seedCategories` 模块引用（唯一没走 `cloneArray` 的读出口），当前三个调用方都只做 `setState`、全站 `sort` 都用 `[...list].sort()`，所以**不是活缺陷**，但将来任何一处原地排序就会污染整个会话的种子；② `verify:changelog` 比的是 `HEAD~1..HEAD` 提交边界、不看工作区，因此一次 push 多 commit 时只有最后一个 commit 受检（本轮为此刻意单 commit）。
+- **新增用例撞出的既有脆弱点（已按"分档"处理，未掩盖机制）**：`tests/prefetchBus.test.ts:116`「13 条路由全部登记」在我加完 3 个测试文件后，于**全量 `--coverage`** 下报 `Test timed out in 5000ms`（单文件跑稳定通过，`npm test` 不带覆盖率也通过）。归因：该用例真实 `await import()` 页面块，是冷模块加载而非纯逻辑断言；vitest 默认 5000ms 是**墙钟**，而每个测试文件独占一个 jsdom（实测 63 个、占总时长 29–55%）+ 覆盖率插桩让耗时随机器负载漂。CI 跑的正是 `npx vitest run --coverage` ⇒ 不处理就会随机打红部署链。
+  - 做法：只给这**两条**冷导入用例显式 20s 档（附 WHY 注释），**没有**改全局 `testTimeout`（全局放宽会把别处的真缺陷一起盖掉）。改后连跑三轮全量 `--coverage` 全 exit=0、631 用例，零 timeout。
+  - 未顺手做的治本项（已登记 07）：`pool: 'vmThreads'` 或 `isolate: false` 复用 jsdom —— vitest 自己每次都在结尾提示这条。属全局执行模型改动，隔离语义有风险，留待单独一轮评估。
+- 覆盖率（分母钉死 `src/**`）：statements 77.49 → **80.91%**、branches 71.77 → **74.08%**、functions 73.30 → **76.41%**、lines 79.05 → **82.52%**；棘轮上调 **78/72/74/80**（= 实测 −2pp 下取整）。branches 三跑实测 74.08 / 74.08 / **74.12**，差 1 条分支 —— 这 2pp 余量是给 CI(node22/ubuntu) 与本机(node24) 留的，不是保守。
+- 后端与数据层**零改动**（`functions/`、`db/`、action 名单、`ADMIN_WRITE_ACTIONS` 全部未动 ⇒ `verify:backend` 契约与白名单对称测试不受影响）。
+
+
 ### 2026-09-25 追加十七（order 20 生产品名去促销语：一次带双向空跑的生产写）
 
 - **改了什么**：`UPDATE products SET name='猎兽功能饮料' WHERE "order"=20` —— 线上正式品名原为「猎兽功能饮料（亏本卖）」，促销语进了品名，会被阶段二的大图卡片放大展示。只动 `name`。

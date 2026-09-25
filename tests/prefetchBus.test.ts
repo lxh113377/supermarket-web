@@ -113,6 +113,12 @@ describe('时机（预取必须赶在点击前）', () => {
 })
 
 describe('routeLoaders 与总线接线', () => {
+  // 这两条要真实 dynamic import 页面块（cart/orderQuery/product），是**冷模块加载**而非纯逻辑断言。
+  // vitest 默认 testTimeout 5000ms 是墙钟值，而覆盖率插桩 + 每文件一个 jsdom（实测 63 个）会把
+  // 加载耗时压到机器负载相关：防线轮新增 3 个测试文件后，本条在全量 --coverage 下首次超时，
+  // 单文件跑则稳定通过 ⇒ 属负载相关脆弱点，不是断言写错。
+  // 处理口径：只给这两条按"冷导入"档位放宽到 20s（不改全局 testTimeout，避免掩盖别处真缺陷）。
+  // 全局性改造（pool: 'vmThreads' / isolate: false 复用 jsdom）另记 07 待评估，不在本轮顺手改。
   it('13 条路由全部登记，工厂返回带 default 组件的页面模块', async () => {
     const { routeLoaders } = await import('../src/routeLoaders')
     const keys = Object.keys(routeLoaders)
@@ -122,7 +128,7 @@ describe('routeLoaders 与总线接线', () => {
       const mod = (await routeLoaders[k]()) as { default?: unknown }
       expect(typeof mod.default).toBe('function')
     }
-  })
+  }, 20_000)
 
   it('表里的工厂注册进总线后，预取与 lazy 共用同一引用（不再二次下载）', async () => {
     const { routeLoaders } = await import('../src/routeLoaders')
@@ -134,5 +140,5 @@ describe('routeLoaders 与总线接线', () => {
     prefetchRoute('rl-product')
     flushIdle()
     await vi.waitFor(() => expect(factory).toHaveBeenCalledTimes(1)) // 去重仍生效
-  })
+  }, 20_000)
 })

@@ -25,7 +25,7 @@
 | 数据库  | D1（SQLite，7 表）+ Workers KV（限流计数）                              |
 | 双前端  | Cloudflare Pages（同源）/ GitHub Pages（dispatch CI 双发）            |
 | Lint | oxlint                                                        |
-| 测试   | vitest（19 文件 132 用例）+ `scripts/verify-backend.mjs`（后端契约 47 项） |
+| 测试   | vitest（63 文件 631 用例）+ `scripts/verify-backend.mjs`（后端契约 102 断言）+ Playwright 三层（`tests/e2e` 20 演示模式 / `tests/e2e-visual` 16 生产构建几何 / `tests/e2e-stub` 3 云端模式真渲染） |
 
 ## 三、项目结构
 

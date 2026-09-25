@@ -21,7 +21,7 @@ import {
   addReview, addCloudReview, deleteCloudReview,
   getAllReviews, getCloudReviews, getLocalProductReviews,
 } from '../src/db/reviews'
-import { clearCatalogCache } from '../src/catalogCache'
+import { cacheGet, cacheSet, clearCatalogCache } from '../src/catalogCache'
 
 beforeEach(() => {
   localStorage.clear()
@@ -145,5 +145,66 @@ describe('管理端评价写删与列表', () => {
     clearCatalogCache()
     h.adminCall.mockResolvedValue({ code: -1, message: 'D1 超时' })
     await expect(getAllReviews()).rejects.toThrow('D1 超时')
+  })
+})
+
+/**
+ * 失效**时机**判据（防线轮 K1）。
+ * 旧写法把 cacheDel 放在 `code === 0` 分支内 / 放在抛错语句之后，
+ * 于是「已落库但响应丢失」和「网络抛错」两条路径都留脏缓存 60s。
+ * 反例（必须让本块变红）：把 reviews.ts 的失效改回只在成功分支执行。
+ * 同时钉住失效**范围**：评价写只清评价键，不得顺手抹掉商品/分类缓存（过度失效）。
+ */
+describe('评价写：抛错/code≠0 路径仍失效，且不误伤无关缓存', () => {
+  it('addReview 云端 code≠0：该商品评价键失效，商品列表缓存保留', async () => {
+    cacheSet('publicProducts', [{ _id: 'p1' }])
+    h.publicCall.mockResolvedValue({ code: 0, data: [{ _id: 'r1' }] })
+    await getCloudReviews(45)
+    expect(cacheGet('reviews:45')).not.toBeNull()
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    h.adminCall.mockResolvedValue({ code: -1, message: 'quota' })
+    await addReview(45, { text: 'x' })
+    spy.mockRestore()
+    expect(cacheGet('reviews:45')).toBeNull()
+    expect(cacheGet('publicProducts')).not.toBeNull()
+  })
+
+  it('addReview 云端抛错：降级本地前该商品键已失效', async () => {
+    h.publicCall.mockResolvedValue({ code: 0, data: [{ _id: 'r1' }] })
+    await getCloudReviews(46)
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    h.adminCall.mockRejectedValue(new Error('请求超时，请检查网络后重试'))
+    await addReview(46, { text: 'x' })
+    spy.mockRestore()
+    expect(cacheGet('reviews:46')).toBeNull()
+  })
+
+  it('addCloudReview 抛错：双键（该商品 + 全量列表）都失效', async () => {
+    h.publicCall.mockResolvedValue({ code: 0, data: [{ _id: 'r1' }] })
+    await getCloudReviews(44)
+    const pubCallsBefore = h.publicCall.mock.calls.length
+    h.adminCall.mockResolvedValue({ code: 0, data: [{ _id: 'a' }] })
+    expect(await getAllReviews()).toHaveLength(1)
+    h.adminCall.mockRejectedValue(new Error('net down'))
+    await expect(addCloudReview(44, { text: 'x' })).rejects.toThrow('net down')
+    h.adminCall.mockResolvedValue({ code: 0, data: [{ _id: 'a' }, { _id: 'b' }] })
+    expect(await getAllReviews()).toHaveLength(2) // 未失效则命中旧的 1 条
+    await getCloudReviews(44)
+    expect(h.publicCall.mock.calls.length).toBe(pubCallsBefore + 1) // 未失效则命中缓存、不再拉
+  })
+
+  it('addCloudReview code≠0：抛错但键已失效（管理端仍要看见失败）', async () => {
+    h.publicCall.mockResolvedValue({ code: 0, data: [{ _id: 'r1' }] })
+    await getCloudReviews(47)
+    h.adminCall.mockResolvedValue({ code: -1, message: '权限不足' })
+    await expect(addCloudReview(47, { text: 'x' })).rejects.toThrow('权限不足')
+    expect(cacheGet('reviews:47')).toBeNull()
+  })
+
+  it('deleteCloudReview 抛错：目录缓存仍全清（保守语义不因此缩水）', async () => {
+    cacheSet('publicProducts', [{ _id: 'p1' }])
+    h.adminCall.mockRejectedValue(new Error('boom'))
+    await expect(deleteCloudReview('r1')).rejects.toThrow('boom')
+    expect(cacheGet('publicProducts')).toBeNull()
   })
 })

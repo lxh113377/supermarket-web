@@ -15,6 +15,7 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:visual": "playwright test --config playwright.visual.config.ts",
+    "test:stub": "playwright test --config playwright.stub.config.ts",
     "smoke": "node scripts/smoke-deploy.mjs",
     "uptime": "node scripts/uptime-check.mjs",
     "verify:backend": "node scripts/verify-backend.mjs",

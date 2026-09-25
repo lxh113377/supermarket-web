@@ -9,11 +9,29 @@
 > 外层 `超市web/超市/memory/`（工作区）。两者内容**不同**（07 主卷 SHA256 不一致），
 > 属历史遗留的双份结构，尚未合并。**本轮的权威记录在外层**：`deliverables/前端深度优化方案-2026-09-23.md` §6。
 
+## 2026-09-25 — 防线轮 K1+K2（门面故障路径进断言 + 真渲染 CI 硬门禁）
+
+- **K1 完成**：新增 `tests/apiClient.test.ts` 26 + `tests/localStore.test.ts` 29 + `tests/authWriteInvalidate.test.ts` 8，扩 `catalogCache` +3、`dbReviews` +5；用例 560→**631**（60→63 文件），覆盖率 80.91/74.08/76.41/82.52，棘轮上调 **78/72/74/80**（实测 −2pp；branches 三跑 74.08/74.08/74.12 证实需留余量）。
+- **K2 完成**：`playwright.stub.config.ts` + `tests/e2e-stub/dashboard-cloud.spec.ts`（3 例：四图 canvas 背衬尺寸、pageerror 严格空、console 带资源噪声白名单）+ CI 新 job `e2e-cloud-stub`；桩补 `verifyKey` case（不补则 reload 类用例假红）。
+- **⚠️ 本轮最重要的账目纠正**：`deploy.needs` 此前只有 `build-and-test` ⇒ `e2e` job **红了也照常部署**，而 CHANGELOG/`ci.yml` 注释从 09-24 起就写着"具备阻断力"。现已改为 `[build-and-test, e2e, e2e-cloud-stub]`。**教训**：门禁的存在性要看 `needs`，不要看注释里那句"阻断"。
+- **反例自证 18/18**（一次性变异脚本，产物在仓库外）+ K2 两个变异（复现 `core.use` 事故：canvas 判据与 pageerror 判据各自独立变红，后者报 `e.install is not a function`）。
+- **当场修掉两处真实缺陷**：`db/reviews.ts` 三处"只在成功才失效"、`updateOrderStatus`/`deleteOrder` 零失效。收口为 `catalogCache.withCacheInvalidation(fn, invalidate = clearCatalogCache)`，评价侧传**精确键**（复用全清=过度失效）。
+- **我自己的两处误判（已被实测纠正，记此防复发）**：① 以为脏读面是后台「缺货/低库存」角标 —— 实测 `getAdminProducts()` 根本没接缓存，真脏的是**顾客端库存显示**；② 以为本地跑 `verify:changelog` 会红 —— 它比 `HEAD~1..HEAD` 提交边界、不看工作区，所以拦截点只在 CI。
+- **新发现（未修，待裁决）**：
+  - **N1** `getLocalCategories()` 直返 `seedCategories` 模块引用（全站唯一没走 `cloneArray` 的读出口）。当前三个调用方只做 `setState`、所有 `sort` 都写 `[...list].sort()` ⇒ **不是活缺陷**；但任何一处原地排序就会污染整个会话的种子。修法：`return cloneArray(seedCategories)`（一行），或按"修一类不修一例"把 `localStore` 全部读出口统一过一个拷贝出口。
+  - **N2** `verify:changelog` 一次 push 多 commit 时只校验最后一个 commit ⇒ 前面的 src 改动可绕过门禁。本轮为此刻意单 commit。治法：改为比对本次 push 的 commit range（`github.event.before..HEAD`）而非固定 `HEAD~1`。
+  - **N3** 4 个既有浏览器 spec（`tests/e2e/smoke`、`order-flow`、`product-detail`、`tests/e2e-visual/layout`）仍只 `console.log` 错误、从不 `assert`。新 job 已覆盖云端模式，旧 spec 建议下一轮统一收进同一个 `watch()` helper。
+- **P0（下轮，只剩人工）**：**K3 仍未做** —— 线上管理端登录后目视复核看板四张图 + `#/product/{order}` 图集显示（只有用户能做）。本轮 CI 的 `e2e-cloud-stub` 已把"真渲染"变成机器判据，但跑的是本地假桩，**不等于线上已核**。
+- **N4（新增，全局执行模型）**：vitest 默认 `testTimeout: 5000` 是墙钟，而每文件独占一个 jsdom（实测 63 个、占总时长 29–55%）+ `--coverage` 插桩 ⇒ **冷 `await import()` 页面块**的用例耗时随机器负载漂。本轮 `tests/prefetchBus.test.ts` 两条被撞红，已按"给这两条 20s 档"处理（附 WHY 注释，未动全局值）。治本候选：`pool: 'vmThreads'`（vitest 每次跑完自己都在提示）或 `isolate: false` 复用 jsdom —— 属执行模型改动，隔离语义有风险，**单独一轮评估**，别在补测试的轮次里顺手改。评估判据建议：连跑 5 次全量 `--coverage` 记录 wall time 与是否有 timeout，再决定。
+- 待办不变：K4 PR 流试点、K5 diff-cover 增量覆盖率、K6 演示模式看板口径待裁决、K7 文件名大小写冲突自查脚本、D1↔seed 对账（以 D1 为源反推 seed）、order 41「光头娃/光头哇」生产行待订正、上架仅 28/55 素材口径、D2 49 单运营处置（人）、D4 `CF_D1_BACKUP_TOKEN`（用户）、D5 R2。
+
+
+
 ## 2026-09-25 — /shop 两阶段重构（结构 URL 化 + 暖白画廊视觉）
 
 - **阶段一（`4e5d550`）**：筛选态收进 URL，TopNav 受控化，修掉 loading 期导航消失、页头与高亮不一致、55 个 aria-live 三个潜伏缺陷。用例 517→548。
 - **阶段二（本次）**：「暖白画廊」视觉重做 —— 图注式卡片、两端各自设计、规格提升为独立行、价格 brand-700 修对比度、详情页面包屑改取真实分类。用例 548→**551**，`test:visual` 10→**15**。
-- **P0（下轮）**：`dist-e2e` 的 preview 端口 4176 若被手工占用，Playwright `reuseExistingServer` 会**静默复用过期构建**（本轮实测踩到：netstat 没抓到 PID 但端口仍 200，视觉跑在旧产物上）。对策：跑视觉前先 `vite build --config vite.config.e2e.js --outDir dist-e2e` 重建，或在 CI 里加一步端口占用检测。
+- **P0（下轮）→ 已降级为本机注记（2026-09-25 防线轮实测归因）**：`dist-e2e` 的 preview 端口 4176 若被手工占用，Playwright `reuseExistingServer` 会**静默复用过期构建**（本轮实测踩到：netstat 没抓到 PID 但端口仍 200，视觉跑在旧产物上）。对策：跑视觉前先 `vite build --config vite.config.e2e.js --outDir dist-e2e` 重建，或在 CI 里加一步端口占用检测。**归因**：`playwright.visual.config.ts` 的 `reuseExistingServer: !process.env.CI` 在 CI 下恒为 false ⇒ 该风险**本机专属**，且 `test:visual` 未进 CI，不构成 CI 侧 P0。新增的 `playwright.stub.config.ts` 直接把该项设为**恒 false**（宁可响亮失败也不测旧产物），本机实跑即按设计拦下了一个上一会话遗留、伺服旧 `dist-stub` 的桩进程。
 - **P1（已处置 2026-09-25）**：新画廊放大的**商品图底色不一致**，已用纯 CSS 收口 —— `.gallery-figure` 统一暖灰底板 + 图片 `mix-blend-multiply`：白底素材的白边相乘后消失，深色/场景底被同一台面接住，且仍 `object-contain` 不裁切包装信息。判据已进 `test:visual`（全站共用一块底板 + 确实参与 multiply），防被改回逐卡 `bg-white`。
 - **P1（已处置 2026-09-25）**：`/product/p_16` 这类地址线上打不开（`_id` 命名按来源不同：本地 `p_<order>`、D1 种子 `p001` 式、管理端随机串）。详情页改**三级寻址**：`_id` 精确 → `order` 十进制串 → 仅当形如 order 时归一。⚠️ 归一必须收窄：一律剥非数字会让 `p_mufyndudcyu1ji` 缩成 `"1"` 并**静默命中另一个商品**，比报「商品不存在」糟糕得多 —— 已加一条对朴素实现会失败的反向用例钉住。
 - **P1**：`products-seed.ts` 里 order 41 已改「光头娃」，但 **D1 生产行仍是「光头哇」且该商品 `enabled=0`**。改它是一次生产库写入（须先加载 `chaoshi-web-deploy`），建议与后续数据整理合并做。
@@ -29,8 +47,8 @@
 - **我自己造成并自纠的回归（重要教训）**：`tests/productsTab.test.tsx` 与既有 `tests/ProductsTab.test.tsx` 在 Windows 大小写不敏感文件系统上是同一文件 → Write 静默覆盖旧 4 例（`git status` 表现为 `M` 而非 `??`，这个信号当时没抓住）。4 例已并回（20→24）+ `git mv` 归一大小写。**纪律**：新建测试文件前先核对同名（不分大小写）文件；`M` 状态的"新文件"＝覆盖事故。
 - 判据层经验复用成功两处：CSV BOM 必须**字节层**断言（jsdom `Blob.text()` 按规范吞 BOM，字符串比对会假失败）；Overlay 焦点陷阱需把 `offsetParent` 定义成"有父元素即可见"才在 jsdom 里可测。
 - 门禁：verify 全链绿、体积 3/3（首屏 86.4KB 未变）、e2e 8/8、verify-backend 102/102；提交 `fc06cd5` + `e9d7665`。报告：外层 `deliverables/GitHub开源项目对标分析报告-第七轮-2026-09-25.md`。
-- **P0（下轮 K1）**：`src/auth.ts`(16%) + `api/client.ts`(9.5%) + `localStore.ts`(~53%) 门面专项——注入假 fetch 测超时/非 JSON/code 缺失/网络抛错；写操作失败也必须失效目录缓存这条不变式要断言。预计再 +4~6pp。[推荐:R197-01]（agent 自动）
-- **K2（高，agent 自动）**：把真浏览器层接进 CI——新 job 跑 `build:stub` + `serve:stub` + playwright 访 `#/admin`，断言 4 个 canvas 尺寸非零且控制台无 TypeError（防第六轮那类"单测全绿线上空白"复发的机器型落点）。
+- **P0（下轮 K1）✅ 已执行 2026-09-25（防线轮）**：`src/auth.ts`(16%) + `api/client.ts`(9.5%) + `localStore.ts`(~53%) 门面专项——注入假 fetch 测超时/非 JSON/code 缺失/网络抛错；写操作失败也必须失效目录缓存这条不变式要断言。预计再 +4~6pp。[推荐:R197-01]（agent 自动）
+- **K2（高，agent 自动）✅ 已执行 2026-09-25（防线轮，并额外把 job 接进了 `deploy.needs`）**：把真浏览器层接进 CI——新 job 跑 `build:stub` + `serve:stub` + playwright 访 `#/admin`，断言 4 个 canvas 尺寸非零且控制台无 TypeError（防第六轮那类"单测全绿线上空白"复发的机器型落点）。
 - **K3（用户 1 分钟）**：线上管理端登录后目视复核看板四张图 + `#/product/{order}` 图集显示（本轮改了图集分支）。[推荐:R197-02]
 - P1：K4 PR 流试点（本轮两条缺陷仍都是"合并后发现"）、K5 diff-cover 增量覆盖率、K6 演示模式看板口径待裁决、K7 文件名大小写冲突自查脚本。
 - 不变：D2 49 单运营处置（人）、D4 `CF_D1_BACKUP_TOKEN`（用户）、D5 R2、changesets 仅观察。
