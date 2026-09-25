@@ -39,7 +39,11 @@ node scripts/ci-status.mjs            # 最近 5 条 run，自动分类并给退
 > `gates.yml`，猜错导致 dispatch `404` 被读成"解封失败"）；多份/零份一律拒绝并要 `--workflow=` 点名；
 > ② `POST .../dispatches` 实测返回 **204 No Content**（我一度写成"202 不是 204"，属凭印象不凭实测，已回改；
 > 工具里状态码判错会把成功触发读成失败）。`rerun-failed-jobs` 才是 201；
-> ③ `unblock` 改可重入：已是 public 时不再直接退出，照样触发 + 轮询，**验收口径是 `steps>0`**（触发成功 ≠ 拿到 runner）。
+> ③ `unblock` 改可重入：已是 public 时不再直接退出，照样触发 + 轮询，**验收口径是 `steps>0`**（触发成功 ≠ 拿到 runner）；
+> ④ 第二个仓（`xinyu-soulisle-private-archive`）暴露：**很多仓的 CI 只挂 `push`/`pull_request`，没有 `workflow_dispatch`**
+> ⇒ dispatch 直接 `422 Workflow does not have 'workflow_dispatch' trigger`。这**不是解封失败**，工具现自动降级为
+> `rerun-failed-jobs`（201）复用最近一条 run 的同一 commit 验 runner；同时"真判据红就拒绝转公开"这条护栏改为
+> **只在还要改可见性时生效**（已 public 时无可掩盖，否则翻转后第一次真红会把后续验收全锁死 —— 本轮实测撞上）。
 
 ```bash
 # ① 本仓 Actions 是否被禁（enabled:true / allowed_actions:all 才正常）
