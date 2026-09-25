@@ -44,6 +44,17 @@ curl -s --proxy http://127.0.0.1:7897 https://www.githubstatus.com/api/v2/compon
 # ④ 线上到底哪个版本（独立于 GitHub 的第二通道）
 node node_modules/wrangler/bin/wrangler.js pages deployment list --project-name supermarket-web | head -5
 curl -s --max-time 15 https://supermarket-web.pages.dev/sw.js | grep -o "CACHE_VERSION = '[^']*'"
+
+# ⑤ 拿"为什么不给 runner"的原文 —— 不用开浏览器（2026-09-25 实测打通）
+#    jobs 里没有原因；原因在该 job 的 check-run annotations 里。`npm run ci:status` 已内置这一步
+#    （exit 3 时直接打印「平台原文」行，--json 模式落在 blockedBy 字段）。手工等价：
+curl -s --proxy http://127.0.0.1:7897 -H "Authorization: Bearer $(printf 'protocol=https\nhost=github.com\n\n' | git credential fill | sed -n 's/^password=//p')" \
+  "https://api.github.com/repos/lxh113377/supermarket-web/actions/runs/<RUN_ID>/jobs" \
+  | grep -o '"check_run_url": *"[^"]*"' | head -1
+#    再对上一步的 URL 加 /annotations，读 annotation_level=failure 的 message
+#    本仓 2026-09-25 实测原文：「The job was not started because recent account payments have
+#    failed or your spending limit needs to be increased. Please check the 'Billing & plans'
+#    section in your settings」⇒ 账号计费/消费上限，**与分钟数无关**（分钟实测 57.6% 未耗尽，见 §3）
 ```
 
 ## 3. 算准当月用量（防"墙钟低估"这一档）
@@ -55,8 +66,13 @@ curl -s --max-time 15 https://supermarket-web.pages.dev/sw.js | grep -o "CACHE_V
 ## 4. 判定为账号级之后的处置顺序
 
 1. **什么都不改代码**。尤其禁止：给 step 加 `continue-on-error`、把 `deploy.needs` 拆回去、注释掉判据。
-2. 唯一能一锤定音的证据是 **已登录浏览器里那条 run 的红色横幅原文**（API 不返回它；私有仓对无登录态会话直接 404）。
-   取法：打开 `https://github.com/lxh113377/supermarket-web/actions/runs/<run_id>` 看顶部红条。
+2. 先取**平台原文**：`node scripts/ci-status.mjs`（exit 3 时会打印「平台原文（check-run annotations）」行，
+   取法见 §2 ⑤）。取到就是硬证据，不必再靠人开浏览器。
+   原文里出现 `payments have failed` / `spending limit needs to be increased` ⇒ 归口 **GitHub → Settings → Billing & plans**，
+   由用户处理（补卡 / 抬上限 / 临时转公开）；本仓 PAT 无 `admin:billing` 作用域，**读不到用量页**（实测 `settings/billing` 404），
+   所以"为什么"只能从 annotations 拿，不要从 API 用量猜。
+   （2026-09-25 修正：此前本节写的是"唯一能一锤定音的证据是已登录浏览器里的红条原文"——那是没找到
+   `check-runs/{id}/annotations` 之前的结论，现已证伪：同一句话在 API 里就拿得到。浏览器看红条退为兜底。）
 3. 想不等 CI 也要交付时，只有两条被允许的路，且**都要用户点名**：
    - 部署 skill §4 的本地急救：`wrangler pages deploy dist`（**跳过 CI 执行**，等于放弃门禁）；
    - 触发**公开仓** `lxh113377.github.io` 的 `deploy.yml`（公开仓不计分钟；可反证是否私有仓计量问题，但会造成**半发布**：顾客端新、管理端旧）。

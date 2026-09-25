@@ -17,6 +17,9 @@
 - **新判据**：用例 631（上轮账面）→ **654**（本轮实测，63 个文件）。`verify:backend` 断言 102 → **109**（+7：口味透传可回读、20 项截断、label 归一、`enabled:false` 原样落库、非对象项丢弃、`getPublicProducts` 下发口味、非数组归零）；`tests/variants.test.ts` 新增「本轮口径」describe（带口味的商品**恰好**是 33/34/40/52、饮品分母由分类枚举得出且带 `>20` 反向断言、聚合层只剩白象 46/47）+ 6 条 specOptions 行为用例；`tests/inlineEditForm.test.tsx` +4 条开关用例；e2e `product-detail.spec.ts` 14 条含「口味不改价」「所选口味写进购物袋金额」「饮品不再长出选择器」。
 - **踩到并修掉的真实缺口（由新判据抓出，非人工评审）**：`sanitizeSpecOptions` 一开始只挂在 `applyProductUpdate`，`createProduct` 里 `data.enabled = ...` 夹在 `pick` 与 `sanitizeStock` 之间，使批量替换只命中一处 ⇒ 新建商品时脏口味清单原样落库（`verify:backend` 报"实际 26"）。教训：批量补丁的命中数必须核对，锚点前后各插一行时尤易漏。
 - **门禁全绿（本机实测）**：`verify:backend` 109/0、`vitest run` 654/654、Playwright 22/22（含 e2e 复跑）、`typecheck`、`lint` 0 warning、`check:schema-drift` 17/0、`verify:contract` 44/0、`check:size` 3/0、`check:cycles` 无循环、`vite build` 成功。
+- **生产 D1 迁移已执行（发版被 CI 卡住，但数据面已就位）**：先 `d1 export --remote` 全量备份（1,449,663 B / 949 条 INSERT，落外层 `_backup/`），再 `node scripts/migrate.mjs apply --remote --yes`（走 `schema_migrations` 账目表，**不是** skill §4 那条裸 `d1 execute --file`——裸跑会让账目以为没应用，下次重放必炸 duplicate column）；线上回读 33/34/40/52 带口味、其余含全部饮品为 `[]`，`/pub getPublicProducts` 仍 200/28 条无回归（旧后端不引用新列 ⇒ 当前是一致可用状态）。
+- **两端前端未发版（如实记账，不写成已上线）**：push `d598cf8` 后 run `36125547534` 三 job 全 0-step、`dispatch.yml` run `36125547517` 同样 0-step ⇒ pages.dev 与 github.io 仍是旧构建（顾客端暂时看不到口味、也还看得到饮品规格选择器）。按 `docs/ci-triage-runbook.md` §4.3「不等 CI 也要交付的两条路都要用户点名」执行：用户选「先查清为何不给 runner」，未走本地绕过通道。
+- **顺带把停摆归因从"只能开浏览器看红条"升级为 API 硬证据**：失败 job 的 `check_run_url` + `/annotations` 直接给出原文 —— *"The job was not started because recent account payments have failed or your spending limit needs to be increased."* ⇒ 账号计费/消费上限，与本月分钟数（57.6%）和本次提交都无关。`scripts/ci-status.mjs` 已内置（exit 3 时打印「平台原文」行，`--json` 落 `blockedBy` 字段，取不到只记 UNVERIFIED 不改判类），runbook §2 ⑤/§4.2 与 `memory/07-next-steps.md` P0 同步更正。
 
 
 ### 2026-09-25 追加十八（防线轮 K1+K2：门面故障路径进断言 + 真渲染接成可拦部署的 CI 门禁）
