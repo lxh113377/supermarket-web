@@ -9,6 +9,17 @@
 > 外层 `超市web/超市/memory/`（工作区）。两者内容**不同**（07 主卷 SHA256 不一致），
 > 属历史遗留的双份结构，尚未合并。**本轮的权威记录在外层**：`deliverables/前端深度优化方案-2026-09-23.md` §6。
 
+## P0 — 当前阻塞（必须先解，否则一切交付停在仓库里）
+
+- [ ] **`0b9e405`（防线轮 K1+K2）已提交已推送，但线上未更新** —— GitHub Actions 未执行任何 step。
+  - **实测证据**：run `36110097808` 两次 attempt，`build-and-test` / `e2e` / `e2e-cloud-stub` 三个 job **全部 0 step、4–5 秒即 failure**（连 `Set up job` 都没有）；`deploy` 正确 `skipped`；`dispatch.yml`（本轮**零改动**）同样 0-step 失败 ⇒ github.io 未被触发。
+  - **线上实况**：pages.dev `sw.js` = `sm-v1790316391610`、github.io = `sm-v1790316300946`，两端均仍是 `5ea17e0` 的构建。
+  - **归因状态（如实记，未证实）**：最可能是**账号级 Actions 计量分钟耗尽**（supermarket-web 是私有仓，Free 每月 2000 分钟；今天 09-25 接近月末）。本机 PAT **无 `admin:billing` 作用域**，读不到用量，故这是排除法结论不是实测。反证已排除"改动本身有问题"：GitHub 已成功解析新 YAML（run 里规划出了 `e2e-cloud-stub`），且本地 `npm run verify` exit 0、`--coverage` 三跑 exit 0、`test:e2e` 20/20、`test:stub` 3/3、反例 18/18 全红。
+  - **可执行指令**：① 用户在 GitHub → Settings → Billing 看 Actions 分钟数并处理（买量 / 等 10-01 重置 / 临时转公开）；② 恢复后重跑该 run（`POST /repos/lxh113377/supermarket-web/actions/runs/36110097808/rerun-failed-jobs`，已用两次，均需先解配额）或 `workflow_dispatch` 触发一次完整 CI；③ 完成后按 §6 清单核两端 `sw.js` 指纹是否变新 + `wrangler pages deployment list` 看 Production 部署，才算上线。**禁止**用本地 `wrangler pages deploy` 绕过 CI 发版（除非用户明确点名要走急救通道）。
+  - **同时注意**：本轮起 `deploy.needs = [build-and-test, e2e, e2e-cloud-stub]`，任一红即不部署；而 `dispatch.yml` 是独立 workflow，**仍会照发 github.io** ⇒ 两端可能不同步，验证只认 bundle/`sw.js` 指纹（坑 36）。
+
+
+
 ## 2026-09-25 — 防线轮 K1+K2（门面故障路径进断言 + 真渲染 CI 硬门禁）
 
 - **K1 完成**：新增 `tests/apiClient.test.ts` 26 + `tests/localStore.test.ts` 29 + `tests/authWriteInvalidate.test.ts` 8，扩 `catalogCache` +3、`dbReviews` +5；用例 560→**631**（60→63 文件），覆盖率 80.91/74.08/76.41/82.52，棘轮上调 **78/72/74/80**（实测 −2pp；branches 三跑 74.08/74.08/74.12 证实需留余量）。
