@@ -36,7 +36,9 @@ curl -s --proxy http://127.0.0.1:7897 -H "Authorization: Bearer $(printf 'protoc
   https://api.github.com/repos/lxh113377/supermarket-web/actions/permissions
 
 # ② 配额：按 job 逐个累加才算数（按 run 墙钟会低估，实测低估 1.46x）
-#    见 §3 的脚本化做法；2026-09-25 实测 1151.0 / 2000 分钟（57.6%）⇒ 未耗尽
+#    见 §3 的脚本化做法；⚠️ 2026-09-25 晚翻案：逐 job 累加算出的 1151.0/2000（57.6%）是**低估**
+#    （漏算 cancelled run 与超额计费分钟），Billing 页实测 `2,000 min used / 2,000 min included` 已用满。
+#    **用量结论只认 https://github.com/settings/billing 的 Actions 面板**，§3 那种自算只能当量级估计。
 
 # ③ 官方状态（无事故 ≠ 你账号没问题，但它先排除大盘）
 curl -s --proxy http://127.0.0.1:7897 https://www.githubstatus.com/api/v2/components.json | grep -o '"name":"Actions"[^}]*"status":"[a-z]*"'
@@ -54,7 +56,8 @@ curl -s --proxy http://127.0.0.1:7897 -H "Authorization: Bearer $(printf 'protoc
 #    再对上一步的 URL 加 /annotations，读 annotation_level=failure 的 message
 #    本仓 2026-09-25 实测原文：「The job was not started because recent account payments have
 #    failed or your spending limit needs to be increased. Please check the 'Billing & plans'
-#    section in your settings」⇒ 账号计费/消费上限，**与分钟数无关**（分钟实测 57.6% 未耗尽，见 §3）
+#    section in your settings」⇒ 账号计费/消费上限措辞。**注意这句不等于"没欠费"**：同页 `Next payment due = -`、
+#    `Billable usage $0（$22.23 consumed − $22.23 discounts）`，真因是 **Free 计划 2,000 分钟用满**（见 §3 翻案条）。
 ```
 
 ## 3. 算准当月用量（防"墙钟低估"这一档）
