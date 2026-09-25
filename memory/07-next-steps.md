@@ -19,7 +19,7 @@
     - **时间线分界**：私有仓 Uptime 定时 `05:49:06 success`、CI `06:00/06:04 success`，**07:54 起整仓全红**（含 `f8e415d` 那次推送）⇒ 存在"从此时刻起不可用"的清晰分界。
     - **未排除的一侧**：GitHub 全局 runner 故障。唯一判别法 = 触发**公开仓** lxh113377.github.io 的 deploy.yml（公开仓不计分钟），但**它会真的发布顾客端** ⇒ 造成半发布（pages.dev 仍旧构建），须用户点名才做。
   - **可执行指令**：① 用户在 GitHub → Settings → Billing 查 Actions 分钟数并处理（买量 / 等 10-01 重置 / 临时转公开）；② 恢复后重跑 run `36110097808`（`rerun-failed-jobs`；配额未解时只会再白红一次）或 `workflow_dispatch` 跑一次完整 CI；③ 完成后按部署 skill §6 核两端 `sw.js` 指纹是否变新 + `wrangler pages deployment list` 看 Production 部署，才算上线。**禁止**用本地 `wrangler pages deploy` 绕过 CI 发版（除非用户明确点名走急救通道）。
-  - **配额假设已证伪（本轮实测，替代原先"去查 Billing 分钟数"那条错方向）**：按 job 抽样并行系数（fenjue 2.27x / supermarket 1.30x / xinyu 1.32x）外推当月私有仓墙钟总量 ⇒ **≈1290 / 2000 分钟（64%）**，未耗尽。逐 job 精确累加的脚本另在后台跑，量级已足够否证。**所以下面第①步不该是查 Billing。**
+  - **配额假设已证伪（本轮实测，替代原先"去查 Billing 分钟数"那条错方向）**：**逐 job 精确累加实测**（686 个已完成 run / 2551 个 job）：合计 **1151.0 / 2000 分钟 = 57.6%**，未耗尽（fenjue 593.6、supermarket-web 220.9、xinyu 185.3、ican 144.1）。真实并行低估倍数 1.46x —— 先前按抽样外推得 ≈1290（偏高约 12%，因抽到 fenjue 偏高的 11-job 矩阵样本），结论同向但已以实测为准。**所以下面第①步不该是查 Billing。**
   - **新分界点**：各仓最后一次 success 分别是 supermarket `06:04:30` / fenjue `06:57:56` / xinyu `07:03:29` / **ican `07:37:49`**，此后 5 个私有仓 29 个 run 全 0 step ⇒ 停摆起点在 07:37–07:54 之间，且非同一瞬间（渐进式阻断，不像一次瞬时事故）。GitHub 状态页 `Actions: operational`。
   - **已排除项汇总（供后续别再重走）**：改动导致（零改动的 uptime.yml 同样 0 step）／本仓 Actions 被禁（`/actions/permissions` = `enabled:true, allowed_actions:all`）／YAML 或 needs 配错（GitHub 解析成功、`e2e-cloud-stub` 已规划、`deploy` 正确 skipped）／日志缺失（两个失败 run 的 logs 包均为 22B 空 zip，证明确无 step 执行过）／分钟配额（见上）。**未排除**：账号级 runner 供应或账号侧限制；唯一能一锤定音的证据是**已登录浏览器里那条 run 的红色横幅原文**（in-app 浏览器无登录态，私有仓返 404）。
 
