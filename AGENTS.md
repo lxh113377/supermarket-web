@@ -8,6 +8,7 @@
 1. **项目级指令（技能绑定/部署铁律/技术栈/架构决策）** → [`../documents/AGENTS.md`](../documents/AGENTS.md)
 2. **交接文档（现状事实/实测戳/事故记录/凭证）** → [`HANDOFF.md`](HANDOFF.md)
 3. **部署唯一权威** → `chaoshi-web-deploy` skill（Command/清单/坑速查全量在 skill 内，禁裸跑）
+4. **CI 红 / 未部署的分诊手册** → [`docs/ci-triage-runbook.md`](docs/ci-triage-runbook.md)（一条命令 `node scripts/ci-status.mjs` 自动区分"真判据红"与"账号级 0-step 秒红"；后者**禁止改代码绕**）
 
 ## 红线（不可改，永久生效）
 

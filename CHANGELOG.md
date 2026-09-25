@@ -23,6 +23,11 @@
   - 做法：只给这**两条**冷导入用例显式 20s 档（附 WHY 注释），**没有**改全局 `testTimeout`（全局放宽会把别处的真缺陷一起盖掉）。改后连跑三轮全量 `--coverage` 全 exit=0、631 用例，零 timeout。
   - 未顺手做的治本项（已登记 07）：`pool: 'vmThreads'` 或 `isolate: false` 复用 jsdom —— vitest 自己每次都在结尾提示这条。属全局执行模型改动，隔离语义有风险，留待单独一轮评估。
 - 覆盖率（分母钉死 `src/**`）：statements 77.49 → **80.91%**、branches 71.77 → **74.08%**、functions 73.30 → **76.41%**、lines 79.05 → **82.52%**；棘轮上调 **78/72/74/80**（= 实测 −2pp 下取整）。branches 三跑实测 74.08 / 74.08 / **74.12**，差 1 条分支 —— 这 2pp 余量是给 CI(node22/ubuntu) 与本机(node24) 留的，不是保守。
+- **CI 分诊知识固化为仓库资产**（本轮实测反哺，非补记）：
+  - 新增 `scripts/ci-status.mjs`（npm 入口 `npm run ci:status`）——自动把失败 run 分成 **真判据红（job 有 step）** 与 **账号级 0-step 秒红（无 step 且 ≤12s = runner 从未分配）**，退出码 `0/1/3/4` 各对应"绿/去修代码/别改代码绕/取不到数据"。**取不到数据一律显式报错，不静默 PASS**（R247）。
+  - 新增 `docs/ci-triage-runbook.md`：症状→结论对照表、四条可直跑的排除命令（含"计费必须逐 job 累加，按 run 墙钟低估 1.46x"这条）、判定账号级后的处置顺序（禁止 `continue-on-error`、禁止拆 `deploy.needs`、禁止注释判据）、以及 push 后自动检测的 hook 接法（脚本已备好，配置在用户本机）。
+  - `AGENTS.md` 权威文档节加第 4 条指针（保持薄指针，正文在 runbook），`memory/06-constraints.md` 记一条技术债：私有仓 Actions 是计量资源且存在账号级停摆形态。
+  - 动机：本轮排查耗时远大于改代码，且我第一版把"墙钟求和"当用量得出 64% 的近似数、node 原生 fetch 不走代理导致结果全 NaN —— 这类判断每次手写都会错，必须固化成工具。
 - 后端与数据层**零改动**（`functions/`、`db/`、action 名单、`ADMIN_WRITE_ACTIONS` 全部未动 ⇒ `verify:backend` 契约与白名单对称测试不受影响）。
 
 
