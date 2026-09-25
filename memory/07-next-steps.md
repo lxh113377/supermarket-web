@@ -19,6 +19,22 @@
     - **时间线分界**：私有仓 Uptime 定时 `05:49:06 success`、CI `06:00/06:04 success`，**07:54 起整仓全红**（含 `f8e415d` 那次推送）⇒ 存在"从此时刻起不可用"的清晰分界。
     - **未排除的一侧**：GitHub 全局 runner 故障。唯一判别法 = 触发**公开仓** lxh113377.github.io 的 deploy.yml（公开仓不计分钟），但**它会真的发布顾客端** ⇒ 造成半发布（pages.dev 仍旧构建），须用户点名才做。
   - **可执行指令**：① 用户在 GitHub → Settings → Billing 查 Actions 分钟数并处理（买量 / 等 10-01 重置 / 临时转公开）；② 恢复后重跑 run `36110097808`（`rerun-failed-jobs`；配额未解时只会再白红一次）或 `workflow_dispatch` 跑一次完整 CI；③ 完成后按部署 skill §6 核两端 `sw.js` 指纹是否变新 + `wrangler pages deployment list` 看 Production 部署，才算上线。**禁止**用本地 `wrangler pages deploy` 绕过 CI 发版（除非用户明确点名走急救通道）。
+  - **配额假设已证伪（本轮实测，替代原先"去查 Billing 分钟数"那条错方向）**：按 job 抽样并行系数（fenjue 2.27x / supermarket 1.30x / xinyu 1.32x）外推当月私有仓墙钟总量 ⇒ **≈1290 / 2000 分钟（64%）**，未耗尽。逐 job 精确累加的脚本另在后台跑，量级已足够否证。**所以下面第①步不该是查 Billing。**
+  - **新分界点**：各仓最后一次 success 分别是 supermarket `06:04:30` / fenjue `06:57:56` / xinyu `07:03:29` / **ican `07:37:49`**，此后 5 个私有仓 29 个 run 全 0 step ⇒ 停摆起点在 07:37–07:54 之间，且非同一瞬间（渐进式阻断，不像一次瞬时事故）。GitHub 状态页 `Actions: operational`。
+  - **已排除项汇总（供后续别再重走）**：改动导致（零改动的 uptime.yml 同样 0 step）／本仓 Actions 被禁（`/actions/permissions` = `enabled:true, allowed_actions:all`）／YAML 或 needs 配错（GitHub 解析成功、`e2e-cloud-stub` 已规划、`deploy` 正确 skipped）／日志缺失（两个失败 run 的 logs 包均为 22B 空 zip，证明确无 step 执行过）／分钟配额（见上）。**未排除**：账号级 runner 供应或账号侧限制；唯一能一锤定音的证据是**已登录浏览器里那条 run 的红色横幅原文**（in-app 浏览器无登录态，私有仓返 404）。
+
+## 2026-09-25 防线轮 · Linux 侧等价验证（不依赖 CI，已补上"新 job 未在 ubuntu 真跑过"这一档）
+
+- 容器 `mcr.microsoft.com/playwright:v1.63.0-noble`（**3.55GB**，非我先前估的 1.5–2GB）内跑 `test:stub`：`npm ci` OK → `build:stub` `✓ built in 1.03s` → **`test:stub` 3 passed (6.9s)，`TEST_STUB_EXIT=0`**。环境 Linux 6.6.114（WSL2）+ node **v24.20.0** + npm 11.19.0。
+- ⇒ 新 job 的四条环境假设全部成立：**127.0.0.1 绑定可通**（不用 localhost）、`canvas.width >= clientWidth` 不随无头 Chromium 的 DPR 漂、console 白名单未吞真实噪声、桩自建 `dist-stub` 链路完整。CI 恢复后只剩"在 GitHub runner 上也绿"这一确认动作。
+- **余差一档**：容器是 node 24，CI 是 node 22。要抹平需用 node:22 基底重跑（本轮未做）。
+- 两条踩坑留痕（下次写同类容器命令必须前置）：① Git Bash 会把参数里的 `/run.sh` 改写成本机路径（症状 `bash: C:/Program Files/Git/run.sh: No such file`，exit 127）⇒ 加 `MSYS_NO_PATHCONV=1`；② **绝不在挂载的仓库目录里 `npm ci`** —— 会用 Linux 原生二进制覆盖宿主机 `node_modules`；本次是只读挂载 + 在容器内 `/work` 复制副本（`tar --exclude` 排掉 node_modules/dist*/.git）。
+
+## 安全待办（本轮新增，值一律不落盘）
+
+- [ ] **撤销本轮明文出现在对话里的那枚 `ghp_` 前缀 classic PAT**（**只能用户手工执行**：GitHub → Settings → Developer settings → Personal access tokens → 对应条目 → Delete）。同型待办此前已有两条在册（"撤销本次部署使用的 PAT"、"撤销已暴露的 2 个 PAT"），这是第三次。
+  - 约定：token 若需给 agent 使用，走**不回显通道**（Windows 凭据管理器，或仓库外的本地文件并告知路径），不粘进对话、不写进文件/日志/记忆/提交。理由：`D:/global_memory` 与 `D:/global_skills` 是八端共享且各自推到远端归档仓，明文密钥一旦入 git 历史即不可回收（本仓已有 `scripts/purge-admin-key-history.sh` 收拾同类事故的先例，代价是 filter-repo 重写 + force-push）。
+
   - **同时注意**：本轮起 `deploy.needs = [build-and-test, e2e, e2e-cloud-stub]`，任一红即不部署；而 `dispatch.yml` 是独立 workflow，**仍会照发 github.io** ⇒ 两端可能不同步，验证只认 bundle/`sw.js` 指纹（坑 36）。
 
 
