@@ -30,6 +30,12 @@ node scripts/ci-status.mjs            # 最近 5 条 run，自动分类并给退
 
 ## 2. 排除清单（每条都有可直接跑的命令）
 
+> 跨仓通用版已抽成工具：`node <焚诀>/eval/gh_ci_unblock.mjs status|audit|unblock --repo=owner/r`
+> —— `status` 内含本节⑤的 annotations 取法；`audit` 是**转公开前置的密钥扫描**（HEAD 树 + 全历史，
+> 只报命中计数与路径不打印值），`unblock` 拿它当硬前置（历史含密钥形态且未 `--ack-rotated` 就拒绝翻 public）。
+> 自带 `--selftest` 六条隔离桩（正例/违规/边界），本轮靠它抓到三个假阴性 bug（`git grep` 吞 `-` 开头模式、
+> `git log -G` 走 BRE 使 `{8,}` 失效、键名大写而模式小写）。
+
 ```bash
 # ① 本仓 Actions 是否被禁（enabled:true / allowed_actions:all 才正常）
 curl -s --proxy http://127.0.0.1:7897 -H "Authorization: Bearer $(printf 'protocol=https\nhost=github.com\n\n' | git credential fill | sed -n 's/^password=//p')" \

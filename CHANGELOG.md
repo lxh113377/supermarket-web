@@ -29,6 +29,8 @@
 - **线上复验（不是推断）**：新密钥 `/web login` → `{"code":0,"role":"admin"}`；**旧密钥 → `{"code":-1,"message":"认证失败"}`**（泄露值确认作废）；`/pub getPublicProducts` 28 条上架、乐事 8 个口味首项「原味」；`sw.js` 指纹 = 本次新构建。
 - **CI 恢复实证**：转公开后 `workflow_dispatch` 触发 run `36132121389` = **success**，`build-and-test` 22 steps / 46s、`e2e` 10 steps / 63s、`e2e-cloud-stub` 10 steps / 53s ⇒ **公开仓拿得到 runner**，与"分钟耗尽"结论一致。但 `deploy` = `skipped` —— 该 job 只认 `push`，dispatch 不触发部署 ⇒ 本轮改用"提交 + push main"走完整链路（CI 自动部 pages.dev，`dispatch.yml` 再驱动 github.io 顾客端构建）。
 - **仓库可见性已变更**：`supermarket-web` 现为 **public**（原 private）。本仓文档、部署 skill 与 `memory/AGENTS.md` 里"私有仓 / 未认证 API 一律 404 / `DEPLOY_SOURCE_TOKEN` 跨仓取私有源码"等表述自此**部分失真**，已另行更正；`ADMIN_KEY` 真值只存 Pages secret 与本地 `.dev.vars`，文档一律掩码。
+- **处置链已抽成跨仓工具**（用户点名"可复用吗→抽成小工具"）：`焚诀/eval/gh_ci_unblock.mjs`，子命令 `status`（分诊 + 取 annotations 原文）/ `audit`（**转公开前置**：HEAD 树 + 全历史密钥形态扫描，只报计数与路径不打印值，判 `PUBLIC_SAFE`/`NEED_ROTATION`/`ROTATED_ACK`）/ `unblock`（审计当硬前置，脏则拒翻 public）/ `--selftest`。退出码 0/1/3/4 分开，取不到数据一律 4。六条隔离桩全过，过程中抓到三个**假阴性** bug：`git grep` 把 `-` 开头的模式当选项吞（改 `-e`）、`git log -G` 默认 BRE 使 `{8,}` 失效（改 `-P`）、真实键名大写而模式小写（补 `-i`，实测同一仓 0 命中 → 10 命中）。实扫：本仓报 `generic-kv` 历史 10 个提交（与手工 `-S` 一致）+ 当前树 1 个（`verify-backend.mjs` 的测试夹具键，属误报，由人 `--ack-rotated` 定性）；`fenjue-private-archive` 457 提交零命中、`status` 显示其 5 个 job 仍 0-step 并取回计费原文 ⇒ 该仓可安全转公开，但**未动**（属另一项目的决定）。本文件 §2 已加指针。
+- **顺带记一起并行事故**：工具的 `git add` 完成后，被另一会话**未带 pathspec** 的提交 `b8d6917` 吸收并推送，作者侧独立提交因此报 "no changes added"。内容零丢失，故只补归属留痕、不重写他人历史。教训入文件头：共用仓里 `add` 与 `commit` 必须紧邻且带 pathspec。
 
 
 ### 2026-09-25 追加十八（防线轮 K1+K2：门面故障路径进断言 + 真渲染接成可拦部署的 CI 门禁）
