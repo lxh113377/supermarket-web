@@ -33,8 +33,13 @@ node scripts/ci-status.mjs            # 最近 5 条 run，自动分类并给退
 > 跨仓通用版已抽成工具：`node <焚诀>/eval/gh_ci_unblock.mjs status|audit|unblock --repo=owner/r`
 > —— `status` 内含本节⑤的 annotations 取法；`audit` 是**转公开前置的密钥扫描**（HEAD 树 + 全历史，
 > 只报命中计数与路径不打印值），`unblock` 拿它当硬前置（历史含密钥形态且未 `--ack-rotated` 就拒绝翻 public）。
-> 自带 `--selftest` 六条隔离桩（正例/违规/边界），本轮靠它抓到三个假阴性 bug（`git grep` 吞 `-` 开头模式、
+> 自带 `--selftest` 九条隔离桩（正例/违规/边界，2026-09-25 由 6 扩到 9），本轮靠它抓到三个假阴性 bug（`git grep` 吞 `-` 开头模式、
 > `git log -G` 走 BRE 使 `{8,}` 失效、键名大写而模式小写）。
+> **同日试点后再修三处自己的错读**：① 工作流名不再硬编 `ci.yml` —— 从本地 `git ls-tree` 推导（`skill-private-archive` 那份叫
+> `gates.yml`，猜错导致 dispatch `404` 被读成"解封失败"）；多份/零份一律拒绝并要 `--workflow=` 点名；
+> ② `POST .../dispatches` 实测返回 **204 No Content**（我一度写成"202 不是 204"，属凭印象不凭实测，已回改；
+> 工具里状态码判错会把成功触发读成失败）。`rerun-failed-jobs` 才是 201；
+> ③ `unblock` 改可重入：已是 public 时不再直接退出，照样触发 + 轮询，**验收口径是 `steps>0`**（触发成功 ≠ 拿到 runner）。
 
 ```bash
 # ① 本仓 Actions 是否被禁（enabled:true / allowed_actions:all 才正常）
@@ -82,10 +87,18 @@ curl -s --proxy http://127.0.0.1:7897 -H "Authorization: Bearer $(printf 'protoc
    所以"为什么"只能从 annotations 拿，不要从 API 用量猜。
    （2026-09-25 修正：此前本节写的是"唯一能一锤定音的证据是已登录浏览器里的红条原文"——那是没找到
    `check-runs/{id}/annotations` 之前的结论，现已证伪：同一句话在 API 里就拿得到。浏览器看红条退为兜底。）
-3. 想不等 CI 也要交付时，只有两条被允许的路，且**都要用户点名**：
+3. **已被实测证实的解法：把该仓转 public**（2026-09-25 晚，本账号）。公开仓不消耗 Actions 分钟 ⇒ runner 立刻回来。
+   两路独立证据：`supermarket-web` 转公开后 run `36132466325` 四 job 全绿（deploy 9 steps）；
+   试点仓 `skill-private-archive` 转公开后 run `36139509103` 由「0 step / 4 秒」变成 **8 steps / 10 秒**，
+   且**红在真判据**（`md_claim_face` / `budget_contract_fixtures` / `scan_inputs_fixtures` 三门 fixture FAIL）——
+   红本身正是恢复的证明：判据终于被执行了。
+   ⚠️ 前置硬条件：**先 `audit` 再翻**。历史 blob 抹不掉 —— 本仓 `ADMIN_KEY` 曾在 10 个历史提交里，
+   必须先轮换密钥 + 重部一次让新值生效，才能转公开。转公开属**对外可见动作**，须用户点名。
+4. 想不等 CI 也要交付时，只有两条被允许的路，且**都要用户点名**：
    - 部署 skill §4 的本地急救：`wrangler pages deploy dist`（**跳过 CI 执行**，等于放弃门禁）；
    - 触发**公开仓** `lxh113377.github.io` 的 `deploy.yml`（公开仓不计分钟；可反证是否私有仓计量问题，但会造成**半发布**：顾客端新、管理端旧）。
-4. 记录：把"未发 + 拦在哪一步 + 失败面"写进 `memory/07-next-steps.md` 的 P0，**不得写成已上线**（坑 36）。
+5. 记录：把"未发 + 拦在哪一步 + 失败面"写进 `memory/07-next-steps.md` 的 P0，**不得写成已上线**（坑 36）。
+   （走通第 3 条转公开之后，这一条记的不是"未发"，而是"runner 回来了、真判据红在哪几门"。）
 
 ## 5. 想在 push 后自动知道结果（可选，需用户本机配置）
 
