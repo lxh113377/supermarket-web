@@ -10,6 +10,7 @@
 ## 技术债
 - [DEBT] 评价晒图 base64 入库（≤5×2MB） — 建议云存储直传，减少文档体积
 - [DEBT] src/cloudbase.ts 等平台边界用 any — 已注释说明，保持平台边界宽松
+- [DEBT] 私有仓 Actions 为**计量资源**（Free 2000 分钟/月，按 job 累加，实测本账号 2026-09 用 57.6%）；且存在"账号级 0-step 秒红"停摆形态 —— runner 从未分配、无任何日志，与提交内容无关。分诊与处置顺序见 `docs/ci-triage-runbook.md`；自查命令 `node scripts/ci-status.mjs`（exit 3 = 账号级）
 
 ## 红线（不能改）
 - 部署任何 tcb hosting/fn deploy 前必须先加载 chaoshi-web-deploy skill，禁止凭记忆裸跑

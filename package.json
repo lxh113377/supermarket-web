@@ -18,6 +18,7 @@
     "test:stub": "playwright test --config playwright.stub.config.ts",
     "smoke": "node scripts/smoke-deploy.mjs",
     "uptime": "node scripts/uptime-check.mjs",
+    "ci:status": "node scripts/ci-status.mjs",
     "verify:backend": "node scripts/verify-backend.mjs",
     "preview": "vite preview",
     "build:stub": "vite build --config vite.config.stub.js --outDir dist-stub --mode stub",
