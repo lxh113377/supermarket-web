@@ -38,7 +38,7 @@ describe('auth.js pickProductFields 字段白名单（客户端）', () => {
   it('白名单集合与服务端一致（ defence in depth ）', () => {
     expect(PRODUCT_FIELDS).toEqual([
       'name', 'spec', 'price', 'costPrice', 'subcategories', 'enabled',
-      'order', 'image', 'images', 'description', 'reviews', 'stock',
+      'order', 'image', 'images', 'description', 'reviews', 'stock', 'specOptions',
     ])
   })
 

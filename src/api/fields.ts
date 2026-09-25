@@ -4,7 +4,7 @@
 // 即使服务端逻辑回归，客户端也不会发出多余字段。
 // 注意：订单客户端只发输入字段（roomNumber/items），服务端另用 ORDER_FIELDS 收敛"存储文档"，二者概念不同。
 
-export const PRODUCT_FIELDS: string[] = ['name', 'spec', 'price', 'costPrice', 'subcategories', 'enabled', 'order', 'image', 'images', 'description', 'reviews', 'stock']
+export const PRODUCT_FIELDS: string[] = ['name', 'spec', 'price', 'costPrice', 'subcategories', 'enabled', 'order', 'image', 'images', 'description', 'reviews', 'stock', 'specOptions']
 export function pickProductFields(data: Record<string, unknown>): Record<string, unknown> {
   const clean: Record<string, unknown> = {}
   for (const k of PRODUCT_FIELDS) {

@@ -8,7 +8,7 @@
 // 商品字段白名单（单源）
 const PRODUCT_FIELDS = [
   'name', 'spec', 'price', 'costPrice', 'subcategories', 'enabled', 'order',
-  'image', 'images', 'description', 'reviews', 'stock',
+  'image', 'images', 'description', 'reviews', 'stock', 'specOptions',
 ]
 
 // 订单文档字段白名单

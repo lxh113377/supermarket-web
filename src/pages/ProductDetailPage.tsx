@@ -17,6 +17,7 @@ import { productImageUrl, productSrcSet } from '../utils/images'
 import { formatYuan } from '../utils/format'
 import { useIsNarrow } from '../hooks/useMediaQuery'
 import { variantGroupOf } from '../data/variants-demo'
+import { specOptionGroupOf } from '../utils/spec-options'
 import {
   groupImageOrders,
   initialSelection,
@@ -35,9 +36,10 @@ import type { Category, Product, Review } from '../types'
 // 「立即购买」只弹演示订单摘要，不建单、不跳 /order-confirm、不接支付；
 // 真实下单链路仍由 购物袋 → 确认订单 → 支付 承担。
 //
-// 变体（口味/包装/容量）取自 src/data/variants-demo.ts 本地演示层：
+// 规格有两个来源：① src/data/variants-demo.ts —— 同一商品的几条真实记录（白象帮泡/零售）；
+// ② product.specOptions —— 商品自带的可选口味，由管理后台维护、关掉即不显示。
 // 每个可售组合的编号、单价、商品名、图片都对应目录里的真实商品行，聚合关系已在
-// disclosure 里如实标注为演示交互。无变体数据的商品不渲染选择器，不编造规格。
+// disclosure 里如实标注为演示交互。两处都没有可用规格的商品不渲染选择器，不编造规格。
 
 /** 某轴某选项 id → 展示文案 */
 function optionLabel(group: VariantGroup, axisId: string, optionId: string): string {
@@ -67,8 +69,9 @@ export default function ProductDetailPage() {
     : (product?._id ? parseInt(String(product._id).replace(/\D/g, ''), 10) : null)
   const imgSrc = product?.image || productImageUrl(orderNum)
 
-  // 变体组与图集（必须在条件 return 之前计算，遵守 Hooks 顺序）
-  const group = useMemo(() => variantGroupOf(orderNum), [orderNum])
+  // 规格组与图集（必须在条件 return 之前计算，遵守 Hooks 顺序）：
+  // 先认跨记录聚合组（白象帮泡/零售），没有再退到该商品自己的口味清单（后台 specOptions）
+  const group = useMemo(() => variantGroupOf(orderNum) ?? specOptionGroupOf(product), [orderNum, product])
 
   const galleryItems: GalleryItem[] = useMemo(() => {
     if (group) {
@@ -233,9 +236,11 @@ export default function ProductDetailPage() {
 
   const handleAdd = useCallback((n = qty) => {
     if (!cartProduct) return
-    add(cartProduct, n)
+    // 把当前选中的规格（口味/版本）一并写进购物袋，否则商家只看到「乐事薯片 40g」，
+    // 不知道要哪个口味 —— 单价与 _id 仍取所选组合对应的那条真实记录。
+    add({ ...cartProduct, spec: effSpec }, n)
     setAddedNote(`已把 ${n} 件「${effName}」加入购物袋`)
-  }, [add, cartProduct, qty, effName])
+  }, [add, cartProduct, qty, effName, effSpec])
 
   const avgRating = productReviews.length > 0
     ? (productReviews.reduce((s, r) => s + r.rating, 0) / productReviews.length).toFixed(1)

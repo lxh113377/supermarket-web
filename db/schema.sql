@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS products (
   image         TEXT DEFAULT '',
   images        TEXT DEFAULT '[]',
   description   TEXT DEFAULT '',
+  specOptions   TEXT DEFAULT '[]',
   reviews       TEXT DEFAULT '[]',
   stock         INTEGER DEFAULT -1,
   createdAt     TEXT,

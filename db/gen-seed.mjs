@@ -29,7 +29,7 @@ for (const c of categories) {
 for (const p of products) {
   const _id = 'p' + String(p.order).padStart(3, '0')
   lines.push(
-    `INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order") VALUES (${esc(_id)}, ${esc(p.name)}, ${esc(p.spec)}, ${esc(p.price)}, ${esc(p.subcategories)}, 1, ${esc(p.order)});`
+    `INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES (${esc(_id)}, ${esc(p.name)}, ${esc(p.spec)}, ${esc(p.price)}, ${esc(p.subcategories)}, 1, ${esc(p.order)}, ${esc(p.specOptions || [])});`
   )
 }
 

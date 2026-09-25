@@ -4,6 +4,21 @@
 
 ## [未发布]
 
+### 2026-09-25 追加十九（可选规格收敛：只留 4 款小包薯片口味 + 白象帮泡/零售，口味进 D1 由后台开关控显隐）
+
+- **用户口径**（AskUserQuestion 四问一次锁定）：① 「可选规格」只指详情页那个选择器，`spec` 文案不动；② **全类目**收敛，不是只动食品；③ 保留的是「乐事薯片 / 呀土豆薯条 / 好有趣薯片 / 白象方便面的帮泡与零售 / 乐吧薯片」，口味按网查补齐，并**在后台加开关**能把某个口味去掉、前端不再显示；④ 改完直接上线。
+- **动手前先纠偏三条口径**（原话与磁盘实测对不上，已按实测执行）：食品侧原本只有白象一条规格组，「其他食品一律去掉」按字面等于删 0 条；**张亮丸子与康师傅面在 D1 与代码里都不存在**（`d1 execute supermarket --remote` 实读 55 行、全库无此两条），乐事薯片也只有单条 40g 记录、原本没有选择器 ⇒ 「保留口味」实际是**新增**，不是"留着别删"。
+- **删掉的**：`src/data/variants-demo.ts` 的 4 条饮品聚合组（东鹏特饮 / 康师傅 1L 茶饮 8 口味色块 / 农夫山泉 / 怡宝），只剩跨记录真实存在的白象 46(帮泡 ¥3.66)/47(零售 ¥1.88)。
+- **新数据面 `products.specOptions`**（`[{label, enabled}]` JSON 文本列）：`db/schema.sql` + `db/migrate-spec-options.sql`（ALTER + 4 条口味 UPDATE + 其余归零，`rollback-spec-options.sql` 配套）；后端 `PRODUCT_FIELDS` 白名单、`rowToProduct` 回读、`getPublicProducts` SELECT 补列（不补则顾客端拿不到），新增 `sanitizeSpecOptions`：非数组归零、项必须是对象、label 去空白截 20 字、同名去重、上限 20 项。
+- **口味不改价、不改图**：`src/utils/spec-options.ts` 把口味清单合成单轴「口味」变体组，复用既有 `utils/variants.ts` 纯函数与 `VariantPicker`，每个 combo 的 price/order/productName 都仍是这条商品记录本身；被关掉的口味**连组合一起消失**（不是灰掉 —— 灰掉等于告诉用户"这口味缺货"）。白象的跨记录组与它互不干扰（有组优先）。
+- **后台开关（守内联编辑铁律，未加弹窗）**：`ProductInlineEditForm` 增「可选口味」区 —— 药丸即开关（`aria-pressed`，划线=已隐藏）、× 删除、输入框追加，计数只算在显示的；`src/api/fields.ts` 客户端白名单同步补 `specOptions`（**漏这一条就会让后台保存静默丢字段**，`tests/authWhitelist` / `tests/shared` 两条对称判据当场把它钉住）。
+- **加购带上所选口味**：`ProductDetailPage` 的 `add({ ...cartProduct, spec: effSpec })`，购物袋与订单里是「40g · 黄瓜味」而不是光秃秃的「40g」；单价与 `_id` 仍取该规格对应的那条真实记录。
+- **已知限制（如实登记，不含糊）**：① 购物袋按 `_id` 合行，同商品两个口味会并成一行（规格文案取最后一次点的）—— 这是既有 `addToCart` 语义，本轮未改；② 本地演示模式下**已播种过** localStorage 的老访客不会自动补 `specOptions`（P1-4 明令"只有键不存在才播种"），云端顾客端不受影响；③ `VariantPicker` 的 `kind:'color'` 色块轴随康师傅组删除而**暂无生产数据**，对应的那条 e2e（内联上色）一并删除，`variants.test.ts` 里的色块判据变为空转真——留着，等下一个色块数据。
+- **新判据**：用例 631（上轮账面）→ **654**（本轮实测，63 个文件）。`verify:backend` 断言 102 → **109**（+7：口味透传可回读、20 项截断、label 归一、`enabled:false` 原样落库、非对象项丢弃、`getPublicProducts` 下发口味、非数组归零）；`tests/variants.test.ts` 新增「本轮口径」describe（带口味的商品**恰好**是 33/34/40/52、饮品分母由分类枚举得出且带 `>20` 反向断言、聚合层只剩白象 46/47）+ 6 条 specOptions 行为用例；`tests/inlineEditForm.test.tsx` +4 条开关用例；e2e `product-detail.spec.ts` 14 条含「口味不改价」「所选口味写进购物袋金额」「饮品不再长出选择器」。
+- **踩到并修掉的真实缺口（由新判据抓出，非人工评审）**：`sanitizeSpecOptions` 一开始只挂在 `applyProductUpdate`，`createProduct` 里 `data.enabled = ...` 夹在 `pick` 与 `sanitizeStock` 之间，使批量替换只命中一处 ⇒ 新建商品时脏口味清单原样落库（`verify:backend` 报"实际 26"）。教训：批量补丁的命中数必须核对，锚点前后各插一行时尤易漏。
+- **门禁全绿（本机实测）**：`verify:backend` 109/0、`vitest run` 654/654、Playwright 22/22（含 e2e 复跑）、`typecheck`、`lint` 0 warning、`check:schema-drift` 17/0、`verify:contract` 44/0、`check:size` 3/0、`check:cycles` 无循环、`vite build` 成功。
+
+
 ### 2026-09-25 追加十八（防线轮 K1+K2：门面故障路径进断言 + 真渲染接成可拦部署的 CI 门禁）
 
 - **这轮不改界面**，改的是"出问题的时候谁知道"。三块门面（`src/auth.ts` 16%、`src/api/client.ts` 9.5%、`src/localStore.ts` ~53%）是所有云端读写的唯一出口，此前**超时/非 JSON/`code` 缺失/网络抛错四类真实故障路径一条都没断言过**。

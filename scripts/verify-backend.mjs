@@ -251,6 +251,26 @@ await handleAdmin(env, 'deleteProduct', 'test-key-123', { productId: spid })
 const pubWithStock = await handlePublic(env, 'getPublicProducts', {})
 ok(pubWithStock.data.every((p) => typeof p.stock === 'number'), 'getPublicProducts 均带数值 stock（顾客端可售判断依据）')
 
+// ---------- 可选口味 specOptions（后台开关的数据面，顾客端口味选择器靠它）----------
+const flavorBad = Array.from({ length: 21 }, (_, i) => ({ label: `口味${i}` }))
+const flavorProd = await handleAdmin(env, 'createProduct', 'test-key-123', {
+  name: '口味测试薯片', price: 2.66,
+  specOptions: [{ label: ' 黄瓜味 ' }, { label: '黄瓜味' }, { label: '   ' }, '垃圾字符串',
+    { label: '烤虾味', enabled: false }, ...flavorBad],
+})
+const flavorOf = async () => (await handleAdmin(env, 'getProducts', 'test-key-123', {})).data.find((p) => p._id === flavorProd.data?._id)?.specOptions
+ok(flavorProd.code === 0 && Array.isArray(await flavorOf()), `createProduct 透传 specOptions 并可回读 (实际 ${JSON.stringify(await flavorOf())?.slice(0, 40)})`)
+const flavorSaved = await flavorOf()
+ok(flavorSaved.length === 20, `口味去重去空截断到 20 项上限 (实际 ${flavorSaved?.length})`)
+ok(flavorSaved[0].label === '黄瓜味' && flavorSaved[0].enabled === true, 'label 去首尾空白、缺省 enabled 视为显示')
+ok(flavorSaved.some((o) => o.label === '烤虾味' && o.enabled === false), 'enabled:false 原样落库（后台关掉即顾客端不显示）')
+ok(flavorSaved.every((o) => o && typeof o.label === 'string'), '任意非对象项被丢弃，不让脏 JSON 流到前端渲染')
+const flavorPub = (await handlePublic(env, 'getPublicProducts', {})).data.find((p) => p.name === '口味测试薯片')?.specOptions
+ok(Array.isArray(flavorPub) && flavorPub.length === 20, 'getPublicProducts 下发 specOptions（顾客端口味来源，不需管理密钥）')
+const flavorClear = await handleAdmin(env, 'updateProduct', 'test-key-123', { productId: flavorProd.data._id, specOptions: 'not-an-array' })
+ok(flavorClear.code === 0 && (await flavorOf()).length === 0, '非数组入参归零为空清单')
+await handleAdmin(env, 'deleteProduct', 'test-key-123', { productId: flavorProd.data._id })
+
 // ---------- 种子评价（需在写评价前，验证幂等）----------
 const seed = await handleAdmin(env, 'seedReviews', 'test-key-123', {})
 ok(seed.code === 0 && seed.data.added === 20, `seedReviews 写入 20 条 (实际 ${seed.data?.added})`)

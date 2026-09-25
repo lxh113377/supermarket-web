@@ -1,10 +1,14 @@
 import { useState } from 'react'
 import { updateProduct, createProduct } from '../../auth'
-import type { Category, Product } from '../../types'
+import type { Category, Product, SpecOption } from '../../types'
 
 // 管理后台商品内联编辑表单（从 ProductsTab 拆出，2026-09-23）。
 // ⚠️ 交互范式铁律（chaoshi-admin-inline-edit）：编辑表单必须展开在该条目正下方，
 // 严禁改成弹窗 / 抽屉 / 底部固定面板 —— 用户已连续三轮否决过那三种形态。
+
+// 可选口味上限（与服务端 sanitizeSpecOptions 同口径，前端先拦住，避免保存后才报错）
+export const SPEC_OPTION_LIMIT = 20
+const FLAVOR_MAX_LEN = 20
 
 export interface ProductForm {
   name: string
@@ -19,11 +23,14 @@ export interface ProductForm {
   order: number | string
   /** 库存储值串：''=不限售/不修改（禁把空串送服务端，Number('')===0 会被判为缺货） */
   stock: string
+  /** 可选口味：enabled=false 的项顾客端不渲染（数据保留，随时可再开） */
+  specOptions: SpecOption[]
 }
 
 export const emptyForm: ProductForm = {
   name: '', spec: '', price: 0, costPrice: '', subcategories: [],
   enabled: true, image: '', images: [], description: '', order: '', stock: '',
+  specOptions: [],
 }
 
 interface InlineEditFormProps {
@@ -47,15 +54,40 @@ export default function InlineEditForm({ product, categories, onClose, onSaved }
     images: Array.isArray(product.images) ? product.images : [],
     order: product.order ?? '',
     stock: typeof product.stock === 'number' && product.stock >= 0 ? String(product.stock) : '',
+    specOptions: Array.isArray(product.specOptions) ? product.specOptions : [],
   })
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
+  const [newFlavor, setNewFlavor] = useState('')
 
   const toggleSub = (subId: string) => {
     const subs = form.subcategories.includes(subId)
       ? form.subcategories.filter(s => s !== subId)
       : [...form.subcategories, subId]
     setForm({ ...form, subcategories: subs })
+  }
+
+  // 口味开关：只切显隐、不删数据 —— 「今天没进这个口味」不该把配置本身丢掉，
+  // 关掉后顾客端不再渲染这一项（见 utils/spec-options.ts 的 enabled 过滤）。
+  const toggleFlavor = (label: string) => {
+    setForm({
+      ...form,
+      specOptions: form.specOptions.map((o) =>
+        o.label === label ? { ...o, enabled: o.enabled === false } : o),
+    })
+  }
+
+  const removeFlavor = (label: string) => {
+    setForm({ ...form, specOptions: form.specOptions.filter((o) => o.label !== label) })
+  }
+
+  const addFlavor = () => {
+    const label = newFlavor.trim().slice(0, FLAVOR_MAX_LEN)
+    if (!label) return
+    if (form.specOptions.some((o) => o.label === label)) { setNewFlavor(''); return }
+    if (form.specOptions.length >= SPEC_OPTION_LIMIT) return
+    setForm({ ...form, specOptions: [...form.specOptions, { label, enabled: true }] })
+    setNewFlavor('')
   }
 
   const save = async () => {
@@ -166,6 +198,71 @@ export default function InlineEditForm({ product, categories, onClose, onSaved }
         rows={2}
         className={`mt-2 w-full ${inputCls} resize-none`}
       />
+      {/* 可选口味：点药丸切显隐（划线=顾客端不显示），× 删除，输入框追加 */}
+      <div className="mt-2" role="group" aria-label="可选口味（关掉即顾客端不显示）">
+        <p className="text-[11px] font-semibold text-gray-500 mb-1">
+          可选口味（关掉即顾客端不显示）
+          {form.specOptions.length > 0 && (
+            <span className="ml-2 font-normal text-gray-400">
+              {form.specOptions.filter((o) => o.enabled !== false).length}/{form.specOptions.length} 个在显示
+            </span>
+          )}
+        </p>
+        {form.specOptions.length === 0 && (
+          <p className="text-[11px] text-gray-400">未配置口味，该商品在顾客端不出现规格选择器</p>
+        )}
+        <ul className="flex flex-wrap gap-1 list-none p-0 m-0">
+          {form.specOptions.map((o) => {
+            const on = o.enabled !== false
+            return (
+              <li key={o.label} className="flex items-stretch">
+                <button
+                  type="button"
+                  onClick={() => toggleFlavor(o.label)}
+                  aria-pressed={on}
+                  aria-label={`口味 ${o.label} 当前${on ? '显示' : '已隐藏'}，点击切换`}
+                  title={on ? '点击在顾客端隐藏该口味' : '已隐藏，点击恢复显示'}
+                  className={`px-2 py-0.5 rounded-l text-[11px] border transition ${
+                    on
+                      ? 'bg-brand-500 text-white border-brand-500'
+                      : 'bg-white text-gray-400 border-gray-200 line-through'
+                  }`}
+                >
+                  {o.label}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => removeFlavor(o.label)}
+                  aria-label={`删除口味 ${o.label}`}
+                  title="从清单中删除"
+                  className="px-1.5 py-0.5 rounded-r text-[11px] border border-l-0 border-gray-200 bg-white text-gray-400 hover:text-red-500 transition"
+                >
+                  ×
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+        <div className="flex gap-1 mt-1.5">
+          <input
+            aria-label="新增口味名称"
+            placeholder={`新增口味（如 番茄味，最多 ${SPEC_OPTION_LIMIT} 个）`}
+            value={newFlavor}
+            maxLength={FLAVOR_MAX_LEN}
+            onChange={(e) => setNewFlavor(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addFlavor() } }}
+            className={`flex-1 min-w-0 ${inputCls}`}
+          />
+          <button
+            type="button"
+            onClick={addFlavor}
+            disabled={!newFlavor.trim() || form.specOptions.length >= SPEC_OPTION_LIMIT}
+            className="px-3 py-2 rounded-lg text-xs bg-white border border-gray-200 text-gray-600 hover:border-brand-300 disabled:opacity-40 transition"
+          >
+            添加
+          </button>
+        </div>
+      </div>
       <div className="flex flex-wrap gap-1 mt-2" role="group" aria-label="商品分类（可多选）">
         {categories.map(cat => cat.subcategories.map(sub => (
           <button

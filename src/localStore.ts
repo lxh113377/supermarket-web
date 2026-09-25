@@ -17,6 +17,8 @@ function seedToLocal(): Product[] {
     subcategories: p.subcategories || [],
     enabled: true,
     order: p.order,
+    // 可选口味必须带上：本地演示模式的详情页口味选择器就靠这一个字段
+    specOptions: p.specOptions || [],
   }))
 }
 

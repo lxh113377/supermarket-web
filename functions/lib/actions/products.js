@@ -6,6 +6,7 @@ import { PRODUCT_FIELDS } from '../shared.js'
 
 export function rowToProduct(row) {
   if (!row) return null
+  const opts = jparse(row.specOptions, [])
   return {
     _id: row._id,
     name: row.name,
@@ -18,6 +19,8 @@ export function rowToProduct(row) {
     image: row.image || '',
     images: jparse(row.images, []),
     description: row.description || '',
+    // 可选口味：脏值（非数组 / 老数据 NULL）一律回退空数组，前端据此不渲染选择器
+    specOptions: Array.isArray(opts) ? opts : [],
     reviews: jparse(row.reviews, []),
     // 库存：-1 = 不限售；NULL（历史行/迁移缝隙）按 -1 处理，禁 NaN 外溢
     stock: row.stock == null || Number.isNaN(Number(row.stock)) ? -1 : Math.trunc(Number(row.stock)),
@@ -37,7 +40,7 @@ export function rowToCategory(row) {
 
 export async function getPublicProducts(DB) {
   const rows = await qAll(DB,
-    `SELECT _id, name, spec, price, image, "order", subcategories, enabled, description, stock
+    `SELECT _id, name, spec, price, image, "order", subcategories, enabled, description, stock, specOptions
      FROM products WHERE enabled = 1 ORDER BY "order" ASC LIMIT 1000`)
   return { code: 0, data: rows.map(rowToProduct) }
 }
@@ -56,6 +59,7 @@ export async function createProduct(DB, payload) {
   const data = pick(payload, PRODUCT_FIELDS)
   data.enabled = data.enabled !== false
   sanitizeStock(data)
+  sanitizeSpecOptions(data)
   // 图片 scheme 白名单（纵深防御，管理端同样收敛）
   if (data.image && !isSafeImageUrl(data.image)) return { code: -1, message: '商品主图格式无效' }
   if (Array.isArray(data.images)) {
@@ -76,10 +80,31 @@ export function sanitizeStock(data) {
   }
 }
 
+// 可选口味入参收敛：只留 {label, enabled} 两个键，label 去空白、截 20 字、同名去重、上限 20 项。
+// 后台是唯一写入口，但服务端仍是信任边界 —— 非数组/字符串项/空 label 一律丢弃，绝不让任意
+// JSON 原样落库（前端会把 label 渲染成按钮文案）。
+export const SPEC_OPTION_LIMIT = 20
+export function sanitizeSpecOptions(data) {
+  if (!('specOptions' in data)) return
+  const raw = Array.isArray(data.specOptions) ? data.specOptions : []
+  const seen = new Set()
+  const out = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const label = String(item.label ?? '').trim().slice(0, 20)
+    if (!label || seen.has(label)) continue
+    seen.add(label)
+    out.push({ label, enabled: item.enabled !== false })
+    if (out.length >= SPEC_OPTION_LIMIT) break
+  }
+  data.specOptions = out
+}
+
 // 单商品更新核心逻辑（updateProduct 与 batchUpdateProducts 复用；字段白名单/图片 scheme/部分更新守卫统一在此）
 export async function applyProductUpdate(DB, productId, payload) {
   const data = pick(payload, PRODUCT_FIELDS)
   sanitizeStock(data)
+  sanitizeSpecOptions(data)
   // enabled 守卫：仅当显式传了 enabled 才更新上架状态，防止部分更新时静默重上架缺货商品
   if ('enabled' in payload) data.enabled = payload.enabled !== false
   // 图片 scheme 白名单（纵深防御）
