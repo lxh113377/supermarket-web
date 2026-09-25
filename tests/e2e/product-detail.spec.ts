@@ -10,8 +10,10 @@ import { test, expect } from '@playwright/test'
  * index.html 的 CSP `style-src 'self'` 会拦掉 Vite dev 注入的 <style>，
  * dev 下页面完全无样式，几何断言结构上不可能通过（已实测确认，非推测）。
  *
- * 商品 id 规则 = `p_` + order。东鹏特饮三条真实记录：
- *   16 盒装250ml ¥2.33 / 17 瓶装250ml ¥2.66 / 18 瓶装500ml ¥4.66
+ * 商品 id 规则 = `p_` + order。本轮口径下只剩两条规格来源（真实目录行）：
+ *   白象方便面 46 帮泡 ¥3.66 / 47 零售 ¥1.88 —— 跨记录聚合，选规格会换真实记录与单价；
+ *   乐事薯片 33 40g ¥2.66 —— 商品自带口味（specOptions），选口味不改价、不换图。
+ * 其余商品（含全部饮品）既无聚合组也无口味清单，页面不得长出选择器。
  */
 
 test.beforeEach(async ({ page }) => {
@@ -32,58 +34,67 @@ const mainPrice = (page: import('@playwright/test').Page) =>
   page.locator('p.text-3xl').first()
 
 test('缩略图列：点第 N 张真的换主图，并同步规格与价格', async ({ page }) => {
-  await open(page, 16)
+  await open(page, 46)
   const nav = page.getByRole('navigation', { name: /图片缩略图/ })
-  await expect(nav.locator('button')).toHaveCount(3)
+  await expect(nav.locator('button')).toHaveCount(2)
   const main = page.locator('[data-main-image] img')
-  await expect(main).toHaveAttribute('src', /\/images\/16\.webp/)
-  await nav.locator('button').nth(2).click()
-  await expect(main).toHaveAttribute('src', /\/images\/18\.webp/, { timeout: 5_000 })
-  await expect(page.getByRole('button', { name: '瓶装', exact: true })).toHaveAttribute('aria-pressed', 'true')
-  await expect(page.getByRole('button', { name: '500ml', exact: true })).toHaveAttribute('aria-pressed', 'true')
-  await expect(mainPrice(page)).toHaveText('¥4.66')
+  await expect(main).toHaveAttribute('src', /\/images\/46\.webp/)
+  await nav.locator('button').nth(1).click()
+  await expect(main).toHaveAttribute('src', /\/images\/47\.webp/, { timeout: 5_000 })
+  await expect(page.getByRole('button', { name: '零售装', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(mainPrice(page)).toHaveText('¥1.88')
 })
 
-test('选规格改价：2.33 → 4.66 随真实单价变化，不出现编造价格', async ({ page }) => {
-  await open(page, 16)
-  await expect(mainPrice(page)).toHaveText('¥2.33')
-  await page.getByRole('button', { name: '瓶装', exact: true }).click()
-  await page.getByRole('button', { name: '500ml', exact: true }).click()
-  await expect(mainPrice(page)).toHaveText('¥4.66')
+test('选规格改价：帮泡 3.66 → 零售 1.88 随真实单价变化，不出现编造价格', async ({ page }) => {
+  await open(page, 46)
+  await expect(mainPrice(page)).toHaveText('¥3.66')
+  await page.getByRole('button', { name: '零售装', exact: true }).click()
+  await expect(mainPrice(page)).toHaveText('¥1.88')
 })
 
-test('不存在的组合（盒装 + 500ml）自动回落并如实播报，不静默改用户规格', async ({ page }) => {
-  await open(page, 18) // 初始：瓶装 + 500ml
-  await expect(mainPrice(page)).toHaveText('¥4.66')
-  await page.getByRole('button', { name: '盒装', exact: true }).click()
+test('零售装不含口味：点它时口味自动清空并如实播报，不静默改用户规格', async ({ page }) => {
+  await open(page, 46)
+  await page.getByRole('button', { name: '山西老陈醋', exact: true }).click()
+  await expect(mainPrice(page)).toHaveText('¥3.66')
+  await page.getByRole('button', { name: '零售装', exact: true }).click()
   await expect(page.getByRole('status').filter({ hasText: '没有可售组合' }))
-    .toContainText('容量已自动切为「250ml」')
-  await expect(mainPrice(page)).toHaveText('¥2.33')
+    .toContainText('口味已自动切为')
+  await expect(mainPrice(page)).toHaveText('¥1.88')
 })
 
-test('口味色块的内联上色生效（React 走 CSSOM，不受 style-src 限制）', async ({ page }) => {
-  await open(page, 6) // 康师傅冰红茶 → 8 口味色块轴
-  const bg = await page.getByRole('button', { name: '绿茶', exact: true }).locator('span[aria-hidden="true"]')
-    .evaluate((el) => getComputedStyle(el).backgroundColor)
-  expect(bg).toBe('rgb(76, 122, 52)')
+test('口味不改价：乐事薯片选到烤虾味仍是 40g 的真实单价 2.66', async ({ page }) => {
+  await open(page, 33)
+  await expect(mainPrice(page)).toHaveText('¥2.66')
+  await page.getByRole('button', { name: '烤虾味', exact: true }).click()
+  await expect(mainPrice(page)).toHaveText('¥2.66')
+  await expect(page.getByText('规格：40g · 烤虾味')).toBeVisible()
 })
 
-test('加入购物袋后本地购物袋可见，数量可调，价格按所选规格入账', async ({ page }) => {
-  await open(page, 16)
-  await page.getByRole('button', { name: '500ml', exact: true }).click() // 切到瓶装 500ml ¥4.66
+test('所选口味写进购物袋与订单金额（商家要知道要哪一包）', async ({ page }) => {
+  await open(page, 33)
+  await page.getByRole('button', { name: '黄瓜味', exact: true }).click()
   await page.getByRole('button', { name: '增加购买数量' }).click() // 数量 2
   await page.getByRole('button', { name: '加入购物车' }).click()
-  await expect(page.getByText('已把 2 件「东鹏特饮」加入购物袋')).toBeVisible()
+  await expect(page.getByText('已把 2 件「乐事薯片」加入购物袋')).toBeVisible()
   await page.goto('/#/cart')
-  await expect(page.getByText('东鹏特饮').first()).toBeVisible()
-  // 4.66 × 2 = 9.32：走的是所选规格的真实单价，不是默认那条记录的 2.33
-  await expect(page.getByText(/9\.32/).first()).toBeVisible()
-  await page.getByRole('button', { name: '减少东鹏特饮' }).click()
-  await expect(page.getByText(/4\.66/).first()).toBeVisible()
+  await expect(page.getByText('乐事薯片').first()).toBeVisible()
+  await expect(page.getByText('40g · 黄瓜味').first()).toBeVisible()
+  // 2.66 × 2 = 5.32：口味不改价，走的就是这条商品记录自己的真实单价
+  await expect(page.getByText(/5\.32/).first()).toBeVisible()
+})
+
+test('加入购物袋按规格对应的那条真实记录入账（白象零售 1.88 × 2）', async ({ page }) => {
+  await open(page, 46)
+  await page.getByRole('button', { name: '零售装', exact: true }).click()
+  await page.getByRole('button', { name: '增加购买数量' }).click() // 数量 2
+  await page.getByRole('button', { name: '加入购物车' }).click()
+  await expect(page.getByText('已把 2 件「白象方便面」加入购物袋')).toBeVisible()
+  await page.goto('/#/cart')
+  await expect(page.getByText(/3\.76/).first()).toBeVisible() // 1.88 × 2
 })
 
 test('「立即购买」只弹演示摘要：不跳转、不建单、不发起支付', async ({ page }) => {
-  await open(page, 16)
+  await open(page, 46)
   const before = page.url()
   await page.getByRole('button', { name: '立即购买（演示摘要）' }).click()
   const dialog = page.getByRole('dialog', { name: '演示订单摘要' })
@@ -98,29 +109,42 @@ test('「立即购买」只弹演示摘要：不跳转、不建单、不发起�
 })
 
 test('任何视口下都只渲染一个「加入购物车」主按钮（宽屏右栏 / 窄屏吸底栏二选一）', async ({ page }) => {
-  await open(page, 16, { width: 1440, height: 900 })
+  await open(page, 46, { width: 1440, height: 900 })
   await expect(page.getByRole('button', { name: '加入购物车' })).toHaveCount(1)
   await page.setViewportSize({ width: 390, height: 844 })
   await expect(page.getByRole('button', { name: '加入购物车' })).toHaveCount(1)
   await page.getByRole('button', { name: '加入购物车' }).click()
-  await expect(page.getByText('已把 1 件「盒装东鹏特饮」加入购物袋')).toBeVisible()
+  await expect(page.getByText('已把 1 件「白象方便面」加入购物袋')).toBeVisible()
 })
 
-test('无变体数据的商品不长出规格选择器（不编造规格）', async ({ page }) => {
-  await open(page, 22) // 有糖可乐 罐装330ml，不在演示变体组
-  await expect(page.getByRole('button', { name: '包装', exact: true })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: '容量', exact: true })).toHaveCount(0)
+test('无规格数据的商品不长出规格选择器（不编造规格）', async ({ page }) => {
+  await open(page, 22) // 有糖可乐 罐装330ml：既无聚合组也无口味清单
+  await expect(page.getByText('版本', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('口味', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('包装', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('容量', { exact: true })).toHaveCount(0)
 })
 
-test('演示数据如实标注：变体聚合是演示交互、售后整块是演示文案', async ({ page }) => {
-  await open(page, 16)
+test('饮品的规格选择器已下线（东鹏不再有包装/容量，康师傅茶饮不再有口味色块）', async ({ page }) => {
+  await open(page, 16) // 盒装东鹏特饮
+  await expect(page.getByText('包装', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('容量', { exact: true })).toHaveCount(0)
+  await open(page, 6) // 康师傅冰红茶
+  await expect(page.getByText('口味', { exact: true })).toHaveCount(0)
+  await expect(page.getByText(/数据说明：/)).toHaveCount(0)
+})
+
+test('演示数据如实标注：规格聚合是演示交互、售后整块是演示文案', async ({ page }) => {
+  await open(page, 46)
   await expect(page.getByText(/数据说明：/)).toBeVisible()
   await expect(page.getByText(/演示交互/)).toBeVisible()
   await expect(page.getByText(/不构成任何真实承诺/)).toBeVisible()
+  await open(page, 33)
+  await expect(page.getByText(/口味清单由商家在管理后台维护/)).toBeVisible()
 })
 
 test('参数表存在且标明字段未经加工', async ({ page }) => {
-  await open(page, 16)
+  await open(page, 46)
   await expect(page.getByRole('heading', { name: '商品参数' })).toBeVisible()
   await expect(page.getByText('目录编号')).toBeVisible()
   await expect(page.getByText(/取自商品目录真实记录/)).toBeVisible()

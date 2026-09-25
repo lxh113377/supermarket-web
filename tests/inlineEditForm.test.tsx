@@ -77,3 +77,49 @@ describe('ProductInlineEditForm', () => {
     expect(await screen.findByText(/保存失败：只读账号/)).toBeTruthy()
   })
 })
+
+describe('可选口味开关（specOptions）', () => {
+  const chips = {
+    _id: 'p33', name: '乐事薯片', spec: '40g', price: 2.66, costPrice: 0, subcategories: [],
+    enabled: true, image: '', images: [], description: '', order: 33, stock: -1,
+    specOptions: [{ label: '原味' }, { label: '黄瓜味' }, { label: '烤虾味', enabled: false }],
+  }
+
+  it('回填：关掉的口味以未按下态呈现，计数只算在显示的', () => {
+    render(<InlineEditForm product={chips} categories={[] as never} onClose={() => {}} onSaved={() => {}} />)
+    expect(screen.getByRole('button', { name: /口味 原味 当前显示/ }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: /口味 烤虾味 当前已隐藏/ }).getAttribute('aria-pressed')).toBe('false')
+    expect(screen.getByText('2/3 个在显示')).toBeTruthy()
+  })
+
+  it('点开关只改显隐、不删数据，保存时按 enabled 一并下发', async () => {
+    render(<InlineEditForm product={chips} categories={[] as never} onClose={() => {}} onSaved={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: /口味 原味 当前显示/ }))
+    expect(screen.getByRole('button', { name: /口味 原味 当前已隐藏/ }).getAttribute('aria-pressed')).toBe('false')
+    fireEvent.click(screen.getByRole('button', { name: /保存|确定/ }))
+    await waitFor(() => expect(h.updateProduct).toHaveBeenCalled())
+    expect(h.updateProduct.mock.calls[0][1].specOptions).toEqual([
+      { label: '原味', enabled: false }, { label: '黄瓜味' }, { label: '烤虾味', enabled: false },
+    ])
+  })
+
+  it('新增与删除口味：同名不重复添加，空白不进清单', () => {
+    render(<InlineEditForm product={chips} categories={[] as never} onClose={() => {}} onSaved={() => {}} />)
+    const input = screen.getByLabelText('新增口味名称')
+    fireEvent.change(input, { target: { value: '  青柠味  ' } })
+    fireEvent.click(screen.getByRole('button', { name: '添加' }))
+    expect(screen.getByRole('button', { name: /^口味 青柠味/ })).toBeTruthy()
+    fireEvent.change(input, { target: { value: '青柠味' } })
+    fireEvent.click(screen.getByRole('button', { name: '添加' }))
+    fireEvent.change(input, { target: { value: '   ' } })
+    fireEvent.click(screen.getByRole('button', { name: '添加' }))
+    expect(screen.getAllByRole('button', { name: /^口味 青柠味/ })).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: '删除口味 黄瓜味' }))
+    expect(screen.queryByRole('button', { name: /^口味 黄瓜味/ })).toBeNull()
+  })
+
+  it('未配置口味的商品给出明说，而不是留一个空壳', () => {
+    render(<InlineEditForm product={{ ...chips, specOptions: [] }} categories={[] as never} onClose={() => {}} onSaved={() => {}} />)
+    expect(screen.getByText('未配置口味，该商品在顾客端不出现规格选择器')).toBeTruthy()
+  })
+})

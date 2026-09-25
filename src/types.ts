@@ -14,6 +14,12 @@ export interface Category {
   subcategories: Subcategory[]
 }
 
+/** 可选规格项（口味等）：enabled=false 由管理后台开关关掉，顾客端不渲染但数据保留 */
+export interface SpecOption {
+  label: string
+  enabled?: boolean
+}
+
 export interface Product {
   _id: string
   name: string
@@ -27,6 +33,8 @@ export interface Product {
   image?: string
   images?: string[]
   description?: string
+  /** 可选规格（口味）：由管理后台维护，enabled=false 的项顾客端不显示。见 utils/spec-options.ts */
+  specOptions?: SpecOption[]
   /** 库存（-1=不限售；下单即占用、取消回补，服务端强制。见 functions/lib/actions/orders.js） */
   stock?: number
   /** 商品内嵌评价（接口若一并下发则为 Review[]，此前写 unknown[] 会让下游必须强转） */

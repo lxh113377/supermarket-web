@@ -77,14 +77,34 @@ export const products: SeedProduct[] = [
   // 零食
   { name: '熊博士软糖', spec: '22g', price: 0.8, subcategories: ['snacks'], order: 31 },
   { name: '士力架', spec: '两条装', price: 4.88, subcategories: ['snacks'], order: 32 },
-  { name: '乐事薯片', spec: '40g', price: 2.66, subcategories: ['snacks'], order: 33 },
-  { name: '呀土豆薯条', spec: '40g', price: 2.66, subcategories: ['snacks'], order: 34 },
+  // 可选口味（specOptions）见 order 33/34/40/52 四款：清单 2026-09-25 网查整理（京东/
+  // 什么值得买/百度知道在售包装标注），同小包共用单价与实拍图；本店没进的口味由管理后台开关关掉即可。
+  {
+    name: '乐事薯片', spec: '40g', price: 2.66, subcategories: ['snacks'], order: 33,
+    specOptions: [
+      { label: '原味' }, { label: '黄瓜味' }, { label: '青柠味' }, { label: '番茄味' },
+      { label: '墨西哥鸡汁番茄味' }, { label: '意大利香浓红烩味' }, { label: '得克萨斯烧烤味' }, { label: '烤虾味' },
+    ],
+  },
+  {
+    name: '呀土豆薯条', spec: '40g', price: 2.66, subcategories: ['snacks'], order: 34,
+    specOptions: [
+      { label: '里脊牛排味' }, { label: '芝士培根味' }, { label: '番茄酱味' },
+      { label: '滋香烤鸡味' }, { label: '麻辣小龙虾味' },
+    ],
+  },
   { name: '彩虹糖', spec: '30g', price: 3.88, subcategories: ['snacks'], order: 35 },
   { name: '好多鱼', spec: '', price: 2.66, subcategories: ['snacks'], order: 36 },
   { name: '旺旺小小酥', spec: '18g', price: 0.88, subcategories: ['snacks'], order: 37 },
   { name: '卫龙大面筋辣条', spec: '', price: 0.88, subcategories: ['snacks'], order: 38 },
   { name: '仔仔棒', spec: '', price: 0.08, subcategories: ['snacks'], order: 39 },
-  { name: '好丽友好有趣薯片', spec: '40g', price: 2.66, subcategories: ['snacks'], order: 40 },
+  {
+    name: '好丽友好有趣薯片', spec: '40g', price: 2.66, subcategories: ['snacks'], order: 40,
+    specOptions: [
+      { label: '韩国泡菜味' }, { label: '多汁牛排味' }, { label: '蜂蜜黄油味' }, { label: '加勒比烤翅味' },
+      { label: '火鸡面味' }, { label: '见手青味' }, { label: '香菜塔可味' },
+    ],
+  },
   { name: '光头娃一根葱', spec: '', price: 0.33, subcategories: ['snacks'], order: 41 },
   { name: '纳宝帝nabati威化饼干', spec: '16g', price: 0.33, subcategories: ['snacks'], order: 42 },
   { name: '脆脆鲨', spec: '', price: 0.88, subcategories: ['snacks'], order: 43 },
@@ -100,7 +120,13 @@ export const products: SeedProduct[] = [
   // 新增商品
   { name: '优酸乳', spec: '200ml', price: 1.5, subcategories: ['sweet'], order: 50 },
   { name: '补水啦', spec: '900ml', price: 4.88, subcategories: ['energy'], order: 51 },
-  { name: '乐吧薯片', spec: '40g', price: 1.88, subcategories: ['snacks'], order: 52 },
+  {
+    name: '乐吧薯片', spec: '40g', price: 1.88, subcategories: ['snacks'], order: 52,
+    specOptions: [
+      { label: '海苔味' }, { label: '芥末味' }, { label: '鸡肉味' }, { label: '烧烤味' },
+      { label: '番茄味' }, { label: '泡菜味' }, { label: '咖喱牛肉味' }, { label: '香洋葱味' },
+    ],
+  },
 
   // 新增商品（2026-09-07）
   { name: '康师傅茉莉清茶', spec: '1L', price: 3.5, subcategories: ['tea', 'sweet'], order: 53 },

@@ -159,20 +159,31 @@ describe('CustomerPage 商城页', () => {
     await waitFor(() => expect(counter()).resolves.toContain('匹配「可乐」'))
   })
 
-  it('属于演示变体组的商品卡标出规格数；不带的商品不凭空长出一个规格', async () => {
-    // order 6 = 康师傅冰红茶，真实落在「康师傅 1L 茶饮 · 口味」组（8 条真实记录）
-    // order 22 = 有糖可乐，不在任何演示变体组里
+  it('有规格的商品卡标出规格数；无规格的商品不凭空长出一个规格', async () => {
+    // order 46 = 白象方便面（跨记录聚合组，2 条真实记录）；
+    // order 33 = 乐事薯片（后台 specOptions 里 8 项、其中烤虾味已关 → 7 个在显示）；
+    // order 22 = 有糖可乐（既无聚合组也无口味，不得长出角标）。
+    // 只留食品大类：/shop 默认落第一个大类，把三条样本都放进可见面里才数得准角标。
+    h.getCategories.mockResolvedValue([cats[1]])
     h.getProducts.mockResolvedValue([
-      { _id: 'p6', name: '康师傅冰红茶', spec: '1L', price: 3.66, order: 6, enabled: true, subcategories: ['sweet'] },
-      { _id: 'p22', name: '有糖可乐', spec: '罐装330ml', price: 2.66, order: 22, enabled: true, subcategories: ['sweet'] },
+      { _id: 'p46', name: '白象方便面', spec: '帮泡', price: 3.66, order: 46, enabled: true, subcategories: ['filling'] },
+      {
+        _id: 'p33', name: '乐事薯片', spec: '40g', price: 2.66, order: 33, enabled: true, subcategories: ['snacks'],
+        specOptions: [
+          { label: '原味' }, { label: '黄瓜味' }, { label: '青柠味' }, { label: '番茄味' },
+          { label: '墨西哥鸡汁番茄味' }, { label: '意大利香浓红烩味' }, { label: '得克萨斯烧烤味' }, { label: '烤虾味', enabled: false },
+        ],
+      },
+      { _id: 'p22', name: '有糖可乐', spec: '罐装330ml', price: 2.88, order: 22, enabled: true, subcategories: ['snacks'] },
     ])
     renderShop()
-    expect(await screen.findByText('8 种规格')).toBeTruthy()
-    expect(screen.getAllByText(/种规格/).length).toBe(1) // 只有变体组那条带角标
+    // 7 个未关掉的口味才算数：enabled:false 的烤虾味不能混进角标
+    expect(await screen.findByText('7 种规格')).toBeTruthy()
+    expect(screen.getByText('2 种规格')).toBeTruthy()
+    expect(screen.getAllByText(/种规格/).length).toBe(2) // 只有这两条带角标
     const cardOf = (n: string) => screen.getByText(n).closest('p')!
-    expect(cardOf('3.66').textContent).toContain('¥')
-    expect(cardOf('3.66').textContent).toContain('8 种规格')
-    expect(cardOf('2.66').textContent).not.toContain('种规格')
+    expect(cardOf('2.66').textContent).toContain('7 种规格')
+    expect(cardOf('2.88').textContent).not.toContain('种规格')
   })
 
   // ---- 阶段一新增：筛选态以 URL 为唯一真相 ----
