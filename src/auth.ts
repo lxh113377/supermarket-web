@@ -1,5 +1,5 @@
 import { IS_CLOUD } from './cloudbase'
-import { clearCatalogCache } from './catalogCache'
+import { withCacheInvalidation } from './catalogCache'
 import {
   upsertLocalProduct,
   upsertLocalProducts,
@@ -29,16 +29,7 @@ export {
   SUBMISSION_FIELDS, pickSubmissionFields,
 }
 
-// 商品写操作统一在此收口：无论成功还是抛错都失效目录缓存。
-// 用 finally 而非"仅成功时清"——请求可能已落库但响应解析失败，
-// 那种情况下不清缓存会让顾客端最长 60s 拿到旧数据，代价远大于多拉一次。
-async function withCatalogInvalidation<T>(fn: () => Promise<T>): Promise<T> {
-  try {
-    return await fn()
-  } finally {
-    clearCatalogCache()
-  }
-}
+// 商品/订单写操作的缓存失效统一走 catalogCache 的 withCacheInvalidation（finally 语义）。
 
 // 批量商品操作结果（与 backend.js batchUpdateProducts/batchDeleteProducts 返回对齐）
 export interface BatchMutationResult {
@@ -53,7 +44,7 @@ export async function updateProduct(productId: string, data: Record<string, unkn
     upsertLocalProduct({ _id: productId, ...pickProductFields(data) })
     return { ok: true }
   }
-  return withCatalogInvalidation(() =>
+  return withCacheInvalidation(() =>
     adminCall('updateProduct', { productId, ...pickProductFields(data) }),
   )
 }
@@ -65,7 +56,7 @@ export async function createProduct(data: Record<string, unknown>): Promise<{ co
     upsertLocalProduct({ _id: id, order: Date.now(), enabled: true, ...clean })
     return { ok: true, _id: id }
   }
-  return withCatalogInvalidation(() => adminCall('createProduct', clean))
+  return withCacheInvalidation(() => adminCall('createProduct', clean))
 }
 
 export async function deleteProduct(productId: string): Promise<{ code: number; message?: string; data?: unknown } | { ok: true }> {
@@ -73,7 +64,7 @@ export async function deleteProduct(productId: string): Promise<{ code: number; 
     deleteLocalProduct(productId)
     return { ok: true }
   }
-  return withCatalogInvalidation(() => adminCall('deleteProduct', { productId }))
+  return withCacheInvalidation(() => adminCall('deleteProduct', { productId }))
 }
 
 // 批量商品更新（items 逐条更新，支持每组不同 updates）；返回服务端成功/失败明细
@@ -82,7 +73,7 @@ export async function batchUpdateProducts(items: { productId: string; updates: R
     upsertLocalProducts(items.map((it) => ({ _id: it.productId, ...pickProductFields(it.updates) })))
     return { ok: true }
   }
-  return withCatalogInvalidation(() => adminCall<BatchMutationResult>('batchUpdateProducts', { items }))
+  return withCacheInvalidation(() => adminCall<BatchMutationResult>('batchUpdateProducts', { items }))
 }
 
 // 批量删除商品；返回服务端成功/失败明细
@@ -91,7 +82,7 @@ export async function batchDeleteProducts(productIds: string[]): Promise<{ code:
     deleteLocalProducts(productIds)
     return { ok: true }
   }
-  return withCatalogInvalidation(() => adminCall<BatchMutationResult>('batchDeleteProducts', { productIds }))
+  return withCacheInvalidation(() => adminCall<BatchMutationResult>('batchDeleteProducts', { productIds }))
 }
 
 export async function updateOrderStatus(orderId: string, status: string): Promise<{ code: number; message?: string; data?: unknown } | { ok: true }> {
@@ -103,7 +94,9 @@ export async function updateOrderStatus(orderId: string, status: string): Promis
     updateLocalOrderStatus(orderId, status as Order['status'])
     return { ok: true }
   }
-  return adminCall('updateOrderStatus', { orderId, status })
+  // 订单状态变更会在服务端改 products.stock（取消回补 / 误取消重新占用），
+  // 而顾客端商品列表（含 stock）正走 catalogCache ⇒ 不失效则同会话最长 60s 看到旧库存。
+  return withCacheInvalidation(() => adminCall('updateOrderStatus', { orderId, status }))
 }
 
 export async function deleteOrder(orderId: string): Promise<{ code: number; message?: string; data?: unknown } | { ok: true }> {
@@ -111,5 +104,6 @@ export async function deleteOrder(orderId: string): Promise<{ code: number; mess
     deleteLocalOrder(orderId)
     return { ok: true }
   }
-  return adminCall('deleteOrder', { orderId })
+  // 删除进行中订单同样回补库存，失效口径与 updateOrderStatus 一致
+  return withCacheInvalidation(() => adminCall('deleteOrder', { orderId }))
 }

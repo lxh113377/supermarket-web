@@ -45,3 +45,18 @@ export function cacheDel(key: string): void {
 export function clearCatalogCache() {
   _cache.clear()
 }
+
+// 写操作缓存失效统一收口：无论 fn 成功还是抛错都失效。
+// 用 finally 而非"仅成功时清"——请求可能已落库但响应丢失/解析失败，
+// 那种情况下不清缓存让读取方最长 60s 拿到旧数据，代价远大于多拉一次。
+// invalidate 默认全清；只影响局部键的写路径应传精确失效函数，避免把无关缓存一起抹掉。
+export async function withCacheInvalidation<T>(
+  fn: () => Promise<T>,
+  invalidate: () => void = clearCatalogCache,
+): Promise<T> {
+  try {
+    return await fn()
+  } finally {
+    invalidate()
+  }
+}

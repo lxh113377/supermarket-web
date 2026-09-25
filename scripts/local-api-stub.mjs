@@ -54,6 +54,9 @@ const STATS = {
 function dispatch(action) {
   switch (action) {
     case 'login': return { code: 0, data: { role: 'admin' } }
+    // verifyKey 必须有：AdminGuard 挂载时若 sessionStorage 里有密钥就会校验它。
+    // 缺这个 case 会落到 default 的 code:-1，浏览器用例里任何 reload/二次进入都被弹回密钥框。
+    case 'verifyKey': return { code: 0, data: { role: 'admin' } }
     case 'getDashboardStats': return { code: 0, data: STATS }
     case 'getProducts': return { code: 0, data: [] }
     case 'getOrders': return { code: 0, data: [], hasMore: false }

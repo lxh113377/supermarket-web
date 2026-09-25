@@ -113,7 +113,9 @@ jobs:
           retention-days: 1
 
   # 端到端冒烟（对标 P0-A3）：跑在 dev server 的本地演示模式，不依赖后端与 D1。
-  # 2026-09-24 已在 CI 实跑通过（4 条用例），转为阻断性门禁；改页面结构/文案需同步更新 tests/e2e/。
+  # 2026-09-24 起移除 continue-on-error，但当时 deploy.needs 只有 build-and-test ⇒ 本 job 红了
+  # 仍然照常部署，"阻断性门禁"那句 CHANGELOG/ci.yml 注释与实际不符（本轮 K2 才真正接入 needs）。
+  # 改页面结构/文案需同步更新 tests/e2e/。
   e2e:
     runs-on: ubuntu-latest
     steps:
@@ -141,13 +143,54 @@ jobs:
           if-no-files-found: ignore
           retention-days: 3
 
+  # 云端模式真渲染门禁（防线轮 K2）：生产构建 + 假桩 /web，断看板四张图真的画出 canvas
+  # 且全程零未捕获异常。存在的理由就是 2026-09-24 那起 P0：echarts 深路径模块零 export 被喂进
+  # core.use() → TypeError 落在无 catch 的 async IIFE 里 → 四图线上静默空白 19 天，
+  # 而单测/契约/e2e 全绿。这类缺陷只有"真浏览器 + 真生产包 + 真 echarts"看得见。
+  # 反例已实跑：把 useDashboardCharts 的 core.use 改回旧写法，本 job 报
+  # 「宿主内没有 canvas（静默空白回归）」与 pageerror「e.install is not a function」。
+  # 密钥：桩对任意非空密钥放行，生产密钥不进 CI 日志也不进产物。
+  # 不跑 verify:changelog ⇒ 无需 fetch-depth: 0（该门禁只在 build-and-test 跑）。
+  # 不定义 job 级 concurrency：继承 workflow 级按 ref 分组（固定组名会让 PR 与 main 互砍）。
+  # 回滚（若本 job 误拦部署）：把下面 deploy 的 needs 改回 build-and-test 一项即可退回非阻断。
+  e2e-cloud-stub:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      # webServer 自带 build:stub，产物在本 job 内现建（dist-stub 是 gitignored 派生件）
+      - name: Run cloud-mode e2e (stub backend)
+        run: npm run test:stub
+
+      - name: Upload playwright stub report (on failure)
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: playwright-stub-report
+          path: playwright-report-stub
+          if-no-files-found: ignore
+          retention-days: 3
+
   # 自动部署管理端+API 到 Cloudflare Pages（supermarket-web.pages.dev）
   # 仅 main push 触发（PR 不部署）；需仓库 Secrets 配置 CLOUDFLARE_API_TOKEN（Pages:Edit 权限）。
   # 未配置 token 时 Deploy step 跳过（不标红），配置后 push main 即自动部署。
   # 注意：secrets 上下文不能在 job 级 if 使用（会导致 workflow 解析失败），只能在 step 级判断。
   # 与 dispatch.yml（github.io 顾客端双发）互不冲突：本 job 直推 pages.dev，dispatch 走 repository_dispatch。
   deploy:
-    needs: build-and-test
+    # 防线轮 K2 起接三个：build-and-test（单测/契约/门禁）+ e2e（dev 演示模式功能冒烟）
+    # + e2e-cloud-stub（生产构建真渲染）。此前 needs 只有 build-and-test ⇒ e2e 红了照样部署，
+    # 属"判据假安全感"（2026-09-24 那起 19 天空白事故的检测失效模式）。
+    needs: [build-and-test, e2e, e2e-cloud-stub]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     env:

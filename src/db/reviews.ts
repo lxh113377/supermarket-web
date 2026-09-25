@@ -1,7 +1,7 @@
 // 评价读写（本地 localStorage + 云端 sm_reviews）
 import { IS_CLOUD } from '../cloudbase'
 import { adminCall, publicCall, pickReviewFields } from '../auth'
-import { cacheGet, cacheSet, cacheDel, clearCatalogCache } from '../catalogCache'
+import { cacheGet, cacheSet, cacheDel, withCacheInvalidation } from '../catalogCache'
 import { getLocalReviews, addLocalReview } from '../localStore'
 import type { Review } from '../types'
 
@@ -30,11 +30,12 @@ export async function addReview(
   })
   if (IS_CLOUD) {
     try {
-      const result = await adminCall('addPublicReview', clean)
-      if (result.code === 0) {
-        cacheDel(reviewsCacheKey(productOrder))
-        return result.data
-      }
+      // 失效放 finally：请求可能已落库但响应丢失，只在本商品评价列表这一键上失效（不动商品/分类缓存）
+      const result = await withCacheInvalidation(
+        () => adminCall('addPublicReview', clean),
+        () => cacheDel(reviewsCacheKey(productOrder)),
+      )
+      if (result.code === 0) return result.data
       throw new Error(result.message || '提交评价失败')
     } catch (e) {
       console.warn('[db] cloud addReview failed, saving locally:', e instanceof Error ? e.message : String(e))
@@ -82,20 +83,24 @@ export async function addCloudReview(
     text: String(review.text || ''),
     images: Array.isArray(review.images) ? review.images : undefined,
   })
-  const result = await adminCall('addReview', payload)
+  // 原写法把两次 cacheDel 放在抛错之后 ⇒ code!==0 或网络抛错时该商品与全量列表都脏读 60s
+  const result = await withCacheInvalidation(
+    () => adminCall('addReview', payload),
+    () => {
+      cacheDel(reviewsCacheKey(productOrder))
+      cacheDel(ALL_REVIEWS_KEY) // 失效管理端全量评价缓存，避免新增后列表停留旧数据
+    },
+  )
   if (result.code !== 0) throw new Error(result.message || '新增评价失败')
-  cacheDel(reviewsCacheKey(productOrder))
-  cacheDel(ALL_REVIEWS_KEY) // 失效管理端全量评价缓存，避免新增后列表停留旧数据
   return result.data as Review
 }
 
 // 管理员删除评价
 export async function deleteCloudReview(reviewId: string): Promise<boolean> {
   if (!IS_CLOUD) return true
-  const result = await adminCall('deleteReview', { reviewId })
+  // 未知 reviewId 属于哪个商品，保守全清可接受；失效放 finally 覆盖抛错路径
+  const result = await withCacheInvalidation(() => adminCall('deleteReview', { reviewId }))
   if (result.code !== 0) throw new Error(result.message || '删除评价失败')
-  // 删除后该商品评价缓存全清（未知 reviewId 对应商品，保守全清可接受）
-  clearCatalogCache()
   return true
 }
 

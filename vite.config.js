@@ -33,7 +33,7 @@ export default defineConfig({
     // 浏览器与 server，若被 vitest 收集会因缺少 browser fixture 而失败。
     // e2e-visual 是跑生产构建的那一套（CSP 会拦 dev 注入的 <style>，几何判据只能在 prod 下成立），
     // 新增 e2e* 目录时记得一并加进来。
-    exclude: ['node_modules/**', 'dist/**', 'tests/e2e/**', 'tests/e2e-visual/**'],
+    exclude: ['node_modules/**', 'dist/**', 'tests/e2e/**', 'tests/e2e-visual/**', 'tests/e2e-stub/**'],
     // 覆盖率棘轮（2026-09-24 对标第二轮 B1，补上一轮"暂不设阈值"的欠账）。
     // 分母钉死为 src/**：上一轮记的 43.72% 是"仅被测试加载到的文件"口径，新增未测文件不会
     // 让数字下降，可被绕过；钉死后的真实口径是 **19.68%**（页面层基本没测）。
@@ -47,16 +47,16 @@ export default defineConfig({
       include: ['src/**'],
       exclude: ['src/**/*.d.ts', 'src/**/index*'],
       thresholds: {
-        // 棘轮历史（statements）19.5 → 23 → 35 → 47 → 57 → 74 → 76（详情页变体层：
-        // variants 纯函数 34 例 + 详情页变体交互 16 例 + ProductGallery 缩略图列 7 例 + 列表页 3 例）。
-        // 本轮实测四项全部上升：statements 76.5 / branches 70.67 / functions 72.09 / lines 78.14。
-        // branches 历史上曾因 5s 轮询的时序分支出现 68.71/68.76 双跑差 1 条，故历来留 ~0.7pt 余量；
-        // 本轮按同样口径取 70（实测 70.67）。
+        // 棘轮历史（statements）19.5 → 23 → 35 → 47 → 57 → 74 → 76 → 78（防线轮 K1：
+        // apiClient 26 + localStore 29 + authWriteInvalidation 8 例，门面故障路径首次进断言）。
+        // 本轮实测四项 80.91 / 74.08 / 76.41 / 82.52，双跑逐位一致（无 5s 轮询那类时序抖动）。
+        // 阈值统一按"实测 −2pp 下取整"留余量：CI 跑 node22/ubuntu，本机 node24，
+        // 历史上 branches 曾因 1 条轮询时序分支双跑差 0.05pt，这 2pp 是给跨平台留的。
         // 只允许上升：让覆盖率下滑的改动必须显式改这里，逼出一次评审。
-        statements: 76,
-        branches: 70,
-        functions: 72,
-        lines: 78,
+        statements: 78,
+        branches: 72,
+        functions: 74,
+        lines: 80,
       },
     },
   },

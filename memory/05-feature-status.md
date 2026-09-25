@@ -19,6 +19,7 @@
 - [x] 订单查询页 #/order-query（2026-09-24，对标 litemall 订单跟踪）— 输单号看 5 步进度；成功页单号展示/复制/查询入口，sessionStorage 跨导航兜底
 - [x] 超时单工作台（对标第三轮 B5）— OrdersTab 内联面板接 `stalePendingReport`：汇总/库存占用明细/"已传付款截图"徽标/逐单取消（复用状态机+回补路径；禁弹窗；只读密钥静默降级）
 - [x] 工程防线（对标第三轮 C1/C2/B4）— 单 action SQL 语句峰值基线 `docs/sql-baseline.json`（verify-backend 内置，N+1 回归 CI 红）；生产依赖 license 白名单门禁 `verify:licenses`（GPL/AGPL/LGPL/SSPL/Elastic/未知拦）；页面层覆盖率 19.68%→23.65%，阈值棘轮 23/21/20/24
+- [x] 防线轮 K1+K2（2026-09-25）— 三块门面首次进故障路径断言（`api/client.ts` 超时/非 JSON/缺 code/网络抛错/端点选择/密钥退化、`localStore.ts` 播种判定/浅拷贝/越界钳制、`auth.ts` 写失败仍失效）；**修掉两处真实失效缺陷**（`db/reviews.ts` 三处"只在成功才失效" + `updateOrderStatus`/`deleteOrder` 零失效），收口为 `catalogCache.withCacheInvalidation(fn, invalidate?)`；新增真浏览器门禁 `e2e-cloud-stub`（生产构建 + 假桩，断四图真出 canvas 与零未捕获异常）并**首次把 `e2e` 与新 job 一起列入 `deploy.needs`**（此前 e2e 红了也照常部署）。631 用例 63 文件，stmts 80.91/branches 74.08/func 76.41/lines 82.52，棘轮 **78/72/74/80**。反例自证 18/18。详见 CHANGELOG 追加十八。
 - [x] 测试纵深（对标第七轮 H1/H2）— 管理端 OrdersTab(97%)/ProductsTab(89%) 与顾客端详情页/评价表单/评价列表/图集/Overlay/AdminGuard/prefetchBus/imageCompress 全部进测试：453 用例 56 文件，stmts 74.71%、lines 76.39%，棘轮 74/68/69/76；同轮修掉「图集只有一张图时详情页显示错图」（ProductGallery 单图分支忽略调用方传入图）
 - [x] 看板图表修复 + 可测性分层（对标第六轮 F1/P0）— echarts option 构造抽为 `utils/chartOptions.ts` 纯函数（主题/动效入参），hook 只管实例生命周期；**修掉生产包"四张图静默空白"**（side-effect 自注册模块被当 `use()` 入参 → `use(undefined)` 抛错被 async IIFE 吞）；新增 SSR 真库渲染测试 + 本地云端模式验收桩 `npm run build:stub && npm run serve:stub`（假密钥，无需生产密钥即可浏览器复核看板）
 - [x] 工程防线（对标第六轮）— CHANGELOG 门禁浅克隆自愈 + CI `fetch-depth: 0`；覆盖率 319 用例 / stmts 57.25%，棘轮 57/53/50/59

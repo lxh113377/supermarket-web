@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { cacheGet, cacheSet, clearCatalogCache, CATALOG_CACHE_TTL } from '../src/catalogCache'
+import { cacheGet, cacheSet, cacheDel, clearCatalogCache, withCacheInvalidation, CATALOG_CACHE_TTL } from '../src/catalogCache'
 
 // 每个用例前清空，避免用例间互相污染（缓存是模块级单例）
 beforeEach(() => {
@@ -77,5 +77,31 @@ describe('clearCatalogCache', () => {
     clearCatalogCache()
     cacheSet('publicProducts', ['new'])
     expect(cacheGet('publicProducts')).toEqual(['new'])
+  })
+})
+
+// withCacheInvalidation 是全部写路径失效的收口点，语义错则所有上游判据一起失去意义
+describe('withCacheInvalidation 收口语义', () => {
+  it('成功：返回值原样透传且执行失效', async () => {
+    cacheSet('publicProducts', ['p'])
+    await expect(withCacheInvalidation(async () => 'ok')).resolves.toBe('ok')
+    expect(cacheGet('publicProducts')).toBeNull()
+  })
+
+  it('抛错：异常原样上抛（不吞不改写），且 finally 仍失效', async () => {
+    cacheSet('publicProducts', ['p'])
+    const boom = new Error('请求超时')
+    await expect(withCacheInvalidation(() => Promise.reject(boom))).rejects.toBe(boom)
+    expect(cacheGet('publicProducts')).toBeNull()
+  })
+
+  it('自定义 invalidate 只清指定键，默认全清不误伤', async () => {
+    cacheSet('publicProducts', ['p'])
+    cacheSet('reviews:1', ['r'])
+    await withCacheInvalidation(async () => undefined, () => cacheDel('reviews:1'))
+    expect(cacheGet('reviews:1')).toBeNull()
+    expect(cacheGet('publicProducts')).not.toBeNull()
+    await withCacheInvalidation(async () => undefined)
+    expect(cacheGet('publicProducts')).toBeNull()
   })
 })
