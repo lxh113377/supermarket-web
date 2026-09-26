@@ -425,3 +425,41 @@ describe('workflow 排版骨架（job 必须在 jobs: 里，顶层键必须合�
     expect(allWorkflows.map(([f]) => f)).toContain('dispatch.yml')
   })
 })
+
+/**
+ * advisory job 的接线契约（第十轮：advisory 首跑在 CI 里输出 SKIPPED "取不到 PR 列表"）。
+ * 这类缺陷最阴的地方是**它不判红** —— 脚本按设计永远 exit 0，所以功能没上线也全绿。
+ * 唯一防线就是把"这个 job 到底有没有 token / 有没有 pull-requests 读权"钉成断言。
+ */
+function advisoryJobProblems(workflowText: string): string[] {
+  const lines = workflowText.replace(/\r\n/g, '\n').split('\n')
+  const start = lines.findIndex((l) => /^  pr-advisory:$/.test(l))
+  if (start < 0) return ['dispatch.yml 里已没有 pr-advisory job（advisory 判据随之失效，须显式撤销本断言）']
+  let end = lines.length
+  for (let i = start + 1; i < lines.length; i++) {
+    if (/^  [a-zA-Z0-9_-]+:$/.test(lines[i])) { end = i; break }
+  }
+  const body = lines.slice(start, end).join('\n')
+  const problems: string[] = []
+  if (!/GH_TOKEN:/.test(body)) problems.push('pr-advisory 的 step 没拿 GH_TOKEN ⇒ runner 上 gh 未鉴权，只会永久 SKIPPED')
+  if (!/pull-requests:\s*read/.test(body)) problems.push('pr-advisory 的 permissions 缺 pull-requests: read ⇒ GET /pulls 取不到')
+  if (!/report:pr-tests/.test(body)) problems.push('pr-advisory 不再调用 report:pr-tests（脚本已成孤儿）')
+  return problems
+}
+
+describe('advisory job 接线契约（没接线的判据等于没有判据）', () => {
+  const dispatch = readWorkflow('dispatch.yml')
+
+  it('本仓现状必须三项齐备', () => {
+    expect(advisoryJobProblems(dispatch)).toEqual([])
+  })
+  it('反例：抽掉 GH_TOKEN / 抽掉 pull-requests 读权 / 换成别的命令，都要点名', () => {
+    const noToken = dispatch.replace(/env:\s*\n\s*GH_TOKEN:[^\n]*\n/, '')
+    expect(advisoryJobProblems(noToken).join()).toContain('GH_TOKEN')
+    const noPerm = dispatch.replace(/pull-requests:\s*read/, 'contents: read')
+    expect(advisoryJobProblems(noPerm).join()).toContain('pull-requests')
+    const wrongCmd = dispatch.replace('npm run report:pr-tests', 'npm run lint')
+    expect(advisoryJobProblems(wrongCmd).join()).toContain('report:pr-tests')
+    expect(advisoryJobProblems('jobs:\n  other:\n    runs-on: x\n').join()).toContain('已没有 pr-advisory')
+  })
+})
