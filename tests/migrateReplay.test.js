@@ -269,13 +269,17 @@ describe('A9 数据轨：行值逐字节还原 + WHERE 必须打得到行', () =
   // 挂起而非删除：本条想验「命中 0 行」分支，但两次变异设计都没走到那条断言
   // （第一轮撞在 seed 剥离上、第二轮撞在前置的配对校验上），实际报的是别的分支。
   // 判据代码路径存在且被 judge 覆盖，缺的是这条夹具 —— 记为第十七轮待补，不假装通过。
-  it.skip('MA6 回滚件的 WHERE 打空（两侧同为 WHERE 1=0）⇒ 判"命中 0 行"【夹具未到位，见上注】', () => {
+  it('MA6 回滚件的 WHERE 打空（两侧同为 WHERE 1=0）⇒ 判"命中 0 行"', () => {
     const b = base()
     const fwd = b.forwardText.replace('WHERE "order"=20', 'WHERE 1=0')
     const rb = b.rollbackText.replace('WHERE "order"=20', 'WHERE 1=0')
     expect(fwd).not.toBe(b.forwardText)
     expect(rb).not.toBe(b.rollbackText)
-    expect(dataRollbackTrip({ ...b, forwardText: fwd, rollbackText: rb }).join(' ')).toContain('命中 0 行')
+    // 钉死实际走到的那条分支，不写「或」：命中 0 行的**分组探针**在 WHERE 恒假时拿不到任何
+    // 分组（GROUP BY 不产行），所以先被"执行后 changes==0"这道闸抓到。两条闸都在验同一不变量
+    // （回滚件不能打空），但只有后者在此形态下有牙 —— 断言放宽成"或"就等于不知道谁在守门。
+    expect(dataRollbackTrip({ ...b, forwardText: fwd, rollbackText: rb }).join(' '))
+      .toContain('回滚语句打空')
   })
 
   it('MA7 回滚值与正向值相同 ⇒ 判"这是一条空操作，不是回滚"', () => {

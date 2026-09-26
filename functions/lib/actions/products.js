@@ -136,10 +136,18 @@ export async function updateProduct(DB, payload) {
 
 // 批量更新：items = [{ productId, updates }]，逐条应用（同一 updates 或多组均可）。
 // 返回成功/失败明细而非整体回滚——批量场景部分失败可定位重试，避免并发 N 请求无明细。
+//
+// 上限推导（第十七轮 M2，替代原先拍的 200）：本 action 语句数 = 1 + n（第十四轮实测斜率 1），
+// D1 官方 limits 页「Queries per Worker invocation — 1000 (Workers Paid) / 50 (Free)」，
+// 本仓按最坏情况（免费档 50）设防 ⇒ n ≤ 49；再留 9 条给鉴权/限流/审计写入 ⇒ **40**。
+// 原先的 200 意味着「多选 50 个商品改价」在免费档下必然半途抛错，且前端只看到一次失败。
+// ⚠️ 与下面 batchDeleteProducts 的 200 不是一回事：那边语句数是常数，受的是 SQLite 999 绑定参数。
+// 两侧（本文件与 src/auth.ts 的分片大小）由 tests/batchChunkContract.test.js 钉住一致。
+export const BATCH_UPDATE_MAX = 40
 export async function batchUpdateProducts(DB, payload) {
   const { items } = payload
   if (!Array.isArray(items) || !items.length) return { code: -1, message: '缺少 items' }
-  if (items.length > 200) return { code: -1, message: '单次批量最多 200 个商品' }
+  if (items.length > BATCH_UPDATE_MAX) return { code: -1, message: `单次批量最多 ${BATCH_UPDATE_MAX} 个商品，请分批提交` }
   const failed = []
   let updated = 0
   for (const it of items) {
@@ -153,11 +161,14 @@ export async function batchUpdateProducts(DB, payload) {
 
 // 批量删除：productIds 数组，返回成功/失败明细
 // 2026-09-18 双向迭代 R6：由「逐条 DELETE」改为「1 次存在性查询 + 1 次批量 DELETE」，
-// 语句数从 O(N) 降为常数（N ≤ 200，远低于 SQLite 999 参数上限）。
+// 语句数从 O(N) 降为常数（1 次存在性查询 + 1 次批量 DELETE），所以这里的预算是**绑定参数数**
+// 而不是查询数：SQLite SQLITE_MAX_VARIABLE_NUMBER 旧默认 999，N=200 ⇒ 每条语句 200 个参数，安全。
+// 与 BATCH_UPDATE_MAX=40 差 5 倍是有原因的，两处都不是拍的 —— 见各自注释与 docs/limit-provenance.md。
+export const BATCH_DELETE_MAX = 200
 export async function batchDeleteProducts(DB, payload) {
   const { productIds } = payload
   if (!Array.isArray(productIds) || !productIds.length) return { code: -1, message: '缺少 productIds' }
-  if (productIds.length > 200) return { code: -1, message: '单次批量最多 200 个商品' }
+  if (productIds.length > BATCH_DELETE_MAX) return { code: -1, message: `单次批量最多 ${BATCH_DELETE_MAX} 个商品` }
   const ids = [...new Set(productIds.filter((id) => typeof id === 'string' && id))]
   if (!ids.length) return { code: -1, message: '缺少 productIds' }
   const ph = ids.map(() => '?').join(',')

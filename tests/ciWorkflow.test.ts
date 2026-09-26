@@ -138,6 +138,7 @@ describe('关键 step 存在性（改名即红，防"门禁静默消失"）', ()
     'Migration replay and baseline reconstruction check',
     'D1 round-trip complexity gate (slope vs input size)',
     'Function-level authorization coverage gate',
+    'Numeric limit provenance gate',
     'Production license gate',
     'CHANGELOG entry gate',
     'Bundle size budget (gzip, first-load)',

@@ -101,6 +101,10 @@ jobs:
       - name: Function-level authorization coverage gate
         run: npm run verify:authz
 
+      # 对标第十七轮：每个数值上限必须能追到一个真实约束（平台事实/列定义/产品决定）
+      - name: Numeric limit provenance gate
+        run: npm run verify:limits
+
       # 对标第三轮 C2：生产依赖（含传递）license 白名单，拦 GPL/AGPL 类传染（本项目 MIT 发布）
       - name: Production license gate
         run: npm run verify:licenses

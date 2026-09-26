@@ -7,6 +7,7 @@
 
 | 变量 | 种类 | 配置位置 | 未配置时行为 | 用途 |
 |---|---|---|---|---|
+
 | `ADMIN_KEY` | secret | Pages → Settings → Variables and Secrets；本地 `.dev.vars` | **fail-closed**：`resolveRole` 返回 null，非公开 action 一律「认证失败」（错误回显不泄露部署态） | 管理端主密钥 |
 | `ADMIN_READONLY_KEY` | secret | 同上 | 只读角色不存在：该密钥登录被拒，主密钥与管理写操作不受影响 | 只读查看密钥（禁止一切 `ADMIN_WRITE_ACTIONS`） |
 | `ALLOWED_ORIGINS` | plain | Pages Variables（逗号分隔） | 回退内置默认源（`supermarket-web.pages.dev` + `lxh113377.github.io`）并额外放行 localhost/127.0.0.1 本地开发 | CORS 精确放行白名单追加项 |

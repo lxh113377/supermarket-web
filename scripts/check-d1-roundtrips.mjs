@@ -13,6 +13,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join, relative } from 'node:path'
 import { parse } from '@babel/parser'
 import { openSqlite, createMeteredD1 } from './lib/metered-d1.mjs'
+import { fakeKv } from '../tests/helpers/fakeDb.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
@@ -187,13 +188,33 @@ export function scanLoopedDbCalls(files, projectRoot) {
 
 // ── 度量：在册 action 在两个规模下的 statements / roundTrips ────────────────
 export async function measure() {
+  // 测量期间把 Math.random 钉到 1：审计写入带 5% 概率的随机裁剪（security.js:112-118），
+  // 抽中就多一条语句 ⇒ 斜率会量到 +0.02 / −0.02 的**随机数**而不是回归。
+  // 取 max/取 min 都试过，都是拿统计去盖机制；直接把随机旁路关掉才是对症。
+  const realRandom = Math.random
+  // LCG 序列把随机源变成**每次不同但恒 >= 0.05** 的确定值：
+  //  下界 0.05 让审计的 5% 概率裁剪（security.js:118 `Math.random() < 0.05`）永不抽中；
+  //  值每次不同是因为 genId() 也吃 Math.random —— 上一版钉成常量 1，主键全同，
+  //  直接撞 `UNIQUE constraint failed: orders._id`（判据自己把被测路径搞坏了，还像"回归"）。
+  let seed = 20260927
+  Math.random = () => {
+    seed = (seed * 1103515245 + 12345) % 2147483648
+    return 0.05 + (seed / 2147483648) * 0.9
+  }
+  try { return await measureInner() } finally { Math.random = realRandom }
+}
+
+async function measureInner() {
   const db = openSqlite([
     readFileSync(join(root, 'db', 'schema.sql'), 'utf8'),
     readFileSync(join(root, 'db', 'seed.sql'), 'utf8'),
   ])
   const D1 = createMeteredD1(db)
   const be = await import(pathToFileURL(join(root, 'functions', 'lib', 'backend.js')).href)
-  const env = { DB: D1, ADMIN_KEY }
+  // RATE_KV 必须给：生产环境限流走 KV，不给就会退回 D1 写桶，
+  // 于是量到的是「生产不走的那条路」，且退桶本身在 60s 窗边界上条数不定（实测斜率忽 +0.02 忽 −0.02）。
+  // 探针必须打在被测对象真实走的路径上 —— 否则判据在测自己的夹具。
+  const env = { DB: D1, ADMIN_KEY, RATE_KV: fakeKv() }
   const productIds = db.prepare('SELECT _id FROM products WHERE enabled = 1 ORDER BY _id LIMIT 12').all().map((r) => r._id)
   for (const id of productIds) db.prepare('UPDATE products SET stock = 5000 WHERE _id = ?').run(id)
   const ghostIds = Array.from({ length: 50 }, (_, i) => `ghost-${i}`)
@@ -211,9 +232,9 @@ export async function measure() {
     if (warmRes.code !== -1 && warmRes.code !== 0) throw new Error(`${entry.name} 预热失败: ${warmRes.message}`)
     const point = []
     for (const n of entry.at) {
+      const payload = entry.payload(ctx, n)
       const s0 = D1.__counters.statements
       const r0 = D1.__counters.roundTrips
-      const payload = entry.payload(ctx, n)
       const res = entry.channel === 'admin'
         ? await be.handleAdmin(env, entry.name.slice(2), ADMIN_KEY, payload)
         : await be.handlePublic(env, entry.name.slice(2), payload)

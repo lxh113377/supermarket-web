@@ -68,12 +68,34 @@ export async function deleteProduct(productId: string): Promise<{ code: number; 
 }
 
 // 批量商品更新（items 逐条更新，支持每组不同 updates）；返回服务端成功/失败明细
+// 分片大小必须等于服务端 BATCH_UPDATE_MAX（40）：那边按 D1 免费档「每调用 50 查询」推导，
+// 这里只是把一次多选拆成若干次合法请求。由 tests/batchChunkContract.test.js 钉住两侧一致
+// （形态沿用 src/utils/spec-options.ts 与 orders.js 的口味分隔符双写 + 契约测试先例）。
+export const BATCH_UPDATE_CHUNK = 40
+
 export async function batchUpdateProducts(items: { productId: string; updates: Record<string, unknown> }[]): Promise<{ code: number; message?: string; data?: BatchMutationResult } | { ok: true }> {
   if (!IS_CLOUD) {
     upsertLocalProducts(items.map((it) => ({ _id: it.productId, ...pickProductFields(it.updates) })))
     return { ok: true }
   }
-  return withCacheInvalidation(() => adminCall<BatchMutationResult>('batchUpdateProducts', { items }))
+  return withCacheInvalidation(() => runInChunks(items))
+}
+
+// 逐片提交：某片失败不把整批判死，该片条目记进 failed —— 与服务端"部分失败可定位重试"同语义。
+async function runInChunks(items: { productId: string; updates: Record<string, unknown> }[]) {
+  let updated = 0
+  const merged: BatchMutationResult = { failed: [], total: items.length }
+  for (let i = 0; i < items.length; i += BATCH_UPDATE_CHUNK) {
+    const chunk = items.slice(i, i + BATCH_UPDATE_CHUNK)
+    const r = await adminCall<BatchMutationResult>('batchUpdateProducts', { items: chunk })
+    if (r.code !== 0) {
+      merged.failed.push(...chunk.map((c) => ({ id: c.productId, message: r.message || '分片提交失败' })))
+      continue
+    }
+    updated += r.data?.updated ?? 0
+    merged.failed.push(...(r.data?.failed ?? []))
+  }
+  return { code: 0, data: { ...merged, updated } }
 }
 
 // 批量删除商品；返回服务端成功/失败明细

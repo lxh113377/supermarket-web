@@ -190,3 +190,23 @@ describe('真链路实测（两条尺必须给出不同答案）', () => {
     expect(seed.maxStatements).toBeLessThanOrEqual(STATEMENT_BUDGET_FREE)
   })
 })
+
+describe('测量必须可重复（第十七轮：5% 随机裁剪曾让斜率忽 +0.02 忽 −0.02）', () => {
+  it('同一进程内跑两遍 measure()，各 action 的语句数/往返数逐项相等', async () => {
+    const a = (await measure()).rows
+    const b = (await measure()).rows
+    expect(b.map((r) => [r.name, r.maxStatements, r.maxRoundTrips]))
+      .toEqual(a.map((r) => [r.name, r.maxStatements, r.maxRoundTrips]))
+    // 非豁免项的斜率必须为 0（豁免项按设计就是线性的，交给 EXEMPT 清单解释）
+    const exempt = new Set(EXEMPT.filter((e) => e.action).map((e) => e.action))
+    for (const r of a) {
+      if (r.fixedShape || exempt.has(r.name)) continue
+      expect(r.rtSlope, `${r.name} 不该随规模增长`).toBe(0)
+    }
+  })
+
+  it('噪声源确实存在（否则上面的取 min 是在防一个不存在的鬼）', async () => {
+    const { readFileSync } = await import('node:fs')
+    expect(readFileSync('functions/lib/security.js', 'utf8')).toContain('Math.random() < 0.05')
+  })
+})
