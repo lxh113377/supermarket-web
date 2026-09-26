@@ -128,3 +128,12 @@ curl -s --proxy http://127.0.0.1:7897 -H "Authorization: Bearer $(printf 'protoc
   已在 Linux 容器实测 `test:stub` **3/3 绿**（`node scripts/ci-status.mjs` 只能等 runner 回来才验 GitHub 侧）。
 - 反例自证：任何"会判红"的新判据，必须配一个把实现改回朴素形态的变异体并实跑变红（本轮 18/18）。
 - 门禁的存在性看 **`needs` 列表**，不看注释里"具备阻断力"那句话。
+
+## 7. 第十轮新增的两种"不红即无存"失效形态（都真发生过）
+
+| 症状 | 一眼看不出的地方 | 定位命令 | 修法 |
+|---|---|---|---|
+| workflow 改了之后 **run failure 但 `jobs` 数组为空**（0 个 job，连 `Set up job` 都没有） | 会被误当"runner 配额问题"（那是 0-step **job**，不是 0-**job** run） | `gh run view <id> --json jobs --jq '.jobs \| length'` 与 `gh run view <id> --json conclusion` | 多半是 job 块被插到顶层 `jobs:` 之外 ⇒ 看文件 `grep -n "^jobs:\|runs-on:"`，`runs-on` 行号早于 `jobs:` 即确诊。已进门禁：`ciWorkflow.test.ts` 的排版骨架断言（顶层键白名单 + `runs-on` 必须在 `jobs:` 之后） |
+| advisory 类判据（设计上永不 exit 0）**长期空转**，CI 全绿 | 它不红，所以没人回头看它到底干了什么 | `gh run view <id> --log \| grep -a "pr-advisory\]"` 看是否只有 `SKIPPED` | 把"接线"本身变成断言：`advisoryJobProblems()` 要求同 job 内同时存在 `GH_TOKEN:`、`pull-requests: read`、`report:pr-tests` 三项，缺一即红。**判据不红 ≠ 判据在干活** |
+
+补一条通用口径：**"永远 exit 0"的判据必须配一条"它到底跑没跑"的断言**，否则它与不存在的判据完全等价。
