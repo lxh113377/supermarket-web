@@ -2,6 +2,10 @@
  * 目录事实对账的夹具（第十一轮 R11-H3）。
  * 网络一律不碰：CLI 只验"取不到 ⇒ BLOCKED"这条最容易被写错的路径。
  */
+// @vitest-environment node
+// ↑ 这三份测的是节点级门禁脚本（会 import node:sqlite），必须跑在 node 环境：
+//   jsdom 环境下 Vite 会尝试 bundle `node:sqlite` ⇒ ubuntu runner 直接报错（本机侥幸通过，
+//   CI 首跑抓到，第十一轮）。判据类测试不需要 DOM，声明 node 既更快也更诚实。
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
