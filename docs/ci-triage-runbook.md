@@ -137,3 +137,40 @@ curl -s --proxy http://127.0.0.1:7897 -H "Authorization: Bearer $(printf 'protoc
 | advisory 类判据（设计上永不 exit 0）**长期空转**，CI 全绿 | 它不红，所以没人回头看它到底干了什么 | `gh run view <id> --log \| grep -a "pr-advisory\]"` 看是否只有 `SKIPPED` | 把"接线"本身变成断言：`advisoryJobProblems()` 要求同 job 内同时存在 `GH_TOKEN:`、`pull-requests: read`、`report:pr-tests` 三项，缺一即红。**判据不红 ≠ 判据在干活** |
 
 补一条通用口径：**"永远 exit 0"的判据必须配一条"它到底跑没跑"的断言**，否则它与不存在的判据完全等价。
+
+## 8. 备份恢复演练与手动恢复（第十一轮 R11-H1，唯一权威流程）
+
+### 8.1 判据：备份必须先被证明"可恢复"才允许上传
+
+```
+node scripts/verify-backup-restore.mjs <dump.sql>        # 或 BACKUP_SQL=... npm run verify:restore
+```
+它把 dump **完整载进一次性内存 SQLite**（`node:sqlite`，零外部依赖、绝不落盘、绝不碰开发库），然后断六条：
+载入不抛错 → `PRAGMA integrity_check == ok` → `PRAGMA foreign_key_check` 零行 → 表集合与 `db/schema.sql`
+**双向**对账（缺表＝备份不完整；多表＝真相源漂移）→ `Σ各表行数 == 文本里 INSERT 语句数` → `products` 非空。
+
+退出码：`0` 可恢复 / `1` 判据不过（含 0 INSERT 的"schema 尸体"）/ `2` 文件缺失或参数缺失。
+**`2` 与 `0` 的区别是刻意的**：拿不到对象绝不能记绿（对标里 `frankensqlite` 那类 `exit 0` 是反面教材）。
+
+首跑就抓到一条真账：`schema_migrations` 一直只由 `scripts/migrate.mjs` 运行时 CREATE，从未进过全量真相源
+`db/schema.sql` ⇒ 判据报"备份里出现 schema.sql 之外的表"。修法是把表补进 schema.sql（修真值面），不是放宽判据。
+
+### 8.2 每日备份链的判据位置（顺序即语义）
+
+`导出 → 恢复演练 → 上传`。演练必须在上传**之前**；顺序错了不会红，只会静默失去意义
+（已钉成断言：`tests/ciWorkflow.test.ts` 的「备份链顺序」组）。
+
+### 8.3 手动恢复（真出事时照抄，别再凭记忆）
+
+```bash
+# 1) 下载当次 run 的 artifact，先核对 run summary 里记下的 sha256 与行数
+shasum -a 256 d1-backup.sql
+# 2) 本地先演一遍（同一判据，零副作用）
+node scripts/verify-backup-restore.mjs d1-backup.sql
+# 3) 确认要覆盖的是哪个库：--remote 打生产，不带就是本地，务必看清
+npx wrangler d1 execute supermarket --remote --file=d1-backup.sql
+# 4) 恢复后立即跑线上事实对账与冒烟
+npm run report:catalog && npm run smoke
+```
+注意：导出物是**全库覆盖式** SQL（含 `DELETE FROM sqlite_sequence`），恢复前务必先跑第 2 步并确认
+`products`/`orders` 行数量级符合预期；`security_events`/`rate_limits` 属可再生数据，恢复到生产无意义但无害。

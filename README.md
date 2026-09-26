@@ -69,7 +69,7 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN` 触发 `l
 
 ## CI
 
-`.github/workflows/ci.yml` 的 Test job 依序跑：**依赖漏洞审计**（`npm audit`，见下）→ 密钥扫描 → oxlint → **文件名大小写冲突自查** → **环境变量登记册对账** → vitest（**69 文件**，带 v8 覆盖率并卡棘轮阈值 79/72/74/80；用例条数以 `npm test` 当场输出为准，本文件不写死——写死即第二真相源）→ typecheck（前后端双配置）→ 循环依赖检查 → API 契约漂移 → **文档事实一致性** → **schema 漂移** → **license 白名单** → **CHANGELOG 门禁** → build（注入线上端点）→ 体积预算 → **Pages Functions 可部署产物检查**（编译 functions/，零部署）→ 后端契约验证（`scripts/verify-backend.mjs`，node:sqlite 模拟 D1）。
+`.github/workflows/ci.yml` 的 Test job 依序跑：**依赖漏洞审计**（`npm audit`，见下）→ 密钥扫描 → oxlint → **文件名大小写冲突自查** → **环境变量登记册对账** → **静态 CSP 自洽** → vitest（**72 文件**，带 v8 覆盖率并卡棘轮阈值 79/72/74/80；用例条数以 `npm test` 当场输出为准，本文件不写死——写死即第二真相源）→ typecheck（前后端双配置）→ 循环依赖检查 → API 契约漂移 → **文档事实一致性** → **schema 漂移** → **license 白名单** → **CHANGELOG 门禁** → build（注入线上端点）→ 体积预算 → **Pages Functions 可部署产物检查**（编译 functions/，零部署）→ 后端契约验证（`scripts/verify-backend.mjs`，node:sqlite 模拟 D1）。
 
 依赖审计固定走官方源（`npm run audit:deps`）：本机/镜像源 npmmirror **未实现 audit 端点**（实测 `NOT_IMPLEMENTED`），不指 registry 会让审计静默拿不到数据；端点故障时 npm audit 非 0 退出，不会假绿。
 
@@ -85,7 +85,14 @@ CI 另外两道卡口：**体积预算**（`scripts/check-bundle-size.mjs`，按
 
 三者自第八轮起都列入 `deploy.needs`（此前只有 `build-and-test`，即"红了也照常部署"——见 CHANGELOG 追加十八）。
 
-本地等价门禁一条命令跑完：`npm run verify`（密钥扫描 → lint → 大小写冲突 → **环境变量登记册** → 循环依赖 → 契约漂移 → **文档事实一致性** → schema 漂移 → license → CHANGELOG → typecheck → 测试 → 后端契约 → **Pages Functions 编译** → 未覆盖清单）。
+本地等价门禁一条命令跑完：`npm run verify`（密钥扫描 → lint → 大小写冲突 → **环境变量登记册** → **CSP 静态自洽** → 循环依赖 → 契约漂移 → **文档事实一致性** → schema 漂移 → license → CHANGELOG → typecheck → 测试 → 后端契约 → **Pages Functions 编译** → 未覆盖清单；另两道独立跑：`verify:restore`（备份恢复演练，由 d1-backup 调用）与 `report:catalog`（线上目录事实，由 Uptime 调用，只报告））。
+
+## 备份与恢复（唯一权威：`docs/ci-triage-runbook.md` §8）
+
+每日 04:00（北京）由 `.github/workflows/d1-backup.yml` 导出整库 SQL，**上传前必先过恢复演练**
+（`npm run verify:restore`：把 dump 载进一次性内存 SQLite，验 `integrity_check` / 外键 / 表集与
+`db/schema.sql` 双向对账 / 载入行数==文本 INSERT 语句数 / `products` 非空）。
+过不了就 exit 1 阻断上传——**没验证过能恢复的备份只是愿望**。手动恢复步骤与 sha256 核对法在 runbook。
 
 ## 环境变量
 

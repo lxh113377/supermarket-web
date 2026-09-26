@@ -37,3 +37,9 @@ jobs:
 
       - name: Probe production endpoints
         run: node scripts/uptime-check.mjs
+
+      - name: Catalog facts (seed vs live, report only)
+        # 第十一轮 R11-H3：新指标先量误报率再接闸。硬不变量违反 exit 1、取不到数据 exit 2，
+        # 本 step 一律 continue-on-error ⇒ 只出报文不改颜色；连续两次真跑无误报后再决定接成阻断。
+        continue-on-error: true
+        run: npm run report:catalog

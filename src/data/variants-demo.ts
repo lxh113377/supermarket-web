@@ -23,7 +23,6 @@ export const VARIANT_GROUPS: VariantGroup[] = [
       {
         id: 'edition',
         name: '版本',
-        kind: 'spec',
         options: [
           { id: 'help-soak', label: '帮泡装' },
           { id: 'retail', label: '零售装' },
@@ -32,7 +31,6 @@ export const VARIANT_GROUPS: VariantGroup[] = [
       {
         id: 'flavor',
         name: '口味',
-        kind: 'spec',
         options: [
           { id: 'shisanxiang', label: '十三香' },
           { id: 'mala', label: '麻辣香' },

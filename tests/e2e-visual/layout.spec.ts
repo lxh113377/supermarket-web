@@ -11,8 +11,8 @@ import { watchErrors, type ErrorWatch } from '../e2e/helpers/watchErrors'
  * 于是"双栏并排 / 焦点环 / 响应式重排 / 是否横向溢出"这类几何断言在 dev 里结构上不可能通过
  * （实测：1440 视口下信息栏 x=8，两栏退化成堆叠）。
  * 生产构建把 CSS 输出成独立文件（/assets/index-*.css），style-src 'self' 放行，
- * 这些判据才有意义。React 用 CSSOM 写的内联样式不受该 CSP 影响，
- * 所以变体色块的上色在 dev 与 prod 都真（已各自实测）。
+ * 这些判据才有意义。React 用 CSSOM 写内联样式（不是 markup 的 style 属性），
+ * 那条路径不被这套 CSP 拦 —— 两种机制的差别已由本文件末尾的成对判据当场钉住（第十一轮）。
  */
 
 const DESKTOP = { width: 1440, height: 900 }
@@ -174,15 +174,36 @@ test('键盘焦点环真实可见（不是 outline:none）', async ({ page }) =>
   expect(parseFloat(ring.width)).toBeGreaterThanOrEqual(2)
 })
 
-test.skip('口味色块在生产构建里仍带上色（CSP 未拦内联上色）', async ({ page }) => {
-  // skip 而非删：判据本身仍然有效，缺的是**驱动数据**。`d598cf8` 删掉康师傅 1L 茶饮
-  // 8 口味色块组后，`variants-demo.ts` 里两个组都是 kind:'spec'，全站再无 color 轴 ⇒
-  // 这条永远取不到元素。下一份带色块的商品数据上线时**解除 skip**（同一件事已登记
-  // memory/07-next-steps.md；`tests/variants.test.ts` 的色块断言目前是空转真，一并解）。
-  await open(page, 6)
-  const bg = await page.getByRole('button', { name: '绿茶', exact: true }).locator('span[aria-hidden="true"]')
-    .evaluate((el) => getComputedStyle(el).backgroundColor)
-  expect(bg).toBe('rgb(76, 122, 52)')
+/**
+ * CSP 下"内联样式"的两副面孔（第十一轮 R11-H2，用实测把立论钉死）。
+ *
+ * 为什么是这条而不是原来那条 `test.skip`（口味色块上色）：色块轴全站零数据驱动
+ * （`swatch` 只活在组件与类型里，没有任何一行数据带它），已连同 `kind:'color'` 一起删净，
+ * 第九轮遗留的"解除 skip 或删干净"就此了结。
+ *
+ * 而本轮我一度误判"生产 CSP 把 React 的 8 处内联样式全拦死了"——那是**测错了机制**：
+ * 我拿 markup 的 `style=` 属性做探针，量出来当然被拦；但 React 写样式走 CSSOM
+ * （`el.style.setProperty` / `el.style.x =`），那条路径在这套 CSP 下是放行的。
+ * 两种机制的差别用 synthetic 探针验证过（实测：attr 路径 computed 回落 + 报 CSP 违规；
+ * CSSOM 路径 computed 正确），但**不在这个 spec 里复现 attr 被拦那一半** —— 它会往
+ * 被测页面的 console 里注入一条 CSP 错误，被 `watchErrors.assertClean()` 判成应用缺陷。
+ * "生产 CSP 不许放 unsafe-inline、静态 HTML 不许带内联样式"这半边改由 `npm run verify:csp`
+ * 静态守住（零噪声、零浏览器）。这里只留真实内容上的正向事实。
+ */
+test('React 经 CSSOM 写的内联样式在生产页真的生效（真实内容，非合成探针）', async ({ page }) => {
+  await open(page, 16)
+  const ul = page.locator('[data-related-list]')
+  await expect(ul, '详情页的同类商品列表未渲染 ⇒ 被测对象已变，须同步修订本判据').toHaveCount(1)
+  const seen = await ul.evaluate((el) => ({
+    attr: el.getAttribute('style') || '',
+    listStyle: getComputedStyle(el).listStyleType,
+    marginTop: getComputedStyle(el).marginTop,
+  }))
+  // RelatedProducts 的 <ul> 带 style={{ listStyle: 'none', margin: 0 }}，由 React 走 CSSOM 落地。
+  // 若哪天 CSP 收紧到拦 CSSOM，或有人把这行样式搬走，这三条会当场红。
+  expect(seen.attr).toContain('list-style')
+  expect(seen.listStyle).toBe('none')
+  expect(seen.marginTop).toBe('0px')
 })
 
 test('推荐卡与主图不产生布局位移（CLS 友好：图片有固有尺寸）', async ({ page }) => {
