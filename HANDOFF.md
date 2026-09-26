@@ -176,7 +176,7 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN`（repo �
 | Pages 项目   | supermarket-web（`supermarket-web.pages.dev`）                                                              |
 | D1 数据库     | supermarket（id `4bfc0283-...`，binding `DB`）                                                               |
 | Workers KV | RATE\_KV（id `47242e45-...`，限流计数）                                                                          |
-| 管理密钥       | `ADMIN_KEY` = 64 位随机串（**2026-09-05 已轮换**，旧值 supermarket-admin-****（掩码；真值见 .dev.vars / Pages secret） 作废；生产 Pages secret 与本地 `.dev.vars` 同值） |
+| 管理密钥       | `ADMIN_KEY` = 短语型固定值（**2026-09-26 第三次回退为当前值**：09-25 转 public 前曾轮换为随机串，用户拍板换回便于手机输入的固定值并接受"该值明文在公开仓历史"的风险；生产 Pages secret 与本地 `.dev.vars` 同值，**真值不写进任何文档**）。⚠️ 改 secret 后必须重新部署才生效（坑 19）。轮换历史三轮：08-23 随机→重置、09-05 随机→回退、09-25 随机→09-26 回退 |
 | 只读密钥       | `ADMIN_READONLY_KEY`（可选）                                                                                  |
 | CORS 追加源   | `ALLOWED_ORIGINS`（逗号分隔，可选）                                                                                |
 

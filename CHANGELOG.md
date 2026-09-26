@@ -3,6 +3,25 @@
 本项目采用 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式。此前未维护本文件，历史条目按 git 提交记录补记（自 2026-09-23 起持续维护）。
 
 ## [未发布]
+### 2026-09-26 追加二十五（后台「认证失败」：旧密钥被轮换作废，按用户决定回退 + 红线补上取舍理由）
+
+- **用户报障**：手机微信打开 `supermarket-web.pages.dev/#/admin`，输 `supermarket-admin-2026` 报「验证失败：认证失败」。**不是缺陷**：该值已在 09-25「先轮换再转 public」的安全轮换中被作废。
+- **根因按线上实测定位**（不采信文档记载）：同一时刻打 `/web login` 双密钥对照 —— 旧值 `HTTP 200 code=-1 认证失败`、`.dev.vars` 现值 `HTTP 200 code=0`。⇒ 后端与鉴权链完好，纯粹是**用户手上的密码是已作废的旧值**，而 `AGENTS.md` 红线仍写着「固定值…禁止改回随机串」，与 09-25 的实际状态互相矛盾 —— **这条过期指令就是本次误报的直接来源**。
+- **处置（用户拍板「改回 supermarket-admin-2026」，风险已在选项里写明并接受）**：`wrangler pages secret put ADMIN_KEY`（`REAL_EXIT=0`）→ 同步 `.dev.vars`（写后回读全等）→ 由 push 触发 CI 重部让 secret 生效（坑 19：Pages secret 部署时注入，不重部不生效）。
+- **本轮没有用本地 dist 部署**：实测本地 `dist` 与线上指纹不同（入口 `index-qn5s3Rvh` vs `index-CkEVoWrj`），且**两次读 `dist/sw.js` 的 `CACHE_VERSION` 在 44 秒内变化**（`sm-v1790425412260`→`sm-v1790425455912`）⇒ 并行会话正在重建 dist。此时 `wrangler pages deploy dist` 会把他人在制产物（或坑 31 的半清空产物）推上线，故改走 CI 通道。
+- **文档接账**：`AGENTS.md` 红线由「固定值 + 禁止改回随机串」改写为四条可执行口径 —— ①真值只存 Pages secret 与 `.dev.vars`；②**弱密钥是用户的取舍而非待修缺陷，禁止 agent 擅自加固**（并列出 08-23 / 09-05 / 09-25→09-26 三轮反复的实测来历，让下一任不再"好心"轮换第四次）；③唯一必须轮换的场景 = 转 public/共享之前，且轮换后必须重部；④判"密码错还是文档旧"只认 `curl /web login` 的 `code`，不认文档。`HANDOFF.md` 凭证表同步更正（原写「64 位随机串已轮换、旧值作废」，回退后即为假信息）。
+- **残留风险（如实登记，不粉饰）**：现值明文存在于本仓 **10 个历史提交**（最早 `wrangler.toml` 的 `[vars]`，`4034aff` 才改掩码），本仓为 public ⇒ 任何翻历史者可进后台改价、删单、读取订单内的房间号/微信号（**含第三方个人信息**）。彻底收口需 `git filter-repo` 重写历史 + force-push，或把仓转回 private（转回即重新受 Actions 分钟计量约束）；两者均为破坏性/权益性操作，**待用户点头，本轮未做**。
+
+### 2026-09-26 追加二十四（对标第十二轮：备份链一直在"绿色零备份"，以及"注释冒充判据"）
+
+- **本轮最重要的一个发现是坏消息**：用 API 核 `D1 Daily Backup` 的真实历史 —— 自建链（09-24）以来**共 2 次 run，`conclusion` 都是 success，但 `Export remote D1` 与 `Upload backup artifact` 两步全是 `skipped`，artifact 数为 0**。根因是未配 `CF_D1_BACKUP_TOKEN` 时 `Detect backup token` 只发一条 `::warning::`，下游一律 `if: found == 'true'` ⇒ **沉默跳过 + 报绿**。⇒ 生产库**从未被这条链自动备份过**，而所有人看到的是绿的；盘上唯一真备份是 09-25 的手动导出物（`../_backup/supermarket-d1-pre-specoptions-20260925-184136.sql`，1,449,663B）。这也**纠正了第十一轮我自己写下的说法**（我写的是"非 private 会先响亮失败"）—— 守卫确实会拦，但它带 `if: found == 'true'`，token 缺席时**守卫本身也被跳过**，所以响亮失败从未发生。
+- **R12-H1 备份链存活判据（`scripts/check-backup-liveness.mjs` + `npm run check:backup-liveness`）**：不看 conclusion，看**产物与步骤实况**——要求存在一次"导出步骤 success + artifact ≥ 1 + run success"的 run 且在 2 天内；`runs` 为空 ⇒ 判红（零输入不记绿）；把"success 但 0 产物"的次数摊成 WARN 让形状可见；workflow 标识默认用**文件名** `d1-backup.yml`（实测 API 支持，免再往仓库塞数字 ID 变量）。接进 `Uptime`（每日），并配 job 级 `permissions: actions: read` + step 级 `GH_TOKEN`（第十一轮 pr-advisory 空转的直接复用）。12 条夹具（`tests/backupLiveness.test.js`，含 CLI 三档退出码与 fixture 注入面）。
+- **R12-H1b 沉默跳过改成响亮失败**：`d1-backup.yml` 新增 `Fail loudly instead of reporting a green no-op` step——未配 token 且未设仓库变量 `BACKUP_SKIP_OK=true` ⇒ `exit 1`。**默认状态是响亮**，要安静必须显式表态（"沉默跳过"就是本次事故的成因，不能继续占默认位）。
+- **R12-H3 catalog 接成阻断**：第十一轮定的"两轮无误报样本"条件已满足（本机 + Uptime run `36240825097` 逐项一致：28/54、漂移 27+1+22、重复 3+3）⇒ 摘掉 `continue-on-error`。硬不变量违反与取不到数据都会红；漂移仍只打印。
+- **两处自纠（都留了常驻夹具）**：① **注释冒充判据**——存活契约的反例首跑"抽掉 `actions: read` 却测不出问题"，因为我写的 YAML **注释**里就有 `actions: read` 字样，裸子串匹配把它当成了配置行。正解＝判据一律用**行首锚定的键形态**（`^[ 	]*actions:[ 	]*read[ 	]*$`），注释不参与。② **CRLF 又咬了一口**——变异正则 `/ +actions: read
+/` 在 CRLF 工作文本上匹配不到 ⇒ "抽掉"成了空操作、反例假过；现在夹具先把 texts 归一再改。
+- **本轮明确不做**：把备份产物搬到 R2/外部存储（需人开桶并决策）、把仓库转回 private（需人）、给 Uptime 加第三方心跳（ntfy/pushover/healthchecks.io 都要新 secret 与外部依赖；本仓已有 GitHub 失败邮件这一条可达通道，先用它，等出现"邮件没到"的证据再谈第二通道）。
+
 
 ### 2026-09-26 追加二十三（对标第十一轮：备份必须先被证明可恢复 + 一次"测错机制"的自纠）
 
