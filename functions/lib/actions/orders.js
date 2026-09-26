@@ -34,8 +34,10 @@ export function idempotencyKey(roomNumber, requestId, fingerprint) {
 
 // 内容指纹：只取"用户改一下就变成另一单"的字段，忽略服务端生成的 id/时间戳
 export function orderFingerprint({ roomNumber, wechat, remark, totalAmount, items, paymentScreenshot }) {
+  // 口味折在 items[].spec 里，必须参与指纹：否则同房间 90s 内「黄瓜味改成烤虾味」会被判成
+  // 重复单直接复用旧单，顾客改口味等于没改（与落库覆盖同属一条链，2026-09-26 一并修）。
   const lines = (Array.isArray(items) ? items : [])
-    .map((i) => `${i.productId}x${i.quantity}`)
+    .map((i) => `${i.productId}x${i.quantity}@${i.spec || ''}`)
     .sort()
     .join(',')
   const shot = typeof paymentScreenshot === 'string' ? `#${paymentScreenshot.length}` : ''
@@ -61,6 +63,28 @@ export async function findByFingerprint(DB, { roomNumber, fingerprint }) {
   return null
 }
 
+// 顾客所选口味 → 订单 items.spec 的取值口径。
+// 客户端把口味折进 spec 字符串（src/utils/spec-options.ts:53 的 `${spec} · ${label}`），
+// 服务端不能原样信任：只接受「该商品目录 spec」或商家在后台维护且未关掉的口味组合，
+// 其余（脏串、伪造、已下架口味、旧客户端不传）一律回落商品真值。
+// 名称/单价/库存仍全部取 DB 行，这里放行的只是"要哪一包"这个信息。
+export function allowedOrderSpecs(p) {
+  const base = (typeof p.spec === 'string' ? p.spec : '').trim()
+  const out = new Set([base])
+  for (const o of jparse(p.specOptions, [])) {
+    const label = typeof o?.label === 'string' ? o.label.trim() : ''
+    if (!label || o?.enabled === false) continue
+    out.add(base ? `${base} · ${label}` : label)
+  }
+  return out
+}
+
+function resolveOrderSpec(p, clientSpec) {
+  const base = typeof p.spec === 'string' ? p.spec : ''
+  const want = typeof clientSpec === 'string' ? clientSpec.trim() : ''
+  return want && allowedOrderSpecs(p).has(want) ? want : base
+}
+
 export async function createOrder(DB, payload) {
   const { roomNumber, items, wechat, remark, paymentScreenshot } = payload
   if (!roomNumber || !Array.isArray(items) || !items.length) return { code: -1, message: '订单数据不完整' }
@@ -71,7 +95,7 @@ export async function createOrder(DB, payload) {
   }
   const ids = items.map((it) => it.productId)
   const rows = await qAll(DB,
-    `SELECT _id, name, spec, price, enabled, subcategories, stock FROM products WHERE _id IN (${ids.map(() => '?').join(',')})`,
+    `SELECT _id, name, spec, specOptions, price, enabled, subcategories, stock FROM products WHERE _id IN (${ids.map(() => '?').join(',')})`,
     ids)
   const byId = new Map(rows.map((p) => [p._id, p]))
   let total = 0
@@ -84,7 +108,7 @@ export async function createOrder(DB, payload) {
     const qty = Number(item.quantity)
     if (!Number.isInteger(qty) || qty <= 0) return { code: -1, message: `商品数量无效: ${p.name}` }
     verified.push({
-      productId: p._id, name: p.name, spec: p.spec || '',
+      productId: p._id, name: p.name, spec: resolveOrderSpec(p, item.spec),
       price: Number(p.price) || 0, quantity: qty, subcategories: jparse(p.subcategories, []),
     })
     total += (Number(p.price) || 0) * qty

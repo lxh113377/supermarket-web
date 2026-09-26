@@ -3,6 +3,16 @@
 本项目采用 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式。此前未维护本文件，历史条目按 git 提交记录补记（自 2026-09-23 起持续维护）。
 
 ## [未发布]
+### 2026-09-26 追加二十六（后台看不到顾客选的口味：口味在下单落库那一步被目录静态值覆盖）
+
+- **用户报障**：管理后台看不到顾客下单时选的食品口味。
+- **根因（先实测再动手）**：`functions/lib/actions/orders.js` 的 `createOrder` 逐字段重建订单明细时写的是 `spec: p.spec || ''`，`p` 是 D1 商品行 ⇒ 取的是目录里的静态 `'40g'`；顾客选的口味（客户端折在 `items[].spec` 里，形如 `40g · 黄瓜味`）**在整个函数里从未被读取**。生产实证：最新订单 `o_muie7jsp46hlm2`（2026-09-26 20:55）买的是带 7 种口味的 `好丽友好有趣薯片`(p040)，库里 `spec` 只有 `"40g"`。链路其余各段（`getPublicProducts` 下发 specOptions、加购写入、`getOrders` 的 jparse、后台 `OrdersTab` 渲染 `item.spec`）实测均完好 ⇒ 断点唯一。
+- **第二条同类出口**：`orderFingerprint` 只取 `${productId}x${quantity}`，不含口味 ⇒ 同房间 90s 内"黄瓜味改成烤虾味"会被判成重复单直接复用旧单。**只修落库不修指纹，顾客改口味仍然等于没改**，故一并修。
+- **修法（放行"要哪一包"，不放开信任边界）**：新增 `allowedOrderSpecs(p)` / `resolveOrderSpec(p, clientSpec)`，只接受「目录 spec」或商家后台维护且 `enabled !== false` 的口味组合（口径与 `src/utils/spec-options.ts:53` 的 `${spec} · ${label}` 逐字对齐），清单外的串、`<script>` 脏串、后台已关掉的口味、旧客户端不传 spec —— 一律回落商品真值。名称/单价/库存仍全部取 DB 行。SELECT 补 `specOptions` 列（语句条数不变）。
+- **判据先行**：`scripts/verify-backend.mjs` 新增 7 条断言（落库 / 管理端读回 / 清单外回落 / 脏串回落 / 旧客户端兼容 / 关掉的口味拒收 / 幂等双向）。**修复前实测 5 FAIL**（含 `实际 "40g"` 正是用户看到的症状），修复后 **116 通过 / 0 失败**。另做**独立变异验证**：单独回退指纹改动（保留落库修复）⇒ `114 通过 / 2 失败`，证明两处各自承重，不是一处顺带带绿另一处。
+- **为什么此前全绿**：这条链从"加购"到"下单落库"之间**没有任何一道判据**。加购层测过（`tests/productDetailVariants.test.tsx` 断 `add` 收到 `40g · 黄瓜味`）、渲染层用自造夹具也测过（`tests/ordersTab.test.tsx` 直接塞 `items`），中间段是盲区；`tests/e2e/product-detail.spec.ts` 的用例名写着「口味写进购物袋**与订单**」，实际只走到购物车页就断言结束 —— **用例名承诺的范围比断言宽**，与本仓此前抓到的"承诺写了、判据没接"同族。
+- **本轮不做（已定位，属另一条链）**：`src/cart.ts:51-53` 按 `productId` 单键合行，同一商品先后选两个口味会并成一行并保留**第一次**那条的 spec，第二次选择在购物车层面就丢了。该缺陷在 `006a1b5` 提交说明里已登记但从未修。它改的是购物车键控（`removeFromCart`/`updateQuantity` 同用 productId 单键），blast radius 与本轮不同量级，单独排期。
+
 ### 2026-09-26 追加二十五（后台「认证失败」：旧密钥被轮换作废，按用户决定回退 + 红线补上取舍理由）
 
 - **用户报障**：手机微信打开 `supermarket-web.pages.dev/#/admin`，输 `supermarket-admin-****` 报「验证失败：认证失败」。**不是缺陷**：该值已在 09-25「先轮换再转 public」的安全轮换中被作废。

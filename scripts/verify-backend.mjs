@@ -271,6 +271,63 @@ const flavorClear = await handleAdmin(env, 'updateProduct', 'test-key-123', { pr
 ok(flavorClear.code === 0 && (await flavorOf()).length === 0, '非数组入参归零为空清单')
 await handleAdmin(env, 'deleteProduct', 'test-key-123', { productId: flavorProd.data._id })
 
+// ---------- 顾客所选口味必须落到订单（后台要知道这次要哪一包）----------
+// 这段补的是「加购 → 下单落库」之间的判据盲区：口味在加购层被测过
+// （tests/productDetailVariants.test.tsx 断 add 收到 '40g · 黄瓜味'），渲染层用自造夹具也测过
+// （tests/ordersTab.test.tsx 直接塞 items），中间 createOrder 用目录静态 spec 覆盖掉顾客选择
+// 这件事没有任何一道判据，所以线上表现为「后台看不到口味」而全绿。
+const itemsOf = (id) => JSON.parse(db.prepare('SELECT items FROM orders WHERE _id = ?').get(id).items)
+const flavorOrder = await handlePublic(env, 'createOrder', {
+  roomNumber: '311', items: [{ productId: 'p033', quantity: 1, spec: '40g · 黄瓜味' }],
+})
+ok(itemsOf(flavorOrder.data.id)[0].spec === '40g · 黄瓜味',
+  `顾客所选口味原样落库 (实际 ${JSON.stringify(itemsOf(flavorOrder.data.id)[0].spec)})`)
+const adminRead = await handleAdmin(env, 'getOrders', 'test-key-123', { page: 1, pageSize: 100 })
+ok(adminRead.data.find((o) => o._id === flavorOrder.data.id)?.items[0].spec === '40g · 黄瓜味',
+  '管理端 getOrders 能读回该口味（用户报障的就是这一环看不到）')
+
+// 口味只认商家在后台维护的清单：清单外的串、脏串、无口味商品一律回落商品真值，不原样入库
+const spoofOrder = await handlePublic(env, 'createOrder', {
+  roomNumber: '312',
+  items: [
+    { productId: 'p033', quantity: 1, spec: '40g · 鹤顶红味' },
+    { productId: 'p033', quantity: 1, spec: '<script>alert(1)</script>' },
+    { productId: 'p001', quantity: 1, spec: '随便编的规格' },
+  ],
+})
+const spoofSpecs = itemsOf(spoofOrder.data.id).map((i) => i.spec)
+ok(spoofSpecs[0] === '40g' && spoofSpecs[1] === '40g' && spoofSpecs[2] === '1L',
+  `清单外/脏 spec 回落商品真值，不原样入库 (实际 ${JSON.stringify(spoofSpecs)})`)
+const noSpecOrder = await handlePublic(env, 'createOrder', {
+  roomNumber: '313', items: [{ productId: 'p033', quantity: 1 }],
+})
+ok(itemsOf(noSpecOrder.data.id)[0].spec === '40g', '旧客户端（SW 长缓存）不传 spec 时仍取目录 spec')
+const flavorOffProd = await handleAdmin(env, 'createProduct', 'test-key-123', {
+  name: '口味开关测试薯片', price: 2.66, spec: '40g',
+  specOptions: [{ label: '毛血旺味' }, { label: '臭豆腐味', enabled: false }],
+})
+const offOrder = await handlePublic(env, 'createOrder', {
+  roomNumber: '314',
+  items: [
+    { productId: flavorOffProd.data._id, quantity: 1, spec: '40g · 毛血旺味' },
+    { productId: flavorOffProd.data._id, quantity: 1, spec: '40g · 臭豆腐味' },
+  ],
+})
+const offSpecs = itemsOf(offOrder.data.id).map((i) => i.spec)
+ok(offSpecs[0] === '40g · 毛血旺味' && offSpecs[1] === '40g',
+  `后台关掉的口味(enabled:false)拒收、开着的接受 (实际 ${JSON.stringify(offSpecs)})`)
+await handleAdmin(env, 'deleteProduct', 'test-key-123', { productId: flavorOffProd.data._id })
+
+// 幂等双向：换口味=两张单（否则第二次选口味被吞回旧单，修了落库也看不到）；
+// 但完全相同的重发必须照旧去重（防止把兜底改松这种"修一个坏一个"）
+const fA = await handlePublic(env, 'createOrder', { roomNumber: '315', items: [{ productId: 'p033', quantity: 1, spec: '40g · 黄瓜味' }] })
+const fB = await handlePublic(env, 'createOrder', { roomNumber: '315', items: [{ productId: 'p033', quantity: 1, spec: '40g · 烤虾味' }] })
+ok(fA.data.id !== fB.data.id && fB.data.deduplicated !== true && countRoom('315') === 2,
+  `同商品换口味再下单不被 90s 幂等吞掉 (库内 ${countRoom('315')} 张)`)
+const fDup = await handlePublic(env, 'createOrder', { roomNumber: '315', items: [{ productId: 'p033', quantity: 1, spec: '40g · 黄瓜味' }] })
+ok(fDup.data.id === fA.data.id && fDup.data.deduplicated === true && countRoom('315') === 2,
+  `同口味原样重发仍命中去重 (实际 ${fDup.data.id === fA.data.id ? '去重' : '新单'}，库内 ${countRoom('315')} 张)`)
+
 // ---------- 种子评价（需在写评价前，验证幂等）----------
 const seed = await handleAdmin(env, 'seedReviews', 'test-key-123', {})
 ok(seed.code === 0 && seed.data.added === 20, `seedReviews 写入 20 条 (实际 ${seed.data?.added})`)
