@@ -14,6 +14,8 @@
  *   node scripts/migrate.mjs apply --local
  *   node scripts/migrate.mjs apply --remote            # 生产：需先完成全量备份（见 chaoshi-web-deploy skill）
  *   node scripts/migrate.mjs mark <file> --remote --reason "上线前既有库，DDL 已人工执行"
+ *   node scripts/migrate.mjs bootstrap --local            # 全新库：schema.sql 全量 + 记满基线
+ *   node scripts/migrate.mjs bootstrap --remote --yes    # 仅限空库；非空即拒（防覆盖既有数据）
  *
  * 设计取舍：不引入 wrangler 原生 `d1 migrations` 目录约定，因为既有 6 个迁移已在线上人工执行过，
  * 换约定会让"哪个跑过"重新变成口头约定——账目表比目录约定更可证。
@@ -251,30 +253,60 @@ function migrationIsApplied(m, cat) {
   return null
 }
 
-// Flyway 的 baseline 语义：给"库已存在（由 schema.sql 全量建好 / 迁移早已人工跑过）"
-// 的存量库建立起点，避免把历史迁移重放一遍（裸 ALTER 重放必报错）。
-if (cmd === 'baseline') {
+// 共用标记循环：把"对象确实已在本库"的迁移记入账目（不执行任何 DDL）。
+// baseline 与 bootstrap 都走这一份实现，避免两条通道对"什么算已就位"各说各话。
+function markExisting(reason) {
   ensureLedger()
   const ledger = applied() ?? []
   const cat = catalog()
-  const reasonIdx = args.indexOf('--reason')
-  const reason = reasonIdx >= 0 ? args[reasonIdx + 1] : '基线：本库对象已就位，历史迁移不回重放'
   let marked = 0
   const skipped = []
   for (const m of all) {
     if (ledger.some((r) => r.name === m.file)) continue
     const missing = migrationIsApplied(m, cat)
     if (missing) { skipped.push(`${m.file}（${missing}）`); continue }
-    d1(`INSERT INTO ${LEDGER} (name, checksum, appliedAt, note) VALUES ('${m.file}', '${m.checksum}', '${new Date().toISOString()}', '${reason} (pre-${mode})')`)
+    d1(`INSERT INTO ${LEDGER} (name, checksum, appliedAt, note) VALUES ('${m.file}', '${m.checksum}', '${new Date().toISOString()}', '${reason}')`)
     console.log(`BASELINED ${m.file}`)
     marked += 1
   }
   for (const s of skipped) console.log(`SKIP ${s} —— 对象不在本库，属未执行迁移，不记基线`)
+  return { marked, skipped }
+}
+
+// Flyway 的 baseline 语义：给"库已存在（由 schema.sql 全量建好 / 迁移早已人工跑过）"
+// 的存量库建立起点，避免把历史迁移重放一遍（裸 ALTER 重放必报错）。
+if (cmd === 'baseline') {
+  const reasonIdx = args.indexOf('--reason')
+  const reason = reasonIdx >= 0 ? args[reasonIdx + 1] : '基线：本库对象已就位，历史迁移不回重放'
+  const { marked, skipped } = markExisting(reason)
   console.log(`\n==== ${mode}：${marked} 个历史迁移记为基线（未执行任何 DDL）/ ${skipped.length} 个待应用 ====`)
   process.exit(0)
 }
 
-fail(`未知子命令 ${cmd}（可用：status | apply | mark | baseline）`)
+// 全新 D1 的起点。为什么 baseline 不够：baseline 只记"对象已在本库"的迁移，
+// 而对空库 7 个迁移全部不满足 ⇒ 它会把 7 个都 SKIP，随后 apply 仍会在
+// `ALTER TABLE products ...` 上撞 `no such table: products`（第十三轮实测 5/7 失败）。
+// ⇒ 空库必须先由 schema.sql 建全量，再把历史迁移记满账，此后才轮到新迁移走 apply。
+if (cmd === 'bootstrap') {
+  ensureLedger()
+  const cat = catalog()
+  const userTables = [...cat.names].filter((n) => !n.startsWith('sqlite_') && n !== LEDGER)
+  if (userTables.length) {
+    fail(`bootstrap 只用于空库；目标(${mode}) 已有 ${userTables.length} 张业务表：`
+      + `${userTables.slice(0, 6).join(', ')}${userTables.length > 6 ? ' …' : ''}`
+      + ' —— 存量库请走 baseline，禁止拿全量基线覆盖既有数据')
+  }
+  if (mode === 'remote') await confirmRemote([{ file: 'db/schema.sql（全量基线，并把既有迁移记入账目）' }])
+  d1File(join(dbDir, 'schema.sql'), { quiet: true })
+  const { marked, skipped } = markExisting('基线：本库由 schema.sql 全新建立')
+  console.log(`\n==== bootstrap 完成（${mode}）：schema.sql 已灌入 / ${marked} 个历史迁移记入账目 / ${skipped.length} 个未就位 ====`)
+  if (skipped.length) {
+    console.log('   ⚠️ 有迁移未记入账目 = schema.sql 没覆盖到它的对象，请核对真相源是否漏同步。')
+  }
+  process.exit(0)
+}
+
+fail(`未知子命令 ${cmd}（可用：status | apply | mark | baseline | bootstrap）`)
 
 // 生产迁移是不可逆动作：非交互环境（CI）直接拒执行，交互式要求逐字输入库名。
 async function confirmRemote(pending) {

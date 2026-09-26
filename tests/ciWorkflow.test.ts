@@ -135,6 +135,7 @@ describe('关键 step 存在性（改名即红，防"门禁静默消失"）', ()
     'API contract drift check',
     'Doc facts consistency gate',
     'Schema drift check (migrations vs schema.sql)',
+    'Migration replay and baseline reconstruction check',
     'Production license gate',
     'CHANGELOG entry gate',
     'Bundle size budget (gzip, first-load)',

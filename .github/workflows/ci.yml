@@ -90,6 +90,9 @@ jobs:
       - name: Schema drift check (migrations vs schema.sql)
         run: npm run verify:schema
 
+      - name: Migration replay and baseline reconstruction check
+        run: npm run verify:migrate-replay
+
       # 对标第三轮 C2：生产依赖（含传递）license 白名单，拦 GPL/AGPL 类传染（本项目 MIT 发布）
       - name: Production license gate
         run: npm run verify:licenses
