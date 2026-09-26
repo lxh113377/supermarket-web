@@ -26,10 +26,12 @@ import { adminAiAdvice, pubAiChat } from './actions/ai.js'
 import { getDashboardStats } from './actions/stats.js'
 import { kvCacheGetJSON, kvCacheSet, invalidatePublicCatalog, invalidateDashboard, invalidateAiAdvice, AI_ADVICE_CACHE_KEY, DASHBOARD_CACHE_PREFIX } from './cache.js'
 
-// 管理端写操作（审计日志覆盖范围 + 只读密钥拦截范围）。
-// ⚠️ 审计必须覆盖全部 DB 变更类 action：遗漏即意味着只读密钥可执行该写操作
+// 管理端写操作（**审计日志覆盖范围**）。
+// ⚠️ 审计必须覆盖全部 DB 变更类 action：遗漏即意味着该写操作不留痕。
 // （2026-09-23 第三轮优化补齐：batch*/createOrder/recalculateOrders/add*/seedReviews/createSubmission
-// 原先不在集合内，只读密钥可绕过批量改价与种子导入）。
+// 原先不在集合内，只读密钥可绕过批量改价与种子导入。）
+// 第十五轮起：这个集合**不再承担授权判定**（见下方 ADMIN_READ_ACTIONS）；
+// 它仍是 scripts/api-contract.mjs 的契约真相源之一与审计口径，二者由 verify:authz 的 B8 对账。
 const ADMIN_WRITE_ACTIONS = new Set([
   'createProduct', 'updateProduct', 'deleteProduct',
   'batchUpdateProducts', 'batchDeleteProducts',
@@ -37,6 +39,19 @@ const ADMIN_WRITE_ACTIONS = new Set([
   'addReview', 'addPublicReview', 'seedReviews',
   'deleteOrder', 'updateOrderStatus',
   'deleteReview', 'createSubmission', 'updateSubmissionStatus', 'deleteSubmission',
+])
+
+// 只读密钥**显式可用**的 action 穷举表（对标第十五轮）。
+// 为什么要有它：此前判定是「action ∈ ADMIN_WRITE_ACTIONS ⇒ 拒」，
+// 于是**漏登的后果是"只读密钥也能做"**（默认允许）—— backend.js 原注释自己承认过这件事（2026-09-23 补齐 6 项）。
+// 现在方向扳正为「未登记为可读 ⇒ 拒」（OWASP Top 10 A01:2021 原文 "Except for public resources, deny by default."；
+// ASVS 5.0.0 条款 8.2.1 要求 function-level access 限定给"explicit permissions"；Directus 文档 "All public permissions are off by default."）。
+// 穷举性由 scripts/check-action-authz.mjs 的 B8 保证：漏登的后果从此是「只读密钥也用不了」，且 CI 当场判红。
+// 禁止加 default 兜底分支把漏登洗绿（借 Go `exhaustive` 的 default-signifies-exhaustive=false 立场）。
+const ADMIN_READ_ACTIONS = new Set([
+  'login', 'verifyKey', 'getProducts', 'stalePendingReport', 'getOrders', 'getOrder',
+  'getPublicProducts', 'getPublicCategories', 'getAllReviews', 'getReviews', 'getOrderStatus',
+  'getSubmissions', 'getSubmissionImages', 'aiAdvice', 'getDashboardStats',
 ])
 
 // 会影响看板聚合结果的写操作（2026-09-18 R6）：成功后必须让看板缓存即时失效，
@@ -65,9 +80,9 @@ export async function handleAdmin(env, action, adminKey, payload = {}, request =
     }
     return authErr
   }
-  // 权限细分：只读密钥禁止管理写操作
+  // 权限细分：只读档只允许"显式登记为可读"的 action（默认拒绝；第十五轮扳正方向）
   const role = resolveRole(adminKey, env)
-  if (role === 'readonly' && ADMIN_WRITE_ACTIONS.has(action)) {
+  if (role === 'readonly' && !ADMIN_READ_ACTIONS.has(action)) {
     return { code: -1, message: '只读账号不能执行该操作' }
   }
   // aiAdvice 独立限流（2026-09-23 P2 补齐）：全量查询 + Dify 推理，单次成本远高于普通读。

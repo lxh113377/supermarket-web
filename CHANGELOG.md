@@ -4,6 +4,24 @@
 
 ## [未发布]
 
+### 2026-09-27 追加三十（对标第十五轮：只读密钥的写清单有没有漏 —— 函数级授权的可证性）
+
+- **取号先列盘**：`grep -oE "追加[零一二三四五六七八九十]+" CHANGELOG.md` 实测当日最高「二十九」⇒ 本条取「三十」。
+
+- **轴**：第十四轮量"打几回数据库"，这一轮量**"谁能打"**。OWASP A01（Broken Access Control）最典型的失效形态就是"新 handler 默认不做函数级鉴权"；本项目恰好是它的镜像：只读密钥的禁写清单 `ADMIN_WRITE_ACTIONS` 是**手工维护的 Set**，而它**自带的注释**就写着「⚠️ 审计必须覆盖全部 DB 变更类 action：遗漏即意味着只读密钥可执行该写操作」，并注明 2026-09-23 一次补齐 6 个漏登项 ⇒ **清单被承认必须全覆盖，却没有任何判据证明它覆盖了**。新增写 action 的默认状态是"只读账号也能做"，且 CI 全绿。与第十三轮"契约外 SQL 文件对账本与门禁双向隐形"同族，被管对象从文件换成权限。
+- **R15-H1 新门禁 `npm run verify:authz`（纯静态、零凭据、判据核心不碰磁盘）**：业务表面 ← `db/schema.sql` 全部表 − 具名副作用表白名单（`rate_limits` 限流 / `security_events` 审计（含 auth_failed，写它正是鉴权失败时的行为）/ `ai_calls` 观测 / `schema_migrations` 账本，逐条带 why）；业务写 action 集 ← `backend.js` 的 switch 路由 → 处理函数 → AST 可达 SQL 命中的表；与从源码里解析出的 `ADMIN_WRITE_ACTIONS` 做**双向差集**。B1 三面非空／B2 漏登即红／B3 死项即红／B4·B4b `/pub` 业务写须逐条具名允许且清单不得潜伏死项／B5 `/pub` 路由集 ⇄ `PUBLIC_ACTIONS` 集相等／B6 副作用表白名单须真实且逐条有因／B7 未归类新表默认落进业务面（fail-closed 的那一半）。
+- **现状结论（如实）**：**16 个业务写 ⇄ 16 条登记，双向相等 ⇒ 当前没有活漏洞**，本轮补的是"保持正确的机制"，不是修一个正在漏的门。这一点写进判据输出行，避免下一轮把它读成"已修缺陷"。
+- **变异首跑抓到判据自身两个洞（`tests/actionAuthz.test.js` 14 条）**：① **插值表名的写会隐身** —— `writtenTables` 先把模板各段用 `@` 拼起来、再判 `text` 里有没有 `${`，标记被自己抹掉了 ⇒ `DELETE FROM ${t}` 这类动态表名的写**逃过业务面**；现改判"quasis 段数 > 1 即为插值"并记 `@dyn`（真仓里的 `INSERT INTO ${table}` 由 `insert(DB,'orders',…)` 的字面量参数规则覆盖，故现状不变）。② **变异必须自证落盘** —— 三处 `String.replace` 因 **CRLF** 静默空转，判据不红被读成"机制没问题"；现统一在 `loadSources()` 入口把四路源码 `
+ → 
+`（本仓 `core.autocrlf=true`，未被我改的文件在盘上是 CRLF、我写的是 LF，判据不能依赖行尾形态），测试侧加 `patch()`：替换未命中即抛，禁止"没改到"冒充"没毛病"。
+- **可反证性**：判据核心 `evaluate({schemaSql, backendSrc, securitySrc, files}, opts)` 是纯函数，源码由 `loadSources()` 注入 ⇒ 变异在内存里做，不往受管根写临时文件（R249）。夹具含"只读 handler 被加了 DELETE"“新表 promotions + 写它的 handler""PUBLIC_ACTIONS 少一项""清单里塞死项""幽灵副作用表""原因太短""switch 取数链断了"七类反例，各绑一条判据 id，并有"真仓全绿"对照。
+- **默认方向扳正（本轮真正的安全收益，不只是加判据）**：新增 `ADMIN_READ_ACTIONS` 穷举表（15 项），只读档的判定式由 `ADMIN_WRITE_ACTIONS.has(action)` 改为 **`!ADMIN_READ_ACTIONS.has(action)`**。差别在漏登后果：旧写法"没登记 = 只读密钥也能做"（默认允许），新写法"没登记 = 谁都做不了"（默认拒绝）。依据为当日取证原文：OWASP Top 10 A01:2021 **"Except for public resources, deny by default."** 与 **"Accessing API with missing access controls for POST, PUT and DELETE."**；ASVS 5.0.0 **8.2.1** "function-level access is restricted to consumers with **explicit permissions**"、4.0.3 **4.1.5** "access controls **fail securely**"；Directus 文档 **"All public permissions are off by default."**；Spring 文档 **"Denying the request by default is a healthy security practice since it turns the set of rules into an allow list."**
+- **为什么不照抄 cancan/Pundit 的形态**：cancan 的 `check_authorization` 挂在 **`after_action`**（动作体已执行完才判红，写副作用早已落地），Pundit README 更自述其校验 **"is not some kind of failsafe mechanism or authorization mechanism. You should be able to remove these filters without affecting how your app works in any way."** ⇒ 二者是**完整性断言**不是拦截器。我方把穷举表放在**派发之前**做真实拦截，并把 Go `exhaustive` 的 `default-signifies-exhaustive=false` 立场落成 B8b（禁止 default 兜底把漏登洗绿）。
+- **B8/B8b 两条新判据**：只读穷举表存在且**判定式真的接在链路上**（正则回读源码，防"表建了没人读"= 半成品）；穷举表 ⇄ 路由 ∪ 写清单 两侧相等且互斥（三态分别点名：仅在穷举表 / 两侧都不在 / 读写交叉）。夹具 M12 摘一项 ⇒ 精确点名该 action；M13 把判定式退回看写清单 ⇒ B8 判红；M14 读写交叉 ⇒ B8b 判红。`verify:backend` 116 条断言在扳正后**一字未改仍全绿**（读档 15 项逐条放行、写档 16 项逐条拒），证明本轮是语义加固而非行为变更。
+- **接线**：`verify` 链在 `verify:roundtrips` 之后插入 `verify:authz`；`ci.yml` 新增 step `Function-level authorization coverage gate`；`tests/ciWorkflow.test.ts` 的 `REQUIRED_STEPS` 同步加名；`README.md` CI 链描述与单测文件数（76→77）随 `verify:docs` 口径同步。
+- **未做（如实）**：本轮只做到"清单与代码同面"，**没有**把两档密钥改成角色/权限表（那是产品与安全边界的双人决策，且线上 secret 变更须先加载 `chaoshi-web-deploy` skill）；第十四轮遗留 P0-M1（rollback 往返判据）本轮复核后再降一轮，障碍与 recipe 见 `memory/07-next-steps.md`。
+
+
 ### 2026-09-27 追加二十九（对标第十四轮：一次业务动作打多少次 D1 —— 往返数与语句数是两把尺）
 
 - **取号先列盘**：`grep -oE "追加[一二三四五六七八九十百零]+" CHANGELOG.md` 实测当日最高「二十八」⇒ 本条取「二十九」（不照上下文快照取号）。

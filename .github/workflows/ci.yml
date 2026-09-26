@@ -97,6 +97,10 @@ jobs:
       - name: D1 round-trip complexity gate (slope vs input size)
         run: npm run verify:roundtrips
 
+      # 对标第十五轮：只读密钥的写操作清单必须与「代码实际会改业务数据的 action」双向相等
+      - name: Function-level authorization coverage gate
+        run: npm run verify:authz
+
       # 对标第三轮 C2：生产依赖（含传递）license 白名单，拦 GPL/AGPL 类传染（本项目 MIT 发布）
       - name: Production license gate
         run: npm run verify:licenses

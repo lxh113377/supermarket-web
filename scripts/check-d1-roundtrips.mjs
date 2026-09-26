@@ -201,6 +201,14 @@ export async function measure() {
 
   const rows = []
   for (const entry of REGISTER) {
+    // 预热一次再取两端样本：首个进 handleAdmin 的调用会多一次限流桶写入
+    // （rate_limits 在 60s 真实窗边界上语句数非确定，docs/sql-baseline.json 的 note 早已记着这条），
+    // 不预热就会把"首调用开销"当成规模项，量出 −0.02 这种假斜率（第十五轮实测：4→3）。
+    const warm = entry.payload(ctx, entry.at[0])
+    const warmRes = entry.channel === 'admin'
+      ? await be.handleAdmin(env, `warm-${entry.name.slice(2)}`, ADMIN_KEY, warm)
+      : await be.handlePublic(env, `warm-${entry.name.slice(2)}`, warm)
+    if (warmRes.code !== -1 && warmRes.code !== 0) throw new Error(`${entry.name} 预热失败: ${warmRes.message}`)
     const point = []
     for (const n of entry.at) {
       const s0 = D1.__counters.statements
