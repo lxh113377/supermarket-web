@@ -17,6 +17,7 @@
     "test:visual": "playwright test --config playwright.visual.config.ts",
     "test:stub": "playwright test --config playwright.stub.config.ts",
     "smoke": "node scripts/smoke-deploy.mjs",
+    "verify:parity": "node scripts/verify-release-parity.mjs",
     "uptime": "node scripts/uptime-check.mjs",
     "ci:status": "node scripts/ci-status.mjs",
     "verify:backend": "node scripts/verify-backend.mjs",

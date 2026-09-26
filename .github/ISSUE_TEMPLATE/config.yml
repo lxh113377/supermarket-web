@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 运营/数据问题（订单、库存、后台数据）
+    url: https://supermarket-web.pages.dev/#/admin
+    about: 线上门店数据问题请先在管理后台核对，再联系维护者；本仓库不处理顾客个人订单查询。
+  - name: 安全问题（不要公开提 issue）
+    url: https://github.com/lxh113377/supermarket-web/security/advisories/new
+    about: 鉴权绕过、密钥泄露、越权写操作等请走私有安全报告，详见 SECURITY.md。

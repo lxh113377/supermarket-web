@@ -1,0 +1,62 @@
+name: Bug 报告
+description: 报一个可复现的缺陷（本仓每条判据都能当场自证，请带上你跑过的命令）
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        本项目是单人维护的校园单店商城：管理后台+API 在 Cloudflare Pages（`supermarket-web.pages.dev`），
+        微信顾客端在 GitHub Pages（`lxh113377.github.io`），数据在 D1。
+        **涉及鉴权绕过 / 密钥 / 越权的问题请勿在此提**，走 SECURITY.md 的私有报告通道。
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 现象（页面/接口在哪里、看到了什么）
+      placeholder: 例：#/shop 搜索"矿泉水"后列表为空，但 #/product/p_1 能直接打开
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 复现步骤（含端与模式）
+      description: |
+        请指明三件事，否则多数问题无法定位：
+        1. 哪个端（顾客端 github.io / 后台 pages.dev）；
+        2. 云端模式还是"本地演示模式"（后台右上角标签会写明，演示模式数据只在 localStorage）；
+        3. 商品/订单的可公开标识（如 order 编号），**不要贴真实姓名、手机号、房间号**。
+      placeholder: |
+        1. 手机微信打开 https://lxh113377.github.io/#/shop
+        2. 点搜索，输入「矿泉水」
+        3. 期望：出现农夫山泉矿泉水；实际：空列表
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: 涉及范围
+      multiple: true
+      options:
+        - 顾客端页面
+        - 管理后台
+        - /pub 公开接口
+        - /web 管理接口
+        - D1 数据/迁移
+        - 构建/CI/部署
+        - 图片/静态资源
+    validations:
+      required: true
+  - type: textarea
+    id: gates
+    attributes:
+      label: 你跑过的本地判据（可选但极有用）
+      description: 例：`npm run verify`、`npm run test:stub`、`npm run ci:status` 的输出摘要
+      placeholder: |
+        npm run verify → exit 0（63 文件 / 109 断言全过）
+        npm run ci:status → 绿 11 / 真判据红 0 / 账号级 0
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为与影响面
+      description: 影响资金/库存准确性的（改价取整、扣库存、订单状态）请显式写明，这类会优先处理
+    validations:
+      required: true
