@@ -28,14 +28,19 @@ jobs:
     name: PR test-coverage advisory (report only)
     runs-on: ubuntu-latest
     timeout-minutes: 6
+    # 实测：只有 contents: read 时 gh pr list 取不到列表（GET /pulls 需 pull-requests 读权，
+    # 且 step 必须显式拿到 GH_TOKEN，否则 runner 上的 gh 未鉴权）。
     permissions:
       contents: read
+      pull-requests: read
     steps:
       - name: Checkout (full history for diff range)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - name: Report which open PRs change code without touching tests
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run report:pr-tests
   dispatch:
     runs-on: ubuntu-latest
