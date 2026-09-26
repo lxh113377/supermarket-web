@@ -174,3 +174,27 @@ npm run report:catalog && npm run smoke
 ```
 注意：导出物是**全库覆盖式** SQL（含 `DELETE FROM sqlite_sequence`），恢复前务必先跑第 2 步并确认
 `products`/`orders` 行数量级符合预期；`security_events`/`rate_limits` 属可再生数据，恢复到生产无意义但无害。
+
+### 8.4 先确认"备份到底在不在做"（第十二轮实测教训）
+
+```bash
+npm run check:backup-liveness        # 需要 gh 鉴权（本机）或 GH_TOKEN（runner）
+```
+它**不信 conclusion**：要求存在一次 run 满足「`Export remote D1` 步骤 success + artifact ≥ 1 + run success」
+且发生在 2 天内；一次 run 历史都没有 ⇒ 判红（零输入不是通过）。
+实测本仓 2026-09-26 的状态：2 次 run 全 success、2 次都 0 artifact、导出/上传步骤 `skipped` ⇒ 判红并报
+`2/2 次 run 的 conclusion=success 但没有产出可核对的备份产物`。
+
+要让它变绿，只有一条正路：**配 `CF_D1_BACKUP_TOKEN` 并解决明文导出可见性**（转回 private，或导出后加密再上传）。
+`BACKUP_SKIP_OK=true` 只是"我暂时接受不备份"的显式声明——它把红降成带原文的 WARN，**不会**假装备份成功。
+
+### 8.5 三条 cron 互指（守"没人会红的那类停摆"）
+
+| 链 | 触发 | 谁守它 |
+|---|---|---|
+| `d1-backup.yml`（每日导出 + 恢复演练 + 上传） | `schedule` | `Uptime` 里的 `check:backup-liveness`（backup 模式：要产物） |
+| `uptime.yml`（每日探活 + 目录事实） | `schedule` | `d1-backup.yml` 里的 `Cross-check the daily probe`（presence 模式：只认按时成功） |
+| `release-parity.yml`（双端一致） | `workflow_run: CI` | 由 CI 触发，本身不会沉默；红即邮件 |
+
+为什么要互指：GitHub 官方行为里 **public 仓 60 天无仓库活动会自动禁用 `schedule`** —— 那一刻没有任何东西会红，
+备份与巡检一起静默消失。两条 cron 互相当对方哨兵，才能把"停摆"变成一次可见的失败。

@@ -483,6 +483,56 @@ describe('备份链顺序：导出 → 恢复演练 → 上传（顺序错=白�
   })
 })
 
+/**
+ * 自动化链"是否真的在干活"的接线契约（第十二轮 R12-H1/H3）。
+ * 上一轮学到：不阻断的判据必须另配一条"它跑没跑"的断言；这一轮再加两条：
+ * ① 读 run 历史的 step 必须有 GH_TOKEN 且 job 有 actions: read（否则 403 → 永久 BLOCKED）；
+ * ② 备份链不允许"沉默跳过还报绿"——必须存在一个显式响亮失败的 step。
+ */
+function automationWiringProblems(texts: Record<string, string>): string[] {
+  const problems: string[] = []
+  const up = (texts['uptime.yml'] || '').replace(/\r\n/g, '\n')
+  // 一律用"行首锚定的键形态"匹配：本文件里的**注释**也写着 actions: read / GH_TOKEN，
+  // 用裸子串匹配会让注释冒充配置、把抽掉真键的反例测成"无问题"（本轮实测踩过）。
+  const hasKey = (t: string, key: string) => new RegExp(`^[ \\t]*${key}:`, 'm').test(t)
+  if (!/check:backup-liveness/.test(up)) problems.push('uptime.yml 不再调用备份链存活判据 ⇒ 恒绿空转无人守')
+  else {
+    if (!hasKey(up, 'GH_TOKEN')) problems.push('uptime.yml 调 gh 却没给 GH_TOKEN ⇒ runner 上永久 BLOCKED（第十一轮 pr-advisory 同因）')
+    if (!/^[ \t]*actions:[ \t]*read[ \t]*$/m.test(up)) problems.push('uptime.yml 缺 actions: read ⇒ 读不到 workflow runs（只有 contents: read 时 403）')
+  }
+  const bk = (texts['d1-backup.yml'] || '').replace(/\r\n/g, '\n')
+  if (!/- name: Fail loudly/.test(bk) || !/[ \t]SKIP_OK: \$\{\{ vars\.BACKUP_SKIP_OK \}\}/.test(bk)) {
+    problems.push('d1-backup.yml 缺"响亮失败"step ⇒ 未配 token 时会回到"全 skipped 却 success"的零备份绿')
+  }
+  if (!/- name: Cross-check the daily probe/.test(bk)) problems.push('d1-backup.yml 不再反查巡检链 ⇒ cron 被自动禁用时无人会红')
+  if (!/LIVENESS_MODE: presence/.test(bk)) problems.push('d1-backup.yml 的互指步缺 presence 模式 ⇒ 会拿备份标准判巡检链，必然假红')
+  if (/^[ \t]*continue-on-error:[ \t]*true[ \t]*$/m.test(up) && /run: npm run report:catalog/.test(up)) {
+    problems.push('uptime.yml 的 catalog 步骤又挂回 continue-on-error ⇒ 硬不变量违反会被吞（本轮已按两次一致样本接成阻断）')
+  }
+  return problems
+}
+
+describe('自动化链接线契约（活着 ≠ 绿色）', () => {
+  it('本仓三条链的接线必须齐备', () => {
+    const texts: Record<string, string> = Object.fromEntries(allWorkflows)
+    expect(automationWiringProblems(texts)).toEqual([])
+  })
+  it('反例：抽掉 GH_TOKEN / 抽掉 actions: read / 恢复静默跳过 / 挂回 continue-on-error，都要点名', () => {
+    // 变异前先归一行尾：本仓工作树是 CRLF，`... read\n` 这类正则在 CRLF 上匹配不到，
+    // 会让"抽掉"变成空操作 ⇒ 反例假过（第九轮同族坑，这次抽的是我自己的夹具）。
+    const norm = (t: string) => t.replace(/\r\n/g, '\n')
+    const base: Record<string, string> = Object.fromEntries(allWorkflows.map(([f, t]) => [f, norm(t)]))
+    const noToken = { ...base, 'uptime.yml': base['uptime.yml'].replace(/ +GH_TOKEN:[^\n]*\n/, '') }
+    expect(automationWiringProblems(noToken).join()).toContain('GH_TOKEN')
+    const noPerm = { ...base, 'uptime.yml': base['uptime.yml'].replace(/ +actions: read\n/, '') }
+    expect(automationWiringProblems(noPerm).join()).toContain('actions: read')
+    const silent = { ...base, 'd1-backup.yml': base['d1-backup.yml'].replace('Fail loudly', 'Do it quietly') }
+    expect(automationWiringProblems(silent).join()).toContain('响亮失败')
+    const reAdvisory = { ...base, 'uptime.yml': base['uptime.yml'].replace('run: npm run report:catalog', 'continue-on-error: true\n        run: npm run report:catalog') }
+    expect(automationWiringProblems(reAdvisory).join()).toContain('continue-on-error')
+  })
+})
+
 describe('advisory job 接线契约（没接线的判据等于没有判据）', () => {
   const dispatch = readWorkflow('dispatch.yml')
 
