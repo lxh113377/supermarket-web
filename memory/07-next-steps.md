@@ -9,7 +9,28 @@
 > 外层 `超市web/超市/memory/`（工作区）。两者内容**不同**（07 主卷 SHA256 不一致），
 > 属历史遗留的双份结构，尚未合并。**本轮的权威记录在外层**：`deliverables/前端深度优化方案-2026-09-23.md` §6。
 
-## P0 — 当前阻塞（必须先解，否则一切交付停在仓库里）
+## 2026-09-26 — 对标第八轮（提交 `085ec34` + `394d680`，CI run `36219254275` 五 job 全绿含新 visual）
+
+> 报告：外层 `deliverables/GitHub开源项目对标分析报告-第八轮-2026-09-26.md`；备份 `_backup/pre-round8-2026-09-26/`（bundle + 原件）。
+
+- **已落地并接闸**：`verify:case`（大小写冲突）/ `verify:docs`（文档事实对账真相源）/ `verify:functions`（Pages Functions 编译产物，零部署）三段进 `npm run verify` 与 CI；CHANGELOG 门禁改 `before..HEAD` 整段区间；5 个浏览器 spec 统一 `watchErrors()` 且**错误自此产断言**；`localStore` 四个读出口全拷贝；`visual` job 进 `deploy.needs`（现 4 needs）+ `reuseExistingServer` 恒 false；`d1-backup.yml` 加"非 private 禁止上传全库明文导出物"的 fail-closed 守卫。
+- **两条纠偏记在账上**：① 我自造的假缺口 —— 声称"CI 不跑 `verify:backend`"，实为我 grep 的是 npm 别名、`ci.yml:103` 一直写着脚本路径 ⇒ 已在 README 的承诺核对里撤回；② 派出的调研 agent 建议"借鉴 saleor 钉 SHA"，实测本仓 12 处 `uses:` 早已全钉 40 位 SHA。**同族**：Lighthouse 指标预算经 9 仓实测为 0 家在卡，前七轮记为"差距"不成立。
+- **本轮最硬的一条**：M4 把 `test:visual` 接进 CI 的**当天**，CI 报 4 红，而我本地同轮报的是"16/16 全绿" —— 强制重建 `dist-e2e` 后本地同样 4 红，证实那次全绿跑在过期产物上。根因是上一轮 `d598cf8` 删数据后 3 条视觉判据失去驱动数据、1 条断言与代码相反（主图刻意 `eager`）。**⇒ 判据不接线就等于没有；本地跑"绿"必须带产物新鲜度证据。**
+
+### P0（第九轮开工先做这条，可执行）
+
+- [ ] **`:169` 口味色块判据目前是 `test.skip`**：`src/data/variants-demo.ts` 两个组都是 `kind:'spec'`，全站再无 `color` 轴 ⇒ 判据有效但无数据驱动。做法二选一：① 上线任意一条带色块的规格数据后**解除 skip**并实测；② 若确定产品不再需要色块轴，则连同 `tests/variants.test.ts` 里那组**空转真**的色块断言一起删干净（勿只留 skip 注释）。命令：`grep -n "kind: 'color'\|test.skip" src/data/variants-demo.ts tests/e2e-visual/layout.spec.ts tests/variants.test.ts`
+- [ ] **dependabot 6 条 PR 积压**（`#13`–`#18`，含 `actions/checkout` 4.2.2→**7.0.1**、`upload-artifact` v4→**v7**、`download-artifact` v4→**v8** 三个跨大版本 CI 动作 bump）：逐条看 CI 结论再并，`upload-artifact` v4→v7 改过产物语义需连带核 `path`/`name` 行为 ⇒ **需用户点头**，勿自动并。查看：`gh pr list --repo lxh113377/supermarket-web`
+- [ ] **N4 执行模型单独一轮**（本轮只量不改）：`--coverage` 全量跑出现 worker **OOM**（`Tests 625 passed` 却 `exit 1`，少收 1 个文件）= "全绿但 job 红"。已量：5 连跑不带 coverage 0 失败、wall 6.26–13.63s；本机 32 线程 × 每文件独占 jsdom 是分母。候选 `pool:'vmThreads'` / `isolate:false` / `maxWorkers`（CI 4 核故 CI 侧暂未复现）。**评估判据**：连跑 5 次全量 `--coverage` 记录 wall time + 是否 OOM/timeout，再决定；禁止用抬 `testTimeout` 掩盖机制缺陷。
+- [ ] M3 `diff-cover` 增量覆盖率：本机未装该工具，按"未实跑的命令不得当门禁依据"未接。做法：先本地装并跑通一次（对 `coverage/` 需要 cobertura 报告器），量一轮误报率，再作为**报告型** step 进 CI（不作阻断），成熟后再接 `--fail-under`。
+- [ ] 不变项：K3 线上管理端目视复核（需生产密钥，转 public 后已轮换，本机 `.dev.vars` 是否为新值**未实测**）、K4 PR 流试点（现成场景：从 dependabot PR 开始试）、D1↔seed 对账、order 41 生产行订正、28/55 上架口径、D2 49 单运营处置（人）、`CF_D1_BACKUP_TOKEN`（**注意新守卫：仓库非 private 时配了也会红**，先选两条出路之一）、R2 桶。
+
+
+
+## P0 — 当前阻塞（历史；本轮已全部解开，留档勿改）
+
+> 本节标题在第八轮一次编辑中被锚点吞掉过（`## 标题行`当 old_string 却没回写），已补回。
+> 现状：`0b9e405` 与 `d598cf8` 两笔均已随 run `36219254275` 的 `deploy` job 上线（pages.dev 已发新构建，`dispatch.yml` run `36219254276` success）。
 
 - [ ] **`0b9e405`（防线轮 K1+K2）已提交已推送，但线上未更新** —— GitHub Actions 未执行任何 step。
   - **实测证据**：run `36110097808` 两次 attempt，`build-and-test` / `e2e` / `e2e-cloud-stub` 三个 job **全部 0 step、4–5 秒即 failure**（连 `Set up job` 都没有）；`deploy` 正确 `skipped`；`dispatch.yml`（本轮**零改动**）同样 0-step 失败 ⇒ github.io 未被触发。
