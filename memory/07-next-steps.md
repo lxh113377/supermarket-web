@@ -20,7 +20,7 @@
 
 ### P0（第十三轮开工先做这条，可执行）
 
-- [ ] **备份路线仍未解（需人，但现在是"红着等"而不是"绿着骗"）**：配 `CF_D1_BACKUP_TOKEN` 之前，`D1 Daily Backup` 与 `Uptime` 会每天判红——这是设计意图。二选一：①仓库转回 private；②导出后加密（age/openssl）再上传。任一完成后用 `gh workflow run "D1 Daily Backup"` 手动跑，要求看到 `Export=success` + `artifact=1` + `verify:restore` 演练步骤 success（**这才是恢复演练判据第一次在 CI 真跑**）。命令：`gh run list --workflow "D1 Daily Backup" --limit 3 --json conclusion,status` 与 `npm run check:backup-liveness`
+- [x] **备份路线仍未解（需人）** —— 但"红着等"已实测成立：合并后手动触发 `D1 Daily Backup`（run `36242719500`）**当场 failure**，错误原文点名两出路；60 天自动禁用 schedule 那条也已用官方文档核实原文（`In a public repository, scheduled workflows are automatically disabled when no repository activity has occurred in 60 days.`，来源 docs.github.com/.../disable-and-enable-workflows）⇒ 互指设计的前提成立。**本轮已把这条教训反哺进 `A-project-better` V1.12.0 核验铁律第⑤条。**：配 `CF_D1_BACKUP_TOKEN` 之前，`D1 Daily Backup` 与 `Uptime` 会每天判红——这是设计意图。二选一：①仓库转回 private；②导出后加密（age/openssl）再上传。任一完成后用 `gh workflow run "D1 Daily Backup"` 手动跑，要求看到 `Export=success` + `artifact=1` + `verify:restore` 演练步骤 success（**这才是恢复演练判据第一次在 CI 真跑**）。命令：`gh run list --workflow "D1 Daily Backup" --limit 3 --json conclusion,status` 与 `npm run check:backup-liveness`
 - [ ] **catalog 接成阻断后的首轮观察**：看第一次 `Uptime` run 是否因瞬时网络红（`/pub` 取不到 ⇒ exit 2 ⇒ 红）。若误报 ⇒ 改成"重试阶梯后再判"，而不是放宽回 continue-on-error。
 - [ ] **体量收口（本轮已判、未做完全）**：`handoff.py split` 把 `memory/07-next-steps.md`（76KB）与 `05-feature-status.md` 拆卷 + `volume --snapshot` 建环比账本；下轮核对是否回弹。⚠️ 每日日志（19.5KB）不是 4KB 拆卷目标，正解是月度归档桶 `memory/archive/daily-logs-YYYYMM/`（判据在 A-project-handoff，别自动拆）。
 - [ ] **告警第二通道（暂不做，等证据）**：当前可达通道只有 GitHub 失败邮件；只有出现"邮件没到/被静音"的实证才引入心跳（ntfy/healthchecks.io 类），否则只是多一个 secret。
