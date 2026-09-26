@@ -129,6 +129,7 @@ describe('关键 step 存在性（改名即红，防"门禁静默消失"）', ()
     'Dependency audit (npm audit, high+)',
     'Secret scan',
     'File-name case collision check',
+    'Env var registry gate (code vs docs/env-vars.md)',
     'Import cycle check',
     'API contract drift check',
     'Doc facts consistency gate',
@@ -291,5 +292,88 @@ describe('权限最小化（OpenSSF token-permissions 自查）', () => {
     // 反向自证：ci.yml 必须落在"受本规则约束"的集合里，否则这条断言会退化成空转真
     expect(/pull_request/.test(ci), 'ci.yml 不再响应 pull_request，本判据的分母已失效，须同步修订').toBe(true)
     expect(/group:.*github\.ref/.test(ci)).toBe(true)
+  })
+})
+
+/**
+ * 模板注入自查（第十轮 R10-M1）——zizmor 最高价值那条规则的零依赖替代。
+ * 规则形状照 zizmor `template-injection`：`run:` 块里插值**不可信上下文**
+ * （github.event.* / github.head_ref / github.actor 等，PR 标题/分支名由外人控制）
+ * 即等于把字符串塞进 shell 执行；正确写法是先 `env:` 映射，脚本里只引 `$VAR`。
+ * 装 zizmor 要多一个 job + 一堆 `# zizmor: ignore` 注释税，本仓已全量 SHA pin，
+ * 只剩这一类真实风险 ⇒ 用 15 行自查挡住，不起新依赖。
+ */
+const UNTRUSTED = /github\.(event|head_ref|actor|triggering_actor)\b/
+
+function interpolationInsideRunBlocks(text: string): string[] {
+  const lines = text.split('\n')
+  const hits: string[] = []
+  let inRun = false
+  let runIndent = 0
+  lines.forEach((line, i) => {
+    const t = line.trim()
+    const indent = line.length - line.trimStart().length
+    if (inRun) {
+      if (t !== '' && indent <= runIndent) inRun = false
+    }
+    if (!inRun) {
+      // YAML 里 step 既可能写成 `run: |` 独占行，也可能写成 `- run: echo ...` 列表项同行
+      const opener = /^(-\s+)?run:\s*[|>][-+]?\s*$/.exec(t)
+      if (opener) {
+        inRun = true
+        runIndent = indent
+        return
+      }
+      const inline = /^(-\s+)?run:\s*(.+)$/.exec(t)
+      if (inline && /\$\{\{/.test(inline[2]) && UNTRUSTED.test(inline[2])) {
+        hits.push(`第 ${i + 1} 行：内联 run 直接插值不可信上下文`)
+      }
+      return
+    }
+    if (/\$\{\{/.test(line) && UNTRUSTED.test(line)) {
+      hits.push(`第 ${i + 1} 行：run 块内插值不可信上下文 ⇒ 改走 env:`)
+    }
+  })
+  return hits
+}
+
+describe('workflow 模板注入自查（run 块不得插值不可信上下文）', () => {
+  it('反例夹具必须被抓到（否则本判据恒绿=没测）', () => {
+    const bad = [
+      'jobs:', '  a:', '    steps:', '      - name: 打印 PR 标题',
+      '        run: |', '          echo ${{ github.event.pull_request.title }}',
+    ].join('\n')
+    expect(interpolationInsideRunBlocks(bad)).toHaveLength(1)
+    const badInline = ['jobs:', '  a:', '    steps:', '      - run: echo ${{ github.head_ref }}'].join('\n')
+    expect(interpolationInsideRunBlocks(badInline)).toHaveLength(1)
+  })
+
+  it('正例夹具不得误伤：env: 映射 + 脚本引 $VAR 是推荐写法', () => {
+    const good = [
+      'jobs:', '  a:', '    steps:', '      - name: 打印 PR 标题',
+      '        env:', '          TITLE: ${{ github.event.pull_request.title }}',
+      '        run: |', '          echo "$TITLE"', '          echo "done ${{ env.TITLE }}"',
+    ].join('\n')
+    expect(interpolationInsideRunBlocks(good)).toEqual([])
+  })
+
+  it('块外注释里的 ${{ github.event.* }} 不算（只有 run 块才进 shell）', () => {
+    const commentOnly = [
+      'jobs:', '  a:', '    # 例：${{ github.event.pull_request.title }} 只写在注释里',
+      '    steps:', '      - run: echo hi',
+    ].join('\n')
+    expect(interpolationInsideRunBlocks(commentOnly)).toEqual([])
+  })
+
+  it('真实仓 4 条 workflow 全部干净', () => {
+    for (const [file, text] of allWorkflows) {
+      expect(interpolationInsideRunBlocks(text), `${file} 有 run 块插值不可信上下文`).toEqual([])
+    }
+    // 反向钉：ci.yml/release-parity 确实在用 github.event.*，只是用法正确；
+    // 若哪天不再使用，上面的断言就退化成空转真 ⇒ 这里显式要求分母非空。
+    expect(/github\.event/.test(ci), 'ci.yml 已不再使用 github.event.*，请同步修订本判据的分母').toBe(true)
+    const parity = readWorkflow('release-parity.yml')
+    expect(/github\.event\.workflow_run/.test(parity)).toBe(true)
+    expect(/env:\s*\r?\n\s+GITHUB_HEAD_SHA:/.test(parity), 'release-parity 的 head_sha 必须留在 env: 映射里').toBe(true)
   })
 })

@@ -69,7 +69,7 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN` 触发 `l
 
 ## CI
 
-`.github/workflows/ci.yml` 的 Test job 依序跑：**依赖漏洞审计**（`npm audit`，见下）→ 密钥扫描 → oxlint → **文件名大小写冲突自查** → vitest（**65 文件**，带 v8 覆盖率并卡棘轮阈值 79/72/74/80；用例条数以 `npm test` 当场输出为准，本文件不写死——写死即第二真相源）→ typecheck（前后端双配置）→ 循环依赖检查 → API 契约漂移 → **文档事实一致性** → **schema 漂移** → **license 白名单** → **CHANGELOG 门禁** → build（注入线上端点）→ 体积预算 → **Pages Functions 可部署产物检查**（编译 functions/，零部署）→ 后端契约验证（`scripts/verify-backend.mjs`，node:sqlite 模拟 D1）。
+`.github/workflows/ci.yml` 的 Test job 依序跑：**依赖漏洞审计**（`npm audit`，见下）→ 密钥扫描 → oxlint → **文件名大小写冲突自查** → **环境变量登记册对账** → vitest（**69 文件**，带 v8 覆盖率并卡棘轮阈值 79/72/74/80；用例条数以 `npm test` 当场输出为准，本文件不写死——写死即第二真相源）→ typecheck（前后端双配置）→ 循环依赖检查 → API 契约漂移 → **文档事实一致性** → **schema 漂移** → **license 白名单** → **CHANGELOG 门禁** → build（注入线上端点）→ 体积预算 → **Pages Functions 可部署产物检查**（编译 functions/，零部署）→ 后端契约验证（`scripts/verify-backend.mjs`，node:sqlite 模拟 D1）。
 
 依赖审计固定走官方源（`npm run audit:deps`）：本机/镜像源 npmmirror **未实现 audit 端点**（实测 `NOT_IMPLEMENTED`），不指 registry 会让审计静默拿不到数据；端点故障时 npm audit 非 0 退出，不会假绿。
 
@@ -85,16 +85,18 @@ CI 另外两道卡口：**体积预算**（`scripts/check-bundle-size.mjs`，按
 
 三者自第八轮起都列入 `deploy.needs`（此前只有 `build-and-test`，即"红了也照常部署"——见 CHANGELOG 追加十八）。
 
-本地等价门禁一条命令跑完：`npm run verify`（密钥扫描 → lint → 大小写冲突 → 循环依赖 → 契约漂移 → **文档事实一致性** → schema 漂移 → license → CHANGELOG → typecheck → 测试 → 后端契约 → **Pages Functions 编译** → 未覆盖清单）。
+本地等价门禁一条命令跑完：`npm run verify`（密钥扫描 → lint → 大小写冲突 → **环境变量登记册** → 循环依赖 → 契约漂移 → **文档事实一致性** → schema 漂移 → license → CHANGELOG → typecheck → 测试 → 后端契约 → **Pages Functions 编译** → 未覆盖清单）。
 
-## 环境变量（`.env`，仅前端构建用）
+## 环境变量
 
-| 变量 | 说明 |
-|---|---|
-| `VITE_CB_API_BASE` | 管理 API 端点（`https://supermarket-web.pages.dev/web`） |
-| `VITE_CB_PUBLIC_API_BASE` | 公开 API 端点（`https://supermarket-web.pages.dev/pub`） |
+**唯一登记册 = `docs/env-vars.md`**（受 `npm run verify:env` 双向对账：代码引用了却没登记 = 红；
+登记了但代码已不引用 = 红；漏写「未配置时行为」= 红）。本节不再抄表，只留两条口径：
 
-后端 secret（`ADMIN_KEY` / 可选 `ADMIN_READONLY_KEY`）不走 `.env`，经 Dashboard secret / `.dev.vars` 注入。
+- 前端构建期变量（`VITE_CB_API_BASE` / `VITE_CB_PUBLIC_API_BASE`）写 `.env`，其余后端 secret
+  （`ADMIN_KEY` / 可选 `ADMIN_READONLY_KEY` / `DIFY_*` / `ORDER_WEBHOOK_URL`）经 Dashboard secret 或 `.dev.vars` 注入。
+- 新订单通知：配 `ORDER_WEBHOOK_URL`（http/https）后每张**新**订单向该端点 POST 一次最小载荷
+  （单号/楼号/金额/件数/状态，**不含微信号与付款截图**）；未配置即纯 no-op，投递失败也绝不影响下单。
+  幂等命中的重复提交不重复通知。
 
 ## 替换收款码
 
