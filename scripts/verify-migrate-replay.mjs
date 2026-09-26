@@ -235,6 +235,51 @@ export function judge({ files, schemaSql, extraFiles = [] }) {
     }
   }
 
+  // ── A8/A9（第十六轮）回滚件的执行验证：自写下起零执行证据，本轮补上 ─────────
+  // 结构轨的对象清单是**具名**的（不靠正则从 SQL 里猜要删什么），正向件按谓词挑语句回来对数，
+  // 两条轨都覆盖不到的回滚件一律判红（承第十五轮 B7「未归类默认落进判据面」的 fail-closed 立场）。
+  const ROLLBACK_STRUCTURAL = {
+    'rollback-idempotency.sql': {
+      forward: 'migrate-idempotency.sql',
+      objects: [{ table: 'orders', column: 'idempotencyKey' }, { table: 'orders', index: 'idx_orders_idempotency' }],
+    },
+    'rollback-spec-options.sql': {
+      forward: 'migrate-spec-options.sql',
+      objects: [{ table: 'products', column: 'specOptions' }],
+    },
+    'rollback-stock.sql': {
+      forward: 'migrate-stock.sql',
+      objects: [{ table: 'products', column: 'stock' }],
+    },
+  }
+  const ROLLBACK_DATA = {
+    'rollback-rename-order20.sql': { forward: 'adhoc-rename-order20.sql' },
+  }
+  const textOf = (name) => [...files, ...(extraFiles || [])].find((f) => f.file === name)?.text
+  const seedSql = textOf('seed.sql') || ''
+  let rbChecked = 0
+  for (const f of (extraFiles || [])) {
+    if (!/^rollback-.*\.sql$/.test(f.file)) continue
+    const s = ROLLBACK_STRUCTURAL[f.file]
+    const d = ROLLBACK_DATA[f.file]
+    if (!s && !d) {
+      problems.push(`A8 ${f.file} 既不在结构轨也不在数据轨的具名清单里 ⇒ 该回滚件仍未被执行验证过`
+        + '（正解：判定它删的是 schema 对象还是行值，然后登记进 ROLLBACK_STRUCTURAL / ROLLBACK_DATA）')
+      continue
+    }
+    rbChecked++
+    const fwdText = textOf((s || d).forward)
+    if (!fwdText) {
+      problems.push(`A8 ${f.file} 的配对正向件 ${(s || d).forward} 不在盘上 ⇒ 无法做往返验证`)
+      continue
+    }
+    const probs = s
+      ? structuralRollbackTrip({ schemaSql, rollbackText: f.text, forwardText: fwdText, objects: s.objects, label: `A8 ${f.file}` })
+      : dataRollbackTrip({ schemaSql, seedSql, rollbackText: f.text, forwardText: fwdText, label: `A9 ${f.file}` })
+    problems.push(...probs)
+  }
+  notes.push(`A8/A9 回滚件往返：结构轨 ${Object.keys(ROLLBACK_STRUCTURAL).length} 件 + 数据轨 ${Object.keys(ROLLBACK_DATA).length} 件，实测覆盖 ${rbChecked} 件`)
+
   // A4：跑完前向迁移后仍须等于真相源
   const after = normalizeSchema(base)
   for (const line of shapeDiff(reference, after, 'schema.sql', '重放后')) {
@@ -249,6 +294,119 @@ export function judge({ files, schemaSql, extraFiles = [] }) {
     colDefs,
   }
   return { problems, notes, stats }
+}
+
+/**
+ * A8（第十六轮）结构类回滚件的「回滚 → 再前滚」往返。
+ * 为什么必须有：4 个 rollback 文件自写下起从未被执行过一次（第十三轮 M1 登记、两度顺延）。
+ * 障碍是配对正向件是"裸 ALTER 补丁"，整文件重放会撞已存在的对象 ⇒ 只挑**结构语句**前滚。
+ * objects 具名声明该回滚件应删掉的对象（禁靠正则从 SQL 里猜），挑不到就说明清单与文件脱节。
+ * 返回问题串数组（空 = 通过）。
+ */
+export function structuralRollbackTrip({ schemaSql, rollbackText, forwardText, objects, label }) {
+  const out = []
+  const db = new DatabaseSync(':memory:')
+  try {
+    applySql(db, schemaSql)
+    const ref = normalizeSchema(db)
+    // ① 回滚件自身必须可执行
+    const rbErrs = applySql(db, rollbackText)
+    if (rbErrs.length) {
+      out.push(`${label} 回滚件自身不可执行：${rbErrs[0]}`)
+      return out
+    }
+    // ② 回滚必须真的改变了结构（写了没生效 = 最隐蔽的假回滚）
+    const afterRb = normalizeSchema(db)
+    for (const o of objects) {
+      // normalizeSchema 的形态：表 → shape[`T:<表>`] = {列名: 定义}；索引 → shape[`I:<名>`]
+      const hasIn = (sh) => (o.column ? !!sh[`T:${o.table}`]?.[o.column] : false)
+      const hasIx = (sh) => (o.index ? `I:${o.index}` in sh : false)
+      if (o.column) {
+        if (!hasIn(ref)) out.push(`${label} 声明要删的列 ${o.table}.${o.column} 不在基线真相源里 ⇒ 清单与 schema.sql 脱节`)
+        else if (hasIn(afterRb)) out.push(`${label} 执行后列 ${o.table}.${o.column} 仍存在 ⇒ 回滚件没有生效（假回滚）`)
+      }
+      if (o.index) {
+        if (!hasIx(ref)) out.push(`${label} 声明要删的索引 ${o.index} 不在基线真相源里 ⇒ 清单与 schema.sql 脱节`)
+        else if (hasIx(afterRb)) out.push(`${label} 执行后索引 ${o.index} 仍存在 ⇒ 回滚件没有生效（假回滚）`)
+      }
+    }
+    // ③ 从配对正向件里按谓词挑出结构语句（挑不到 = 谓词与文件对不上，判据不许静默跳过）
+    const fwdStmts = splitStatements(forwardText)
+      .map((s) => s.replace(/^\s+|--[^\n]*\n/g, '').trim())
+      .filter((s) => /^ALTER TABLE .+ ADD COLUMN/i.test(s) || /^CREATE (UNIQUE )?INDEX/i.test(s))
+    const needAdd = objects.filter((o) => o.column).length
+    const needIdx = objects.filter((o) => o.index).length
+    const gotAdd = fwdStmts.filter((s) => /^ALTER TABLE .+ ADD COLUMN/i.test(s)).length
+    const gotIdx = fwdStmts.filter((s) => /^CREATE (UNIQUE )?INDEX/i.test(s)).length
+    if (gotAdd !== needAdd || gotIdx !== needIdx) {
+      out.push(`${label} 正向件挑出的结构语句数与声明不符（ADD COLUMN ${gotAdd}/${needAdd}、INDEX ${gotIdx}/${needIdx}）`
+        + ' ⇒ 无法证明"前滚"用的就是当年那条语句，本轮不猜')
+      return out
+    }
+    // ④ 前滚必须逐字段回到基线
+    for (const st of fwdStmts) {
+      const e = applySql(db, st)
+      if (e.length) { out.push(`${label} 前滚语句失败：${e[0]}`); return out }
+    }
+    for (const line of shapeDiff(ref, normalizeSchema(db), '基线', '回滚→前滚后')) {
+      out.push(`${label} 往返未闭合：${line}`)
+    }
+  } finally {
+    db.close()
+  }
+  return out
+}
+
+/**
+ * A9（第十六轮）数据类回滚件的往返。
+ * 结构判据看不见这类回滚件的失效形态：WHERE 打空 ⇒ 执行"成功"、零行变更、什么也没还原。
+ * 故本轨断言的是**行值逐字节相等 + changes==1**，且回滚字面量必须与正向字面量不同（否则是空操作）。
+ */
+export function dataRollbackTrip({ schemaSql, seedSql, rollbackText, forwardText, label }) {
+  const out = []
+  const parse = (t) => {
+    const m = /^UPDATE\s+(\w+)\s+SET\s+(\w+)\s*=\s*'([^']*)'\s+WHERE\s+(.+);?$/is.exec(
+      t.replace(/^\s*--[^\n]*\n/g, '').split('\n').filter((l) => l.trim() && !l.trim().startsWith('--')).join(' ').trim())
+    return m ? { table: m[1], column: m[2], value: m[3], where: m[4] } : null
+  }
+  const fwd = parse(forwardText)
+  const rb = parse(rollbackText)
+  if (!fwd || !rb) { out.push(`${label} 无法解析出「UPDATE t SET c='v' WHERE …」单语句形态 ⇒ 本轨不适用，须显式登记而非静默跳过`); return out }
+  if (fwd.table !== rb.table || fwd.column !== rb.column || fwd.where !== rb.where) {
+    out.push(`${label} 与正向件的作用对象/条件不一致（${rb.table}.${rb.column} WHERE ${rb.where} vs ${fwd.where}）⇒ 回滚的不是同一次变更`)
+    return out
+  }
+  if (fwd.value === rb.value) { out.push(`${label} 回滚值与正向值完全相同 ⇒ 这是一条空操作，不是回滚`); return out }
+  const db = new DatabaseSync(':memory:')
+  try {
+    applySql(db, schemaSql)
+    applySql(db, seedSql)
+    const rows = db.prepare(
+      `SELECT ${rb.column} AS v, COUNT(*) AS n FROM ${rb.table} WHERE ${rb.where} GROUP BY ${rb.column}`).all()
+    if (rows.length !== 1) { out.push(`${label} WHERE ${rb.where} 命中 ${rows.length} 行（应为 1 行）⇒ 还原目标不唯一或不存在`); return out }
+    // 先直接跑回滚件：证明它的 WHERE 真的打得到行（结构判据永远看不见"打空"）
+    let info = db.prepare(rb0(rollbackText)).run()
+    if (!info.changes) { out.push(`${label} 首次执行即零行变更 ⇒ 回滚语句打空，从未还原过任何东西`); return out }
+    if (String(db.prepare(`SELECT ${rb.column} AS v FROM ${rb.table} WHERE ${rb.where}`).get().v) !== rb.value) {
+      out.push(`${label} 回滚后行值不等于回滚件里的字面量`)
+    }
+    info = db.prepare(rb0(forwardText)).run()
+    if (info.changes !== 1) { out.push(`${label} 正向语句未命中唯一行（changes=${info.changes}）`); return out }
+    info = db.prepare(rb0(rollbackText)).run()
+    const now = db.prepare(`SELECT ${rb.column} AS v FROM ${rb.table} WHERE ${rb.where}`).get().v
+    if (info.changes !== 1 || String(now) !== rb.value) {
+      out.push(`${label} 往返未闭合：正向改完后回滚得到 ${JSON.stringify(String(now))}，期望 ${JSON.stringify(rb.value)}`)
+    }
+  } finally {
+    db.close()
+  }
+  return out
+}
+
+/** 取语句体（去注释）并去掉尾分号，供 prepare 使用 */
+function rb0(text) {
+  const stmt = text.split('\n').filter((l) => l.trim() && !l.trim().startsWith('--')).join(' ').trim().replace(/;$/, '')
+  return stmt.replace(/\s+/g, ' ')
 }
 
 function main() {

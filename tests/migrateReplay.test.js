@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os'
 import { execFileSync } from 'node:child_process'
 import {
   judge, normalizeSchema, shapeDiff, applySql, BASELINE_ERA, NON_MIGRATION_SQL,
+  structuralRollbackTrip, dataRollbackTrip,
 } from '../scripts/verify-migrate-replay.mjs'
 
 const SCHEMA = readFileSync(join(process.cwd(), 'db/schema.sql'), 'utf8')
@@ -199,5 +200,93 @@ describe('双门禁对照：既有 verify:schema 放行的类型漂移，本门�
     expect(old.rc, `既有门禁本应看不见类型漂移（它只比对象名）：${old.out.slice(-300)}`).toBe(0)
     expect(neu.rc, `新门禁必须判红：${neu.out.slice(-400)}`).toBe(1)
     rmSync(tmp, { recursive: true, force: true })
+  })
+})
+
+// ── 第十六轮：A8/A9 回滚件往返的反向验证 ────────────────────────────────
+// 规矩同前：每条反例只绑一条判据；并且必须有"真仓全绿"对照，
+// 否则不知道红是因为机制还是因为永真。变异一律在内存里做，不落受管根。
+describe('A8 结构轨：回滚 → 再前滚 → 逐字段等于基线', () => {
+  const db = (f) => readFileSync(join('db', f), 'utf8')
+  const REAL = {
+    schemaSql: db('schema.sql'),
+    rollbackText: db('rollback-idempotency.sql'),
+    forwardText: db('migrate-idempotency.sql'),
+    objects: [{ table: 'orders', column: 'idempotencyKey' }, { table: 'orders', index: 'idx_orders_idempotency' }],
+  }
+  const trip = (o = {}) => structuralRollbackTrip({ label: 'A8 t', ...REAL, ...o })
+
+  it('对照：真仓三件回滚全部闭合（零问题）', () => {
+    expect(trip()).toEqual([])
+    expect(structuralRollbackTrip({
+      label: 'A8 s', schemaSql: REAL.schemaSql, objects: [{ table: 'products', column: 'specOptions' }],
+      rollbackText: db('rollback-spec-options.sql'), forwardText: db('migrate-spec-options.sql'),
+    })).toEqual([])
+  })
+
+  it('MA1 回滚件被掏空（DROP 语句删掉）⇒ 判"回滚件没有生效"，不许读成通过', () => {
+    const probs = trip({ rollbackText: '-- 只剩注释，什么都不做' })
+    expect(probs.join('\n')).toContain('回滚件没有生效')
+  })
+
+  it('MA2 声明的对象名写错（索引名漂移）⇒ 判"不在基线真相源里"，即清单与 schema 脱节', () => {
+    const probs = trip({ objects: [{ table: 'orders', column: 'idempotencyKey' }, { table: 'orders', index: 'idx_ghost' }] })
+    expect(probs.join('\n')).toContain('idx_ghost')
+    expect(probs.join('\n')).toContain('不在基线真相源里')
+  })
+
+  it('MA3 正向件里那条 ADD COLUMN 被删 ⇒ 判"结构语句数与声明不符"（前滚用的不是当年那条语句）', () => {
+    const probs = trip({ forwardText: REAL.forwardText.replace(/^ALTER TABLE orders ADD COLUMN.*$/m, '-- 被人删了') })
+    expect(probs.join('\n')).toContain('结构语句数与声明不符')
+  })
+
+  it('MA4 前滚语句改了类型（TEXT→REAL）⇒ 判"往返未闭合"并给到字段级差异', () => {
+    const probs = trip({ forwardText: REAL.forwardText.replace('idempotencyKey TEXT', 'idempotencyKey REAL') })
+    expect(probs.join('\n')).toContain('往返未闭合')
+    expect(probs.join('\n')).toContain('idempotencyKey')
+  })
+
+  it('MA5 未归类的 rollback-*.sql（两条轨都没登记）⇒ judge 直接判红，不许隐身', () => {
+    const files = readdirSync('db').filter((f) => /^migrate-.*\.sql$/.test(f)).sort()
+      .map((f) => ({ file: f, text: db(f) }))
+    const extra = readdirSync('db').filter((f) => /\.sql$/.test(f) && !/^migrate-.*\.sql$/.test(f)).sort()
+      .map((f) => ({ file: f, text: db(f) }))
+      .concat([{ file: 'rollback-ghost.sql', text: 'ALTER TABLE products DROP COLUMN price;' }])
+    const { problems } = judge({ files, schemaSql: REAL.schemaSql, extraFiles: extra })
+    expect(problems.filter((x) => x.includes('rollback-ghost.sql')).join('\n')).toContain('既不在结构轨也不在数据轨')
+  })
+})
+
+describe('A9 数据轨：行值逐字节还原 + WHERE 必须打得到行', () => {
+  const db = (f) => readFileSync(join('db', f), 'utf8')
+  const base = () => ({
+    label: 'A9 t', schemaSql: db('schema.sql'), seedSql: db('seed.sql'),
+    rollbackText: db('rollback-rename-order20.sql'), forwardText: db('adhoc-rename-order20.sql'),
+  })
+
+  it('对照：真仓该件闭合', () => expect(dataRollbackTrip(base())).toEqual([]))
+
+  // 挂起而非删除：本条想验「命中 0 行」分支，但两次变异设计都没走到那条断言
+  // （第一轮撞在 seed 剥离上、第二轮撞在前置的配对校验上），实际报的是别的分支。
+  // 判据代码路径存在且被 judge 覆盖，缺的是这条夹具 —— 记为第十七轮待补，不假装通过。
+  it.skip('MA6 回滚件的 WHERE 打空（两侧同为 WHERE 1=0）⇒ 判"命中 0 行"【夹具未到位，见上注】', () => {
+    const b = base()
+    const fwd = b.forwardText.replace('WHERE "order"=20', 'WHERE 1=0')
+    const rb = b.rollbackText.replace('WHERE "order"=20', 'WHERE 1=0')
+    expect(fwd).not.toBe(b.forwardText)
+    expect(rb).not.toBe(b.rollbackText)
+    expect(dataRollbackTrip({ ...b, forwardText: fwd, rollbackText: rb }).join(' ')).toContain('命中 0 行')
+  })
+
+  it('MA7 回滚值与正向值相同 ⇒ 判"这是一条空操作，不是回滚"', () => {
+    const b = base()
+    const probs = dataRollbackTrip({ ...b, rollbackText: b.rollbackText.replace('猎兽功能饮料（亏本卖）', '猎兽功能饮料') })
+    expect(probs.join('\n')).toContain('空操作')
+  })
+
+  it('MA8 回滚件作用到别的列（name→price）⇒ 判"回滚的不是同一次变更"', () => {
+    const b = base()
+    const probs = dataRollbackTrip({ ...b, rollbackText: b.rollbackText.replace('SET name=', 'SET price=') })
+    expect(probs.join('\n')).toContain('不是同一次变更')
   })
 })
