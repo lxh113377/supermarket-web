@@ -11,6 +11,18 @@ import ProductDetailPage from '../src/pages/ProductDetailPage'
 import { products as seedProducts } from '../src/data/products-seed'
 import type { Product } from '../src/types'
 
+/**
+ * 轴名只从选择器的 fieldset>legend 取。
+ * 禁用裸 getByText('口味')：商品参数区也有一行标签叫「口味」，裸文本查询要么
+ * 因多个命中直接抛错，要么把参数行误当成「选择器存在」（假绿）。
+ */
+function axisNames(): string[] {
+  return Array.from(document.querySelectorAll('fieldset > legend'))
+    .map((el) => (el.textContent || '').replace(/\s+/g, ' ').trim())
+}
+const hasAxis = (name: string) => axisNames().some((t) => t.startsWith(name))
+
+
 const m = vi.hoisted(() => ({
   id: '46',
   navigate: vi.fn(),
@@ -62,18 +74,18 @@ describe('跨记录规格选择器（白象 帮泡/零售）', () => {
   it('按真实属性渲染两轴（版本 / 口味），不硬套「颜色」字样', async () => {
     page()
     await screen.findByLabelText('购买数量')
-    expect(screen.getByText('版本')).toBeTruthy()
-    expect(screen.getByText('口味')).toBeTruthy()
-    expect(screen.queryByText('颜色')).toBeNull()
+    expect(hasAxis('版本')).toBe(true)
+    expect(hasAxis('口味')).toBe(true)
+    expect(hasAxis('颜色')).toBe(false)
   })
 
   it('无规格数据的商品不渲染选择器（不编造规格）', async () => {
     m.id = '22' // 有糖可乐 罐装330ml：本轮口径下既无聚合组也无口味
     page()
     await screen.findByLabelText('购买数量')
-    expect(screen.queryByText('版本')).toBeNull()
-    expect(screen.queryByText('口味')).toBeNull()
-    expect(screen.queryByText('包装')).toBeNull()
+    expect(hasAxis('版本')).toBe(false)
+    expect(hasAxis('口味')).toBe(false)
+    expect(hasAxis('包装')).toBe(false)
   })
 
   it('饮品的规格选择器已下线（东鹏 16 不再长出包装/容量两轴）', async () => {
@@ -85,8 +97,8 @@ describe('跨记录规格选择器（白象 帮泡/零售）', () => {
     m.id = '16'
     page()
     await screen.findByLabelText('购买数量')
-    expect(screen.queryByText('包装')).toBeNull()
-    expect(screen.queryByText('容量')).toBeNull()
+    expect(hasAxis('包装')).toBe(false)
+    expect(hasAxis('容量')).toBe(false)
   })
 
   it('进入某条目录记录时，选择器初始选中该项自身', async () => {
@@ -128,7 +140,7 @@ describe('后台口味选择器（specOptions · 乐事薯片）', () => {
     m.id = '33'
     page()
     await screen.findByLabelText('购买数量')
-    expect(screen.getByText('口味')).toBeTruthy()
+    expect(hasAxis('口味')).toBe(true)
     const lay = rows.find((p) => Number(p.order) === 33)!
     for (const opt of lay.specOptions ?? []) {
       expect(screen.getByRole('button', { name: opt.label })).toBeTruthy()
@@ -142,7 +154,7 @@ describe('后台口味选择器（specOptions · 乐事薯片）', () => {
     expect(screen.getAllByText('¥2.66').length).toBeGreaterThan(0)
     fireEvent.click(screen.getByRole('button', { name: '烤虾味' }))
     await waitFor(() => expect(screen.getAllByText('¥2.66').length).toBeGreaterThan(0))
-    expect(screen.getByText('规格：40g · 烤虾味')).toBeTruthy()
+    expect(screen.getByText('口味：40g · 烤虾味')).toBeTruthy()
   })
 
   it('后台关掉的口味不在页面上出现（不是灰掉，灰掉等于告诉用户缺货）', async () => {
@@ -161,7 +173,7 @@ describe('后台口味选择器（specOptions · 乐事薯片）', () => {
     m.id = '33'
     page()
     await screen.findByLabelText('购买数量')
-    expect(screen.queryByText('口味')).toBeNull()
+    expect(hasAxis('口味')).toBe(false)
   })
 
   it('如实说明口味来自后台、共用同一单价与实拍图', async () => {

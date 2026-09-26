@@ -65,9 +65,9 @@ afterEach(() => {
 describe('筛选与空态', () => {
   it('搜索命中名称或规格；无匹配时给"无匹配结果"而非"暂无商品"', () => {
     setup()
-    fireEvent.change(screen.getByLabelText('搜索商品名称或规格'), { target: { value: '500ml' } })
+    fireEvent.change(screen.getByLabelText('搜索商品名称或口味'), { target: { value: '500ml' } })
     expect(screen.getAllByRole('checkbox')).toHaveLength(2)
-    fireEvent.change(screen.getByLabelText('搜索商品名称或规格'), { target: { value: '不存在的关键词' } })
+    fireEvent.change(screen.getByLabelText('搜索商品名称或口味'), { target: { value: '不存在的关键词' } })
     expect(screen.getByText('无匹配结果')).toBeTruthy()
     expect(screen.queryByText('暂无商品')).toBeNull()
   })
@@ -96,7 +96,7 @@ describe('筛选与空态', () => {
 describe('批量选择与全选', () => {
   it('全选按钮在"全选(n)/取消全选"两态间切换，且 n 跟随筛选结果', () => {
     setup([mkProduct(1), mkProduct(2), mkProduct(3)])
-    fireEvent.change(screen.getByLabelText('搜索商品名称或规格'), { target: { value: '可乐3' } })
+    fireEvent.change(screen.getByLabelText('搜索商品名称或口味'), { target: { value: '可乐3' } })
     fireEvent.click(screen.getByRole('button', { name: '全选(1)' }))
     expect(screen.getByRole('button', { name: '取消全选' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '取消全选' }))

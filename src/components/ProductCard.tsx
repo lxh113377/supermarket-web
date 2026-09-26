@@ -154,8 +154,8 @@ function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
               那样点进详情默认选中的是这一条本身，价格会对不上。
               变体数量另用角标提示，进详情页由选择器承载。 */}
           {variantCount > 1 && (
-            <span className="ml-1.5 align-middle text-[10px] font-medium text-gray-400 border border-gray-200 rounded-md px-1 py-px">
-              {variantCount} 种规格
+            <span className="ml-1.5 align-middle text-[11px] font-semibold text-brand-700 bg-brand-100 border border-brand-200 rounded-md px-1.5 py-px">
+              可选 {variantCount} 种口味
             </span>
           )}
         </p>

@@ -175,7 +175,7 @@ export default function InlineEditForm({ product, categories, onClose, onSaved }
           className={`col-span-2 ${inputCls}`}
           {...errProps('name')}
         />
-        <input aria-label="规格" placeholder="规格" value={form.spec} onChange={e => setForm({ ...form, spec: e.target.value })} className={inputCls} />
+        <input aria-label="口味" placeholder="口味" value={form.spec} onChange={e => setForm({ ...form, spec: e.target.value })} className={inputCls} />
         <input aria-label="售价" type="number" step="0.01" placeholder="价格" value={form.price} onChange={e => setForm({ ...form, price: parseFloat(e.target.value) || 0 })} className={inputCls} />
         <input aria-label="成本价（可选）" type="number" step="0.01" min="0" placeholder="成本价（可选）" value={form.costPrice} onChange={e => setForm({ ...form, costPrice: e.target.value })} className={inputCls} {...errProps('costPrice')} />
         <input aria-label="库存（留空不限售）" type="number" step="1" min="-1" placeholder="库存（留空=不限售）" value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} className={inputCls} {...errProps('stock')} />
@@ -209,7 +209,7 @@ export default function InlineEditForm({ product, categories, onClose, onSaved }
           )}
         </p>
         {form.specOptions.length === 0 && (
-          <p className="text-[11px] text-gray-400">未配置口味，该商品在顾客端不出现规格选择器</p>
+          <p className="text-[11px] text-gray-400">未配置口味，该商品在顾客端不出现口味选择器</p>
         )}
         <ul className="flex flex-wrap gap-1 list-none p-0 m-0">
           {form.specOptions.map((o) => {

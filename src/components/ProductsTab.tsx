@@ -6,6 +6,7 @@ import ProductRow from './admin/ProductRow'
 import EmptyState from './EmptyState'
 import { IconBox, IconEmpty } from './Icons'
 import { formatPrice } from '../utils/format'
+import { specSearchText } from '../utils/spec-options'
 
 // 管理后台商品 Tab（2026-09-23 拆分：408 行 → 主壳 ~200 行）
 // 拆分出的子件：admin/ProductInlineEditForm（内联编辑表单）、admin/ProductRow（商品行）
@@ -53,7 +54,7 @@ export default function ProductsTab({ products, categories, onDataChange }: {
     }
     if (search.trim()) {
       const kw = search.trim().toLowerCase()
-      list = list.filter(p => p.name.toLowerCase().includes(kw) || (p.spec || '').toLowerCase().includes(kw))
+      list = list.filter(p => p.name.toLowerCase().includes(kw) || specSearchText(p).toLowerCase().includes(kw))
     }
     return list
   }, [products, filterCat, search, subIndex])
@@ -165,8 +166,8 @@ export default function ProductsTab({ products, categories, onDataChange }: {
         <div className="flex-1 relative">
           <input
             type="search"
-            aria-label="搜索商品名称或规格"
-            placeholder="搜索商品名称/规格..."
+            aria-label="搜索商品名称或口味"
+            placeholder="搜索商品名称/口味..."
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="w-full border border-gray-200 rounded-xl pl-9 pr-3 py-2.5 text-sm focus:border-brand-400 focus:ring-1 focus:ring-brand-200 outline-none"

@@ -120,6 +120,6 @@ describe('可选口味开关（specOptions）', () => {
 
   it('未配置口味的商品给出明说，而不是留一个空壳', () => {
     render(<InlineEditForm product={{ ...chips, specOptions: [] }} categories={[] as never} onClose={() => {}} onSaved={() => {}} />)
-    expect(screen.getByText('未配置口味，该商品在顾客端不出现规格选择器')).toBeTruthy()
+    expect(screen.getByText('未配置口味，该商品在顾客端不出现口味选择器')).toBeTruthy()
   })
 })

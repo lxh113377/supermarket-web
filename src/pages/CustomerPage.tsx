@@ -11,6 +11,7 @@ import useProducts from '../hooks/useProducts'
 import { useShopFilters, SORT_OPTIONS } from '../hooks/useShopFilters'
 import { useIsNarrow } from '../hooks/useMediaQuery'
 import { formatYuan } from '../utils/format'
+import { specSearchText } from '../utils/spec-options'
 import { prefetchRoute } from '../prefetchBus'
 import type { Product } from '../types'
 
@@ -65,7 +66,7 @@ export default function CustomerPage() {
       const needle = deferredQ.toLowerCase()
       list = list.filter(p =>
         p.name.toLowerCase().includes(needle) ||
-        (p.spec || '').toLowerCase().includes(needle)
+        specSearchText(p).toLowerCase().includes(needle)
       )
     }
     // 排序
@@ -79,7 +80,7 @@ export default function CustomerPage() {
     if (!draftQ || draftQ.length < 1) return []
     const needle = draftQ.toLowerCase()
     return products.filter(p =>
-      p.name.toLowerCase().includes(needle) || (p.spec || '').toLowerCase().includes(needle)
+      p.name.toLowerCase().includes(needle) || specSearchText(p).toLowerCase().includes(needle)
     ).slice(0, 5)
   }, [products, draftQ])
 
@@ -147,8 +148,8 @@ export default function CustomerPage() {
       <input
         type="search"
         className="input-base"
-        placeholder="搜索商品名称或规格…"
-        aria-label="搜索商品名称"
+        placeholder="搜索商品名称或口味…"
+        aria-label="搜索商品名称或口味"
         value={draftQ}
         onChange={(e) => { setDraftQ(e.target.value); setQuery(e.target.value) }}
         autoFocus

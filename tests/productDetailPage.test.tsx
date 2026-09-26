@@ -133,7 +133,7 @@ describe('加载与兜底', () => {
 describe('详情内容', () => {
   it('名称/价格/规格/介绍/返回逐条渲染', async () => {
     render(<MemoryRouter><ProductDetailPage /></MemoryRouter>)
-    await waitFor(() => expect(screen.getByText('规格：500ml')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('口味：500ml')).toBeTruthy())
     // 两处：右栏主价 / 商品参数表「单价」行（吸底栏按视口条件渲染，jsdom 里不出现）
     expect(screen.getAllByText('¥3.50').length).toBe(2)
     expect(screen.getByText('冰镇更好喝')).toBeTruthy()

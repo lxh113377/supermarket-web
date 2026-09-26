@@ -76,7 +76,7 @@ describe('筛选与分页', () => {
   it('按房间号搜索实时过滤，并把页码复位到第 1 页', async () => {
     setup([...Array.from({ length: 25 }, (_, i) => mkOrder(i + 1)), mkOrder(99, { roomNumber: '特殊栋-777' })])
     await waitFor(() => expect(screen.getByText(/共 26 单 · 第 1\/2 页/)).toBeTruthy())
-    fireEvent.change(screen.getByLabelText('按房间号搜索订单'), { target: { value: '特殊' } })
+    fireEvent.change(screen.getByLabelText('按房间号、商品或口味搜索订单'), { target: { value: '特殊' } })
     expect(screen.getByText(/特殊栋-777/)).toBeTruthy()
     expect(screen.queryByText(/共 26 单/)).toBeNull()
   })
@@ -203,13 +203,60 @@ describe('复制与导出', () => {
     const bytes = new Uint8Array(await blob.arrayBuffer())
     expect([bytes[0], bytes[1], bytes[2]]).toEqual([0xef, 0xbb, 0xbf])
     const csv = await blob.text()
-    expect(csv).toContain('房间号,商品,数量,单价,小计,状态,时间')
-    expect(csv).toContain('可乐(500ml)  x2,2,3.50,7.00,待支付')
+    expect(csv).toContain('房间号,商品,口味,数量,单价,小计,状态,时间')
+    expect(csv).toContain('可乐(500ml)  x2,,2,3.50,7.00,待支付')
     expect(parents).toHaveLength(1)
     expect(parents[0]).toBe(document.body) // 点击时仍在文档内（Firefox 判据）
     expect(spy).toHaveBeenCalledTimes(1)
     vi.advanceTimersByTime(1000)
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:csv')
+    spy.mockRestore()
+    vi.useRealTimers()
+  })
+})
+
+describe('口味（从订单快照 spec 拆出来给后台看）', () => {
+  // 一条带口味（顾客在详情页选过）、一条不带（历史单或本就无口味的商品），
+  // 两条同单：既验"该显示的显示"，也验"不该凭空长出的不长出"
+  const flavored = () => mkOrder(7, {
+    roomNumber: '38栋-501',
+    items: [
+      { productId: 'p033', name: '乐事薯片', spec: '40g · 黄瓜味', price: 2.66, quantity: 2 },
+      { productId: 'p022', name: '有糖可乐', spec: '罐装330ml', price: 3.5, quantity: 1 },
+    ] as unknown as Order['items'],
+  })
+
+  it('选过口味的商品挂口味标签，没挂的不凭空长出标签', () => {
+    setup([flavored()])
+    expect(screen.getByText('口味 黄瓜味')).toBeTruthy()
+    expect(screen.getAllByText(/口味/).length).toBe(1)
+    expect(screen.getByText(/乐事薯片\(40g\)x2/)).toBeTruthy()
+    expect(screen.getByText(/有糖可乐\(罐装330ml\)x1/)).toBeTruthy()
+  })
+
+  it('按口味搜索能命中订单：查"谁买了黄瓜味"不必逐单翻', async () => {
+    setup([mkOrder(1), flavored()])
+    fireEvent.change(screen.getByLabelText('按房间号、商品或口味搜索订单'), { target: { value: '黄瓜味' } })
+    await waitFor(() => {
+      expect(screen.getByText(/38栋-501/)).toBeTruthy()
+      expect(screen.queryByText(/36栋-101/)).toBeNull()
+    })
+  })
+
+  it('CSV：口味独立成列，商品列只留静态规格（能直接按口味透视）', async () => {
+    vi.useFakeTimers()
+    const createObjectURL = vi.fn(() => 'blob:flavor')
+    const revokeObjectURL = vi.fn()
+    URL.createObjectURL = createObjectURL
+    URL.revokeObjectURL = revokeObjectURL
+    const spy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    setup([flavored()])
+    fireEvent.click(screen.getByRole('button', { name: 'CSV' }))
+    const csv = await (createObjectURL.mock.calls[0][0] as Blob).text()
+    expect(csv).toContain('乐事薯片(40g)  x2,黄瓜味,2,2.66,5.32,待支付')
+    expect(csv).toContain('有糖可乐(罐装330ml)  x1,,1,3.50,3.50,待支付')
+    vi.advanceTimersByTime(1000)
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:flavor')
     spy.mockRestore()
     vi.useRealTimers()
   })

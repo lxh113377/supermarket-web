@@ -17,7 +17,7 @@ import { productImageUrl, productSrcSet } from '../utils/images'
 import { formatYuan } from '../utils/format'
 import { useIsNarrow } from '../hooks/useMediaQuery'
 import { variantGroupOf } from '../data/variants-demo'
-import { specOptionGroupOf } from '../utils/spec-options'
+import { SPEC_AXIS_ID, specOptionGroupOf } from '../utils/spec-options'
 import {
   groupImageOrders,
   initialSelection,
@@ -362,10 +362,13 @@ export default function ProductDetailPage() {
           />
 
           <div className="px-4 lg:px-0">
-            {/* 标题 / 价格 / 规格 */}
+            {/* 标题 / 价格 / 口味 */}
             <div className="bg-white lg:bg-transparent mt-2.5 lg:mt-0 p-5 lg:p-0 animate-fade-in-up stagger-1">
               <h2 className="text-xl lg:text-2xl font-bold text-gray-900 min-w-0 leading-snug">{effName}</h2>
-              {effSpec && <p className="text-sm text-gray-500 mt-1.5">规格：{effSpec}</p>}
+              {/* 整行保持为直接文本节点（不套 span）：拆成子元素会让按文本定位的用例读不到整串 */}
+              {effSpec && (
+                <p className="text-base font-bold text-gray-900 mt-2">口味：{effSpec}</p>
+              )}
               {avgRating && (
                 <div className="flex items-center gap-2 mt-3">
                   <Stars rating={Math.round(Number(avgRating))} />
@@ -373,14 +376,18 @@ export default function ProductDetailPage() {
                 </div>
               )}
               <p className="text-3xl font-bold text-brand-700 mt-4 tabular-nums">{formatYuan(effPrice)}</p>
+              {/* 已选口味回显：口味轴两条来源（后台 specOptions / 跨记录聚合组）共用同一 axis id */}
+              {group && combo && selection[SPEC_AXIS_ID] && (
+                <p className="text-xs font-semibold text-brand-700 mt-1.5">已选口味：{selection[SPEC_AXIS_ID]}</p>
+              )}
               {combo && Number(effOrder) !== Number(product.order) && (
                 <p className="text-xs text-gray-400 mt-1">
-                  价格随所选规格变化 · 当前对应目录编号 {String(effOrder)}
+                  价格随所选口味变化 · 当前对应目录编号 {String(effOrder)}
                 </p>
               )}
             </div>
 
-            {/* 规格选择 */}
+            {/* 口味选择 */}
             {group && (
               <div className="bg-white lg:bg-transparent mt-2.5 lg:mt-6 p-5 lg:p-0 lg:border-t lg:border-gray-100 lg:pt-5 animate-fade-in-up stagger-2">
                 <VariantPicker

@@ -28,10 +28,11 @@ function AxisRow({ axis, group, selection, onChange }: {
   const current = selection[axis.id] ?? ''
   return (
     <fieldset className="border-0 p-0 m-0">
-      <legend className="text-xs font-semibold text-gray-500 mb-2 px-0">
+      <legend className="flex items-center gap-2 text-sm lg:text-base font-bold text-gray-900 mb-2 px-0">
+        <span className="inline-block w-1 h-4 bg-brand-500 rounded-full shrink-0" aria-hidden="true" />
         {axis.name}
         {current === '' && (
-          <span className="ml-2 font-normal text-gray-400">当前组合不含此选项</span>
+          <span className="text-xs font-normal text-gray-400">当前组合不含此选项</span>
         )}
       </legend>
       <div className="flex flex-wrap gap-2">

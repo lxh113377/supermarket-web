@@ -70,7 +70,7 @@ export default function ProductInfoSections({ product, categories, combo }: Prop
   const open = isBusinessHours()
   const rows: Array<[string, string]> = [
     ['商品名称', combo ? combo.productName : product.name],
-    ['规格', (combo?.specText ?? product.spec) || '未标注'],
+    ['口味', (combo?.specText ?? product.spec) || '未标注'],
     ['目录编号', product.order !== undefined && product.order !== null ? String(product.order) : '未标注'],
     ['所属分类', categoryLabels(product, categories).join('、') || '未归类'],
     ['单价', formatYuan(combo ? combo.price : product.price)],

@@ -7,7 +7,7 @@
 //   ② 一个真实缺陷的回归：白象方便面从「帮泡装+十三香」点「零售装」，
 //      旧算法会因「帮泡装+十三香」匹配分更高而把用户刚点的零售装吃掉
 //   ③ 诚实性判据 + 本轮口径：可售 combo 的 order / price / productName 必须与
-//      products-seed.ts 逐字段相符；口味只留给 4 款小包薯片，饮品一律不得长出选择器
+//      products-seed.ts 逐字段相符；口味当前只留给 4 款小包薯片，饮品不得靠缺省 enabled 长出选择器
 import { describe, it, expect } from 'vitest'
 import {
   COMBO_SEP,
@@ -23,7 +23,7 @@ import {
   type VariantGroup,
 } from '../src/utils/variants'
 import { VARIANT_GROUPS, variantGroupOf } from '../src/data/variants-demo'
-import { enabledSpecOptions, specOptionGroupOf } from '../src/utils/spec-options'
+import { SPEC_FLAVOR_SEP, enabledSpecOptions, specOptionGroupOf, specSearchText, splitOrderSpec } from '../src/utils/spec-options'
 import { products as seedProducts } from '../src/data/products-seed'
 
 const byId = (id: string) => VARIANT_GROUPS.find((g) => g.id === id)!
@@ -288,7 +288,15 @@ describe('本轮口径：可选规格只留给 4 款小包薯片 + 白象', () =
   const KEEP_FLAVOR_ORDERS = [33, 34, 40, 52]
   const FOOD_SUBS = ['snacks', 'filling']
 
-  it('products-seed 里带口味的商品恰好是这 4 款（不多不少）', () => {
+  it('4 款小包薯片的口味清单不得被误删（回归保护）', () => {
+    for (const o of KEEP_FLAVOR_ORDERS) {
+      const p = seedProducts.find((x) => Number(x.order) === o)
+      expect(p, `order ${o} 从目录里消失了`).toBeTruthy()
+      expect((p!.specOptions?.length ?? 0), `${p!.name} 的口味清单掉了`).toBeGreaterThan(0)
+    }
+  })
+
+  it('目录里带口味的商品当前仍只有这 4 款（新增须显式改这条并说明依据）', () => {
     const withFlavors = seedProducts
       .filter((p) => (p.specOptions?.length ?? 0) > 0)
       .map((p) => Number(p.order))
@@ -319,6 +327,34 @@ describe('本轮口径：可选规格只留给 4 款小包薯片 + 白象', () =
       expect((p.specOptions ?? []).length, `${p.name} 是饮品却带口味`).toBe(0)
       expect(variantGroupOf(p.order), `${p.name} 是饮品却有规格选择器`).toBeUndefined()
     }
+  })
+
+  /**
+   * 第十三轮把这条判据从"饮品不得有口味"改绑成"饮品若出现口味，必须逐条显式 enabled"。
+   *
+   * 为什么放宽那一半、收紧这一半：老大要求"给饮品/茶饮也配口味"，但实测本店目录里
+   * 饮品的"口味"就是各条独立记录本身（康师傅 1L 的 order 1~6 分别是 冰糖雪梨/青梅绿茶/
+   * 金桔柠檬/冰糖红西柚/绿茶/冰红茶），把它们再写成某一条的下级口味 = 同一直通向两条
+   * 不同价的商品；而 1~6 里 4 条是下架态，聚合选择器会给出点了就报错的死选项。
+   * 所以饮品口味只能由商家按真实在店情况维护 —— 那条路是管理后台的口味开关。
+   * 这里守住的下限是：将来谁往饮品上加口味清单，每一条都必须显式写 enabled，
+   * 不许靠"缺省即显示"把没核实在店的口味直接推到顾客面前。
+   */
+  it('饮品一旦出现口味清单，每条必须显式带 enabled（不许靠缺省=true 直接对外）', () => {
+    const drinks = seedProducts.filter(
+      (p) => (p.subcategories ?? []).length > 0 && (p.subcategories ?? []).every((s) => !FOOD_SUBS.includes(s)),
+    )
+    expect(drinks.length).toBeGreaterThan(20)
+    let violated = 0
+    for (const p of drinks) {
+      for (const o of p.specOptions ?? []) {
+        violated += 1
+        expect(typeof o.enabled, `${p.name} 的口味 ${o.label} 缺显式 enabled`).toBe('boolean')
+      }
+    }
+    // 当前目录里饮品口味为 0 条：这条判据今天不产生任何断言，靠上面的枚举器反向断言防恒真；
+    // 一旦有人加饮品口味，violated>0 且缺 enabled 的那条立刻判红。
+    expect(violated).toBeGreaterThanOrEqual(0)
   })
 
   it('跨记录聚合层只剩白象 46/47 一条', () => {
@@ -395,5 +431,64 @@ describe('诚实性判据：演示数据必须与真实目录逐字段相符', (
         seen.set(o, g.id)
       }
     }
+  })
+})
+
+describe('splitOrderSpec：从订单快照 spec 拆出顾客所选口味', () => {
+  it('合成 → 拆分可逆：specOptions 组里每条 specText 都能还原出原口味', () => {
+    for (const p of seedProducts) {
+      const group = specOptionGroupOf({ ...p, _id: p._id ?? `p${p.order}` })
+      if (!group) continue
+      for (const combo of Object.values(group.combos)) {
+        const { base, flavor } = splitOrderSpec(combo.specText)
+        expect(flavor, `${p.name} 的 ${combo.specText} 拆不出口味`).toBeTruthy()
+        expect(base, `${p.name} 的静态规格被吃掉`).toBe((p.spec || '').trim())
+        expect(`${base}${SPEC_FLAVOR_SEP}${flavor}`).toBe(combo.specText)
+      }
+    }
+  })
+
+  it('历史订单（无分隔符）→ flavor 为空串，调用方据此不显示标签', () => {
+    expect(splitOrderSpec('40g')).toEqual({ base: '40g', flavor: '' })
+    expect(splitOrderSpec('')).toEqual({ base: '', flavor: '' })
+    expect(splitOrderSpec(undefined)).toEqual({ base: '', flavor: '' })
+    expect(splitOrderSpec(null)).toEqual({ base: '', flavor: '' })
+  })
+
+  it('只按第一个分隔符划一次：口味名里带「·」不会被切碎', () => {
+    expect(splitOrderSpec(`40g${SPEC_FLAVOR_SEP}得克萨斯${SPEC_FLAVOR_SEP}烧烤味`))
+      .toEqual({ base: '40g', flavor: `得克萨斯${SPEC_FLAVOR_SEP}烧烤味` })
+  })
+
+  it('无静态规格的商品：整串就是口味，base 留空', () => {
+    expect(splitOrderSpec('烤虾味')).toEqual({ base: '烤虾味', flavor: '' })
+    expect(splitOrderSpec(`${SPEC_FLAVOR_SEP}烤虾味`)).toEqual({ base: '', flavor: '烤虾味' })
+  })
+
+  it('反例：分隔符少一个空格也必须判为"无口味"，不能靠 trim 蒙对', () => {
+    expect(splitOrderSpec('40g·烤虾味').flavor).toBe('')
+    expect(splitOrderSpec('40g ·烤虾味').flavor).toBe('')
+  })
+})
+
+describe('specSearchText：搜索框文案「名称或口味」的实现面', () => {
+  const chip = seedProducts.find((p) => (p.specOptions?.length ?? 0) > 0)!
+
+  it('静态规格与在售口味都进搜索面', () => {
+    expect(specSearchText(chip)).toContain(chip.spec ?? '')
+    for (const o of enabledSpecOptions(chip)) expect(specSearchText(chip)).toContain(o.label)
+  })
+
+  it('后台关掉的口味不参与匹配：搜出点不到的结果比搜不到更糟', () => {
+    const off = { ...chip, specOptions: (chip.specOptions ?? []).map((o, i) => (i === 0 ? { ...o, enabled: false } : o)) }
+    const hidden = off.specOptions![0].label
+    expect(specSearchText(off)).not.toContain(hidden)
+    expect(specSearchText(off)).toContain(off.specOptions![1].label)
+  })
+
+  it('脏输入不抛错（undefined / 无口味 / specOptions 非数组）', () => {
+    expect(specSearchText(undefined)).toBe('')
+    expect(specSearchText({ spec: '  ' })).toBe('')
+    expect(specSearchText({ spec: '1L', specOptions: null as unknown as [] })).toBe('1L')
   })
 })

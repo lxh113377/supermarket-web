@@ -103,7 +103,7 @@ describe('CustomerPage 商城页', () => {
     renderShop()
     await screen.findByText(/农夫山泉/)
     fireEvent.click(screen.getByRole('button', { name: '搜索商品' }))
-    const input = screen.getByLabelText('搜索商品名称')
+    const input = screen.getByLabelText('搜索商品名称或口味')
     fireEvent.change(input, { target: { value: '可乐' } })
     await waitFor(() => expect(screen.queryByText(/农夫山泉 \(550ml\)/)).toBeNull())
     fireEvent.change(input, { target: { value: '不存在词999' } })
@@ -154,7 +154,7 @@ describe('CustomerPage 商城页', () => {
     fireEvent.click(screen.getByRole('button', { name: '价格↑' }))
     await waitFor(() => expect(counter()).resolves.toContain('按价格升序'))
     fireEvent.click(screen.getByRole('button', { name: '搜索商品' }))
-    fireEvent.change(screen.getByLabelText('搜索商品名称'), { target: { value: '可乐' } })
+    fireEvent.change(screen.getByLabelText('搜索商品名称或口味'), { target: { value: '可乐' } })
     await waitFor(() => expect(counter()).resolves.toContain('共 1 件'))
     await waitFor(() => expect(counter()).resolves.toContain('匹配「可乐」'))
   })
@@ -178,12 +178,12 @@ describe('CustomerPage 商城页', () => {
     ])
     renderShop()
     // 7 个未关掉的口味才算数：enabled:false 的烤虾味不能混进角标
-    expect(await screen.findByText('7 种规格')).toBeTruthy()
-    expect(screen.getByText('2 种规格')).toBeTruthy()
-    expect(screen.getAllByText(/种规格/).length).toBe(2) // 只有这两条带角标
+    expect(await screen.findByText('可选 7 种口味')).toBeTruthy()
+    expect(screen.getByText('可选 2 种口味')).toBeTruthy()
+    expect(screen.getAllByText(/种口味/).length).toBe(2) // 只有这两条带角标
     const cardOf = (n: string) => screen.getByText(n).closest('p')!
-    expect(cardOf('2.66').textContent).toContain('7 种规格')
-    expect(cardOf('2.88').textContent).not.toContain('种规格')
+    expect(cardOf('2.66').textContent).toContain('可选 7 种口味')
+    expect(cardOf('2.88').textContent).not.toContain('种口味')
   })
 
   // ---- 阶段一新增：筛选态以 URL 为唯一真相 ----

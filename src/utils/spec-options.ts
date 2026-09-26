@@ -8,6 +8,13 @@ import type { VariantGroup } from './variants'
 
 export const SPEC_AXIS_ID = 'flavor'
 
+/**
+ * 订单快照里「静态规格」与「所选口味」的分隔符。
+ * 唯一权威：合成端（本文件 specText 与 functions/lib/actions/orders.js 的 allowedOrderSpecs）
+ * 与解析端（splitOrderSpec）都必须引用它，任一侧改字面量就会让后台口味标签静默失灵。
+ */
+export const SPEC_FLAVOR_SEP = ' · '
+
 /** 只保留有名字、且未被后台关掉的口味；同名只取第一条（后台手滑重复不会渲染出两个按钮） */
 export function enabledSpecOptions(product?: { specOptions?: SpecOption[] } | null): SpecOption[] {
   const raw = Array.isArray(product?.specOptions) ? product!.specOptions! : []
@@ -50,9 +57,34 @@ export function specOptionGroupOf(product?: Product | null): VariantGroup | unde
         price,
         order,
         productName: product.name,
-        specText: spec ? `${spec} · ${o.label}` : o.label,
+        specText: spec ? `${spec}${SPEC_FLAVOR_SEP}${o.label}` : o.label,
         available: true,
       },
     ])),
   }
+}
+
+/**
+ * 解析订单快照里的 items.spec，拆出「静态规格」与「顾客所选口味」。
+ *
+ * 只按第一个分隔符划一次：口味名本身可能带「·」，全量 split 会把口味切碎。
+ * 历史订单（2026-09-26 修复前下的单）不含分隔符 —— 那时顾客选的口味被目录静态 spec
+ * 覆盖掉了，flavor 返回空串；调用方据此不显示标签，不得替老单猜测口味。
+ */
+export function splitOrderSpec(spec?: string | null): { base: string; flavor: string } {
+  const raw = typeof spec === 'string' ? spec : ''
+  const at = raw.indexOf(SPEC_FLAVOR_SEP)
+  if (at < 0) return { base: raw.trim(), flavor: '' }
+  return { base: raw.slice(0, at).trim(), flavor: raw.slice(at + SPEC_FLAVOR_SEP.length).trim() }
+}
+
+/**
+ * 搜索用文本 = 静态规格 + 顾客可见的口味名。
+ * 后台关掉的口味不参与匹配：搜出一个点不到的结果，比搜不到更糟。
+ * 搜索框文案已写成「名称或口味」，这个函数就是那句文案的实现，二者必须一起改。
+ */
+export function specSearchText(product?: { spec?: string; specOptions?: SpecOption[] } | null): string {
+  const parts = [(product?.spec || '').trim()]
+  for (const o of enabledSpecOptions(product)) parts.push(o.label)
+  return parts.filter(Boolean).join(' ')
 }

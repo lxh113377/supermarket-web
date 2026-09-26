@@ -28,6 +28,16 @@ async function open(page: import('@playwright/test').Page, order: number, vp = {
   await expect(page.getByLabel('购买数量', { exact: true })).toBeVisible({ timeout: 20_000 })
 }
 
+
+/**
+ * 选择器轴名（口味/版本/包装/容量）只认 fieldset>legend。
+ * 裸 getByText('口味') 会撞上「商品参数」区那一行同样叫「口味」的标签
+ * （详情页参数区第 3 行），那会让"没有选择器"的断言假红、"有选择器"的断言假绿。
+ */
+function axis(page: import('@playwright/test').Page, name: string) {
+  return page.locator('fieldset > legend', { hasText: name })
+}
+
 /** 标题旁的主价 —— 必须与「同类商品」区里其他商品的标价区分开，否则子串会撞 */
 const mainPrice = (page: import('@playwright/test').Page) =>
   page.locator('p.text-3xl').first()
@@ -66,7 +76,7 @@ test('口味不改价：乐事薯片选到烤虾味仍是 40g 的真实单价 2.
   await expect(mainPrice(page)).toHaveText('¥2.66')
   await page.getByRole('button', { name: '烤虾味', exact: true }).click()
   await expect(mainPrice(page)).toHaveText('¥2.66')
-  await expect(page.getByText('规格：40g · 烤虾味')).toBeVisible()
+  await expect(page.getByText('口味：40g · 烤虾味')).toBeVisible()
 })
 
 test('所选口味写进购物袋与订单金额（商家要知道要哪一包）', async ({ page }) => {
@@ -118,18 +128,18 @@ test('任何视口下都只渲染一个「加入购物车」主按钮（宽屏�
 
 test('无规格数据的商品不长出规格选择器（不编造规格）', async ({ page }) => {
   await open(page, 22) // 有糖可乐 罐装330ml：既无聚合组也无口味清单
-  await expect(page.getByText('版本', { exact: true })).toHaveCount(0)
-  await expect(page.getByText('口味', { exact: true })).toHaveCount(0)
-  await expect(page.getByText('包装', { exact: true })).toHaveCount(0)
-  await expect(page.getByText('容量', { exact: true })).toHaveCount(0)
+  await expect(axis(page, '版本')).toHaveCount(0)
+  await expect(axis(page, '口味')).toHaveCount(0)
+  await expect(axis(page, '包装')).toHaveCount(0)
+  await expect(axis(page, '容量')).toHaveCount(0)
 })
 
 test('饮品的规格选择器已下线（东鹏不再有包装/容量，康师傅茶饮不再有口味色块）', async ({ page }) => {
   await open(page, 16) // 盒装东鹏特饮
-  await expect(page.getByText('包装', { exact: true })).toHaveCount(0)
-  await expect(page.getByText('容量', { exact: true })).toHaveCount(0)
+  await expect(axis(page, '包装')).toHaveCount(0)
+  await expect(axis(page, '容量')).toHaveCount(0)
   await open(page, 6) // 康师傅冰红茶
-  await expect(page.getByText('口味', { exact: true })).toHaveCount(0)
+  await expect(axis(page, '口味')).toHaveCount(0)
   await expect(page.getByText(/数据说明：/)).toHaveCount(0)
 })
 

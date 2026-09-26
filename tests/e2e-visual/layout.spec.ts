@@ -370,3 +370,61 @@ test('同名商品靠独立规格行可区分（规格不得退回品名括号�
   expect(new Set(dupes.map((d) => d.spec)).size).toBe(dupes.length) // 规格两两不同
   expect(dupes.every((d) => d.spec.length > 0)).toBe(true)          // 且都真的渲染出来了
 })
+
+/**
+ * 「口味」的视觉权重判据（第十三轮：老大原话「现在这个不是很明显」）。
+ *
+ * 为什么用 computed style 而不是截图基线：这条要钉的是"口味比周围微文案更抢眼"这个
+ * **相对事实**，绝对像素基线换机器就漂。字重/字号/颜色三项一旦有人改回
+ * `text-xs text-gray-500`，第一条就红，不会靠肉眼"看着还行"混过去。
+ * 成对反例面放在最后：没有口味清单的商品不得凭空长出角标。
+ */
+test('口味比周边微文案更抢眼（轴标题字重 + 品牌色角标 + 无口味商品不长角标）', async ({ page }) => {
+  await open(page, 33) // 乐事薯片：后台 specOptions 驱动的口味轴
+  const legend = page.locator('fieldset > legend').filter({ hasText: '口味' })
+  await expect(legend).toHaveCount(1)
+  const axis = await legend.evaluate((el) => {
+    const s = getComputedStyle(el)
+    const bar = el.querySelector('span[aria-hidden="true"]')
+    return {
+      weight: Number(s.fontWeight),
+      size: parseFloat(s.fontSize),
+      color: s.color,
+      barBg: bar ? getComputedStyle(bar).backgroundColor : 'none',
+      barH: bar ? bar.getBoundingClientRect().height : 0,
+    }
+  })
+  expect(axis.weight, '口味轴字重掉回 normal/semibold ⇒「不明显」复发').toBeGreaterThanOrEqual(700)
+  expect(axis.size, '口味轴字号掉回 12px 微文案档').toBeGreaterThanOrEqual(14)
+  expect(axis.color).toBe('rgb(17, 24, 39)') // gray-900，主文本色
+  expect(axis.barBg, '口味轴左侧品牌色竖条丢失').toBe('rgb(234, 179, 8)') // brand-500
+  expect(axis.barH).toBeGreaterThanOrEqual(16)
+
+  await page.getByRole('button', { name: '烤虾味' }).click()
+  const picked = page.getByText(/^已选口味：/)
+  await expect(picked).toHaveCount(1)
+  expect(await picked.evaluate((el) => el.textContent?.trim())).toBe('已选口味：烤虾味')
+  expect(await picked.evaluate((el) => getComputedStyle(el).color)).toBe('rgb(161, 98, 7)') // brand-700
+
+  await openShop(page, '/shop/food/snacks')
+  const badges = await page.evaluate(() => {
+    const cards = [...document.querySelectorAll('[role="button"][aria-label^="查看"]')]
+    return cards.map((el) => {
+      const name = el.querySelector('h3')?.textContent?.trim() ?? ''
+      const b = [...el.querySelectorAll('span')].find((x) => /种口味/.test(x.textContent ?? ''))
+      return {
+        name,
+        text: b ? (b.textContent ?? '').replace(/\s+/g, ' ').trim() : '',
+        bg: b ? getComputedStyle(b).backgroundColor : '',
+        fg: b ? getComputedStyle(b).color : '',
+      }
+    })
+  })
+  const lay = badges.find((x) => x.name === '乐事薯片')
+  expect(lay, '乐事薯片卡未渲染 ⇒ 被测对象已变，须同步修订本判据').toBeTruthy()
+  expect(lay!.text).toBe('可选 8 种口味')
+  expect(lay!.bg, '角标底色不是品牌色 ⇒ 又退回白底灰字').toBe('rgb(254, 249, 195)') // brand-100
+  expect(lay!.fg).toBe('rgb(161, 98, 7)') // brand-700
+  const bare = badges.filter((x) => x.text === '')
+  expect(bare.length, '全列表都长出角标 ⇒ 角标不再等于"有口味"').toBeGreaterThan(0)
+})

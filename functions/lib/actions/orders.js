@@ -64,10 +64,12 @@ export async function findByFingerprint(DB, { roomNumber, fingerprint }) {
 }
 
 // 顾客所选口味 → 订单 items.spec 的取值口径。
-// 客户端把口味折进 spec 字符串（src/utils/spec-options.ts:53 的 `${spec} · ${label}`），
-// 服务端不能原样信任：只接受「该商品目录 spec」或商家在后台维护且未关掉的口味组合，
+// 客户端把口味折进 spec 字符串（src/utils/spec-options.ts 的 SPEC_FLAVOR_SEP，
+// 即 `${spec} · ${label}`），服务端不能原样信任：只接受「该商品目录 spec」或商家在后台维护且未关掉的口味组合，
 // 其余（脏串、伪造、已下架口味、旧客户端不传）一律回落商品真值。
 // 名称/单价/库存仍全部取 DB 行，这里放行的只是"要哪一包"这个信息。
+// 分隔符在本文件与前端各写一份（Pages Functions 与 src/ 是两条构建链，无法共享模块），
+// 由 tests/specFlavorContract.test.js 钉住两侧一致；改这里的字面量会让那条用例判红。
 export function allowedOrderSpecs(p) {
   const base = (typeof p.spec === 'string' ? p.spec : '').trim()
   const out = new Set([base])

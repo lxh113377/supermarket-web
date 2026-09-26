@@ -6,6 +6,7 @@ import EmptyState from './EmptyState'
 import { SkeletonTable } from './Skeleton'
 import { IconEmpty } from './Icons'
 import { formatPrice, formatYuan } from '../utils/format'
+import { splitOrderSpec } from '../utils/spec-options'
 import { orderStatusLabel, nextOrderStatuses, ORDER_STATUS_LABELS } from '../utils/orderStatus'
 import type { Order } from '../types'
 
@@ -64,7 +65,15 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
     if (filter !== 'all') list = list.filter(o => o.status === filter)
     if (search) {
       const q = search.toLowerCase()
-      list = list.filter(o => String(o.roomNumber || '').toLowerCase().includes(q))
+      // 除房间号外还匹配商品名与口味：后台查「谁买了黄瓜味」时，逐单翻 20 条不现实
+      list = list.filter(o =>
+        String(o.roomNumber || '').toLowerCase().includes(q) ||
+        o.items.some(i => {
+          const { base, flavor } = splitOrderSpec(i.spec)
+          return String(i.name || '').toLowerCase().includes(q) ||
+            flavor.toLowerCase().includes(q) ||
+            base.toLowerCase().includes(q)
+        }))
     }
     return list
   }, [orders, filter, search])
@@ -112,17 +121,22 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
   const exportCSV = (): void => {
     const statusLabel = orderStatusLabel
     const rows = orders.flatMap(o =>
-      o.items.map(i => [
-        String(o.roomNumber),
-        `${i.name}${i.spec ? '(' + i.spec + ')' : ''}  x${i.quantity}`,
-        String(i.quantity),
-        formatPrice(i.price ?? 0),
-        formatPrice((i.price ?? 0) * i.quantity),
-        statusLabel(o.status),
-        new Date(o.createdAt).toLocaleString(),
-      ])
+      o.items.map(i => {
+        // 口味单列：老大要能在表格里直接按口味透视，混在「商品」列里就得手工拆
+        const { base, flavor } = splitOrderSpec(i.spec)
+        return [
+          String(o.roomNumber),
+          `${i.name}${base ? '(' + base + ')' : ''}  x${i.quantity}`,
+          flavor,
+          String(i.quantity),
+          formatPrice(i.price ?? 0),
+          formatPrice((i.price ?? 0) * i.quantity),
+          statusLabel(o.status),
+          new Date(o.createdAt).toLocaleString(),
+        ]
+      })
     )
-    const csv = buildCsvText(['房间号', '商品', '数量', '单价', '小计', '状态', '时间'], rows)
+    const csv = buildCsvText(['房间号', '商品', '口味', '数量', '单价', '小计', '状态', '时间'], rows)
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -161,8 +175,8 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
       <div className="flex gap-2 mb-2 flex-wrap">
         <input
           type="search"
-          aria-label="按房间号搜索订单"
-          placeholder="搜索房间号…"
+          aria-label="按房间号、商品或口味搜索订单"
+          placeholder="搜索房间号 / 商品 / 口味…"
           value={search}
           onChange={e => { setSearch(e.target.value); setPage(1) }}
           className="flex-1 min-w-[8rem] border border-gray-200 rounded-lg px-3 py-2 text-sm"
@@ -228,7 +242,22 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
             </div>
           </div>
           <div className="text-sm text-gray-600 mb-2">
-            {order.items.map(item => item.name + (item.spec ? '(' + item.spec + ')' : '') + 'x' + item.quantity).join('，')}
+            {order.items.map((item, idx) => {
+              const { base, flavor } = splitOrderSpec(item.spec)
+              return (
+                <span key={`${item.productId || item.name}-${idx}`}>
+                  {item.name}{base ? `(${base})` : ''}x{item.quantity}
+                  {/* 口味只在顾客真选过的时候显示：2026-09-26 之前的单口味被静态 spec 覆盖，
+                      替老单标"未记录"会把"没这个功能"渲染成"顾客没选"，是假信息 */}
+                  {flavor && (
+                    <span className="ml-1 mr-0.5 text-[10px] font-medium text-brand-700 bg-brand-100 rounded px-1 py-px">
+                      口味 {flavor}
+                    </span>
+                  )}
+                  {idx < order.items.length - 1 && '，'}
+                </span>
+              )
+            })}
           </div>
           {/* 管理端行内布局：手机端纵向堆叠，sm 以上左右分列（原实现挤在一行、金额与操作互相挤压） */}
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
