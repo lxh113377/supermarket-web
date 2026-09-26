@@ -377,3 +377,51 @@ describe('workflow 模板注入自查（run 块不得插值不可信上下文）
     expect(/env:\s*\r?\n\s+GITHUB_HEAD_SHA:/.test(parity), 'release-parity 的 head_sha 必须留在 env: 映射里').toBe(true)
   })
 })
+
+/**
+ * workflow 排版骨架自查（第十轮：我自己把新 job 插到 `jobs:` 之外造成的）。
+ * 症状最难发现也最致命：GitHub 直接一个 job 都不排（0 job、workflow conclusion=failure），
+ * 而 `gh pr checks` 上看不到任何 step 日志，只能从 run 的 jobs 数组为空反推。
+ * 两条最小不变量就够挡住这一类：① 顶层键必须是 Actions 合法字段；② 任何 `runs-on:`
+ * 必须出现在顶层 `jobs:` 之后（否则那个 job 不在 jobs 里）。
+ */
+const TOP_LEVEL_KEYS = new Set(['name', 'on', 'permissions', 'concurrency', 'env', 'defaults', 'jobs', 'run-name', 'timeout-minutes'])
+
+function workflowLayoutProblems(text: string): string[] {
+  const lines = text.split('\n')
+  const problems: string[] = []
+  let jobsAt = -1
+  lines.forEach((l, i) => { if (l === 'jobs:') jobsAt = i })
+  lines.forEach((l, i) => {
+    const top = /^([A-Za-z][\w-]*):\s*$/.exec(l)
+    if (top && !TOP_LEVEL_KEYS.has(top[1])) problems.push(`第 ${i + 1} 行：顶层键 ${top[1]}: 不是 Actions 合法字段`)
+    if (/^\s+runs-on:/.test(l) && (jobsAt < 0 || i < jobsAt)) {
+      problems.push(`第 ${i + 1} 行：runs-on 出现在 jobs: 之前 ⇒ 该 job 根本不会被排出来`)
+    }
+  })
+  return problems
+}
+
+describe('workflow 排版骨架（job 必须在 jobs: 里，顶层键必须合法）', () => {
+  it('反例夹具必须被抓到：把 job 块写在 jobs: 之前', () => {
+    const bad = [
+      'name: X', 'permissions:', '  contents: read', 'jobz:', '  extra:',
+      '    runs-on: ubuntu-latest', 'jobs:', '  real:', '    runs-on: ubuntu-latest',
+    ].join('\n')
+    const hits = workflowLayoutProblems(bad)
+    expect(hits.some((h) => h.includes('runs-on 出现在 jobs: 之前'))).toBe(true)
+    expect(hits.some((h) => h.includes('顶层键 jobz:'))).toBe(true)
+  })
+  it('正例夹具不得误伤', () => {
+    const good = ['name: X', 'on: push', 'permissions:', '  contents: read', 'jobs:',
+      '  a:', '    runs-on: ubuntu-latest'].join('\n')
+    expect(workflowLayoutProblems(good)).toEqual([])
+  })
+  it('本仓 4 条 workflow 全部合格（含 dispatch.yml，它正是这次的案发现场）', () => {
+    for (const [file, text] of allWorkflows) {
+      expect(workflowLayoutProblems(text), `${file} 排版不合法`).toEqual([])
+    }
+    // 反向钉：分母必须真的含 dispatch.yml，否则哪天它不被读也"全绿"
+    expect(allWorkflows.map(([f]) => f)).toContain('dispatch.yml')
+  })
+})
