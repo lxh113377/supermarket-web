@@ -5,7 +5,13 @@ on:
     - cron: '0 20 * * *'   # UTC 20:00 = 北京 04:00（低峰）
   workflow_dispatch:
 
-# 最小权限：本 workflow 只读代码，导出物进 artifact（私有仓内）
+# 最小权限：本 workflow 只读代码。
+# ⚠️ 仓库已于 2026-09-25 转 public ⇒ artifact 的可见面从"仅协作者"扩到"任意已登录 GitHub 用户"
+#    （实测：未鉴权下载仍被拒 —— REST `/actions/artifacts/{id}/zip` 返回 401、
+#     web UI download 路径返回 404；但带任意用户 token 或网页登录后即可取）。
+#    生产库全量导出物不能放到这里 ⇒ 下面 visibility 守卫在非私有仓时**响亮失败**。
+#    两条出路（择一后再解守卫）：① 仓库转回 private；② 上传前用 age/openssl 加密，
+#    并另配一个只用于解密口令的 secret —— 绝不允许"明文导出 + 公开仓"同时成立。
 permissions:
   contents: read
 
@@ -34,6 +40,25 @@ jobs:
           else
             echo "found=true" >> "$GITHUB_OUTPUT"
           fi
+
+      # 守卫必须排在导出**之前**：一旦 public 仓配了备份 token，宁可红也不要落下可被任意读者取走的全库明文。
+      # 判据取 API 实答而非 github.event 上下文：schedule 触发的 payload 里 repository 字段形态不稳，
+      # 按"取不到数据就失败"处理（禁把上下文缺失误判成"通过"）。
+      - name: Refuse plaintext backup artifact on a non-private repo
+        if: steps.tok.outputs.found == 'true'
+        shell: bash
+        env:
+          GH_API: https://api.github.com/repos/${{ github.repository }}
+        run: |
+          set -euo pipefail
+          body=$(curl -fsS -H "Authorization: Bearer $GITHUB_TOKEN" -H 'Accept: application/vnd.github+json' "$GH_API") \
+            || { echo "::error::读不到仓库可见性（API 失败）——fail-closed，不放行备份"; exit 1; }
+          priv=$(printf '%s' "$body" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const j=JSON.parse(s);console.log(typeof j.private==='boolean'?String(j.private):'unknown')})")
+          if [ "$priv" != "true" ]; then
+            echo "::error title=备份已拦下·仓库非私有(private=$priv)::CF_D1_BACKUP_TOKEN 已配置，但本仓不是 private ⇒ 全库明文导出物进 artifact 后任意已登录 GitHub 用户都能下载。处置见本文件顶部注释的两条出路（转回 private / 先加密再上传）。"
+            exit 1
+          fi
+          echo "仓库为 private，允许落 artifact"
 
       - name: Export remote D1
         if: steps.tok.outputs.found == 'true'

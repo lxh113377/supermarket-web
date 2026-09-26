@@ -1,5 +1,5 @@
-/* oxlint-disable no-console -- 浏览器错误需要打印到 stdout 才能进 CI 日志 */
 import { test, expect } from '@playwright/test'
+import { watchErrors, DEV_CSP_NOISE, type ErrorWatch } from './helpers/watchErrors'
 
 /**
  * 商品详情页「功能」e2e —— 跑 dev server（本地演示模式，无后端）。
@@ -16,12 +16,11 @@ import { test, expect } from '@playwright/test'
  * 其余商品（含全部饮品）既无聚合组也无口味清单，页面不得长出选择器。
  */
 
+let errs: ErrorWatch
 test.beforeEach(async ({ page }) => {
-  page.on('pageerror', (e) => console.log('PAGEERROR:', e.message))
-  page.on('console', (m) => {
-    if (m.type() === 'error') console.log('BROWSER-ERR:', m.text().slice(0, 200))
-  })
+  errs = watchErrors(page, DEV_CSP_NOISE)
 })
+test.afterEach(() => errs.assertClean())
 
 async function open(page: import('@playwright/test').Page, order: number, vp = { width: 1440, height: 900 }) {
   await page.setViewportSize(vp)

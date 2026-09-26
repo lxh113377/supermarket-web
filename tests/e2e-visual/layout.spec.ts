@@ -1,5 +1,7 @@
-/* oxlint-disable no-console -- 浏览器错误需要打印到 stdout 才能进 CI 日志 */
 import { test, expect } from '@playwright/test'
+// 本 spec 跑**生产构建** ⇒ 故意不传 DEV_CSP_NOISE：生产里没有 inline style，
+// 真出现 CSP 违规就是回归，必须变红（第八轮 H3）。
+import { watchErrors, type ErrorWatch } from '../e2e/helpers/watchErrors'
 
 /**
  * 商品详情页「真实布局」e2e —— 必须跑在**生产构建**上，不能跑 dev。
@@ -17,12 +19,11 @@ const DESKTOP = { width: 1440, height: 900 }
 const TABLET = { width: 768, height: 1024 }
 const MOBILE = { width: 390, height: 844 }
 
+let errs: ErrorWatch
 test.beforeEach(async ({ page }) => {
-  page.on('pageerror', (e) => console.log('PAGEERROR:', e.message))
-  page.on('console', (m) => {
-    if (m.type() === 'error') console.log('BROWSER-ERR:', m.text().slice(0, 200))
-  })
+  errs = watchErrors(page)
 })
+test.afterEach(() => errs.assertClean())
 
 /** 先证明样式真的生效了，否则后面所有几何断言都是假的 */
 async function assertCssLive(page: import('@playwright/test').Page) {

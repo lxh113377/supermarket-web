@@ -22,6 +22,7 @@ export default defineConfig({
   workers: 1,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? 'list' : 'line',
+  outputDir: 'playwright-report-visual',
   use: {
     baseURL: BASE,
     viewport: { width: 1440, height: 900 },
@@ -33,7 +34,10 @@ export default defineConfig({
     // env-empty 目录屏蔽本机 .env（VITE_CB_API_BASE 会切到云端模式，演示断言会全失效）
     command: `vite build --config vite.config.e2e.js --outDir ${OUT_DIR} --emptyOutDir && vite preview --outDir ${OUT_DIR} --port ${PORT} --strictPort`,
     url: BASE,
-    reuseExistingServer: !process.env.CI,
+    // 恒 false（第八轮 M4 顺手治第七轮记的本机盲区）：true 时上一会话遗留、伺服**过期 dist-e2e**
+    // 的进程会被静默复用 ⇒ 视觉判据跑在旧产物上全绿（第七轮实测踩到，netstat 抓不到 PID 但端口 200）。
+    // 宁可响亮报"端口被占"，也不测旧产物。CI 下本来就是 false，此项只影响本机。
+    reuseExistingServer: false,
     timeout: 180_000,
   },
 })

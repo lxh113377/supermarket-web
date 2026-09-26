@@ -52,6 +52,12 @@ jobs:
       - name: Lint (oxlint)
         run: npm run lint
 
+      # 第八轮 M2（收第七轮 K7）：Windows/macOS 大小写不敏感文件系统上，新建文件会
+      # 静默覆盖同名异Case的已跟踪文件（第七轮实测：productsTab.test.tsx 吃掉 ProductsTab 的 4 例，
+      # git status 只显示一个 M）。Linux runner 上两者本是两个文件 ⇒ 本地全绿 CI 收两套。
+      - name: File-name case collision check
+        run: npm run verify:case
+
       - name: Test (vitest, with v8 coverage)
         # 一次跑测兼产出覆盖率（避免全量套件跑两遍）；失败仍然阻断
         run: npx vitest run --coverage
@@ -67,6 +73,12 @@ jobs:
       - name: API contract drift check
         run: npm run verify:contract
 
+      # 第八轮 H2：README/ARCHITECTURE 里可静态派生的数字（action 数、覆盖率棘轮阈值、
+      # 单测文件数、文档内链）必须等于真相源。实测抓到的漂移：`/web 30 action`（契约 31）、
+      # 手写徽章 `tests-176 passed`（同文件另一行写 631）。对标 microfeed 的 `docs:check` step。
+      - name: Doc facts consistency gate
+        run: npm run verify:docs
+
       # 对标第二轮 A2：迁移引入的对象必须回写 schema.sql，否则测试库（verify-backend 每次
       # 从 schema.sql 重建 :memory:）与线上 D1 漂移——症状是"全绿但线上 no column named"。
       - name: Schema drift check (migrations vs schema.sql)
@@ -77,8 +89,12 @@ jobs:
         run: npm run verify:licenses
 
       # 对标第五轮 F2：改了 src/functions 必须带 CHANGELOG 条目（changesets 思想个人化；--relaxed 留 hotfix 逃生门且 CI 留痕）
+      # 第八轮 M1：push 事件此前固定 HEAD~1 ⇒ 一次 push 多提交时只校验末位那个，
+      # "把 src 改动藏在一个纯 docs 的末位提交后面"即可免门禁。这里把 webhook 的 before 传进去。
       - name: CHANGELOG entry gate
         run: npm run verify:changelog
+        env:
+          GITHUB_EVENT_BEFORE: ${{ github.event.before }}
 
       - name: Upload coverage report
         if: always()
@@ -99,6 +115,13 @@ jobs:
       # 体积预算（P1-B2）：build 之后按 gzip 首屏体积卡阈值，防体积悄悄回归
       - name: Bundle size budget (gzip, first-load)
         run: node scripts/check-bundle-size.mjs
+
+      # 第八轮 H4（对标 microfeed 的 "Verify the Worker bundle"）：npm run build 只编译 src/，
+      # functions/ 完全在 vite 视野之外 —— 此前绑定名写错/入口语法坏要等到 wrangler 真部署才炸。
+      # 反例已实跑：往 functions/ 放一个 import 缺失模块的文件 → Could not resolve + 非零退出；
+      # 另把 functions/_health.js 改名 → 结构断言报「找不到路由字面量 /_health」（exit 1）。
+      - name: Pages Functions deployable-artifact check (compile, no deploy)
+        run: npm run verify:functions
 
       - name: Backend contract verify (node:sqlite mock D1)
         run: node scripts/verify-backend.mjs
@@ -181,6 +204,37 @@ jobs:
           if-no-files-found: ignore
           retention-days: 3
 
+  # 第八轮 M4：视觉/可访问性层（16 条：AA 对比度、键盘焦点环、CLS 友好固有尺寸、
+  # 1440/768/390 三档无横向溢出、图区底板一致性）此前只在本地跑，改样式没有任何机器拦。
+  # 跑生产构建（dev 下 CSP 会拦 vite 注入的 <style>，几何判据结构上不可能通过），
+  # webServer 自带 build，产物本 job 现建。
+  visual:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run visual & a11y assertions
+        run: npm run test:visual
+
+      - name: Upload playwright visual report (on failure)
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: playwright-visual-report
+          path: playwright-report-visual
+          if-no-files-found: ignore
+          retention-days: 3
+
   # 自动部署管理端+API 到 Cloudflare Pages（supermarket-web.pages.dev）
   # 仅 main push 触发（PR 不部署）；需仓库 Secrets 配置 CLOUDFLARE_API_TOKEN（Pages:Edit 权限）。
   # 未配置 token 时 Deploy step 跳过（不标红），配置后 push main 即自动部署。
@@ -190,7 +244,8 @@ jobs:
     # 防线轮 K2 起接三个：build-and-test（单测/契约/门禁）+ e2e（dev 演示模式功能冒烟）
     # + e2e-cloud-stub（生产构建真渲染）。此前 needs 只有 build-and-test ⇒ e2e 红了照样部署，
     # 属"判据假安全感"（2026-09-24 那起 19 天空白事故的检测失效模式）。
-    needs: [build-and-test, e2e, e2e-cloud-stub]
+    # 第八轮 M4 加入 visual（生产构建上的布局/对比度/焦点环 16 条），改样式自此有红绿可言。
+    needs: [build-and-test, e2e, e2e-cloud-stub, visual]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     env:

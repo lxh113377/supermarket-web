@@ -41,3 +41,7 @@ coverage/
 test-results/
 playwright-report/
 playwright-report-stub/
+playwright-report-visual/
+
+# vitest 派生缓存（第八轮 verify 跑出来的，勿入库）
+.vitest/

@@ -229,6 +229,37 @@ describe('localStorage 不可用（隐私模式/配额满）', () => {
   })
 })
 
+describe('getLocalCategories：种子不被调用方原地改动污染（第八轮 N1）', () => {
+  it('返回的是新容器，不是 seedCategories 模块引用本身', async () => {
+    const one = await freshStore()
+    const { categories: seed } = await import('../src/data/products-seed')
+    const a = one.getLocalCategories()
+    expect(a).not.toBe(seed)
+    expect(a).toHaveLength(seed.length)
+    expect(a.map((c) => c.name)).toEqual(seed.map((c) => c.name))
+  })
+
+  it('调用方原地 sort/push/splice 后，再读仍是种子原顺序', async () => {
+    const one = await freshStore()
+    const { categories: seed } = await import('../src/data/products-seed')
+    const before = seed.map((c) => c.name)
+
+    const victim = one.getLocalCategories()
+    victim.sort((x, y) => y.name.localeCompare(x.name))
+    victim.push(victim[0])
+    victim.splice(0, 1)
+    expect(victim).not.toEqual(before)
+
+    expect(one.getLocalCategories().map((c) => c.name)).toEqual(before)
+    expect(seed.map((c) => c.name)).toEqual(before)
+  })
+
+  it('与其余三个数组读出口同口径：每次读都是新数组（连续两次读不同引用）', async () => {
+    const one = await freshStore()
+    expect(one.getLocalCategories()).not.toBe(one.getLocalCategories())
+  })
+})
+
 /*
  * 反例（改回朴素实现后对应用例必须变红；已在本轮逐条实跑）：
  * 1 readJSON 去掉 parseCache 命中分支            → parseCache 前两条红
@@ -240,4 +271,5 @@ describe('localStorage 不可用（隐私模式/配额满）', () => {
  * 7 totalAmount 改为信任传入值                     → 「恒由 items 算出」红
  * 8 去掉 rating 钳制 / text 截断 / images 过滤     → 对应三条红
  * 9 writeJSON 不 try/catch                        → 「写盘失败不抛」红
+ * 10 getLocalCategories 改回直返 seedCategories   → 三条分类用例全红（第八轮 N1，已实跑确认）
  */

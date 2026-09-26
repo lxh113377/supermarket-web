@@ -3,7 +3,6 @@
 面向宿舍/小区场景的在线超市购物系统。顾客端浏览商品、加购下单、扫码支付；管理后台管理商品、订单、评价与服务表单。
 
 ![CI](https://github.com/lxh113377/supermarket-web/actions/workflows/ci.yml/badge.svg)
-![tests](https://img.shields.io/badge/tests-176%20passed-brightgreen)
 ![license](https://img.shields.io/badge/license-MIT-blue)
 
 **文档**：[架构文档](docs/ARCHITECTURE.md) · [API 契约（人读版）](docs/API.md) · [决策记录 ADR](docs/adr/) · [贡献指南](CONTRIBUTING.md) · [安全策略](SECURITY.md) · [更新日志](CHANGELOG.md)
@@ -14,7 +13,7 @@
 |---|---|
 | 顾客端 | 首页 / 分类 / 商城 / 商品详情 / 购物车 / 确认订单 / 支付页 / 下单成功 / 服务表单 / AI 导购 |
 | 管理后台 | 数据看板（echarts）/ 商品管理（内联编辑）/ 订单管理 / 评价管理 / 服务表单处理 |
-| 后端 | `/web` 管理 30 action、`/pub` 公开 8 action、`/_health` 探活；D1 + KV；限流 / 审计 / 双密钥角色 |
+| 后端 | `/web` 管理 31 action、`/pub` 公开 8 action、`/_health` 探活；D1 + KV；限流 / 审计 / 双密钥角色 |
 | 履约 | 订单 5 态状态机（待支付→已支付→配送中→已送达，旁路已取消）；顾客侧 `/pub getOrderStatus` 进度轮询 |
 | PWA | 可安装（含微信与 iOS 手动引导）、Service Worker 缓存静态资源 |
 
@@ -70,20 +69,23 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN` 触发 `l
 
 ## CI
 
-`.github/workflows/ci.yml` 的 Test job 依序跑：**依赖漏洞审计**（`npm audit`，见下）→ 密钥扫描 → oxlint → vitest（**631 用例 / 63 文件**，带 v8 覆盖率并卡棘轮阈值 78/72/74/80）→ typecheck（前后端双配置）→ 循环依赖检查 → API 契约漂移 → **schema 漂移** → **license 白名单** → **CHANGELOG 门禁** → build（注入线上端点）→ 体积预算 → 后端契约验证（`scripts/verify-backend.mjs`，**102 断言**，node:sqlite 模拟 D1）。
+`.github/workflows/ci.yml` 的 Test job 依序跑：**依赖漏洞审计**（`npm audit`，见下）→ 密钥扫描 → oxlint → **文件名大小写冲突自查** → vitest（**63 文件**，带 v8 覆盖率并卡棘轮阈值 78/72/74/80；用例条数以 `npm test` 当场输出为准，本文件不写死——写死即第二真相源）→ typecheck（前后端双配置）→ 循环依赖检查 → API 契约漂移 → **文档事实一致性** → **schema 漂移** → **license 白名单** → **CHANGELOG 门禁** → build（注入线上端点）→ 体积预算 → **Pages Functions 可部署产物检查**（编译 functions/，零部署）→ 后端契约验证（`scripts/verify-backend.mjs`，node:sqlite 模拟 D1）。
 
 依赖审计固定走官方源（`npm run audit:deps`）：本机/镜像源 npmmirror **未实现 audit 端点**（实测 `NOT_IMPLEMENTED`），不指 registry 会让审计静默拿不到数据；端点故障时 npm audit 非 0 退出，不会假绿。
 
 push main 后 `deploy` job：部署 Cloudflare Pages → 线上冒烟（`_health` + 公开接口契约）→ **冒烟失败自动回滚上一生产部署**。另有 `dispatch.yml`（github.io 顾客端双发）与 `uptime.yml`（每日探活）。
 
-CI 另外两道卡口：**体积预算**（`scripts/check-bundle-size.mjs`，按首屏 gzip 卡阈值：JS ≤95KB / CSS ≤11KB / 单 chunk ≤90KB，并打印首屏构成 top3 便于归因；基线归因见 `docs/adr/0004`）与 **浏览器层两道门禁**：
+CI 另外两道卡口：**体积预算**（`scripts/check-bundle-size.mjs`，按首屏 gzip 卡阈值：JS ≤95KB / CSS ≤11KB / 单 chunk ≤90KB，并打印首屏构成 top3 便于归因；基线归因见 `docs/adr/0004`）与 **浏览器层三道门禁**（用例条数以各自命令输出为准，不在此写死）：
 
-- `e2e` job：`tests/e2e/`，Playwright **20 用例**跑在 dev server 的本地演示模式。
-- `e2e-cloud-stub` job：`tests/e2e-stub/`，Playwright **3 用例**跑 `build:stub` 生产构建 + 假 `/web` `/pub` 桩，进云端模式断看板四张图真的建出 canvas 且零未捕获异常（防线轮 K2 新增，专防"单测全绿而线上静默空白"那类缺陷）。
+- `e2e` job（`npm run test:e2e`）：`tests/e2e/`，Playwright 跑在 dev server 的本地演示模式。
+- `e2e-cloud-stub` job（`npm run test:stub`）：`tests/e2e-stub/`，跑 `build:stub` 生产构建 + 假 `/web` `/pub` 桩，进云端模式断看板四张图真的建出 canvas 且零未捕获异常（防线轮 K2 新增，专防"单测全绿而线上静默空白"那类缺陷）。
+- `visual` job（`npm run test:visual`）：`tests/e2e-visual/`，跑生产构建，判 AA 对比度 / 键盘焦点环 / 图片固有尺寸（CLS 友好）/ 1440·768·390 三档无横向溢出 / 图区底板一致性（第八轮 M4 接入 CI，此前只在本地跑）。
 
-两者自本轮起都列入 `deploy.needs`（此前只有 `build-and-test`，即"红了也照常部署"——见 CHANGELOG 追加十八）。
+三层共用 `tests/e2e/helpers/watchErrors.ts` 的错误观察器：**未捕获 pageerror 与应用级 console error 一律产断言**（第八轮 H3；此前 4 个 spec 只 `console.log` 到 CI 日志，页面抛错用例照样绿）。dev 专有 CSP 噪声按具体串白名单，跑生产构建的两层不放行该噪声。
 
-本地等价门禁一条命令跑完：`npm run verify`（密钥扫描 → lint → 循环依赖 → 契约漂移 → schema 漂移 → license → CHANGELOG → typecheck → 测试 → 后端契约 → 未覆盖清单）。
+三者自第八轮起都列入 `deploy.needs`（此前只有 `build-and-test`，即"红了也照常部署"——见 CHANGELOG 追加十八）。
+
+本地等价门禁一条命令跑完：`npm run verify`（密钥扫描 → lint → 大小写冲突 → 循环依赖 → 契约漂移 → **文档事实一致性** → schema 漂移 → license → CHANGELOG → typecheck → 测试 → 后端契约 → **Pages Functions 编译** → 未覆盖清单）。
 
 ## 环境变量（`.env`，仅前端构建用）
 
