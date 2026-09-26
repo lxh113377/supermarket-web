@@ -71,7 +71,9 @@ function cloneArray<T>(list: T[]): T[] {
 }
 
 export function getLocalCategories(): Category[] {
-  return seedCategories
+  // 与其余三个数组读出口同口径过 cloneArray：此前直返模块引用，任何一处原地
+  // sort/push 就会把整个会话的分类种子改掉（第八轮 N1，"修一类不修一例"）。
+  return cloneArray(seedCategories)
 }
 
 export function getLocalProducts(): Product[] {

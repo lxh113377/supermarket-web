@@ -10,6 +10,10 @@
  * async IIFE 里 → canvas 数为 0、pageerror 命中 TypeError。就是 2026-09-24 那起 19 天事故。
  */
 import { test, expect, type Page } from '@playwright/test'
+// 第八轮 H3：错误观察器收口到全站唯一实现（本 spec 原来是唯一正确形态）。
+// 跑的是生产构建 ⇒ 不传 DEV_CSP_NOISE；并且改为 beforeEach 挂监听器
+// （原来在 login() 内挂，登录前的异常落在窗口外抓不到）。
+import { watchErrors, type ErrorWatch } from '../e2e/helpers/watchErrors'
 
 /** 四张图的宿主 div（DashboardTab 里带 aria-label 的裸 div，无 role，故用属性选择器而非 getByLabel） */
 const CHART_HOSTS = [
@@ -19,28 +23,16 @@ const CHART_HOSTS = [
   ['营收排行图', '[aria-label="热销商品营收排行图"]'],
 ] as const
 
-/** 非应用级噪声：桩对 SPA 回退外来的资源请求会打 4xx，浏览器自己报 resource load failed */
-const CONSOLE_NOISE = [/Failed to load resource/i, /favicon/i, /status of [45]\d\d/i]
+let errs: ErrorWatch
 
-let pageErrors: string[] = []
-let consoleErrors: string[] = []
-
-test.beforeEach(() => {
-  pageErrors = []
-  consoleErrors = []
+test.beforeEach(async ({ page }) => {
+  errs = watchErrors(page)
 })
-
-/** 收集要在断言之前挂上，否则抛错发生在监听器注册之后就抓不到 */
-function watch(page: Page) {
-  page.on('pageerror', (e) => pageErrors.push(e.message))
-  page.on('console', (m) => {
-    if (m.type() === 'error') consoleErrors.push(m.text())
-  })
-}
+// 三条用例全覆盖：以前只有第一条断言错误，未登录那条与刷新那条即使报错也照样绿
+test.afterEach(() => errs.assertClean())
 
 /** 登录到管理端。桩对任意非空密钥放行，密钥不进日志也不进产物 */
 async function login(page: Page) {
-  watch(page)
   await page.goto('/#/admin')
   const keyInput = page.getByLabel('管理密钥')
   await expect(keyInput, '云端模式必须出现密钥闸（没静默降级成本地演示模式）').toBeVisible()
@@ -81,9 +73,7 @@ test.describe('云端模式看板（假桩后端 + 生产构建）', () => {
       expect(geo.h, `${name}：背衬高 < CSS 高，尺寸没吃到容器`).toBeGreaterThanOrEqual(geo.ch)
     }
 
-    expect(pageErrors, `未捕获页面异常：${pageErrors.join(' | ')}`).toEqual([])
-    const appConsoleErrors = consoleErrors.filter((m) => !CONSOLE_NOISE.some((re) => re.test(m)))
-    expect(appConsoleErrors, `应用级 console 错误：${appConsoleErrors.join(' | ')}`).toEqual([])
+    // 页面异常/console 错误的断言已上移到 afterEach 的 errs.assertClean()
   })
 
   test('刷新后凭会话密钥保持登录态，图仍在（钉住桩的 verifyKey 与 Guard 的校验链）', async ({ page }) => {
@@ -92,7 +82,7 @@ test.describe('云端模式看板（假桩后端 + 生产构建）', () => {
     await expect(page.locator('[aria-label$="营收与订单趋势图"] canvas').first()).toBeAttached()
 
     await page.reload()
-    watch(page)
+    // 页级监听器不随导航失效（原实现在此处重复 watch 是误解，反而会让错误重复计数）
     // 先等真实终态：Tab 只在已鉴权后渲染，verifyKey 失败则这里点不到（放前面的 toHaveCount(0)
     // 会在"验证中..."那帧假通过）
     await openDashboard(page)
@@ -103,7 +93,6 @@ test.describe('云端模式看板（假桩后端 + 生产构建）', () => {
   })
 
   test('未登录时看不到看板数据（管理闸真的在拦）', async ({ page }) => {
-    watch(page)
     await page.goto('/#/admin')
     await expect(page.getByLabel('管理密钥')).toBeVisible()
     expect(await page.locator('[aria-label$="营收与订单趋势图"]').count()).toBe(0)

@@ -1,5 +1,5 @@
-/* oxlint-disable no-console -- 浏览器错误需要打印到 stdout 才能进 CI 日志 */
 import { test, expect } from '@playwright/test'
+import { watchErrors, DEV_CSP_NOISE, type ErrorWatch } from './helpers/watchErrors'
 
 /**
  * 顾客端 + 后台冒烟（对标 P0-A3）
@@ -12,12 +12,11 @@ import { test, expect } from '@playwright/test'
  * 该告警仅存在于 dev，线上构建无 inline style，不构成用例失败因素。
  */
 
+let errs: ErrorWatch
 test.beforeEach(async ({ page }) => {
-  page.on('pageerror', (e) => console.log('PAGEERROR:', e.message))
-  page.on('console', (m) => {
-    if (m.type() === 'error') console.log('BROWSER-ERR:', m.text().slice(0, 200))
-  })
+  errs = watchErrors(page, DEV_CSP_NOISE)
 })
+test.afterEach(() => errs.assertClean())
 
 test('首页：服务平台入口与 AI 导购浮钮', async ({ page }) => {
   await page.goto('/')

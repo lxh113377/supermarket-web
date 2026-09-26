@@ -1,17 +1,16 @@
-/* oxlint-disable no-console -- 浏览器错误需要打印到 stdout 才能进 CI 日志 */
 import { test, expect } from '@playwright/test'
+import { watchErrors, DEV_CSP_NOISE, type ErrorWatch } from './helpers/watchErrors'
 
 /**
  * 下单主链路 + 订单状态机 e2e（2026-09-24 对标 P0-A3 扩充）
  * 跑在本地演示模式（localStorage），不依赖后端；商品 id 规则 = `p_` + order（乐事薯片 order 33）。
  */
 
+let errs: ErrorWatch
 test.beforeEach(async ({ page }) => {
-  page.on('pageerror', (e) => console.log('PAGEERROR:', e.message))
-  page.on('console', (m) => {
-    if (m.type() === 'error') console.log('BROWSER-ERR:', m.text().slice(0, 200))
-  })
+  errs = watchErrors(page, DEV_CSP_NOISE)
 })
+test.afterEach(() => errs.assertClean())
 
 async function placeDemoOrder(page: import('@playwright/test').Page) {
   await page.goto('/#/product/p_33')

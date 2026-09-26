@@ -5,9 +5,35 @@
 import { spawnSync } from 'node:child_process'
 
 const RELAXED = process.argv.includes('--relaxed')
-// PR 事件（有 GITHUB_BASE_REF）：三点 diff 对目标分支；push/手动/本地：本次提交 vs 上一个提交
-// （push 时 origin/main 已含 HEAD，三点 diff 恒空 → 门禁失效，必须走 HEAD~1）
-const MODE = process.env.GITHUB_BASE_REF ? `origin/${process.env.GITHUB_BASE_REF}...HEAD` : 'HEAD~1'
+
+/**
+ * 比对基线的选择（第八轮 M1 收紧，原口径见下）
+ *
+ * 原缺陷：push 事件固定用 `HEAD~1` ⇒ 一次 push 带 N 个提交时只校验最后那一个。
+ * 绕过形态实测可见：`5ea17e0..d309117` 这一推里 `0b9e405` 改了 src/functions（带 CHANGELOG），
+ * 而末位 `d309117` 是纯 docs 提交 ⇒ 旧门禁直接"未触及 src/functions，跳过"。
+ * 也就是说"把改动藏在不改 src 的最后一个提交后面"就能免掉门禁 —— 与本轮在 README 里
+ * 抓到的"承诺写了、判据没接"是同一类。
+ *
+ * 现在：PR 用 base 三点 diff；push 用 webhook 给的 `before..HEAD` 整段区间；
+ * `before` 缺失/非 40 位/全零（新建分支）/对象不可达（强推后被 GC 或浅克隆） ⇒ **显式告警后**回落 HEAD~1，
+ * 绝不静默按"无改动"放行（R247：零输入不得记 PASS）。
+ */
+function resolveRange() {
+  const base = process.env.GITHUB_BASE_REF
+  if (base) return { mode: `origin/${base}...HEAD`, baseRev: `origin/${base}`, why: 'PR base' }
+  const before = (process.env.GITHUB_EVENT_BEFORE || '').trim()
+  if (/^[0-9a-f]{40}$/.test(before) && !/^0{40}$/.test(before)) {
+    return { mode: `${before}..HEAD`, baseRev: before, why: 'push 区间 before..HEAD' }
+  }
+  if (before) {
+    console.warn(`[changelog] before 不是可用 SHA（"${before.slice(0, 12)}"，多为新建分支或 force-push）→ 回落 HEAD~1`)
+  }
+  return { mode: 'HEAD~1', baseRev: 'HEAD~1', why: '回落：单提交' }
+}
+
+const RANGE = resolveRange()
+let MODE = RANGE.mode
 
 function git(args) {
   const r = spawnSync('git', args, { encoding: 'utf8' })
@@ -16,19 +42,26 @@ function git(args) {
 }
 
 // 浅克隆自愈（六轮实测坑）：GitHub Actions 的 actions/checkout 默认 fetch-depth=1，
-// 此时 HEAD~1 / origin/<base> 根本没有对象 → 上一轮的门禁在 CI 里"拒绝放行"红了两轮
+// 此时 HEAD~1 / origin/<base> / before 根本没有对象 → 上一轮的门禁在 CI 里"拒绝放行"红了两轮
 // （本地全历史跑不出来，属"判据自身坏了"同族）。先尝试加深一层再判，仍失败才拒绝，
 // 并且把可执行的修复指向写进日志，避免只留下一个无法自助的红灯。
 function ensureRev(rev) {
-  try { git(['rev-parse', '--verify', '--quiet', rev]); return true } catch { return false }
+  try { git(['rev-parse', '--verify', '--quiet', `${rev}^{commit}`]); return true } catch { return false }
 }
-if (!ensureRev(MODE.split('...')[0].trim()) || (MODE === 'HEAD~1' && !ensureRev('HEAD~1'))) {
+if (!ensureRev(RANGE.baseRev) || !ensureRev('HEAD~1')) {
   try {
-    git(['fetch', '--no-tags', '--deepen=3', 'origin'])
+    git(['fetch', '--no-tags', '--deepen=5', 'origin'])
   } catch (e) {
     console.error(`[changelog] 浅克隆加深失败：${e.message}`)
   }
 }
+// before 在加深后仍不可达（强推后被 GC / 浅克隆取不到）→ 回落 HEAD~1 继续校验，
+// 但绝不退化成"看不见改动就放行"：回落也失败时由下面的 diff 抛错走拒绝放行分支。
+if (!ensureRev(RANGE.baseRev) && RANGE.baseRev !== 'HEAD~1') {
+  console.warn(`[changelog] ${RANGE.baseRev.slice(0, 8)} 不可达（浅克隆/强推）→ 回落 HEAD~1 继续校验`)
+  MODE = 'HEAD~1'
+}
+console.log(`[changelog] 比对基线：${RANGE.why} → ${MODE}`)
 
 let changed
 try {
