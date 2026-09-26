@@ -21,6 +21,22 @@ concurrency:
 permissions:
   contents: read
 
+
+  # 第十轮 R10-M2：报告型 advisory（永远 exit 0）。放这里而不是 ci.yml，因为 ci.yml 的 token
+# 只能 contents: read，调 GET /pulls 实测 403；本 job 有 GH_TOKEN 可用 gh 取 PR 列表。
+  pr-advisory:
+    name: PR test-coverage advisory (report only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout (full history for diff range)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Report which open PRs change code without touching tests
+        run: npm run report:pr-tests
 jobs:
   dispatch:
     runs-on: ubuntu-latest

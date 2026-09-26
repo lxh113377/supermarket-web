@@ -60,6 +60,39 @@ function describe(r) {
     + `入口 http ${r.htmlStatus}${r.htmlErr ? `/${r.htmlErr}` : ''} bundle=${r.bundle ?? '未取到'}`
 }
 
+/**
+ * 判定核心（纯函数，第十轮 R10-H2 从 main() 里拆出）：
+ * 拆出来的唯一理由是"分支必须能被常驻反例覆盖"——上一版所有判定都长在 fetch 后面，
+ * 本机没有外网就一条也测不了，"两端 bundle 不同名"这条分支因此永远未覆盖（09 台账记为缺口）。
+ * `pubCount` 不给时跳过公开接口这项：重试阶梯里用它做"是否已一致"的判据，
+ * 而那一阶段还没取 /pub，不能因此空转 6 次重试。
+ */
+export function evaluateParity({ a, b, afterTsSec, skewLimitMs, pubCount }) {
+  const problems = []
+  const afterMs = afterTsSec * 1000
+  for (const r of [a, b]) {
+    if (!r.fp) {
+      problems.push(`${r.label} 取不到 sw.js 的 CACHE_VERSION（sw.js=http ${r.swStatus}${r.swErr ? ` ${r.swErr}` : ''}）—— 发布未生效或不可达，不静默过`)
+    } else if (r.fpTs < afterMs) {
+      problems.push(`${r.label} 指纹 ${r.fp} 早于本次发布起点 ${new Date(afterMs).toISOString()}，即这一端**没被本次发布刷新**`)
+    }
+  }
+  const bothFp = !!(a.fp && b.fp)
+  const skewMs = Math.abs(a.fpTs - b.fpTs)
+  if (bothFp && skewMs > skewLimitMs) {
+    problems.push(`两端指纹相差 ${(skewMs / 60000).toFixed(0)} 分钟 > ${skewLimitMs / 60000} 分钟 ⇒ 不同批次发布（一端新、一端旧）`)
+  }
+  if (bothFp && !a.bundle) {
+    problems.push('pages.dev 入口 HTML 里没解析到 /assets/index-*.js（构建产物异常或首页非 SPA）')
+  } else if (bothFp && a.bundle && a.bundle !== b.bundle) {
+    problems.push(`两端入口 bundle 不同名：pages.dev=${a.bundle} vs github.io=${b.bundle} ⇒ 不同构建`)
+  }
+  if (pubCount !== undefined && (!Number.isFinite(pubCount) || pubCount <= 0)) {
+    problems.push(`/pub getPublicProducts 异常：条数=${pubCount}（发布成功但公开目录为空不算一致）`)
+  }
+  return { problems, skewMs }
+}
+
 async function main() {
   if (!AFTER_TS) {
     console.error('[parity] 环境参数缺失：PARITY_AFTER_TS（本次发布起点 epoch 秒）未给 —— '
@@ -72,9 +105,7 @@ async function main() {
   for (let attempt = 1; attempt <= RETRIES; attempt++) {
     a = await probeSite('pages.dev', PAGES)
     b = await probeSite('github.io', CUSTOMER)
-    const bothFresh = [a, b].every((r) => r.fp && r.fpTs >= AFTER_TS * 1000)
-    const sameBundle = a.bundle && a.bundle === b.bundle
-    if (bothFresh && sameBundle) break
+    if (evaluateParity({ a, b, afterTsSec: AFTER_TS, skewLimitMs: BATCH_SKEW_MS }).problems.length === 0) break
     if (attempt < RETRIES) {
       const wait = DELAYS_MS[Math.min(attempt, DELAYS_MS.length - 1)] || 0
       notes.push(`第 ${attempt} 次未达一致（pages ${a.fp ?? '-'} / customer ${b.fp ?? '-'}），等 ${wait}ms 后复取（CDN 传播按坑 32）`)
@@ -82,20 +113,8 @@ async function main() {
     }
   }
 
-  for (const r of [a, b]) {
-    if (!r.fp) problems.push(`${r.label} 取不到 sw.js 的 CACHE_VERSION（sw.js=http ${r.swStatus}${r.swErr ? ` ${r.swErr}` : ''}）—— 发布未生效或不可达，不静默过`)
-    else if (r.fpTs < AFTER_TS * 1000) {
-      problems.push(`${r.label} 指纹 ${r.fp} 早于本次发布起点 ${new Date(AFTER_TS * 1000).toISOString()}，即这一端**没被本次发布刷新**`)
-    }
-  }
-  const skew = Math.abs(a.fpTs - b.fpTs)
-  if (a.fp && b.fp && skew > BATCH_SKEW_MS) {
-    problems.push(`两端指纹相差 ${(skew / 60000).toFixed(0)} 分钟 > ${BATCH_SKEW_MS / 60000} 分钟 ⇒ 不同批次发布（一端新、一端旧）`)
-  }
-  if (a.fp && b.fp && !a.bundle) problems.push(`pages.dev 入口 HTML 里没解析到 /assets/index-*.js（构建产物异常或首页非 SPA）`)
-  else if (a.fp && b.fp && a.bundle && a.bundle !== b.bundle) {
-    problems.push(`两端入口 bundle 不同名：pages.dev=${a.bundle} vs github.io=${b.bundle} ⇒ 不同构建`)
-  }
+  // 判定统一在 /pub 取数之后交给 evaluateParity（见下），此处不再另写一套条件——
+  // 两处条件一旦漂移就会出现"重试阶梯认为已一致、终判却判红"的自相矛盾。
 
   const pub = await getText(`${PAGES.replace(/\/$/, '')}/pub`)
   let count = -1
@@ -110,6 +129,9 @@ async function main() {
   } catch (e) {
     problems.push(`/pub 契约调用失败：${e.message}`)
   }
+
+  const verdict = evaluateParity({ a, b, afterTsSec: AFTER_TS, skewLimitMs: BATCH_SKEW_MS, pubCount: count })
+  for (const p of verdict.problems) problems.push(p)
 
   for (const n of notes) console.log(`[parity] ${n}`)
   console.log(`[parity] 起点=${new Date(AFTER_TS * 1000).toISOString()} 复取耗时=${((Date.now() - startTs) / 1000).toFixed(0)}s`)
@@ -127,7 +149,15 @@ async function main() {
   console.log(`[parity] OK 两端同批发布：指纹 ${a.fp} / ${b.fp}，入口 bundle 同为 ${a.bundle}，公开商品 ${count} 条`)
 }
 
-main().catch((e) => {
-  console.error(`[parity] 未预期异常：${e?.stack || e}`)
-  process.exit(1)
-})
+import { fileURLToPath } from 'node:url'
+import { resolve } from 'node:path'
+
+// 被单测 import 时只暴露纯函数，不触发网络与 process.exit
+const invokedDirectly = !!process.argv[1]
+  && fileURLToPath(import.meta.url) === resolve(process.argv[1])
+if (invokedDirectly) {
+  main().catch((e) => {
+    console.error(`[parity] 未预期异常：${e?.stack || e}`)
+    process.exit(1)
+  })
+}
