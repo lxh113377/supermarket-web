@@ -148,16 +148,36 @@ describe('关键 step 存在性（改名即红，防"门禁静默消失"）', ()
     expect(missing, `CI 里缺失 step：${missing.join(' | ')}`).toEqual([])
   })
 
-  it('deploy 后置：线上冒烟与双端一致性两道都得在（缺一即"发完不看"）', () => {
+  it('deploy 后置：本端冒烟与回滚两道都得在（缺一即"发完不看"）', () => {
     const body = /\n  deploy:\n([\s\S]*?)$/.exec(ci)?.[1] ?? ''
     const have = steps(body)
     for (const need of ['Deploy to Cloudflare Pages', 'Smoke test deployed API',
-      'Verify two-end release parity (pages.dev vs github.io)', 'Stamp release start',
-      'Rollback to previous deployment (smoke failed)']) {
+      'Rollback to previous deployment (smoke failed)', 'Rollback failed (manual intervention required)']) {
       expect(have, `deploy job 缺 step：${need}`).toContain(need)
     }
-    // 一致性判据必须拿到起点戳，否则它无法区分"两端都新"与"两端一样旧"
-    expect(body).toContain('PARITY_AFTER_TS: ${{ steps.stamp.outputs.ts }}')
+    // 第九轮实测教训（反向钉住）：双端一致性判据**不许**搬回 deploy job ——
+    // 顾客端链路与本 job 并行，放这里必然把"还没轮到另一端"误判成故障（CI 首跑实证）。
+    expect(body, '双端一致性判据又回到 deploy job 了，会被并行时序误报').not.toContain('verify:parity')
+  })
+
+  it('双端一致性判据住在独立 workflow，且落在 CI 完成之后、只报警不回滚', () => {
+    const rp = readWorkflow('release-parity.yml')
+    const body = /\njobs:\n([\s\S]*)$/.exec(rp)?.[1] ?? ''
+    const have = steps(body)
+    expect(have).toContain('Verify two-end release parity')
+    expect(rp).toContain("workflows: ['CI']")
+    expect(rp).toContain('types: [completed]')
+    // 只有 CI 绿才核，否则两端本就可能不同批，报警会淹掉真信号
+    expect(rp).toContain("github.event.workflow_run.conclusion == 'success'")
+    // 基线取发布提交的时刻，而不是"本步开始时刻"——后者会把上一批构建误判成已刷新
+    expect(rp).toContain('--format=%ct')
+    expect(rp).toContain('PARITY_AFTER_TS:')
+    // 有 checkout 才能用 git（首稿就漏了这一步）。只断言"首步是 Checkout"这一条不变量——
+    // 曾写过一条"run: git ... 之前必须有 name: Checkout"的正则，无法判断位置 ⇒ 把合法形态也判红，
+    // 属"过严的判据与缺失的判据一样有害"，已删。
+    expect(have[0], 'release-parity 第一步必须是 checkout，否则后续 git 命令无从执行').toBe('Checkout')
+    // 只报警不回滚
+    expect(body).not.toContain('rollback')
   })
 
   it('CHANGELOG 门禁必须拿到 push 区间（GITHUB_EVENT_BEFORE），否则退回单提交校验', () => {
