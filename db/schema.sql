@@ -113,3 +113,13 @@ CREATE TABLE IF NOT EXISTS ai_calls (
 );
 CREATE INDEX IF NOT EXISTS idx_ai_calls_ts ON ai_calls (ts);
 CREATE INDEX IF NOT EXISTS idx_ai_calls_scene_ts ON ai_calls (scene, ts);
+
+-- 迁移账目表（第十一轮恢复演练判据首跑抓出来的缺口）：本表在生产与本地 D1 里真实存在，
+-- 但一直只由 scripts/migrate.mjs 运行时 CREATE，从未进过全量真相源 schema.sql。
+-- 补在此处 = 让「一份完整库长什么样」只有一个答案；migrate.mjs 侧仍是 IF NOT EXISTS，幂等不受影响。
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  name       TEXT PRIMARY KEY,
+  checksum   TEXT NOT NULL,
+  appliedAt  TEXT NOT NULL,
+  note       TEXT DEFAULT ''
+);

@@ -12,16 +12,12 @@ export interface VariantOption {
   id: string
   /** 真实属性文案（口味名 / 包装名 / 容量），是权威口径 */
   label: string
-  /** 装饰性色块（包装主色示意）；真实属性以 label 为准，色块只服务视觉辨识 */
-  swatch?: string
 }
 
 export interface VariantAxis {
   id: string
   /** 轴名按真实属性写（口味 / 包装 / 容量），不硬套「颜色」字样 */
   name: string
-  /** color = 渲染色块选择器；spec = 渲染文字药丸选择器 */
-  kind: 'color' | 'spec'
   options: VariantOption[]
 }
 

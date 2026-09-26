@@ -35,8 +35,8 @@ const twoAxis: VariantGroup = {
   title: '夹具 · 包装与容量',
   memberOrders: [16, 17, 18],
   axes: [
-    { id: 'pack', name: '包装', kind: 'spec', options: [{ id: 'box', label: '盒装' }, { id: 'bottle', label: '瓶装' }] },
-    { id: 'size', name: '容量', kind: 'spec', options: [{ id: '250', label: '250ml' }, { id: '500', label: '500ml' }] },
+    { id: 'pack', name: '包装', options: [{ id: 'box', label: '盒装' }, { id: 'bottle', label: '瓶装' }] },
+    { id: 'size', name: '容量', options: [{ id: '250', label: '250ml' }, { id: '500', label: '500ml' }] },
   ],
   combos: {
     'box|250': { price: 2.33, order: 16, productName: '盒装甲', specText: '250ml', available: true },
@@ -53,7 +53,7 @@ const oneAxis: VariantGroup = {
   memberOrders: [33],
   axes: [
     {
-      id: 'flavor', name: '口味', kind: 'spec',
+      id: 'flavor', name: '口味',
       options: [{ id: '原味', label: '原味' }, { id: '黄瓜味', label: '黄瓜味' }],
     },
   ],
@@ -68,7 +68,7 @@ const soldOutOnly: VariantGroup = {
   id: 'fixture-sold-out',
   title: '夹具 · 全部售罄',
   memberOrders: [24],
-  axes: [{ id: 'size', name: '容量', kind: 'spec', options: [{ id: '550', label: '550ml' }] }],
+  axes: [{ id: 'size', name: '容量', options: [{ id: '550', label: '550ml' }] }],
   combos: {
     550: { price: 1.66, order: 24, productName: '矿泉水', specText: '550ml', available: false },
   },
@@ -371,16 +371,11 @@ describe('诚实性判据：演示数据必须与真实目录逐字段相符', (
     }
   })
 
-  it('color 轴的每个选项都有 swatch，spec 轴不靠色块表意', () => {
+  it('每个轴的每个选项都有 label（选择器全靠文字表意，色块轴已于第十一轮删除）', () => {
     for (const g of VARIANT_GROUPS) {
+      expect(g.axes.length, `${g.id} 无轴`).toBeGreaterThan(0)
       for (const axis of g.axes) {
-        for (const opt of axis.options) {
-          if (axis.kind === 'color') {
-            expect(opt.swatch, `${g.id}/${axis.id}/${opt.id} 缺 swatch`).toBeTruthy()
-            expect(opt.swatch).toMatch(/^#[0-9A-Fa-f]{6}$/)
-          }
-          expect(opt.label).toBeTruthy()
-        }
+        for (const opt of axis.options) expect(opt.label, `${g.id}/${axis.id}/${opt.id} 缺 label`).toBeTruthy()
       }
     }
   })
