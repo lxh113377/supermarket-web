@@ -1,0 +1,78 @@
+name: Release parity (pages.dev vs github.io)
+
+# 第九轮 R9-H2：双端发布一致性判据。
+#
+# 为什么独立成一条 workflow 而不是挂在 CI 的 deploy job 里 —— 实测结论：
+# 首版放在 deploy job 尾部，CI run `36232597018` 的 step 7 直接判红：runner 上两端都 http 200，
+# 但 pages.dev 指纹是本次构建、github.io 停在 45 秒前的上一批；复取 6 次跨 247s 仍不一致。
+# 根因是**并行**：顾客端由 dispatch.yml → 对端 deploy.yml 重新 checkout+build+publish，
+# 再加 GitHub Pages 边缘 2–3 分钟传播（坑 32），这条链不会被 pages.dev 的 deploy job 等到。
+# ⇒ 正确位置是"CI 完成之后"再核，且**只报警不回滚**（回滚仍只由本端 smoke 失败触发）。
+#
+# 它守的是本仓真实存在过的风险形态：两端由两条链路发布，CI 全绿 ≠ 两端同批（坑 36）。
+# 对标侧实测：microfeed 有「Verify the deployment and publish links」（真打线上 + 重试阶梯），
+# 但**跨两个托管目标比一致性** 8 家对标项目 0 有 —— 本仓形态独特，判据只能自研。
+
+on:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# 与 CI 一致的最小权限：只读代码，线上核对全是 HTTP 读操作
+permissions:
+  contents: read
+
+concurrency:
+  group: release-parity-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    # CI 没成功时两端本就可能不一致，此时报警会淹掉真信号，故只在绿后核
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Resolve release commit
+        id: rel
+        shell: bash
+        run: |
+          # workflow_run 触发时 HEAD 是默认分支；真正的发布提交在事件里，取它的提交时刻作基线，
+          # 这样"晚于基线"才等价于"被这次发布刷新型"（用本步起始时刻会把上一批构建误判为已刷新）
+          sha="${GITHUB_HEAD_SHA:-}"
+          if [ -z "$sha" ]; then sha="$(git rev-parse HEAD)"; fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+        env:
+          GITHUB_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Fetch release commit
+        run: git fetch --no-tags --depth=1 origin "${{ steps.rel.outputs.sha }}"
+
+      - name: Stamp release time
+        id: stamp
+        shell: bash
+        run: echo "ts=$(git show -s --format=%ct '${{ steps.rel.outputs.sha }}^{}')" >> "$GITHUB_OUTPUT"
+
+      - name: Verify two-end release parity
+        env:
+          DEPLOY_URL: https://supermarket-web.pages.dev
+          CUSTOMER_URL: https://lxh113377.github.io
+          PARITY_AFTER_TS: ${{ steps.stamp.outputs.ts }}
+          PARITY_RETRIES: 12
+          PARITY_DELAYS: 0,30000,60000,60000,90000,90000,120000,120000,120000,120000,120000
+          PARITY_SKEW_MS: 21600000
+        run: |
+          echo "核对发布提交 ${{ steps.rel.outputs.sha }}（提交时刻 ${{ steps.stamp.outputs.ts }}）之后的两端一致性"
+          npm run verify:parity
+
+      # 判据只报事实：不一致 = 半发布，需要人工按部署 skill §6 复核另一端链路是否卡住
+      # （不回滚：本端已是新构建，回滚反而制造两端反向漂移）
+      - name: Hint on failure
+        if: failure()
+        run: |
+          echo "::error title=两端发布不同批::两端 sw.js 指纹或入口 bundle 不一致 —— 先查 github.io 侧 deploy.yml 是否有新 run（坑 36），再按 chaoshi-web-deploy §6 核 ①②③④⑥⑦⑧ 与两端 CACHE_VERSION；本判据不触发回滚"

@@ -73,7 +73,7 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN` 触发 `l
 
 依赖审计固定走官方源（`npm run audit:deps`）：本机/镜像源 npmmirror **未实现 audit 端点**（实测 `NOT_IMPLEMENTED`），不指 registry 会让审计静默拿不到数据；端点故障时 npm audit 非 0 退出，不会假绿。
 
-push main 后 `deploy` job：部署 Cloudflare Pages → 线上冒烟（`_health` + 公开接口契约）→ **双端发布一致性核对**（`npm run verify:parity`：两端 `sw.js` 指纹均晚于本次发布起点、入口 bundle 同名、`/pub` 条数 >0，带 CDN 传播重试阶梯；第八轮以前这一步是人工收尾）→ **冒烟失败自动回滚上一生产部署**。另有 `dispatch.yml`（github.io 顾客端双发）与 `uptime.yml`（每日探活）。
+push main 后 `deploy` job：部署 Cloudflare Pages → 线上冒烟（`_health` + 公开接口契约）→ **冒烟失败自动回滚上一生产部署**。另有 `dispatch.yml`（github.io 顾客端双发）、**`release-parity.yml`（第九轮新增：CI 绿之后独立核对两端是否同一批发布 —— `sw.js` 指纹都晚于发布提交时刻、入口 bundle 同名、`/pub` 条数 >0，带 CDN 传播重试阶梯；首版曾挂在 deploy job 上，被 CI 首跑证明顾客端链路与它并行、必然误报，故独立成 workflow 且只报警不回滚）** 与 `uptime.yml`（每日探活）。
 
 CI 另外两道卡口：**体积预算**（`scripts/check-bundle-size.mjs`，按首屏 gzip 卡阈值：JS ≤95KB / CSS ≤11KB / 单 chunk ≤90KB，并打印首屏构成 top3 便于归因；基线归因见 `docs/adr/0004`）与 **浏览器层三道门禁**（用例条数以各自命令输出为准，不在此写死）：
 
