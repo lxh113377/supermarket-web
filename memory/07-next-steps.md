@@ -9,6 +9,25 @@
 > 外层 `超市web/超市/memory/`（工作区）。两者内容**不同**（07 主卷 SHA256 不一致），
 > 属历史遗留的双份结构，尚未合并。**本轮的权威记录在外层**：`deliverables/前端深度优化方案-2026-09-23.md` §6。
 
+## 2026-09-26 — 对标第十二轮（备份链"绿色零备份"实况 + 存活判据）
+
+> 报告：外层 `deliverables/GitHub开源项目对标分析报告-第十二轮-2026-09-26.md`；备份 `_backup/pre-round12-2026-09-26/pre-round12.bundle`。
+
+- **⚠️ 事实更正（覆盖第十一轮我自己写的话）**：`D1 Daily Backup` 自建链以来 2 次 run **全是 success 但 0 artifact**，导出/上传两步 `skipped` —— 根因是未配 `CF_D1_BACKUP_TOKEN` 时 `Detect backup token` 只发 `::warning::`。**第十一轮我写的"非 private 会先响亮失败、走不到导出"是错的**：那条守卫自带 `if: found == 'true'`，token 缺席时**它也被跳过** ⇒ 响亮失败从未发生。生产库至今**没有任何自动备份**，盘上唯一真备份是 09-25 手动导出（1,449,663B / 949 INSERT）。
+- **已落地**：`scripts/check-backup-liveness.mjs`（`npm run check:backup-liveness`；不信 conclusion，要求"导出步骤 success + artifact≥1 + run success 且 ≤2 天"；零 run 判红；workflow 用文件名 `d1-backup.yml` 免配 ID）+ 接进 `Uptime`（带 `GH_TOKEN` 与 job 级 `actions: read`）；`d1-backup.yml` 加 `Fail loudly instead of reporting a green no-op`（未配 token 且未设 `BACKUP_SKIP_OK=true` ⇒ exit 1，**默认响亮**）；`report:catalog` 摘掉 `continue-on-error` 接成阻断（两轮样本逐项一致：28/54、漂移 27+1+22、重复 3+3）；`tests/backupLiveness.test.js` 12 条、`ciWorkflow.test.ts` 30 条（新增"自动化链接线契约"组，四种抽键反例各点名）。
+- **两处自纠**：① **注释冒充判据** —— 反例"抽掉 `actions: read`"测不出问题，因为 YAML **注释**里也写了这个短语；判据一律改用行首锚定键形态。② **CRLF 又咬一口** —— 夹具变异正则在 CRLF 工作文本上匹配不到，"抽掉"成了空操作 ⇒ 变异前先归一。
+- **体量体检（A-project-handoff `volume`）本轮首次入册**：整仓 463MB（node_modules 415MB 占 99%）、`memory/07-next-steps.md` **76,088B**、`2026-09-26.md` 19,502B、`05-feature-status.md` 7,789B、`dist-verify/` 5.6MB ⇒ `[GATE:volume-warn] 5 项`。处置见下方 P0 第 3 条。
+
+### P0（第十三轮开工先做这条，可执行）
+
+- [ ] **备份路线仍未解（需人，但现在是"红着等"而不是"绿着骗"）**：配 `CF_D1_BACKUP_TOKEN` 之前，`D1 Daily Backup` 与 `Uptime` 会每天判红——这是设计意图。二选一：①仓库转回 private；②导出后加密（age/openssl）再上传。任一完成后用 `gh workflow run "D1 Daily Backup"` 手动跑，要求看到 `Export=success` + `artifact=1` + `verify:restore` 演练步骤 success（**这才是恢复演练判据第一次在 CI 真跑**）。命令：`gh run list --workflow "D1 Daily Backup" --limit 3 --json conclusion,status` 与 `npm run check:backup-liveness`
+- [ ] **catalog 接成阻断后的首轮观察**：看第一次 `Uptime` run 是否因瞬时网络红（`/pub` 取不到 ⇒ exit 2 ⇒ 红）。若误报 ⇒ 改成"重试阶梯后再判"，而不是放宽回 continue-on-error。
+- [ ] **体量收口（本轮已判、未做完全）**：`handoff.py split` 把 `memory/07-next-steps.md`（76KB）与 `05-feature-status.md` 拆卷 + `volume --snapshot` 建环比账本；下轮核对是否回弹。⚠️ 每日日志（19.5KB）不是 4KB 拆卷目标，正解是月度归档桶 `memory/archive/daily-logs-YYYYMM/`（判据在 A-project-handoff，别自动拆）。
+- [ ] **告警第二通道（暂不做，等证据）**：当前可达通道只有 GitHub 失败邮件；只有出现"邮件没到/被静音"的实证才引入心跳（ntfy/healthchecks.io 类），否则只是多一个 secret。
+- [ ] **webhook 真实端点验收（需人）**：同上一轮，`ORDER_WEBHOOK_URL` 仍未配 ⇒ 线上 no-op。
+- [ ] 不变项：K3 线上目视（生产密钥）、D2 49 单处置、R2 桶、order 41 生产行、`.dev.vars` 的 ADMIN_KEY 是否新值、28/55 口径已由 `report:catalog` 接管（不再靠人记）。
+- [ ] 维持不改：N4 执行模型、CoC、diff-cover、zizmor/semgrep、分支保护即代码、vite 聚合必检 job、changesets、投递台账、pgbackrest/restic/mattermost 三类重量级方案。
+
 ## 2026-09-26 — 对标第十一轮（备份可恢复性 + 数据面事实；全程走 PR）
 
 > 报告：外层 `deliverables/GitHub开源项目对标分析报告-第十一轮-2026-09-26.md`；备份 `_backup/pre-round11-2026-09-26/pre-round11.bundle`。
