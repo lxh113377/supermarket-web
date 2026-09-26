@@ -47,13 +47,15 @@ export default defineConfig({
       include: ['src/**'],
       exclude: ['src/**/*.d.ts', 'src/**/index*'],
       thresholds: {
-        // 棘轮历史（statements）19.5 → 23 → 35 → 47 → 57 → 74 → 76 → 78（防线轮 K1：
-        // apiClient 26 + localStore 29 + authWriteInvalidation 8 例，门面故障路径首次进断言）。
-        // 本轮实测四项 80.91 / 74.08 / 76.41 / 82.52，双跑逐位一致（无 5s 轮询那类时序抖动）。
-        // 阈值统一按"实测 −2pp 下取整"留余量：CI 跑 node22/ubuntu，本机 node24，
-        // 历史上 branches 曾因 1 条轮询时序分支双跑差 0.05pt，这 2pp 是给跨平台留的。
+        // 棘轮历史（statements）19.5 → 23 → 35 → 47 → 57 → 74 → 76 → 78 → 79（第九轮：
+        // apiClient/localStore 门面专项后再加 CI 与门禁自测两文件，实测 81.11%）。
+        // 第九轮按「连跑 5 次全量 --coverage」定档（台账 N4 要求的测量法，也是本轮的收工证据）：
+        //   Statements 81.11 ×5 逐位一致 / Functions 76.74 ×5 一致 / Lines 82.79 ×5 一致，
+        //   Branches 在 74.44 ↔ 74.48 抖 0.04pt（同一 5s 轮询时序分支，非新引入）。
+        // 阈值 = 实测 −2pp 下取整，且 **branches 用最小观测值**（74.44−2→72）：
+        // CI 跑 node22/ubuntu、本机 node24，历史上 branches 曾因 1 条轮询分支双跑差 0.05pt。
         // 只允许上升：让覆盖率下滑的改动必须显式改这里，逼出一次评审。
-        statements: 78,
+        statements: 79,
         branches: 72,
         functions: 74,
         lines: 80,

@@ -254,6 +254,12 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: 04b1466b2606b678a332fe6f26aa87ec
       DEPLOY_URL: https://supermarket-web.pages.dev
     steps:
+      # 发布起点戳：必须在任何部署动作之前取，"两端都被本次刷新"的判据才有意义
+      - name: Stamp release start
+        id: stamp
+        shell: bash
+        run: echo "ts=$(date +%s)" >> "$GITHUB_OUTPUT"
+
       # 坑#30 修复（2026-09-08，M5 回归）：wrangler pages deploy 依赖工作目录的
       # functions/（自动打包为 Pages Functions）与 wrangler.toml（D1/KV 绑定、pages_build_output_dir）。
       # M5 只下载 dist artifact 缺这两者 → 纯静态部署，POST 全 405、绑定全丢，且 smoke 失败无法自动回滚。
@@ -292,6 +298,20 @@ jobs:
       # 坑#30 后续加固：仅当"部署成功但 smoke 验证失败"时回滚到上一生产部署。
       # 触发条件 = failure() && steps.smoke.outcome == 'failure'——build/download/deploy 自身失败不触发
       #（那些场景生产未被本次改动污染，无需回滚）。
+      # 第九轮 R9-H2：双端发布一致性从人工收尾变判据。
+      # 两端由两条链路发布（本 job 部 pages.dev；dispatch.yml 驱动 github.io 的 deploy.yml），
+      # CI 绿 ≠ 两端同步（坑 36）。对标 microfeed「Verify the deployment and publish links」：
+      # 真打线上 + 重试阶梯 + 取不到就判红。PARITY_AFTER_TS 用部署 step 起始时刻，
+      # 判据因此能区分"两端都刷新型"与"只新了一端"。
+      # 只报事实、不回滚（回滚仍由 steps.smoke 失败触发，避免双触发把生产反复翻面）。
+      - name: Verify two-end release parity (pages.dev vs github.io)
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        env:
+          DEPLOY_URL: https://supermarket-web.pages.dev
+          CUSTOMER_URL: https://lxh113377.github.io
+          PARITY_AFTER_TS: ${{ steps.stamp.outputs.ts }}
+        run: npm run verify:parity
+
       # 回滚目标 = 部署列表（时间倒序、仅 production）中排除当前版本后的第一个（即上一部署）。
       # 回滚后必须复验（与 smoke 同款判定）；复验失败 = 连续坏版本，升级人工告警（下方 step）。
       # 注意：回滚成功也不改变 job 失败态（smoke 已红）——回滚是止损，不是掩盖，需人工知悉复盘。

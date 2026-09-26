@@ -4,6 +4,21 @@
 
 ## [未发布]
 
+### 2026-09-26 追加二十一（对标第九轮：把"门禁链自己"和"两端发布结果"变成被测对象）
+
+- **对标系与打法升级**：本轮不再比"谁的门禁多"，而是深挖**机制怎么落地**。八仓实测到的三件可借鉴物：`microfeed` `tests/unit/ci-workflow.test.ts`（把工作流文件当被测对象：step 顺序、secret 白名单**全等**、`not.toContain` 危险写法）、`vendure` `.github/workflows/scripts/dependency-impact.test.js`（CI 脚本自带测试，含 mock 掉 `gh` 二进制 + 注入 HTTP 失败）、`saleor` `.semgrep/`（每条规则同时带"必须命中 `ruleid`"与"必须不命中 `ok`"两类样本，另有 `.fixed.py` 断言自动修复产物）。另记两条**否定式**结论：跨两个托管目标做发布一致性核对 **8 家 0 有**；mutation testing（stryker/mutmut/infection）**8 家 0 有** ⇒ 这两项做了是领先，不是补差距。
+- **R9-H1 新增两份常驻自测（`tests/ciWorkflow.test.ts` + `tests/gateFixtures.test.ts`，合计 26 条）**：
+  - `ciWorkflow.test.ts` 解析 `.github/workflows/*.yml` 断言：CI 恰好这 5 个 job、**`deploy.needs` 必须覆盖全部判据 job**（缺一个就点名"这些判据 job 红了也照常部署"）、15 处 `uses:` 全为 40 位 SHA 且保留版本注释、无明文密钥（`ADMIN_KEY` 根本不该出现在 workflow）、12 个关键 step 名一个都不能少、CHANGELOG 门禁必须拿到 `GITHUB_EVENT_BEFORE`、Build 必须烘焙两个 `VITE_CB_*` 端点、每仓顶层 `permissions` 不得含 write、**并发组规则按真不变量收窄**（只有能跑 PR/多 ref 的 workflow 才要求 `cancel-in-progress: true` 时按 ref 分组）、`.github` 静态件结构 + 常驻坏样本。
+  - 这条直接钉死本仓两次踩过的假安全感：`deploy.needs` 从 09-24 起注释与 CHANGELOG 都写"具备阻断力"，而 needs 里实际只有 `build-and-test`（防线轮才接上）。**注释说阻断 ≠ 真阻断，现在由机器说。**
+  - `gateFixtures.test.ts` 给门禁脚本配两侧夹具：`scan-secrets` 植入 AWS 形态必须红 / 干净仓必须不红 / `API_KEY=your-secret-here` 占位符不得误伤；`check-changelog` 无记录改 src 必须红 / 带记录必须绿 / **push 区间把 src 改动藏在末位 docs 提交后仍必须红**（第九轮补上第八轮 M1 的自证）；`check-doc-consistency` 缺生成物必须 exit 2 而非静默 PASS；`check-case-collision` 索引内互撞必须红（夹具用 `git update-index --cacheinfo` 造第二条异 Case 项——Windows 上文件系统造不出两个文件，只塞一条是**假反例**）+ 正向对照不红 + 对本仓跑必须 0。
+- **R9-H2 双端发布一致性从人工收尾变判据（`scripts/verify-release-parity.mjs` + deploy 后置 step）**：第八轮及以前每轮手写"两端 `sw.js` 指纹 + bundle 同名"，属人工动作；`dispatch.yml` 是独立 workflow ⇒ CI 绿不等于两端同步（坑 36）。现在断：两端 `CACHE_VERSION` 形状合法、**都晚于本次发布起点**（deploy job 起始 step 输出 epoch，故能区分"两端都刷新"与"只新了一端"）、两者相差 ≤6h 同批、入口 `index-*.js` 同名、`/pub getPublicProducts` 条数 >0；CDN 传播按坑 32 给重试阶梯。**只报事实不回滚**（回滚仍只由 smoke 失败触发，避免双触发把生产反复翻面）。四向实测：正例 rc=0（指纹 `sm-v1790403446818`、bundle `index-CwPZhV2W.js`、28 条）／真实 github.io 本机不可达 rc=1 且指名哪端／起点设为未来 rc=1 两端都判旧／缺 `PARITY_AFTER_TS` rc=2 拒绝"看起来一样就放行"。**未独立命中的分支**：bundle 同名不一致（本机只有 pages.dev 可达，凑不出两端不同构建），留 CI 首跑覆盖。
+- **`.github/ISSUE_TEMPLATE/` 新增**（bug / feature / config 三件，实测对标组 4/8 有任意模板、CoC 只有 vendure 1/8 ⇒ 模板是真短板，CoC 不是差距，本轮不做 CoC 并记此由）。表单强制写清"哪个端 / 云端还是演示模式 / 不贴个人信息"，并把本仓规矩写进验收栏（"没有回归手段就不改"）。feature 表单首稿把 `attributes:` 缩进写坏，顺手给 `.github` 加了结构判据 + 常驻坏样本；**该判据第一版又写严了**（要求 `attributes:` 紧跟 `- type:`，而 issue-form 的合法顺序是 `type → id → attributes`，结果把两份合法模板全判红）—— 已改为"块内存在正确缩进的 `attributes:`"，并加常驻正样本 `type→id→attributes` 钉住这次过严（过严的判据与缺失的判据一样有害）。
+- **覆盖率棘轮 statements 78 → 79**：按台账要求的**连跑 5 次全量 `--coverage`** 定档 —— 81.11 / 76.74 / 82.79 三项逐位一致，branches 在 74.44↔74.48 抖 0.04pt（同一条 5s 轮询时序分支），故 branches 仍用最小观测值 −2pp = 72 不动。
+- **N4 结论：本轮不改执行模型（有据不改，非拖延）**。5 连跑在低负载下 **rc 全 0、63 文件 / 657 用例全绿、wall 29s(冷)→10~11s、OOM 命中 0、timeout 命中 0**；而第八轮记的 OOM 发生在我同时跑浏览器套件/并发任务期间 ⇒ 判定为**并发负载诱发**而非默认链缺陷。vitest 每次仍提示"jsdom 建了 63 次占 63% 时间"，故把 `pool:'vmThreads'` / `isolate:false` / `maxWorkers` 保留为"仅当无人值守也复现 OOM 时才动"的备选，且仍禁止抬 `testTimeout` 掩盖机制缺陷。
+- **本轮未做（如实）**：新订单 webhook 通知（对标件已定位：`minshop` D1 outbox + `env.EMAIL` 未配即 no-op 并带"未启用不发也不消耗重试"的反例、`litemall` `NotifyService` 的 `isMailEnable()` 同形）—— 它要动下单主链路，留作独立一轮，不与其他项混提；`diff-cover` 维持第八轮结论（实测 **0/8 家在 CI 卡覆盖率**，且本机无该工具、装它属新增系统依赖，不静默安装）；R2 / 真支付 / 多租户 / i18n 维持"场景不适用"。
+- **门禁全绿（本机实测，非预写）**：`npm run verify` **exit 0** —— lint 0 warning、大小写冲突 0、契约 44 通过、文档事实 7 项（其中"单测文件数 65"这一项**当场拦住我没同步 README**）、schema 漂移、license 10/10、typecheck 双配置、**65 文件 / 683 用例全过**、`verify:backend` **109/0**、Functions 编译 88,650B、`check:size` 3/3；三层浏览器门禁 22 / 15+1skip / 3。
+
+
 ### 2026-09-26 追加二十（对标第八轮：换同架构对标系 + 把五处"承诺已写、判据未接"接上闸）
 
 - **对标系换血**：引入与本仓**同栈**的三个开源项目作主对标 —— `dreamhunter2333/cloudflare_temp_email`（11,845★，Pages Functions + D1 + KV + R2）、`microfeed/microfeed`（4,095★，Workers + D1 + R2 + Queues）、`ddyy/minshop`（158★，ecommerce + D1 + R2 + Workers + Stripe + MCP）。前七轮只比 litemall/Medusa/Saleor/Vercel Commerce/Vendure（清一色服务端重型平台），可比维度越比越窄。数据 2026-09-26 `gh api` 实测（认证态，9 仓全部 HTTP 200，递归树 `truncated:false`）。
