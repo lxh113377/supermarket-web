@@ -3,22 +3,23 @@
 import { qAll, qRun, jparse, nowISO, genId, pick, insert } from '../db.js'
 import { validateImages, checkPublicText } from '../security.js'
 import { SUBMISSION_FIELDS } from '../shared.js'
+import { fail } from '../errors.js'
 
 export async function createSubmission(DB, payload) {
   const clean = pick(payload, SUBMISSION_FIELDS)
-  if (!clean.serviceId || !clean.serviceName) return { code: -1, message: '缺少服务信息' }
+  if (!clean.serviceId || !clean.serviceName) return fail('missing_service_info', '缺少服务信息')
   // 图片 scheme 白名单：仅 data:image/(jpeg|png|webp|gif);base64 或 https
   const cleanImages = validateImages(clean.images)
-  if (cleanImages === null) return { code: -1, message: '图片格式无效' }
+  if (cleanImages === null) return fail('invalid_image', '图片格式无效')
   for (const img of cleanImages) {
-    if (img.length > 2 * 1024 * 1024) return { code: -1, message: '图片过大或格式无效' }
+    if (img.length > 2 * 1024 * 1024) return fail('image_too_large', '图片过大或格式无效')
   }
   const safeForm = {}
   if (clean.formData && typeof clean.formData === 'object') {
     for (const [k, v] of Object.entries(clean.formData)) {
       const key = String(k).slice(0, 50)
       const val = String(v || '').slice(0, 200)
-      if (!checkPublicText(val, 200)) return { code: -1, message: '表单内容无效' }
+      if (!checkPublicText(val, 200)) return fail('invalid_text', '表单内容无效')
       safeForm[key] = val
     }
   }
@@ -53,23 +54,23 @@ export async function getSubmissions(DB) {
 // 按需拉取单条提交的原图（列表接口已剥离 images，避免整表 base64 全量下发）
 export async function getSubmissionImages(DB, payload) {
   const submissionId = payload && payload.submissionId
-  if (!submissionId) return { code: -1, message: '缺少 submissionId' }
+  if (!submissionId) return fail('missing_submission_id', '缺少 submissionId')
   const rows = await qAll(DB, `SELECT images FROM submissions WHERE _id = ? LIMIT 1`, [String(submissionId)])
-  if (!rows.length) return { code: -1, message: '提交不存在' }
+  if (!rows.length) return fail('submission_not_found', '提交不存在')
   return { code: 0, data: { images: jparse(rows[0].images, []) } }
 }
 
 export async function updateSubmissionStatus(DB, payload) {
   const { submissionId, status } = payload
-  if (!submissionId) return { code: -1, message: '缺少 submissionId' }
+  if (!submissionId) return fail('missing_submission_id', '缺少 submissionId')
   const res = await qRun(DB, `UPDATE submissions SET status = ?, updatedAt = ? WHERE _id = ?`, [status || 'done', nowISO(), submissionId])
-  if (!res.meta?.changes) return { code: -1, message: '提交不存在' }
+  if (!res.meta?.changes) return fail('submission_not_found', '提交不存在')
   return { code: 0 }
 }
 
 export async function deleteSubmission(DB, payload) {
   const { submissionId } = payload
-  if (!submissionId) return { code: -1, message: '缺少 submissionId' }
+  if (!submissionId) return fail('missing_submission_id', '缺少 submissionId')
   await qRun(DB, `DELETE FROM submissions WHERE _id = ?`, [submissionId])
   return { code: 0 }
 }

@@ -3,10 +3,11 @@
 import { qAll, qFirst, qRun, qBatch, jparse, nowISO, genId, pick, insert, insertStatement } from '../db.js'
 import { validateImages, checkPublicText } from '../security.js'
 import { REVIEW_FIELDS } from '../shared.js'
+import { fail } from '../errors.js'
 
 export async function getReviews(DB, payload) {
   const { productOrder } = payload
-  if (productOrder == null) return { code: -1, message: '缺少 productOrder' }
+  if (productOrder == null) return fail('missing_product_order', '缺少 productOrder')
   const rows = await qAll(DB,
     `SELECT _id, "user", rating, text, productOrder, createdAt, images
      FROM reviews WHERE productOrder = ? ORDER BY createdAt DESC LIMIT 500`,
@@ -16,16 +17,16 @@ export async function getReviews(DB, payload) {
 
 export async function addReview(DB, payload) {
   const clean = pick(payload, REVIEW_FIELDS)
-  if (clean.productOrder == null) return { code: -1, message: '缺少 productOrder' }
-  if (Array.isArray(clean.images) && clean.images.length > 3) return { code: -1, message: '最多上传 3 张图片' }
+  if (clean.productOrder == null) return fail('missing_product_order', '缺少 productOrder')
+  if (Array.isArray(clean.images) && clean.images.length > 3) return fail('too_many_images', '最多上传 3 张图片')
   // 图片 scheme 白名单：仅 data:image/(jpeg|png|webp|gif);base64 或 https
   const cleanImages = validateImages(clean.images)
-  if (cleanImages === null) return { code: -1, message: '图片格式无效' }
+  if (cleanImages === null) return fail('invalid_image', '图片格式无效')
   for (const img of cleanImages) {
-    if (img.length > 800 * 1024) return { code: -1, message: '图片过大或格式无效' }
+    if (img.length > 800 * 1024) return fail('image_too_large', '图片过大或格式无效')
   }
   // UGC 内容校验：长度上限 + 基础黑名单拦截（纵深防御的一种；最终 HTML 注入防线依赖渲染端 React 转义）
-  if (!checkPublicText(clean.text, 500)) return { code: -1, message: '评价内容无效' }
+  if (!checkPublicText(clean.text, 500)) return fail('invalid_text', '评价内容无效')
   const doc = {
     _id: genId('r_'), productOrder: Number(clean.productOrder),
     user: String(clean.user || '匿名用户').slice(0, 20),
@@ -44,7 +45,7 @@ export async function getAllReviews(DB) {
 
 export async function deleteReview(DB, payload) {
   const { reviewId } = payload
-  if (!reviewId) return { code: -1, message: '缺少 reviewId' }
+  if (!reviewId) return fail('missing_review_id', '缺少 reviewId')
   await qRun(DB, `DELETE FROM reviews WHERE _id = ?`, [reviewId])
   return { code: 0 }
 }

@@ -1,5 +1,6 @@
 // 公开 API 端点：/pub  (POST { action, payload })
 import { handlePublic, resolveCorsHeaders } from './lib/backend.js'
+import { apiResponse, fail } from './lib/errors.js'
 
 export async function onRequestOptions({ request }) {
   return new Response(null, { headers: resolveCorsHeaders(request, {}) })
@@ -12,15 +13,10 @@ export async function onRequestPost({ request, env, context }) {
     body = await request.json()
   } catch (e) {
     console.error('[/pub] 请求体 JSON 解析失败:', e)
-    return new Response(JSON.stringify({ code: -1, message: '无效的 JSON 请求体' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json', ...cors },
-    })
+    return apiResponse(fail('invalid_json', '无效的 JSON 请求体'), cors)
   }
   const { action, payload } = body
   const holdOpen = typeof context?.waitUntil === 'function' ? (p) => context.waitUntil(p) : null
   const result = await handlePublic(env, action, payload || {}, request, holdOpen)
-  return new Response(JSON.stringify(result), {
-    headers: { 'Content-Type': 'application/json', ...cors },
-  })
+  return apiResponse(result, cors)
 }

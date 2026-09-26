@@ -5,6 +5,14 @@ import { compressImage, uploadReviewImages } from '../../utils/reviewImages'
 // 写评价表单子组件（M6 拆分自 ProductDetailPage，2026-09-05）
 // 图片压缩/上传/表单状态全部内聚，提交后通过 onPublished 通知父刷新。
 
+// 顾客可提交的评价配图张数上界。**必须等于**服务端 functions/lib/actions/reviews.js 的 `images.length > 3`。
+// 两侧是两条构建链（Vite 前端 / Pages Functions），物理上共享不了模块，所以这里命名 +
+// 由 tests/reviewImageCapContract.test.ts 用等号钉住（同 src/auth.ts 的 BATCH_UPDATE_CHUNK 先例）。
+// 本处原是一段**假事实**注释："服务端 REVIEW 图片 ≤5 张" —— 服务端从登记那日起就是 3，
+// 于是顾客照屏上"最多 5 张"的提示选到第 4 张，整条评价被退回"最多上传 3 张图片"。
+// 第十八轮（2026-09-27）把 src/ 纳入上限普查面时当场抓到，见 docs/limit-provenance.md。
+const MAX_REVIEW_IMAGES = 3
+
 export default function ReviewForm({ productOrder, onPublished }: { productOrder: number; onPublished: (() => void) | undefined }) {
   const [user, setUser] = useState('')
   const [rating, setRating] = useState(5)
@@ -19,10 +27,9 @@ export default function ReviewForm({ productOrder, onPublished }: { productOrder
     e.target.value = ''
     if (files.length === 0) return
     setMsg('')
-    // 原页面硬上限 5 张（服务端 REVIEW 图片 ≤5 张），label 文案"最多 3 张"为历史笔误，兼容保留
-    const remaining = 5 - images.length
+    const remaining = MAX_REVIEW_IMAGES - images.length
     if (remaining <= 0) {
-      setMsg('最多上传 5 张图片')
+      setMsg(`最多上传 ${MAX_REVIEW_IMAGES} 张图片`)
       return
     }
     const valid = files
@@ -31,8 +38,8 @@ export default function ReviewForm({ productOrder, onPublished }: { productOrder
     try {
       const compressed = (await Promise.all(valid.map((f) => compressImage(f))))
         .filter((d) => d.dataUrl.length <= 2 * 1024 * 1024)
-      setImages((prev) => [...prev, ...compressed.map((d) => d.dataUrl)].slice(0, 5))
-      setBlobs((prev) => [...prev, ...compressed.map((d) => d.blob)].slice(0, 5))
+      setImages((prev) => [...prev, ...compressed.map((d) => d.dataUrl)].slice(0, MAX_REVIEW_IMAGES))
+      setBlobs((prev) => [...prev, ...compressed.map((d) => d.blob)].slice(0, MAX_REVIEW_IMAGES))
       if (compressed.length < valid.length) setMsg('部分图片过大，已自动跳过')
     } catch {
       setMsg('图片处理失败，请重试')
@@ -143,10 +150,10 @@ export default function ReviewForm({ productOrder, onPublished }: { productOrder
               ))}
             </div>
           )}
-          {images.length < 5 && (
+          {images.length < MAX_REVIEW_IMAGES && (
             <label className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-4 text-sm text-gray-400 hover:border-brand-300 hover:text-brand-500 hover:bg-brand-50/30 transition-all duration-300 flex flex-col items-center cursor-pointer">
               <span className="text-xl mb-1">📷</span>
-              添加图片（选填，最多 5 张）
+              添加图片（选填，最多 {MAX_REVIEW_IMAGES} 张）
               <input type="file" accept="image/*" multiple aria-label="选择要上传的评价图片" className="hidden" onChange={handleImages} />
             </label>
           )}

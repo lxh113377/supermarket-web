@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import OrderItem from '../components/OrderItem'
 import { getCart, getTotalAmount, clearCart } from '../cart'
 import { createOrder } from '../db'
+import { OrderRejectedError } from '../api/error-codes'
 import { isBusinessHours, getClosedMessage } from '../utils/businessHours'
 import { formatYuan } from '../utils/format'
 import { compressImageFile } from '../utils/imageCompress'
@@ -77,7 +78,11 @@ export default function OrderConfirmPage() {
       clearCart()
       navigate('/order-success', { state: { building: building.trim(), room: room.trim(), orderId: result.id, localFallback: result.localFallback, totalAmount } })
     } catch (err) {
-      setError('提交订单失败：' + (err instanceof Error ? err.message : '网络错误'))
+      // 业务拒绝（服务端活着且明确不收这单）与传输故障的文案必须分开：
+      // 前者的正确动作是"改数量/换商品/稍后再试"，后者才是"稍后重试"。
+      // 判据 src/api/error-codes.ts 的 kind，不判 message 字符串。
+      if (err instanceof OrderRejectedError) setError(`下单未成功：${err.message}`)
+      else setError('提交订单失败：' + (err instanceof Error ? err.message : '网络错误'))
     } finally {
       setSubmitting(false)
     }

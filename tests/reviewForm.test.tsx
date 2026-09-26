@@ -114,11 +114,16 @@ describe('晒图三道闸', () => {
     expect(screen.queryByAltText('待发布图片 1')).toBeNull()
   })
 
-  it('最多 5 张：第 6 张起拒绝并提示', async () => {
+  // 第十八轮：上限由 5 收敛成 3（服务端 reviews.js 一直是 `images.length > 3`，
+  // 而前端写 5 且屏上印"最多 5 张" ⇒ 照提示选到第 4 张整条被退回）。
+  // 这条用例同时改成**更强**的形态：一次给 5 张，断言只留 3 张、上传口消失、可见文案也是 3。
+  it('最多 3 张：上传口文案就是 3，一次塞 5 张只留 3 张，满额后不再给上传口', async () => {
     render(<ReviewForm productOrder={1} onPublished={m.onPublished} />)
+    // 先断可见文案：屏上承诺的数必须等于代码里的 cap，否则"按提示操作必然被拒"会复发
+    expect(screen.getByText(/添加图片（选填，最多 3 张）/)).toBeTruthy()
     pickFiles([imgFile(), imgFile('b.png'), imgFile('c.png'), imgFile('d.png'), imgFile('e.png')])
-    await waitFor(() => expect(screen.getAllByAltText(/待发布图片/)).toHaveLength(5))
-    expect(screen.queryByLabelText('选择要上传的评价图片')).toBeNull() // 满 5 张后不再给上传口
+    await waitFor(() => expect(screen.getAllByAltText(/待发布图片/)).toHaveLength(3))
+    expect(screen.queryByLabelText('选择要上传的评价图片')).toBeNull() // 满 3 张后不再给上传口
   })
 
   it('可逐张删除（图片与 blob 同步下标，避免错位）', async () => {

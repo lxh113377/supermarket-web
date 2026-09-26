@@ -2,6 +2,7 @@
 import { IS_CLOUD } from '../cloudbase'
 import { adminCall, publicCall, pickOrderFields } from '../auth'
 import { getLocalOrders, addLocalOrder } from '../localStore'
+import { isFallbackSafe, classifyFailure, OrderRejectedError, type ErrorKind } from '../api/error-codes'
 import type { Order } from '../types'
 
 // P1-5：云端模式下管理端"读取"失败统一显式抛错，不再静默回退本地。
@@ -23,9 +24,24 @@ export async function createOrder(order: Record<string, unknown>): Promise<{ id:
   }
   try {
     const result = await publicCall<{ id: string; deduplicated?: boolean }>('createOrder', requestId ? { ...clean, requestId } : clean)
-    if (result.code !== 0) throw new Error(result.message || '创建订单失败')
+    if (result.code !== 0) {
+      // 第十八轮分流：服务端**活着**且明确"这一单我不收"（库存不足 / 已下架 / 限流 / 鉴权失败）时
+      // 不许本地兜底。兜底 = 顾客看到「下单成功！请完成支付」而商家侧根本没有这张单，
+      // 于是付款截图上传了、钱转了、单没了。
+      // 允许暂住本地的只有 platform（后端真的不服务）与 transport（请求根本没送到），
+      // 边界集合见 src/api/error-codes.ts 的 FALLBACK_SAFE 与那条保守方向的注释。
+      if (!isFallbackSafe(result)) {
+        throw new OrderRejectedError(
+          result.errorCode || 'unclassified',
+          classifyFailure(result) as ErrorKind,
+          result.message || '订单未通过校验，请检查后重试',
+        )
+      }
+      throw new Error(result.message || '创建订单失败')
+    }
     return { id: result.data?.id ?? '', deduplicated: Boolean(result.data?.deduplicated) }
   } catch (e) {
+    if (e instanceof OrderRejectedError) throw e
     console.warn('[db] cloud createOrder failed, using local fallback:', e instanceof Error ? e.message : String(e))
     return { id: addLocalOrder(clean)._id, localFallback: true }
   }

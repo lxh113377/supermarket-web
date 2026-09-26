@@ -3,6 +3,12 @@
 > 本表由 `scripts/check-limit-provenance.mjs` 校验：**代码里每个「会砍东西」的数值上限**（六类形态：
 > 拒绝型 `x.length > N` / 截断型 `.slice(0, N)` / 体积型 `N * 1024` / 保留期 `-N days` / 分页 `LIMIT N` /
 > 命名常量 `MAX_*`·`BATCH`·`_MS`）必须有行、有行必须对得上现状、类别必须合法、依据不得是 TODO。
+> **取数面 = `functions/**.js` + `src/**.ts|.tsx`**（第十八轮 M6 起含前端；单点定义在判据的
+> `SURFACE_PREFIXES`，C7 会把「面内文件是否都落在声明前缀里 + src/ 是否真在里面」当正向对照跑）。
+> 扩面当轮即暴露两处度量器自身的缺陷，都已修机制而非调阈值：
+> ① `x.length > 0` / `< 1` 是**非空判断**不是上限（在 functions/ 里恰好一次都没出现，一进 src/ 就造出
+> 12 行假上限）⇒ 由 `EMPTY_TEST` 排除；② 同一表达式 `length <= 2 * 1024 * 1024` 会被拒绝型按第一个
+> 数字切中，与体积型重复 ⇒ 如实登记并在依据里写明"与体积型同源"，不悄悄改正则把它藏掉。
 > 新增一个上限而不登记 = 门禁判红。取值类别：`platform`（外部平台硬约束，必须点名 `PLATFORM_FACTS`
 > 里的事实且值不超过它）/ `schema`（列定义逼出来的 —— 本仓 55 个 TEXT 列**无一处列宽约束**，
 > 故这类实际是「应用层替列定宽」）/ `product`（产品决定）/ `perf`（性能与配额余量）/ `self`
@@ -56,6 +62,29 @@
 | functions/lib/security.js | 截断型 | 64 | schema | keyFingerprint 相关串截 64：哈希/uuid 形态长度，与 orders.requestId 同族 |
 | functions/lib/security.js | 截断型 | 8 | schema | 结果码/前缀类短字段截 8 字：与同文件 detail 截 500、fingerprint 截 64 同族，审计表列宽由应用层自定 |
 
+| src/auth.ts | 常量 | BATCH_UPDATE_CHUNK=40 | platform | 前端批量改价分片大小，必须等于服务端 BATCH_UPDATE_MAX=40（那边按 d1_queries_per_invocation_free=50 推导：语句数 1+n ⇒ 41<50）；两侧等值由 tests/batchChunkContract.test.ts 钉住 |
+| src/components/admin/ProductInlineEditForm.tsx | 截断型 | 9 | product | 内联编辑保存前只提交前 9 张图片：商品图册可视区一屏约 3×3，再多就没人翻到；服务端对商品图片条数不设 cap（validateImages 只查 scheme），所以这一侧就是唯一的条数上限 |
+| src/components/DashboardTab.tsx | 截断型 | 10 | product | 看板"日期"标签取 ISO 串前 10 位（YYYY-MM-DD）：日历日粒度，不是容量上限；与 src/localStore.ts 的 date 同源同形 |
+| src/components/OrdersTab.tsx | 截断型 | 10 | product | 导出 CSV 文件名里的日期戳截 10 位（YYYY-MM-DD）：命名粒度，不参与数据裁剪 |
+| src/components/product/ProductGallery.tsx | 拒绝型 | 1 | product | 不是容量上限，是"有没有第二张"的可用性阈值：>1 才渲染上一张/下一张箭头。登记它的唯一目的是让普查面不留洞 |
+| src/components/product/ProductGallery.tsx | 拒绝型 | 2 | product | 同上阈值的反向写法（<2 时禁用滑动切换）。两张图以下退化成单图展示 |
+| src/components/product/ReviewForm.tsx | 常量 | MAX_REVIEW_IMAGES=3 | product | 评价配图张数上界，必须等于服务端 reviews.js 的 >3；第十八轮把 src/ 纳入普查面时才发现前端写 5、文案也印"最多 5 张" ⇒ 顾客按提示选到第 4 张整条被退回。等值由 tests/reviewImageCapContract.test.ts 钉住 |
+| src/components/product/ReviewForm.tsx | 拒绝型 | 2 | product | 与下面「体积型 2」同源：`dataUrl.length <= 2 * 1024 * 1024` 被拒绝型形状按第一个数字切中，不是独立上限。记在这里是为了让形状重叠这件事本身可见，而不是悄悄调正则把它藏掉 |
+| src/components/product/ReviewForm.tsx | 体积型 | 10 | product | 原图文件大小门槛 10MB：超过就不进压缩队列（再压也压不进 base64 上传），前端侧决定，服务端不重复查原图体积 |
+| src/components/product/ReviewForm.tsx | 体积型 | 2 | product | 压缩后 dataUrl ≤2MB 才保留：与服务端 submissions 侧 2 * 1024 * 1024 同值同因（Reviews 侧服务端是 800*1024 字符，见第十七轮 M5 未对齐项） |
+| src/components/product/ReviewList.tsx | 截断型 | 10 | product | 评价日期展示 YYYY-MM-DD：与 DashboardTab 同形同因 |
+| src/components/product/ReviewList.tsx | 截断型 | 5 | product | 评价列表每张卡最多渲染 5 张缩略图。**注意**：提交侧上限是 3，展示侧留 5 是给历史数据（早期前端允许 5）留可视面，不是新的写入许可 |
+| src/components/ProductsTab.tsx | 截断型 | 2 | product | 行内分类标签最多显示 2 个（"饮品 · 低糖"这种），多了把行撑爆；数据侧不裁剪，仅展示 |
+| src/components/ReviewsTab.tsx | 截断型 | 10 | product | 后台评价表日期列 YYYY-MM-DD：与 DashboardTab 同形同因 |
+| src/db/orders.ts | 常量 | MAX_PAGES=20 | perf | 管理端增量拉单最多 20 页（每页 100 ⇒ 2000 单）：防服务端 hasMore 异常时前端死循环；店内订单量级实测 49 单，20 页是 40 倍余量的硬止损 |
+| src/db/orders.ts | 截断型 | 64 | schema | requestId 送服务端前截 64：与服务端 orders.js 的 requestId 截 64 同值同因（uuid 形态），防粘贴长串进幂等键 |
+| src/localStore.ts | 截断型 | 10 | product | 本地演示模式评价日期 YYYY-MM-DD |
+| src/localStore.ts | 截断型 | 5 | product | 本地演示模式每张评价最多存 5 图：与 ReviewList 展示侧同值（写入侧真实上限已收敛成 3，见 MAX_REVIEW_IMAGES） |
+| src/localStore.ts | 截断型 | 500 | schema | 本地演示模式评价正文截 500 字：对齐服务端 checkPublicText(clean.text, 500)，两侧不一致会出现"云端收、本地丢一半" |
+| src/pages/CustomerPage.tsx | 截断型 | 5 | product | 搜索建议下拉最多 5 条：再长就超出下拉可视区，且顾客本可以直接回车进结果页 |
+| src/pages/OrderConfirmPage.tsx | 体积型 | 5 | product | 付款截图原图 ≤5MB 才进压缩：下单必附凭证的场景实拍常见 2~4MB，5MB 是"明显误传大文件"的分界 |
+| src/pages/ServiceFormPage.tsx | 拒绝型 | 5 | product | 服务提交图片总数 ≤5 张：产品决定。**服务端 createSubmission 不查条数**（只查 scheme 与单张 2MB），所以这是全链唯一 cap —— 已登记第十八轮待办：要么服务端补 cap，要么把这行改成两侧同值的契约 |
+| src/pages/ServiceFormPage.tsx | 体积型 | 10 | product | 单张原图 ≤10MB 门槛：与 ReviewForm 的 10MB 同因（压不动就别上传） |
 ## 平台档位假设（C6 读取本节）
 
 - 当前档位登记：**Free** ⇒ D1「每调用查询数」预算取 `d1_queries_per_invocation_free = 50`。

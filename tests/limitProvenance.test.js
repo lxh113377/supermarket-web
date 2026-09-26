@@ -15,10 +15,10 @@ const withRows = (src, mutate) => {
 }
 
 describe('对照与零输入', () => {
-  it('真仓现状 ⇒ 8 条判据全绿', () => {
+  it('真仓现状 ⇒ 9 条判据全绿（C8 由第十八轮 M6 新增）', () => {
     const s = real()
     const v = evaluate(s)
-    expect(v.length).toBeGreaterThanOrEqual(8)
+    expect(v.length).toBeGreaterThanOrEqual(9)
     expect(v.filter((x) => !x.ok).map((x) => x.label)).toEqual([])
   })
 
@@ -141,11 +141,16 @@ describe('C6/C7 与枚举器边界', () => {
     }
   })
 
-  it('登记册解析器自证：只认 functions/ 开头的数据行，表头与分隔行不算', () => {
+  it('登记册解析器自证：只认声明前缀（functions/ + src/）的数据行，表头与分隔行不算', () => {
     const md = readFileSync('docs/limit-provenance.md', 'utf8')
     const rows = parseRegistry(md)
     expect(rows.length).toBeGreaterThan(30)
-    expect(rows.every((r) => r.file.startsWith('functions/'))).toBe(true)
+    // 第十八轮 M6 把 src/ 纳入面 ⇒ 旧断言"全部以 functions/ 开头"变成**错的界**，
+    // 这里重新划界并同时留对偶断言：src/ 必须真在里面（扩面不是只改了句声明），
+    // 而面外目录（scripts//docs//tests/）一件都不许被认进来（否则判据自己给自己登记）。
+    expect(rows.every((r) => /^(functions|src)\//.test(r.file))).toBe(true)
+    expect(rows.some((r) => r.file.startsWith('src/'))).toBe(true)
+    expect(rows.some((r) => /^(scripts|docs|tests|db)\//.test(r.file))).toBe(false)
     expect(rows.some((r) => r.file.includes('来源类别') || r.shape === '类型')).toBe(false)
   })
 })

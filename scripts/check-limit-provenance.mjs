@@ -30,21 +30,41 @@ export const PLATFORM_FACTS = {
   sqlite_bound_params: { max: 999, unit: '绑定参数/语句', src: 'SQLite 官方 SQLITE_MAX_VARIABLE_NUMBER（旧默认 999；本仓 products.js:156 注释早已引它）' },
 }
 
-/** 六类"会砍东西"的数值形态 —— 判据的分母由这六个形状定义，不靠人记。 */
-const SHAPES = {
-  拒绝型: /\.\s*length\s*[<>]=?\s*(\d+)/g,
+/** 六类"会砍东西"的数值形态 —— 判据的分母由这六个形状定义，不靠人记。
+ *  拒绝型额外捕获比较符：光看值不足以判"这是不是一条上限"（>0 是空判定，>200 才是）。 */
+export const SHAPES = {
+  拒绝型: /\.length\s*(<|>)=?\s*(\d+)/g,
   截断型: /\.slice\(\s*0\s*,\s*(\d+)\s*\)/g,
   体积型: /(\d+)\s*\*\s*1024/g,
   保留期: /'-(\d+) days'/g,
   分页: /\bLIMIT (\d+)/gi,
 }
+/**
+ * 拒绝型的"空判定"排除表（第十八轮 M6 扩面时暴露的度量器缺陷）。
+ * `x.length > 0` / `x.length < 1` 是**非空判断**，不是"会砍东西的上限"——
+ * 它在 functions/ 里恰好一次都没出现（都写成 `!x.length`），所以前十七轮从未暴露；
+ * 一进 src/ 就在 9 个文件里造出 12 行假上限。
+ * 正解是修形状定义（下面这个集合），**不是**把阈值调大或给 src/ 开豁免：
+ * 后者等于把"前端没人管"这件事重新藏回去。
+ */
+export const EMPTY_TEST = new Set(['>,0', '>=,1', '<,1', '<=,0'])
 const CONST_RE = /^(MAX|MIN|LIMIT|TOP|TTL|BATCH|_MS$|DAYS|SIZE|WINDOW|RATE_|TIMEOUT)/
 
-export function collectJs(dir, out = []) {
+/**
+ * 取数面（单点声明）：第十八轮 M6 起含前端。
+ * 为什么必须单点：登记册头部那句"取数面只到 functions/**"是散在文档里的承诺，
+ * 上一轮写在 docs 里、这一轮改代码时很容易只改一边 —— 于是"扩面"这件事没人知道，
+ * 前端上限继续裸奔而门禁显示全绿。这里定义 + C7 回读 + 文档行三处必须一致，由 limitProvenance 夹具钉住。
+ */
+export const SURFACE_PREFIXES = ['functions/', 'src/']
+/** 面内排除：d.ts 无可执行上限，纯类型声明。 */
+const SURFACE_SKIP = /\.d\.ts$/
+
+export function collectJs(dir, out = [], exts = ['.js']) {
   for (const e of readdirSync(dir)) {
     const p = join(dir, e)
-    if (statSync(p).isDirectory()) collectJs(p, out)
-    else if (e.endsWith('.js')) out.push(p)
+    if (statSync(p).isDirectory()) collectJs(p, out, exts)
+    else if (exts.some((x) => e.endsWith(x))) out.push(p)
   }
   return out.sort()
 }
@@ -59,8 +79,24 @@ function walk(node, visit) {
   }
 }
 
+/** 第十八轮 M6：前端入面后必须能吃 TS/TSX；旧行为（只 module + 无插件）对 .ts 会直接抛。
+ *  解析失败一律点名并判红，**禁止静默跳文件** —— 静默跳过等于把该类文件永远留在普查面外。 */
+function parseFor(rel, code, onError) {
+  const tsx = /\.tsx$/.test(rel)
+  const ts = /\.tsx?$/.test(rel)
+  try {
+    return parse(code, {
+      sourceType: 'module',
+      ...(ts ? { plugins: tsx ? ['typescript', 'jsx'] : ['typescript'] } : tsx ? { plugins: ['jsx'] } : {}),
+    })
+  } catch (e) {
+    onError(`${rel} 解析失败（${e.message.split('\n')[0]}）`)
+    return null
+  }
+}
+
 /** 普查：返回 [{key, file, shape, value, line}]，key = `文件#类型#值`（同值同文件归一行，防噪）。 */
-export function census(sources) {
+export function census(sources, onParseError = () => {}) {
   const hits = new Map()
   for (const { rel, code } of sources) {
     // 先剥掉整行注释：登记册统计的是「代码里真的会砍东西的数」，注释与文档里的数字不算
@@ -69,13 +105,15 @@ export function census(sources) {
       .map((l) => (/^\s*(--|\/\/)/.test(l) ? '' : l)).join(String.fromCharCode(10))
     for (const [shape, re] of Object.entries(SHAPES)) {
       for (const m of body.matchAll(re)) {
-        const value = Number(m[1] !== undefined ? m[1] : m[0].replace(/\D/g, ''))
+        const value = Number(m[m.length - 1])
+        if (shape === '拒绝型' && EMPTY_TEST.has(`${m[1]},${value}`)) continue
         const line = body.slice(0, m.index).split('\n').length
         const key = `${rel}#${shape}#${value}`
         if (!hits.has(key)) hits.set(key, { key, file: rel, shape, value, line })
       }
     }
-    walk(parse(code, { sourceType: 'module' }), (n) => {
+    const ast = parseFor(rel, code, onParseError)
+    if (ast) walk(ast, (n) => {
       if (n.type !== 'VariableDeclarator' || n.init?.type !== 'NumericLiteral') return
       const name = n.id?.name || ''
       if (!CONST_RE.test(name)) return
@@ -86,14 +124,15 @@ export function census(sources) {
   return [...hits.values()].sort((a, b) => a.key.localeCompare(b.key))
 }
 
-/** 登记册解析：只认 markdown 表格数据行，列序固定为 文件 | 类型 | 值 | 来源类别 | 依据 */
+/** 登记册解析：只认 markdown 表格数据行，列序固定为 文件 | 类型 | 值 | 来源类别 | 依据
+ *  取数面前缀由 SURFACE_PREFIXES 单点决定（第十八轮 M6 把 src/ 纳入），不在这里另写一遍。 */
 export function parseRegistry(md) {
   const rows = []
   for (const line of md.split('\n')) {
     if (!line.trim().startsWith('|')) continue
     const cells = line.split('|').slice(1, -1).map((c) => c.trim())
     if (cells.length < 5) continue
-    if (!cells[0].startsWith('functions/')) continue
+    if (!SURFACE_PREFIXES.some((p) => cells[0].startsWith(p))) continue
     rows.push({ file: cells[0].replace(/`/g, ''), shape: cells[1], value: cells[2], kind: cells[3], basis: cells[4] })
   }
   return rows
@@ -102,7 +141,7 @@ export function parseRegistry(md) {
 export const ALLOWED_KINDS = new Set(['platform', 'schema', 'product', 'perf', 'self'])
 
 /** 判据核心（纯函数，喂任意输入即可反证；同第十四/十五轮口径）。 */
-export function evaluate({ items, rows, planRegistered }) {
+export function evaluate({ items, rows, planRegistered, parseErrors, sources }) {
   const out = []
   const push = (id, cond, label, detail) => out.push({ id, ok: Boolean(cond), label, detail })
   const keyOf = (r) => `${r.file}#${r.shape}#${r.value}`
@@ -148,19 +187,38 @@ export function evaluate({ items, rows, planRegistered }) {
         : '登记册引用了 d1_queries_per_invocation_*，但 docs/env-vars.md 没有 WORKERS_PLAN 行 => 预算取哪个数无人能说清')
   }
 
-  // C7：判据自身不得进普查面（否则 PLATFORM_FACTS 里的 50/1000/999 会自证成上限）
-  const selfLeak = items.filter((i) => /check-limit-provenance/.test(i.file))
-  push('C7', selfLeak.length === 0, 'C7 普查面不含判据自身',
-    selfLeak.length ? '泄漏 ' + selfLeak.length + ' 项' : '取数面 = functions/**.js，判据与登记册在面外')
+  // C7：取数面自证。旧写法只 filter(/check-limit-provenance/)，而判据住在 scripts/ 下、
+  //      根本不可能进面 ⇒ 那条断言**永远为真**（空转判据）。第十八轮改成：
+  //      ① 面内文件的每一行都必须落在声明的前缀里；② scripts//docs/ 一件都不许漏进来；
+  //      ③ 正向对照：面非空且含 src/ 文件（否则"扩了面"这件事没人能证）。
+  const leaked = items.filter((i) => !SURFACE_PREFIXES.some((p) => i.file.startsWith(p)))
+  const outsideLeak = items.filter((i) => /^(scripts|docs|tests|db)\//.test(i.file))
+  const hasSrc = items.some((i) => i.file.startsWith('src/'))
+  push('C7', leaked.length === 0 && outsideLeak.length === 0 && hasSrc,
+    'C7 取数面自证（前缀内 + 判据/文档不入面 + src/ 真在里面）',
+    leaked.length || outsideLeak.length
+      ? `越面: ${[...new Set([...leaked, ...outsideLeak].map((l) => l.file))].slice(0, 5).join(', ')}`
+      : `取数面 = ${SURFACE_PREFIXES.join(' + ')}（src/ 命中 ${items.filter((i) => i.file.startsWith('src/')).length} 项），判据与登记册在面外`)
+
+  // C8（新增）：解析失败不许静默跳文件 —— 静默跳过等于把该类文件永久留在面外，
+  //      而这正是"看起来全绿其实没测"的形态（R236：命令跑失败输出空被当成通过）。
+  push('C8', (parseErrors || []).length === 0, 'C8 面内文件零静默跳过（解析失败即点名）',
+    parseErrors && parseErrors.length ? `解析失败 ${parseErrors.length} 个: ${parseErrors.slice(0, 4).join(' | ')}` : `${(sources || []).length} 个文件全部解析成功`)
   return out
 }
 
 export function loadAll() {
-  const sources = collectJs(join(root, 'functions')).map((f) => ({
-    rel: relative(root, f).split(String.fromCharCode(92)).join('/'),
-    code: readFileSync(f, 'utf8').split(String.fromCharCode(13, 10)).join(String.fromCharCode(10)),
-  }))
-  const items = census(sources)
+  const parseErrors = []
+  const roots = [['functions', ['.js']], ['src', ['.ts', '.tsx']]]
+  const sources = []
+  for (const [dir, exts] of roots) {
+    for (const f of collectJs(join(root, dir), [], exts)) {
+      const rel = relative(root, f).split(String.fromCharCode(92)).join('/')
+      if (SURFACE_SKIP.test(rel)) continue
+      sources.push({ rel, code: readFileSync(f, 'utf8').split(String.fromCharCode(13, 10)).join(String.fromCharCode(10)) })
+    }
+  }
+  const items = census(sources, (msg) => parseErrors.push(msg))
   let rows = []
   try { rows = parseRegistry(readFileSync(join(root, REGISTRY), 'utf8')) } catch { rows = [] }
   let planRegistered = ''
@@ -172,12 +230,12 @@ export function loadAll() {
     if (/paid/i.test(row)) planRegistered = 'Paid(1000)'
     else if (/free/i.test(row)) planRegistered = 'Free(50)'
   } catch { /* 缺文件由 C6 判红 */ }
-  return { items, rows, planRegistered }
+  return { items, rows, planRegistered, parseErrors, sources }
 }
 
 
 async function main() {
-  const { items, rows, planRegistered } = loadAll()
+  const { items, rows, planRegistered, parseErrors, sources } = loadAll()
   if (process.argv.includes('--emit')) {
     const have = new Set(rows.map((r) => `${r.file}#${r.shape}#${r.value}`))
     const miss = items.filter((i) => !have.has(i.key))
@@ -187,7 +245,7 @@ async function main() {
     console.error(`[limit-provenance] 骨架 ${miss.length} 行（TODO 一律判红，不许直接贴上去交差）`)
     process.exit(0)
   }
-  const verdicts = evaluate({ items, rows, planRegistered })
+  const verdicts = evaluate({ items, rows, planRegistered, parseErrors, sources })
   let pass = 0
   const fails = []
   for (const v of verdicts) {

@@ -2,6 +2,7 @@
 
 import { qAll, qFirst, qRun, qBatch, jparse, nowISO, genId, insert } from '../db.js'
 import { isSafeImageUrl } from '../security.js'
+import { fail } from '../errors.js'
 
 // ── 下单幂等（2026-09-24 对标第二轮 A1）──
 // 对标：Medusa HTTP 层 `Idempotency-Key` + 表内 UNIQUE(index, key)；litemall cart_checkout 唯一索引
@@ -89,11 +90,11 @@ function resolveOrderSpec(p, clientSpec) {
 
 export async function createOrder(DB, payload) {
   const { roomNumber, items, wechat, remark, paymentScreenshot } = payload
-  if (!roomNumber || !Array.isArray(items) || !items.length) return { code: -1, message: '订单数据不完整' }
+  if (!roomNumber || !Array.isArray(items) || !items.length) return fail('invalid_order_payload', '订单数据不完整')
   // 付款截图 scheme 白名单：拒绝非 data:image / https 的注入向量
   if (typeof paymentScreenshot === 'string' && paymentScreenshot) {
     if (paymentScreenshot.length > 800 * 1024 || !isSafeImageUrl(paymentScreenshot))
-      return { code: -1, message: '付款截图格式无效，请重新上传' }
+      return fail('invalid_image', '付款截图格式无效，请重新上传')
   }
   const ids = items.map((it) => it.productId)
   const rows = await qAll(DB,
@@ -104,11 +105,11 @@ export async function createOrder(DB, payload) {
   const verified = []
   for (const item of items) {
     const p = byId.get(item.productId)
-    if (!p) return { code: -1, message: `商品不存在: ${item.productId}` }
-    if (p.enabled === 0 || p.enabled === false) return { code: -1, message: `商品已下架: ${p.name}` }
+    if (!p) return fail('product_not_found', `商品不存在: ${item.productId}`)
+    if (p.enabled === 0 || p.enabled === false) return fail('product_disabled', `商品已下架: ${p.name}`)
     // 数量必须为正整数：拦截负数/小数/缺失，防订单负金额或异常金额
     const qty = Number(item.quantity)
-    if (!Number.isInteger(qty) || qty <= 0) return { code: -1, message: `商品数量无效: ${p.name}` }
+    if (!Number.isInteger(qty) || qty <= 0) return fail('invalid_quantity', `商品数量无效: ${p.name}`)
     verified.push({
       productId: p._id, name: p.name, spec: resolveOrderSpec(p, item.spec),
       price: Number(p.price) || 0, quantity: qty, subcategories: jparse(p.subcategories, []),
@@ -161,7 +162,7 @@ export async function createOrder(DB, payload) {
       if (hit) return { code: 0, data: { id: hit._id, totalAmount: hit.totalAmount, deduplicated: true } }
     }
     console.error('[orders] createOrder 落库失败，库存已回补:', msg)
-    return { code: -1, message: '订单创建失败，请重试' }
+    return fail('order_create_failed', '订单创建失败，请重试')
   }
   return { code: 0, data: { id: doc._id, totalAmount: doc.totalAmount } }
 }
@@ -179,7 +180,7 @@ export async function reserveStock(DB, items) {
   const bad = results.findIndex((r) => !r.meta?.changes)
   if (bad >= 0) {
     if (bad > 0) await releaseStock(DB, items.slice(0, bad))
-    return { code: -1, message: `库存不足: ${items[bad].name}` }
+    return fail('stock_insufficient', `库存不足: ${items[bad].name}`)
   }
   return null
 }
@@ -196,7 +197,7 @@ export async function releaseStock(DB, items) {
 
 export async function deleteOrder(DB, payload) {
   const { orderId } = payload
-  if (!orderId) return { code: -1, message: '缺少 orderId' }
+  if (!orderId) return fail('missing_order_id', '缺少 orderId')
   // 删除进行中订单（pending/paid/delivering）= 库存占用作废，需回补；
   // cancelled 已在取消时释放、completed 视为已交付消耗，均不回补（防删除历史单凭空加库存）
   const cur = await qFirst(DB, `SELECT status, items FROM orders WHERE _id = ?`, [orderId])
@@ -260,11 +261,11 @@ export const ORDER_TRANSITIONS = {
 
 export async function updateOrderStatus(DB, payload) {
   const { orderId, status } = payload
-  if (!orderId || !Object.prototype.hasOwnProperty.call(ORDER_TRANSITIONS, status)) return { code: -1, message: '参数无效' }
+  if (!orderId || !Object.prototype.hasOwnProperty.call(ORDER_TRANSITIONS, status)) return fail('invalid_params', '参数无效')
   const cur = await qFirst(DB, `SELECT status, items FROM orders WHERE _id = ?`, [orderId])
-  if (!cur) return { code: -1, message: '订单不存在' }
+  if (!cur) return fail('order_not_found', '订单不存在')
   if (!(ORDER_TRANSITIONS[cur.status] || []).includes(status))
-    return { code: -1, message: `不允许的状态流转: ${cur.status} → ${status}` }
+    return fail('invalid_transition', `不允许的状态流转: ${cur.status} → ${status}`)
   const items = jparse(cur.items, [])
   // 取消 = 释放本单占用的有限库存（不限售项由 releaseStock 内 CASE 条件天然跳过）
   if (status === 'cancelled' && items.length) await releaseStock(DB, items)
@@ -281,16 +282,16 @@ export async function updateOrderStatus(DB, payload) {
   if (!res.meta?.changes) {
     // 抢占失败时，本请求刚为"误取消恢复"扣下的库存必须回补，否则凭空少一份可售库存
     if (cur.status === 'cancelled' && status === 'pending' && items.length) await releaseStock(DB, items)
-    return { code: -1, message: '订单已被他人更新，请刷新后重试' }
+    return fail('concurrent_update', '订单已被他人更新，请刷新后重试')
   }
   return { code: 0 }
 }
 
 // 顾客侧订单进度（公开只读）：仅回状态与更新时间，订单号即凭证（genId 时间戳+随机，不可枚举）
 export async function getOrderStatus(DB, orderId) {
-  if (!orderId || typeof orderId !== 'string') return { code: -1, message: '缺少订单号' }
+  if (!orderId || typeof orderId !== 'string') return fail('missing_order_id', '缺少订单号')
   const row = await qFirst(DB, `SELECT status, updatedAt FROM orders WHERE _id = ?`, [orderId])
-  if (!row) return { code: -1, message: '订单不存在' }
+  if (!row) return fail('order_not_found', '订单不存在')
   return { code: 0, data: { orderId, status: row.status, updatedAt: row.updatedAt } }
 }
 

@@ -24,6 +24,7 @@ import { getReviews, addReview, getAllReviews, deleteReview, seedReviews } from 
 import { createSubmission, getSubmissions, getSubmissionImages, updateSubmissionStatus, deleteSubmission } from './actions/submissions.js'
 import { adminAiAdvice, pubAiChat } from './actions/ai.js'
 import { getDashboardStats } from './actions/stats.js'
+import { fail } from './errors.js'
 import { kvCacheGetJSON, kvCacheSet, invalidatePublicCatalog, invalidateDashboard, invalidateAiAdvice, AI_ADVICE_CACHE_KEY, DASHBOARD_CACHE_PREFIX } from './cache.js'
 
 // 管理端写操作（**审计日志覆盖范围**）。
@@ -65,7 +66,7 @@ const DASHBOARD_WRITE_ACTIONS = new Set([
 
 export async function handleAdmin(env, action, adminKey, payload = {}, request = null, notifyWaitUntil = null) {
   const DB = env.DB
-  if (!DB) return { code: -1, message: '未配置 D1 数据库绑定' }
+  if (!DB) return fail('db_unbound', '未配置 D1 数据库绑定')
   const ip = getClientIp(request)
   // 登录限流必须在鉴权之前：无论密钥对错都计数，才能真正防暴力破解
   if (action === 'login') {
@@ -83,7 +84,7 @@ export async function handleAdmin(env, action, adminKey, payload = {}, request =
   // 权限细分：只读档只允许"显式登记为可读"的 action（默认拒绝；第十五轮扳正方向）
   const role = resolveRole(adminKey, env)
   if (role === 'readonly' && !ADMIN_READ_ACTIONS.has(action)) {
-    return { code: -1, message: '只读账号不能执行该操作' }
+    return fail('readonly_denied', '只读账号不能执行该操作')
   }
   // aiAdvice 独立限流（2026-09-23 P2 补齐）：全量查询 + Dify 推理，单次成本远高于普通读。
   // 放在鉴权之后：未认证请求不消耗配额、也不产生限流写入（KV/D1）。分桶 rate:aiadv:*，
@@ -169,11 +170,11 @@ export async function handleAdmin(env, action, adminKey, payload = {}, request =
         if (result.code === 0) await kvCacheSet(env, key, result, 60)
         break
       }
-      default: result = { code: -1, message: '未知操作' }
+      default: result = fail('invalid_action', '未知操作')
     }
   } catch (e) {
     console.error('[admin]', action, e)
-    result = { code: -1, message: '服务暂时不可用，请稍后重试' }
+    result = fail('internal_error', '服务暂时不可用，请稍后重试')
   }
   // M1：商品/分类写操作成功后失效公共目录 KV 缓存（顾客端立即看到新数据）
   if (result.code === 0 && ['createProduct', 'updateProduct', 'deleteProduct', 'batchUpdateProducts', 'batchDeleteProducts'].includes(action)) {
@@ -196,8 +197,8 @@ export async function handleAdmin(env, action, adminKey, payload = {}, request =
 
 export async function handlePublic(env, action, payload = {}, request = null, notifyWaitUntil = null) {
   const DB = env.DB
-  if (!DB) return { code: -1, message: '未配置 D1 数据库绑定' }
-  if (!PUBLIC_ACTIONS.has(action)) return { code: -1, message: '未知操作（public 仅支持公开接口）' }
+  if (!DB) return fail('db_unbound', '未配置 D1 数据库绑定')
+  if (!PUBLIC_ACTIONS.has(action)) return fail('action_not_public', '该操作不在公开接口白名单内')
   const ip = getClientIp(request)
   if (['createOrder', 'createSubmission', 'addPublicReview'].includes(action)) {
     const r = await checkRate(DB, env.RATE_KV, `rate:write:${ip}`, RATE_PUBLIC_WRITE.windowMs, RATE_PUBLIC_WRITE.max)
@@ -246,11 +247,11 @@ export async function handlePublic(env, action, payload = {}, request = null, no
         if (r) return r
         return await pubAiChat(env, DB, payload, ip)
       }
-      default: return { code: -1, message: '未知操作' }
+      default: return fail('invalid_action', '未知操作')
     }
   } catch (e) {
     console.error('[pub]', action, e)
-    return { code: -1, message: '服务暂时不可用，请稍后重试' }
+    return fail('internal_error', '服务暂时不可用，请稍后重试')
   }
 }
 

@@ -2,6 +2,7 @@
 // 限流（KV→D1 降级链）、真实 IP、审计、图片/UGC 校验、鉴权角色、CORS 白名单
 
 import { qFirst, qRun, nowISO } from './db.js'
+import { fail } from './errors.js'
 
 // 公开 action 集合（checkAuth / handleAdmin / handlePublic 共用单源）
 export const PUBLIC_ACTIONS = new Set([
@@ -37,7 +38,7 @@ async function checkRateKV(kv, key, windowMs, max) {
     await kv.put(key, JSON.stringify({ count: 1, resetAt: t + windowMs }), { expirationTtl: Math.ceil(windowMs / 1000) })
     return null
   }
-  if (rec.count >= max) return { code: -1, message: '操作过于频繁，请稍后再试' }
+  if (rec.count >= max) return fail('rate_limited', '操作过于频繁，请稍后再试', { retryAfterMs: rec.resetAt - t })
   const ttl = Math.max(1, Math.ceil((rec.resetAt - t) / 1000))
   await kv.put(key, JSON.stringify({ count: rec.count + 1, resetAt: rec.resetAt }), { expirationTtl: ttl })
   return null
@@ -54,7 +55,7 @@ async function checkRateDB(DB, key, windowMs, max) {
       [key, t + windowMs])
     return null
   }
-  if (row.count >= max) return { code: -1, message: '操作过于频繁，请稍后再试' }
+  if (row.count >= max) return fail('rate_limited', '操作过于频繁，请稍后再试', { retryAfterMs: row.resetAt - t })
   await qRun(DB, `UPDATE rate_limits SET count = count + 1 WHERE bucket = ?`, [key])
   return null
 }
@@ -168,7 +169,7 @@ export function resolveRole(adminKey, env) {
 export function checkAuth(action, adminKey, env) {
   if (PUBLIC_ACTIONS.has(action)) return null
   // 统一错误回显，不泄露"未配置 ADMIN_KEY"等部署态信息
-  if (!resolveRole(adminKey, env)) return { code: -1, message: '认证失败' }
+  if (!resolveRole(adminKey, env)) return fail('auth_failed', '认证失败')
   return null
 }
 

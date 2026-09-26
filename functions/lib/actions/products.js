@@ -3,6 +3,7 @@
 import { qAll, qRun, jparse, nowISO, genId, pick, insert } from '../db.js'
 import { isSafeImageUrl, validateImages } from '../security.js'
 import { PRODUCT_FIELDS } from '../shared.js'
+import { fail } from '../errors.js'
 
 export function rowToProduct(row) {
   if (!row) return null
@@ -61,10 +62,10 @@ export async function createProduct(DB, payload) {
   sanitizeStock(data)
   sanitizeSpecOptions(data)
   // 图片 scheme 白名单（纵深防御，管理端同样收敛）
-  if (data.image && !isSafeImageUrl(data.image)) return { code: -1, message: '商品主图格式无效' }
+  if (data.image && !isSafeImageUrl(data.image)) return fail('invalid_image', '商品主图格式无效')
   if (Array.isArray(data.images)) {
     const imgOk = validateImages(data.images)
-    if (imgOk === null) return { code: -1, message: '商品图片格式无效' }
+    if (imgOk === null) return fail('invalid_image', '商品图片格式无效')
     data.images = imgOk
   }
   const doc = { _id: genId('p_'), ...data, createdAt: nowISO(), updatedAt: nowISO() }
@@ -100,7 +101,11 @@ export function sanitizeSpecOptions(data) {
   data.specOptions = out
 }
 
-// 单商品更新核心逻辑（updateProduct 与 batchUpdateProducts 复用；字段白名单/图片 scheme/部分更新守卫统一在此）
+/**
+ * 单商品更新核心逻辑（updateProduct 与 batchUpdateProducts 复用；字段白名单/图片 scheme/部分更新守卫统一在此）
+ * @returns {Promise<{ code: number, message?: string, errorCode?: string, kind?: string, retryable?: boolean }>}
+ *   失败面由 fail() 带上 message/errorCode/kind；成功面只有 code，调用方按 code===0 分支取用。
+ */
 export async function applyProductUpdate(DB, productId, payload) {
   const data = pick(payload, PRODUCT_FIELDS)
   sanitizeStock(data)
@@ -108,15 +113,15 @@ export async function applyProductUpdate(DB, productId, payload) {
   // enabled 守卫：仅当显式传了 enabled 才更新上架状态，防止部分更新时静默重上架缺货商品
   if ('enabled' in payload) data.enabled = payload.enabled !== false
   // 图片 scheme 白名单（纵深防御）
-  if (data.image && !isSafeImageUrl(data.image)) return { code: -1, message: '商品主图格式无效' }
+  if (data.image && !isSafeImageUrl(data.image)) return fail('invalid_image', '商品主图格式无效')
   if (Array.isArray(data.images)) {
     const imgOk = validateImages(data.images)
-    if (imgOk === null) return { code: -1, message: '商品图片格式无效' }
+    if (imgOk === null) return fail('invalid_image', '商品图片格式无效')
     data.images = imgOk
   }
   data.updatedAt = nowISO()
   const cols = Object.keys(data)
-  if (!cols.length) return { code: -1, message: '无更新字段' }
+  if (!cols.length) return fail('no_update_fields', '无更新字段')
   const setClause = cols.map((c) => `"${c}" = ?`).join(', ')
   const values = cols.map((c) => {
     const v = data[c]
@@ -124,13 +129,13 @@ export async function applyProductUpdate(DB, productId, payload) {
     return v
   })
   const res = await qRun(DB, `UPDATE products SET ${setClause} WHERE _id = ?`, [...values, productId])
-  if (!res.meta?.changes) return { code: -1, message: '商品不存在' }
+  if (!res.meta?.changes) return fail('product_not_found', '商品不存在')
   return { code: 0 }
 }
 
 export async function updateProduct(DB, payload) {
   const { productId } = payload
-  if (!productId) return { code: -1, message: '缺少 productId' }
+  if (!productId) return fail('missing_product_id', '缺少 productId')
   return applyProductUpdate(DB, productId, payload)
 }
 
@@ -146,8 +151,8 @@ export async function updateProduct(DB, payload) {
 export const BATCH_UPDATE_MAX = 40
 export async function batchUpdateProducts(DB, payload) {
   const { items } = payload
-  if (!Array.isArray(items) || !items.length) return { code: -1, message: '缺少 items' }
-  if (items.length > BATCH_UPDATE_MAX) return { code: -1, message: `单次批量最多 ${BATCH_UPDATE_MAX} 个商品，请分批提交` }
+  if (!Array.isArray(items) || !items.length) return fail('missing_items', '缺少 items')
+  if (items.length > BATCH_UPDATE_MAX) return fail('batch_too_large', `单次批量最多 ${BATCH_UPDATE_MAX} 个商品，请分批提交`)
   const failed = []
   let updated = 0
   for (const it of items) {
@@ -167,10 +172,10 @@ export async function batchUpdateProducts(DB, payload) {
 export const BATCH_DELETE_MAX = 200
 export async function batchDeleteProducts(DB, payload) {
   const { productIds } = payload
-  if (!Array.isArray(productIds) || !productIds.length) return { code: -1, message: '缺少 productIds' }
-  if (productIds.length > BATCH_DELETE_MAX) return { code: -1, message: `单次批量最多 ${BATCH_DELETE_MAX} 个商品` }
+  if (!Array.isArray(productIds) || !productIds.length) return fail('missing_product_ids', '缺少 productIds')
+  if (productIds.length > BATCH_DELETE_MAX) return fail('batch_too_large', `单次批量最多 ${BATCH_DELETE_MAX} 个商品`)
   const ids = [...new Set(productIds.filter((id) => typeof id === 'string' && id))]
-  if (!ids.length) return { code: -1, message: '缺少 productIds' }
+  if (!ids.length) return fail('missing_product_ids', '缺少 productIds')
   const ph = ids.map(() => '?').join(',')
   const existRows = await qAll(DB, `SELECT _id FROM products WHERE _id IN (${ph})`, ids)
   const exist = new Set(existRows.map((r) => r._id))
@@ -186,7 +191,7 @@ export async function batchDeleteProducts(DB, payload) {
 
 export async function deleteProduct(DB, payload) {
   const { productId } = payload
-  if (!productId) return { code: -1, message: '缺少 productId' }
+  if (!productId) return fail('missing_product_id', '缺少 productId')
   await qRun(DB, `DELETE FROM products WHERE _id = ?`, [productId])
   return { code: 0 }
 }

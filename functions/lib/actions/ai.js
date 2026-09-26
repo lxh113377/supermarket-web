@@ -4,6 +4,7 @@
 // 留痕失败不影响返回（见 ai_trace.js）。
 
 import { qAll, jparse } from '../db.js'
+import { fail } from '../errors.js'
 import {
   callDifyChat,
   callDifyCompletion,
@@ -66,7 +67,7 @@ export async function pubAiChat(env, DB, payload, ip) {
   const scene = 'aiChat'
   const question = sanitize(payload?.question, 200)
   const conversationId = sanitize(payload?.conversationId, 100) || null
-  if (!question) return { code: -1, message: '问题不能为空' }
+  if (!question) return fail('invalid_params', '问题不能为空')
   try {
     if (!enabled(env)) {
       await traceAiCall(DB, { scene, source: 'rule', ok: true, fallback: true, latencyMs: 0 })

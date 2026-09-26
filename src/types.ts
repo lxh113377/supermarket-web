@@ -132,6 +132,12 @@ export interface Service {
 export interface ApiResult<T = unknown> {
   code: number
   message?: string
+  // 第十八轮：机器可读失败语义（code 仍是 -1，见 functions/lib/errors.js 的兼容性红线）。
+  // 调用方分流读这两个字段，**禁止**再拿 message 做分支判断。
+  errorCode?: string
+  kind?: string
+  retryable?: boolean
+  retryAfterMs?: number
   data?: T
   total?: number
   page?: number
