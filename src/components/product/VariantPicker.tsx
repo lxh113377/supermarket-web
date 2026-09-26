@@ -34,7 +34,7 @@ function AxisRow({ axis, group, selection, onChange }: {
           <span className="ml-2 font-normal text-gray-400">当前组合不含此选项</span>
         )}
       </legend>
-      <div className={axis.kind === 'color' ? 'flex flex-wrap gap-2' : 'flex flex-wrap gap-2'}>
+      <div className="flex flex-wrap gap-2">
         {axis.options.map((opt) => {
           const selected = current === opt.id
           // 只灰掉「全组任何可售组合都不含它」的真死选项；
@@ -56,13 +56,6 @@ function AxisRow({ axis, group, selection, onChange }: {
                   : 'border-gray-200 bg-white text-gray-700 hover:border-brand-300 hover:text-brand-700'}
                 ${dead ? 'opacity-40 line-through cursor-not-allowed' : ''}`}
             >
-              {axis.kind === 'color' && opt.swatch && (
-                <span
-                  aria-hidden="true"
-                  className="w-4 h-4 rounded-full border border-black/10 shrink-0"
-                  style={{ backgroundColor: opt.swatch }}
-                />
-              )}
               <span>{opt.label}</span>
             </button>
           )

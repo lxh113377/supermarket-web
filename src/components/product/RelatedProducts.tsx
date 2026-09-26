@@ -34,6 +34,7 @@ export default function RelatedProducts({ current, products, limit = 8 }: Props)
         <span className="text-xs text-gray-400">共 {related.length} 条 · 取自真实商品目录</span>
       </div>
       <ul
+        data-related-list=""
         className="flex gap-3 overflow-x-auto scrollbar-hide px-4 pb-3 lg:px-0 lg:grid lg:grid-cols-3 lg:overflow-visible xl:grid-cols-4"
         style={{ listStyle: 'none', margin: 0, paddingInline: undefined }}
       >

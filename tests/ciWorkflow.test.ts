@@ -130,6 +130,7 @@ describe('关键 step 存在性（改名即红，防"门禁静默消失"）', ()
     'Secret scan',
     'File-name case collision check',
     'Env var registry gate (code vs docs/env-vars.md)',
+    'Static HTML CSP gate (no dead inline styles)',
     'Import cycle check',
     'API contract drift check',
     'Doc facts consistency gate',
@@ -446,6 +447,41 @@ function advisoryJobProblems(workflowText: string): string[] {
   if (!/report:pr-tests/.test(body)) problems.push('pr-advisory 不再调用 report:pr-tests（脚本已成孤儿）')
   return problems
 }
+
+/**
+ * 备份链顺序不变量（第十一轮 R11-H1）：恢复演练必须排在**上传之前**。
+ * 顺序错了不会红，只会静默失去意义——上传一份没验过的 dump 与不验等价。
+ */
+function backupOrderProblems(text: string): string[] {
+  const t = text.replace(/\r\n/g, '\n')
+  const at = (needle: string) => t.indexOf(needle)
+  const exportAt = at('- name: Export remote D1')
+  const drillAt = at('npm run verify:restore')
+  const uploadAt = at('- name: Upload backup artifact')
+  const problems: string[] = []
+  if (exportAt < 0) problems.push('备份链里没有「Export remote D1」步骤（导出方式变了须同步修订本判据）')
+  if (uploadAt < 0) problems.push('备份链里没有「Upload backup artifact」步骤')
+  if (drillAt < 0) return problems.concat(['备份链缺恢复演练步骤（npm run verify:restore）⇒ dump 从未被验证可恢复'])
+  if (exportAt >= 0 && drillAt < exportAt) problems.push('恢复演练排在导出之前 ⇒ 验的是上一轮的旧文件，等于没验')
+  if (uploadAt >= 0 && drillAt > uploadAt) problems.push('恢复演练排在上传之后 ⇒ 判据不阻断，坏 dump 已被当备份存下')
+  return problems
+}
+
+describe('备份链顺序：导出 → 恢复演练 → 上传（顺序错=白装）', () => {
+  it('本仓 d1-backup.yml 现状必须合格', () => {
+    expect(backupOrderProblems(readWorkflow('d1-backup.yml'))).toEqual([])
+  })
+  it('反例：演练放上传后面 / 整个删掉，都必须红', () => {
+    const raw = readWorkflow('d1-backup.yml')
+    const late = raw.replace(/\r\n/g, '\n')
+    const drill = /      - name: Restore drill[\s\S]*?run: npm run verify:restore\n\n/.exec(late)?.[0]
+    expect(drill, '夹具依赖：演练步骤的文本形状已变，请同步修订').toBeTruthy()
+    const moved = late.replace(drill as string, '')
+      + drill.replace('npm run verify:restore', 'npm run verify:restore')
+    expect(backupOrderProblems(moved).join()).toContain('上传之后')
+    expect(backupOrderProblems(late.replace(drill as string, '')).join()).toContain('缺恢复演练步骤')
+  })
+})
 
 describe('advisory job 接线契约（没接线的判据等于没有判据）', () => {
   const dispatch = readWorkflow('dispatch.yml')

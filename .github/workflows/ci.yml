@@ -61,6 +61,9 @@ jobs:
       - name: Env var registry gate (code vs docs/env-vars.md)
         run: npm run verify:env
 
+      - name: Static HTML CSP gate (no dead inline styles)
+        run: npm run verify:csp
+
       - name: Test (vitest, with v8 coverage)
         # 一次跑测兼产出覆盖率（避免全量套件跑两遍）；失败仍然阻断
         run: npx vitest run --coverage

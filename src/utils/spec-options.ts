@@ -41,7 +41,6 @@ export function specOptionGroupOf(product?: Product | null): VariantGroup | unde
       {
         id: SPEC_AXIS_ID,
         name: '口味',
-        kind: 'spec',
         options: options.map((o) => ({ id: o.label, label: o.label })),
       },
     ],
