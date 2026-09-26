@@ -18,6 +18,7 @@ import { checkRate, checkRateKV, getClientIp, sha256Fingerprint, logSecurityEven
   RATE_LOGIN, RATE_PUBLIC_WRITE, RATE_AI, RATE_AI_ADVICE } from './security.js'
 import { getPublicProducts, getPublicCategories, getProducts, createProduct, updateProduct,
   deleteProduct, batchUpdateProducts, batchDeleteProducts } from './actions/products.js'
+import { maybeNotifyNewOrder } from './notify.js'
 import { createOrder, deleteOrder, updateOrderStatus, recalculateOrders, getOrders, getOrderById, getOrderStatus, stalePendingReport } from './actions/orders.js'
 import { getReviews, addReview, getAllReviews, deleteReview, seedReviews } from './actions/reviews.js'
 import { createSubmission, getSubmissions, getSubmissionImages, updateSubmissionStatus, deleteSubmission } from './actions/submissions.js'
@@ -47,7 +48,7 @@ const DASHBOARD_WRITE_ACTIONS = new Set([
   'createSubmission', 'updateSubmissionStatus', 'deleteSubmission',
 ])
 
-export async function handleAdmin(env, action, adminKey, payload = {}, request = null) {
+export async function handleAdmin(env, action, adminKey, payload = {}, request = null, notifyWaitUntil = null) {
   const DB = env.DB
   if (!DB) return { code: -1, message: '未配置 D1 数据库绑定' }
   const ip = getClientIp(request)
@@ -96,7 +97,7 @@ export async function handleAdmin(env, action, adminKey, payload = {}, request =
       case 'batchDeleteProducts': result = await batchDeleteProducts(DB, payload); break
       case 'deleteOrder': result = await deleteOrder(DB, payload); break
       case 'updateOrderStatus': result = await updateOrderStatus(DB, payload); break
-      case 'createOrder': result = await createOrder(DB, payload); break
+      case 'createOrder': { const r = await createOrder(DB, payload); if (r.code === 0) maybeNotifyNewOrder(env, r, payload, notifyWaitUntil); result = r; break }
       case 'recalculateOrders': result = await recalculateOrders(DB); break
       // 超时未支付单盘点（只读，对标第二轮 A5）：不进 ADMIN_WRITE_ACTIONS，只读密钥也可查
       case 'stalePendingReport': result = await stalePendingReport(DB, payload); break
@@ -178,7 +179,7 @@ export async function handleAdmin(env, action, adminKey, payload = {}, request =
   return result
 }
 
-export async function handlePublic(env, action, payload = {}, request = null) {
+export async function handlePublic(env, action, payload = {}, request = null, notifyWaitUntil = null) {
   const DB = env.DB
   if (!DB) return { code: -1, message: '未配置 D1 数据库绑定' }
   if (!PUBLIC_ACTIONS.has(action)) return { code: -1, message: '未知操作（public 仅支持公开接口）' }
@@ -207,6 +208,8 @@ export async function handlePublic(env, action, payload = {}, request = null) {
       case 'createOrder': {
         // 顾客下单后看板必须立刻反映（R6 写失效）；AI 建议快照同步失效
         const r = await createOrder(DB, payload)
+        // 通知挂在 waitUntil 上、不 await：端点再慢再挂也不延后顾客拿到的下单响应
+        if (r.code === 0) maybeNotifyNewOrder(env, r, payload, notifyWaitUntil)
         if (r.code === 0) { await invalidateDashboard(env); await invalidateAiAdvice(env) }
         return r
       }

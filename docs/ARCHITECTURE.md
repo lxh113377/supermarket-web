@@ -51,6 +51,8 @@ functions/lib/
   cache.js     KV 60s 只读缓存 + invalidate{PublicCatalog,Dashboard,AiAdvice}
   actions/     products / orders / reviews / submissions / stats / ai 按域拆分
   dify.js      LLM 上游 + 30s 超时 + rule-based 兜底（source=rule 永不 5xx）
+  notify.js    新订单外部通知：未配 ORDER_WEBHOOK_URL 即纯 no-op / 投递失败只出结论不冒泡 /
+               载荷白名单 6 字段（不含微信号、备注、付款截图）/ 幂等命中不重复通知
 ```
 
 **关键不变式**（改代码前先核对）：
@@ -58,6 +60,7 @@ functions/lib/
 2. **写失效收口**——任何改 `orders/products/reviews/submissions` 的 action 必须同时进 `ADMIN_WRITE_ACTIONS`、`DASHBOARD_WRITE_ACTIONS`（如影响聚合），否则缓存/审计出现口子（2026-09-23 曾漏 8 项，verify-backend 已锁断言）。
 3. **契约单源**——`docs/api-contract.json` 由 `scripts/api-contract.mjs` 从 backend.js 静态解析生成；CI `verify:contract` 防漂移，`PUBLIC_ACTIONS` 与 /pub case 集合必须完全对齐。
 4. **订单状态机**——合法迁移唯一表在 orders.js `ORDER_TRANSITIONS`；status 列 TEXT 无 CHECK，扩态零迁移，但前端 `utils/orderStatus.ts` 必须同步（有 parity 测试）。
+5. **副作用与主链路解耦**——任何"下单成功后的外部动作"（当前是 `notify.js` 的 webhook）必须 ①未配置即 no-op（不改状态、不耗重试）②失败只出结论不抛给调用方 ③挂在 `context.waitUntil` 上不 `await`。两个下单出口（`/pub` 与 `/web` 的 createOrder）共用 `maybeNotifyNewOrder` 一处适配器，**不许各写一份**（第十轮立，参照 litemall `isMailEnable()` 正例与 medusa "未启用也写 FAILURE 行并 throw" 反例）。
 5. **图表 tooltip 恒为 plainText**——图表 name 取自入库文本（商品名/分类名），echarts <6.1.0 的 html renderMode 会把它拼进 DOM（GHSA-fgmj-fm8m-jvvx 汇点）。新增一张图必须展开 `TOOLTIP_BASE`；`tests/chartXss.test.ts` 并扫 hook 与 `utils/chartOptions.ts`，并按"4 张图 = 4 处 tooltip"计数防漏搬。
 6. **echarts 按需模块只能 import，不能塞进 `use()`**——`echarts/lib/chart/*` 与 `lib/component/*` 是纯 side-effect 自注册模块（全文件零 export），`X.default === undefined`；把它们（连同 undefined）传给 `core.use()` 会在 `ext.install(...)` 处抛 TypeError，且发生在 async IIFE 内**不弹任何界面错误**，症状只有"看板四张图静默空白"。需要显式 `use()` 的只有 `echarts/renderers`。判据：`tests/chartRealRender.test.ts`（真库 SSR 渲染）+ `dashboardChartsHook` 的 mock 复刻了这条 install 语义。
 
