@@ -18,6 +18,10 @@ permissions:
 jobs:
   backup:
     runs-on: ubuntu-latest
+    # 本 job 除备份外还要反查巡检链是否还在跑（API 需 actions: read）
+    permissions:
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -59,6 +63,33 @@ jobs:
             exit 1
           fi
           echo "仓库为 private，允许落 artifact"
+
+      - name: Cross-check the daily probe is still running
+        # 第十二轮：三条 cron 两两互指。GitHub 官方行为——public 仓 60 天无仓库活动会
+        # **自动禁用 schedule**；任一条停摆，另一条要当场红，否则又是「绿色的沉默」。
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          LIVENESS_WORKFLOW_ID: uptime.yml
+          LIVENESS_MODE: presence
+          LIVENESS_MAX_AGE_DAYS: '3'
+        run: npm run check:backup-liveness
+
+      - name: Fail loudly instead of reporting a green no-op
+        # 实况（第十二轮）：未配 token 时以前只发一条 ::warning::，后面两步全 skipped，
+        # job 仍 success ⇒ 连续两晚"绿色的零备份"。沉默跳过不是状态，是缺陷。
+        # 要显式接受"暂时不备份"就设仓库变量 BACKUP_SKIP_OK=true（降级为豁免态，但仍会打印事实）。
+        env:
+          FOUND: ${{ steps.tok.outputs.found }}
+          SKIP_OK: ${{ vars.BACKUP_SKIP_OK }}
+        run: |
+          set -euo pipefail
+          ok=$(printf '%s' "${SKIP_OK:-}" | tr 'A-Z' 'a-z')
+          if [ "$FOUND" != "true" ] && [ "$ok" != "true" ]; then
+            echo "::error title=备份链没在工作::未配置 CF_D1_BACKUP_TOKEN ⇒ 导出与上传都会被跳过，本 run 不会产出任何可核对的备份产物。要么配 token（并先解决下方"非 private 不放行"守卫的两条出路），要么显式设仓库变量 BACKUP_SKIP_OK=true 承认暂时不备份。"
+            exit 1
+          fi
+          echo "found=$FOUND skip_ok=${ok:-false}（后者为 true 时是显式豁免，不是沉默）"
 
       - name: Export remote D1
         if: steps.tok.outputs.found == 'true'

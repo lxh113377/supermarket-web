@@ -38,6 +38,7 @@
     "verify:restore": "node scripts/verify-backup-restore.mjs",
     "report:pr-tests": "node scripts/check-pr-has-tests.mjs",
     "report:catalog": "node scripts/check-catalog-facts.mjs",
+    "check:backup-liveness": "node scripts/check-backup-liveness.mjs",
     "verify:images": "python scripts/verify_images.py",
     "verify:schema": "node scripts/check-schema-drift.mjs",
     "migrate": "node scripts/migrate.mjs",

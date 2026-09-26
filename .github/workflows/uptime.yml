@@ -27,6 +27,11 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
+    # 本 job 除探活外还要读备份工作流的 run 历史（API 需 actions: read；
+    # 只有 contents: read 时读 /actions/... 会 403 —— 第十一轮 pr-advisory 的同一课）。
+    permissions:
+      contents: read
+      actions: read
     steps:
       # 固定到提交 SHA（OpenSSF Pinned-Dependencies）：防止上游标签被移动导致供应链投毒
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -39,7 +44,17 @@ jobs:
         run: node scripts/uptime-check.mjs
 
       - name: Catalog facts (seed vs live, report only)
-        # 第十一轮 R11-H3：新指标先量误报率再接闸。硬不变量违反 exit 1、取不到数据 exit 2，
-        # 本 step 一律 continue-on-error ⇒ 只出报文不改颜色；连续两次真跑无误报后再决定接成阻断。
-        continue-on-error: true
+        # 第十一轮接成报告型（先量误报率）；本轮已拿到两次逐项一致的样本
+        # （本机 + Uptime run 36240825097：28/54、漂移 27+1+22、重复 3+3），
+        # 故摘掉 continue-on-error：**硬不变量违反即红**（exit 1），
+        # 取不到数据也红（exit 2 BLOCKED）；漂移仍只打印不判红（脚本内部区分两类退出码）。
         run: npm run report:catalog
+
+      - name: Backup chain liveness (did the nightly run really produce an artifact)
+        # 只认 conclusion 会被骗：实测两次备份 run 都是 success，而导出/上传步骤全是
+        # skipped、artifact 数为 0 ⇒ 生产库从未被这条链备份过。本步判"产物 + 新鲜度"。
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          BACKUP_SKIP_OK: ${{ vars.BACKUP_SKIP_OK }}
+        run: npm run check:backup-liveness
