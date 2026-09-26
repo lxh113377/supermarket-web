@@ -4,6 +4,22 @@
 
 ## [未发布]
 
+### 2026-09-27 追加二十九（对标第十四轮：一次业务动作打多少次 D1 —— 往返数与语句数是两把尺）
+
+- **取号先列盘**：`grep -oE "追加[一二三四五六七八九十百零]+" CHANGELOG.md` 实测当日最高「二十八」⇒ 本条取「二十九」（不照上下文快照取号）。
+
+- **轴**：前十三样在问"语句数会不会超配额"，这一轮问的是**这些语句被送出去几回**。D1 官方口径（limits 页，2026-04-21 更新）："Queries per Worker invocation — 1000 (Workers Paid) / **50 (Free)**"，且"Limits for individual queries apply to **each individual statement** contained within a batch" ⇒ `batch()` 省的是**网络往返（延迟）**，不省**语句配额**。只盯一条尺就会漏另一条。
+- **实测缺口（本轮撞出来的三条，全部当场可复算）**：① `grep "\.batch(" functions/` 命中 **0** —— D1 的 batch API 从未使用；② `createOrder` 有限库存下语句数 = **5 + N**（N=购物车行数，实测 n=1→6、n=10→15），而 `docs/sql-baseline.json` 里 `P:createOrder=7` 是**定点采样**（该 fixture 恰好 2 件）⇒ 棘轮只锁"这次采到的点"，看不见"每多一件商品多一次往返"；③ `orders.js` 里那段补偿的注释自述前提是「**D1 无跨语句事务**」—— 该前提是错的：官方 batch 页写 "Batched statements are SQL transactions. If a statement in the sequence fails ... it aborts or rolls back the entire sequence"（同页并存一句"each statement … execute and commit sequentially"，措辞自相矛盾，本轮以事务句为准并保留该歧义）。
+- **修一类不只修一例**（同族出口一次收口）：`reserveStock` / `releaseStock`（守卫式逐条 UPDATE + 逐条回补）→ 各合成一次 batch；`seedReviews`（20 条逐条 INSERT）→ 一次 batch；`tests/helpers/fakeDb.js` 只支持 `all()` 的旧计数通道不再新增（旧用例不动，新用例走共用 mock）。**未收口的两类已具名登记**：`batchUpdateProducts`（产品要逐条成功/失败明细，与 batch 的整批回滚语义冲突 ⇒ 保留逐条，真缺口是其单次上限 200 与免费档 50 未对账，登记为 P1）、`recalculateOrders`（全表分页 while，往返=数据量/批大小，属预期形态）。
+- **R14-H1 `functions/lib/db.js`**：新增 `qBatch(DB, statements)`，**刻意不做"运行时无 batch 就退回循环"的兜底** —— 静默降级会把 O(1) 往返偷偷变回 O(N)，而那正是被测对象；缺 batch 必须响亮报错（`tests/d1RoundTrips.test.js` 有条用例钉这个）。`insert()` 拆出 `insertSql/insertValues`，单条与批量共用一份构造逻辑（防两条通道列序/JSON 序列化口径漂移）。
+- **R14-H2 新门禁 `npm run verify:roundtrips`（零凭据、离线 node:sqlite）**：A1 在册项零实测即红／A2 往返斜率必须为 0（规模两端不同才可测）／A2b 定形项（规模不由调用方决定）**必须声明往返上界**，否则 `fixedShape` 就成免检通道／A3 最大规模语句数 ≤ 免费档 50，越界须逐条具名登记／A3b **反向**对账：预算豁免指向不在册 action 即红／A4·A4b 度量工具自证（batch(3)=3 语句·1 往返；第 3 条撞主键则前 2 条必须回滚）／A5·A5b 三项下单末项不足 ⇒ 库存**零残留**／A6 扫描面非空／A7 循环内 DB 调用（AST，含"循环调本文件局部异步函数"两跳）必须逐条具名豁免／A7b 豁免清单不得潜伏死件。
+- **变异抓到的两个真洞（先红后才算数）**：① `A3b` 原写作"命中豁免时才反向校验" ⇒ 幽灵豁免可长期潜伏不报错，现改为对 `budgetExempt` 全集校验；② 归属函数名原从 `VariableDeclarator` 直接取 id ⇒ `const r = await applyProductUpdate()` 被当成函数名，豁免写 `#batchUpdateProducts` 永不命中（A7 假阴性 + A7b 假阳性的复合形态），现限定"初值是函数表达式才算函数名"。
+- **AST 而非 grep（枚举器的双向验）**：夹具含"循环里的 DB 调用被注释掉 ⇒ 零命中"与"同一句移出循环 ⇒ 零命中"两条反例 —— 文本匹配型检测器在这两条上必然假阳性，判据的分母因此是按函数枚举而非按行匹配。
+- **mock 收敛为唯一实现**：新增 `scripts/lib/metered-d1.mjs`，`verify-backend.mjs` 的内联 mock（只会有 prepare/bind/all/first/run）改为引用它。**根因**：mock 没有 `batch()` ⇒ "后端一旦用 batch 就测不出来"，且真 D1 的原子语义在 CI 里无处可验。`statements` 尺口径一字未动（仍数 prepare 次数），第三轮 C1 的基线与断言全部原样保留。
+- **实测收益**：`createOrder` 十件商品 往返 **15 → 6**（语句仍 15，配额未省）；`seedReviews` 往返 **22 → 3**（语句仍 22）；`A:seedReviews` 在 `sql-baseline` 的峰值 23 不变（证明两把尺互不顶替）。
+- **接线**：`verify` 链在 `verify:migrate-replay` 之后插入 `verify:roundtrips`；`ci.yml` 新增 step `D1 round-trip complexity gate (slope vs input size)`；`tests/ciWorkflow.test.ts` 的 `REQUIRED_STEPS` 同步加名（改名即红）。夹具 `tests/d1RoundTrips.test.js` **20 条**（A1/A2/A2b/A3/A3b/A6/A7/A7b 各绑专属反例 + AST 五向 + batch 语义对照）。
+
+
 ### 2026-09-26 追加二十八（对标第十三轮：新库到底建不建得起来 + 迁移逐字段对账）
 
 - **编号自纠**：本条首稿写成「追加二十二」，与既有的第十轮「追加二十二」同号 —— 我是照上下文里的旧快照取号，没有现枚举（同一轮刚在记忆里立过「取号必须先列盘」的规矩，自己对号入座）。现改为「二十八」（当日最高已到二十七）。

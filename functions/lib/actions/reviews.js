@@ -1,6 +1,6 @@
 // 评价域 handlers（从 backend.js 拆出，逻辑零改动）
 
-import { qAll, qFirst, qRun, jparse, nowISO, genId, pick, insert } from '../db.js'
+import { qAll, qFirst, qRun, qBatch, jparse, nowISO, genId, pick, insert, insertStatement } from '../db.js'
 import { validateImages, checkPublicText } from '../security.js'
 import { REVIEW_FIELDS } from '../shared.js'
 
@@ -74,8 +74,12 @@ export async function seedReviews(DB) {
     { productOrder: 48, user: '早餐人', rating: 4, text: '乡巴佬卤蛋配泡面，简单但满足' },
     { productOrder: 49, user: '火腿肠粉丝', rating: 4, text: '双汇火腿肠烤一下更香' },
   ]
-  for (const s of SEED) {
-    await insert(DB, 'reviews', { _id: genId('r_'), productOrder: Number(s.productOrder), user: s.user, rating: s.rating, text: s.text, images: [], createdAt: nowISO() })
-  }
-  return { code: 0, data: { added: SEED.length } }
+  // 20 条种子评价合成一次 batch 往返（第十四轮 D1 往返收口）：
+  // 逐条 await 时 N 条 = N 次往返，免费档「每调用 50 次查询」的天花板会被这一个 action 吃掉五分之一。
+  const docs = SEED.map((s) => ({
+    _id: genId('r_'), productOrder: Number(s.productOrder), user: s.user,
+    rating: s.rating, text: s.text, images: [], createdAt: nowISO(),
+  }))
+  await qBatch(DB, insertStatement(DB, docs, 'reviews'))
+  return { code: 0, data: { added: docs.length } }
 }

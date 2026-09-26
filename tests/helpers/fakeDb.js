@@ -32,6 +32,14 @@ export function fakeDb({
     }
   }
   return {
+    // D1 batch()（第十四轮起 reserveStock/releaseStock/seedReviews 走这条通道）：
+    // 假实现不模拟事务回滚，只把已 bind 的语句逐条执行并返回 D1Result 数组；
+    // statements 计数在 prepare() 已发生，这里不重复计（否则批量用例的语句数会虚高）。
+    async batch(list) {
+      const results = []
+      for (const s of list) results.push(await s.run())
+      return results
+    },
     prepare(sql) {
       statements.push(sql)
       return {

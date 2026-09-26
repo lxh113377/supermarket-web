@@ -1,6 +1,6 @@
 // 订单域 handlers（从 backend.js 拆出，逻辑零改动）
 
-import { qAll, qFirst, qRun, jparse, nowISO, genId, insert } from '../db.js'
+import { qAll, qFirst, qRun, qBatch, jparse, nowISO, genId, insert } from '../db.js'
 import { isSafeImageUrl } from '../security.js'
 
 // ── 下单幂等（2026-09-24 对标第二轮 A1）──
@@ -166,30 +166,32 @@ export async function createOrder(DB, payload) {
   return { code: 0, data: { id: doc._id, totalAmount: doc.totalAmount } }
 }
 
-// 库存占用：逐 item 守卫式 UPDATE（WHERE stock>=qty），0 变更=库存不足；
-// 失败时回补此前已成功扣减的条目（同请求内补偿，D1 无跨语句事务时的最小正确实现）
+// 库存占用：N 条守卫式 UPDATE（WHERE stock>=qty）合成**一次** batch 往返（对标第十四轮 D1 batch）。
+// 0 变更=库存不足——注意 batch 只在语句**执行失败**时整批回滚，0 变更不是失败，
+// 所以不足那条之前的已成功扣减仍需用**再一次** batch 补偿（往返 N+1 → 最坏 2，happy path 1）。
 export async function reserveStock(DB, items) {
-  const done = []
-  for (const it of items) {
-    const res = await qRun(DB,
-      `UPDATE products SET stock = stock - ?, updatedAt = ? WHERE _id = ? AND stock >= 0 AND stock >= ?`,
-      [it.quantity, nowISO(), it.productId, it.quantity])
-    if (!res.meta?.changes) {
-      if (done.length) await releaseStock(DB, done)
-      return { code: -1, message: `库存不足: ${it.name}` }
-    }
-    done.push(it)
+  if (!items.length) return null
+  const ts = nowISO()
+  const stmts = items.map((it) => DB.prepare(
+    `UPDATE products SET stock = stock - ?, updatedAt = ? WHERE _id = ? AND stock >= 0 AND stock >= ?`,
+  ).bind(it.quantity, ts, it.productId, it.quantity))
+  const results = await qBatch(DB, stmts)
+  const bad = results.findIndex((r) => !r.meta?.changes)
+  if (bad >= 0) {
+    if (bad > 0) await releaseStock(DB, items.slice(0, bad))
+    return { code: -1, message: `库存不足: ${items[bad].name}` }
   }
   return null
 }
 
-// 库存释放（取消订单回补）：仅回补在售管理的有限库存（stock>=0），不限售项不动
+// 库存释放（取消订单回补）：一次 batch 回补，仅回补在售管理的有限库存（stock>=0），不限售项不动
 export async function releaseStock(DB, items) {
-  for (const it of items) {
-    await qRun(DB,
-      `UPDATE products SET stock = CASE WHEN stock >= 0 THEN stock + ? ELSE stock END, updatedAt = ? WHERE _id = ?`,
-      [it.quantity, nowISO(), it.productId])
-  }
+  if (!items.length) return
+  const ts = nowISO()
+  const stmts = items.map((it) => DB.prepare(
+    `UPDATE products SET stock = CASE WHEN stock >= 0 THEN stock + ? ELSE stock END, updatedAt = ? WHERE _id = ?`,
+  ).bind(it.quantity, ts, it.productId))
+  await qBatch(DB, stmts)
 }
 
 export async function deleteOrder(DB, payload) {

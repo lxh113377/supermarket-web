@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
+import { createMeteredD1 } from './lib/metered-d1.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
@@ -12,50 +13,27 @@ const db = new DatabaseSync(':memory:')
 db.exec(readFileSync(join(root, 'db', 'schema.sql'), 'utf8'))
 db.exec(readFileSync(join(root, 'db', 'seed.sql'), 'utf8'))
 
-// ---- 模拟 D1 绑定（对齐 D1 的 prepare/bind/all/first/run 异步接口）----
-// C1（对标第三轮）：每次 action 调用的 SQL 语句条数归因计数。
-// 动机：D1 免费档有每日语句执行数上限，循环里逐条 SELECT/UPDATE 的回归（N+1）必须在本门禁变红，
+// ---- 模拟 D1 绑定：唯一实现见 scripts/lib/metered-d1.mjs（与往返判据共用一份 mock）----
+// 此前本文件自带一份只实现 prepare/bind/all/first/run 的 mock，真 D1 的 batch() 在其上不存在 ⇒
+// 「后端用了 batch 就测不出来」；改成共用件后 batch 语义（一次往返 + 失败整批回滚）在 CI 里同样可测。
+// C1（对标第三轮）：每次 action 调用的 SQL 语句条数归因计数——口径未变，仍数 prepare() 次数。
+// 动机：D1 免费档有每调用查询数上限，循环里逐条 SELECT/UPDATE 的回归（N+1）必须在本门禁变红，
 // 而不是等线上配额被打爆。基线 docs/sql-baseline.json 记录"单次调用峰值"，只允许下降；上升须显式改基线。
 let SQL_CTX = 'bootstrap'
-let SQL_RUN = 0
+let SQL_BASE = 0
 const SQL_PEAK = {}
+const D1 = createMeteredD1(db)
 function beginSql(name) {
   endSql()
   SQL_CTX = name
+  SQL_BASE = D1.__counters.statements
 }
 function endSql() {
-  if (SQL_CTX !== 'bootstrap') SQL_PEAK[SQL_CTX] = Math.max(SQL_PEAK[SQL_CTX] || 0, SQL_RUN)
-  SQL_CTX = 'bootstrap'
-  SQL_RUN = 0
-}
-
-function makeD1(db) {
-  // D1 接受 boolean 并自动存为 0/1、undefined 视为 null；node:sqlite 不接受 boolean，这里模拟 D1 的类型转换。
-  const coerce = (v) => (typeof v === 'boolean' ? (v ? 1 : 0) : v === undefined ? null : v)
-  return {
-    prepare(sql) {
-      if (SQL_CTX !== 'bootstrap') SQL_RUN++
-      const stmt = db.prepare(sql)
-      let bound = []
-      return {
-        bind(...params) {
-          bound = params
-          return this
-        },
-        async all() {
-          return { results: stmt.all(...bound.map(coerce)) }
-        },
-        async first() {
-          const row = stmt.get(...bound.map(coerce))
-          return row === undefined ? null : row
-        },
-        async run() {
-          const info = stmt.run(...bound.map(coerce))
-          return { meta: { changes: info.changes, last_row_id: info.lastInsertRowid } }
-        },
-      }
-    },
+  if (SQL_CTX !== 'bootstrap') {
+    const used = D1.__counters.statements - SQL_BASE
+    SQL_PEAK[SQL_CTX] = Math.max(SQL_PEAK[SQL_CTX] || 0, used)
   }
+  SQL_CTX = 'bootstrap'
 }
 
 const backendUrl = pathToFileURL(join(root, 'functions', 'lib', 'backend.js')).href
@@ -68,7 +46,7 @@ function wrapHandle(raw, prefix) {
 }
 const handleAdmin = wrapHandle(_backend.handleAdmin, 'A:')
 const handlePublic = wrapHandle(_backend.handlePublic, 'P:')
-const env = { DB: makeD1(db), ADMIN_KEY: 'test-key-123' }
+const env = { DB: D1, ADMIN_KEY: 'test-key-123' }
 
 let pass = 0, fail = 0
 const fails = []
@@ -424,7 +402,7 @@ ok(Number(rateRow.c) >= 1, `rate_limits 表有登录限流桶 (实际 ${rateRow.
 // ---------- 新修复：只读密钥写拦截（2026-09-23 第三轮优化）----------
 // ADMIN_WRITE_ACTIONS 曾漏掉 batch*/createOrder/recalculateOrders/add*/seedReviews/
 // createSubmission，只读密钥可绕过批量改价与种子导入。以下断言锁定收口。
-const roEnv = { DB: makeD1(db), ADMIN_KEY: 'test-key-123', ADMIN_READONLY_KEY: 'ro-key-456' }
+const roEnv = { DB: D1, ADMIN_KEY: 'test-key-123', ADMIN_READONLY_KEY: 'ro-key-456' }
 const roBatchUpd = await handleAdmin(roEnv, 'batchUpdateProducts', 'ro-key-456', { items: [] })
 ok(roBatchUpd.code === -1 && /只读/.test(roBatchUpd.message || ''), '只读密钥批量改价被拒')
 const roBatchDel = await handleAdmin(roEnv, 'batchDeleteProducts', 'ro-key-456', { productIds: [] })

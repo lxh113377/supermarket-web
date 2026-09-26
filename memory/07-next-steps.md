@@ -9,23 +9,21 @@
 > 外层 `超市web/超市/memory/`（工作区）。两者内容**不同**（07 主卷 SHA256 不一致），
 > 属历史遗留的双份结构，尚未合并。**本轮的权威记录在外层**：`deliverables/前端深度优化方案-2026-09-23.md` §6。
 
-## 2026-09-26 — 对标第十三轮（迁移可验证性：新库建不建得起来 + 类型漂移 + 契约外文件）
+## 2026-09-27 — 对标第十四轮（D1 往返复杂度：一次动作打多少次数据库）
 
-> 报告：外层 `deliverables/GitHub开源项目对标分析报告-第十二轮-2026-09-26.md`；备份 `_backup/pre-round12-2026-09-26/pre-round12.bundle`。
+> 报告：外层 `deliverables/GitHub开源项目对标分析报告-第十四轮-2026-09-27.md`；备份 `_backup/pre-round14-2026-09-27/`；回滚锚 `1e5519e`。第十三轮小节的报告指针曾误写「第十二轮」，已纠（见分卷 31）。
 
-## 2026-09-26 — 对标第十一轮（备份可恢复性 + 数据面事实；全程走 PR）
+- **一句话**：`functions/` 从未用过 D1 `batch()`，`createOrder` 往返 = 5+N 而旧棘轮只锁定点采样。已落地＝`qBatch` 出口 + 三处常数往返收口（实测 n=10 往返 15→6、`seedReviews` 22→3）+ mock 收敛 `scripts/lib/metered-d1.mjs` + 新门禁 `verify:roundtrips`（A1~A7b、20 项夹具双向变异）接进 verify 链 / ci.yml / `REQUIRED_STEPS`。
 
+### P0（第十五轮开工先做这条，可执行）
 
-- **已落地**：`scripts/verify-migrate-replay.mjs`（`npm run verify:migrate-replay`，零凭据离线）七条判据 A1~A7 + `migrate.mjs bootstrap`（空库→schema.sql→记满账；非空即拒）；接进 verify 链与 CI step。
-- **一手实测**：空库按序灌 7 个迁移只成功 6 条语句，5 个文件报 `no such table: products|orders` ⇒ 全新 D1 上 `migrate apply` 必半途崩；`db/adhoc-rename-order20.sql` 因文件名不合契约，账本与旧门禁**双向隐形**。
+- [ ] **M1 rollback 往返判据（接续十三轮，障碍已查明）**：3 个 `rollback-*.sql` 是 `DROP COLUMN`，配对正向件属基线期裸 ALTER 补丁 ⇒ **不可整文件重放**。正解＝逐文件造前置态（建列→rollback→断结构变化→只挑"补回该列"那条再前滚→断结构等值基线）。验收：每个 rollback 一条机器证据。
+- [ ] **M2 `batchUpdateProducts` 对账平台预算**：实测语句 = 1 + n，上限 200 ⇒ n=200 时 201 > 免费档 50。修法＝JS 批量校验 + 1 条 bulk UPDATE + 1 条核对，**保留** `{updated, failed[]}`（batch 整批回滚与该语义冲突）。验收：该 action 两条具名豁免被**删除**，n=200 语句 ≤ 3。
+- [ ] **M3 套餐档位事实登记**：`STATEMENT_BUDGET_FREE = 50` 是**档位假设**（无 CF 凭据判不出 Free/Paid=1000）。登记进 `docs/env-vars.md`，预算由登记值推导；缺登记判 UNVERIFIED 不判 PASS。
+- [ ] **L1 catalog 首轮观察（接续第十二轮）**：`report:catalog` 接成阻断后仍无新的定时跑，误报率无法判。
+- [ ] **L2 全表扫描维度：实测后判"不做"**（`EXPLAIN QUERY PLAN` 扫 55 条得 3 处真 SCAN，全部正当：小表 ORDER BY / 导出 LIMIT / 聚合）⇒ 降级报告型先攒误报账，勿上阻断链。
+- [ ] 需人不变项与"维持不改"清单未变（`CF_D1_BACKUP_TOKEN` 路线 / `ORDER_WEBHOOK_URL` 端点 / K3 线上目视 / D2 49 单 / R2 桶 / order 41 / `adhoc-rename-order20.sql` 处置；不采纳 Prisma shadow DB、Medusa 事务池、Saleor dataloader）——全文见第十四轮报告 §2·§4。
 
-### P0（第十四轮开工先做这条，可执行）
-
-- [ ] **rollback 往返判据（M1）**：基线→正向→回滚→结构逐字段等于基线；4 个 `rollback-*.sql` 至今零执行验证。
-- [ ] **账本快照随仓（M2）**：`db/applied.json` + `exportedAt`；**先设计龄期上界**再上阻断链，否则判据结果里混进"最后一次导出的时刻"。
-- [ ] **catalog 接成阻断后的首轮观察（接续第十二轮）**：等下一次 Uptime 定时跑；误报改重试阶梯，不放宽判据。
-- [ ] 需人不变项：`CF_D1_BACKUP_TOKEN` 路线、`ORDER_WEBHOOK_URL` 端点、K3 线上目视、D2 49 单、R2 桶、order 41、`adhoc-rename-order20.sql` 处置（改名进账本或删除）。
-- [ ] 维持不改（证据在报告 §4）：Prisma shadow DB、Saleor 双版本兼容测试、Flyway teams 版 undo。
 ## 分卷目录
 
 - **卷1** `07-next-steps.part1.md`
@@ -58,3 +56,4 @@
 - **卷28** `07-next-steps.part28.md`
 - **卷29** `07-next-steps.part29.md`
 - **卷30** `07-next-steps.part30.md`
+- **卷31** `07-next-steps.part31.md`
