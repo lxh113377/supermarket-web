@@ -9,6 +9,26 @@
 > 外层 `超市web/超市/memory/`（工作区）。两者内容**不同**（07 主卷 SHA256 不一致），
 > 属历史遗留的双份结构，尚未合并。**本轮的权威记录在外层**：`deliverables/前端深度优化方案-2026-09-23.md` §6。
 
+## 2026-09-26 — 对标第十轮（通知类副作用 + 判据拆纯函数；分支 → PR 流程首次）
+
+> 报告：外层 `deliverables/GitHub开源项目对标分析报告-第十轮-2026-09-26.md`；备份 `_backup/pre-round10-2026-09-26/pre-round10.bundle`。
+
+- **已落地**：`functions/lib/notify.js`（新订单 webhook，未配即纯 no-op / 失败不冒泡 / 载荷白名单 / 两出口共用 `maybeNotifyNewOrder` / 幂等命中不重复通知）；`evaluateParity()` 拆成纯函数 + `tests/releaseParity.test.js`（11 条，**补掉第九轮自己记下的"bundle 不同名永远未覆盖"缺口**）；`scripts/check-env-docs.mjs` + `docs/env-vars.md` + `verify:env`（进 `npm run verify` 链与 CI step，并被 `REQUIRED_STEPS` 钉住）；`ciWorkflow.test.ts` 的 `run:` 块插值自查（15→20 条，zizmor `template-injection` 零依赖替代）；`check-pr-has-tests.mjs` + `dispatch.yml` 新 job `pr-advisory`（**报告型，永远 exit 0**）。
+- **本轮最硬的两条账**：
+  1. **变异不出红的反例不是反例，是装饰**。我给 `notifyNewOrder` 写了外层 `.catch(() => {})` 当"双保险"，变异它 ⇒ 16 条**全绿**：`deliverNewOrder` 内部已 try/catch 兜住一切，那层永远够不到。做法＝删死代码，把反证挪到真正提供保证的那一层（改 throw ⇒ 红 2 条）。**新判据首跑必须双向验，且变异要打在被测分支本身**。
+  2. **文档写"有 X"必须当场 grep 产物证伪**：README 抄了一份环境变量表，而 `ADMIN_READONLY_KEY`/`ALLOWED_ORIGINS`/`DB`/`RATE_KV`/`CF_PAGES_COMMIT_SHA` 五个变量从未进过任何文档。⇒ 抄表即第二真相源，本轮**删表改指针**，并把"每个变量必须写明未配置时行为"做成硬判据（对标组实测 0 家做这件事）。
+- **子代理取证纠偏**：它把 litemall 的包路径写成 `com.qiao.litemall`（当前 master 实为 `org.linlinjava.litemall.core.notify`）——机制属实、路径已纠；vite 的 `test-passed` 聚合 job 我先 curl 超时（rc=28）拿不到，改用 `gh api` 才核到 `ci.yml:141-150`。**委托结论落账前须自己开一次文件，且网络探针失败不等于事实不成立**。
+- **K4 PR 流试点已开**：本轮改动走 `feat/round10-webhook-env-registry` → PR → CI（含 `release-parity` 后置复核）→ 自并。理由：dependabot 那轮已证明 CI 独立复核能抓到我本机抓不到的东西。
+
+### P0（第十一轮开工先做这条，可执行）
+
+- [ ] **口味色块判据仍是 `test.skip`**（第九轮遗留，仍未解除）：`src/data/variants-demo.ts` 两组皆 `kind:'spec'`，全站无 `color` 轴 ⇒ 判据有效但无数据驱动。二选一：上线一条带色块的规格数据后解除 skip 并实测；或确定不要这条轴就连 `tests/variants.test.ts` 里的空转断言一起删净。命令：`grep -n "kind: 'color'\|test.skip" src/data/variants-demo.ts tests/e2e-visual/layout.spec.ts tests/variants.test.ts`
+- [ ] **advisory → 硬门禁的决策（须先看两次真实报文）**：`pr-advisory` 首跑记录（本机空集输出 `[pr-advisory] 当前没有开放 PR ⇒ 无可判对象（这不是通过，是空集）`，CI 侧见 PR run）。两次无误报后再考虑改成阻断，且阻断版必须留 label 逃生门（照 workers-sdk `ci:no-tests`）。
+- [ ] **webhook 真实端点验收（需人）**：机制与判据齐了，但 `ORDER_WEBHOOK_URL` **生产未配置** ⇒ 现在线上仍是 no-op 态。要人给端点（企业微信/钉钉机器人或自建接收端），配完须做一次性实测：下一张单在端点侧看到 6 字段载荷、且订单详情里看不到微信号/截图外发。
+- [ ] **已知边界（勿当缺陷）**：`verify:env` 只扫 `functions/**` + `src/**`，不含 `.github/workflows` 的 env 与 `scripts/**` 的 `process.env.*`（那是 CI 进程环境，登记表管它会把 `PARITY_RETRIES` 之类全拖进来）。需要时另开一张 CI 环境表，不要塞进同一册。
+- [ ] 不变项（需人/需权限）：K3 线上管理端目视复核（要生产密钥）、`CF_D1_BACKUP_TOKEN` 路线选择（非 private 会响亮失败）、D2 49 单运营处置、R2 桶、D1↔seed 对账、order 41 生产行订正、28/55 上架口径。
+- [ ] 维持不改：N4 执行模型（低负载 5 连跑 0 OOM）、M2 CoC（对标组 1/8）、M3 diff-cover（0/8 在 CI 卡覆盖率 + 本机无该工具）、本轮新增的 5 条"不做"（zizmor 三件套 / 分支保护即代码【否】9 仓 0 家 / vite 聚合必检 job / changesets / 投递台账）—— 各自的证据写在第十轮报告 §4。
+
 ## 2026-09-26 — 对标第九轮（门禁链自测 + 双端发布一致性；提交 `028d99b` → `e8b400f`）
 
 > 报告：外层 `deliverables/GitHub开源项目对标分析报告-第九轮-2026-09-26.md`
@@ -20,9 +40,9 @@
 
 ### P0（第十轮开工先做这条，可执行）
 
-- [ ] **新订单通知（webhook）**：本轮已把设计约束钉死——① 未配 secret 必须 **no-op 且不改订单状态、不消耗重试**（照 `minshop` `env.EMAIL` 未配即 `return null` + `litemall` `isMailEnable()` 的形态，各带一条反例）；② 通知失败绝不让下单主链路失败（对齐既有"失败不冒泡"不变量）；③ 需要 `DASHBOARD_WRITE_ACTIONS` 之外的新登记位时同步文档。命令预检：`grep -n "env.EMAIL\|isMailEnable" `（在本地 clone 的对标仓里）＋ 本仓 `grep -n "DASHBOARD_WRITE_ACTIONS" functions/lib/backend.js`
-- [ ] **parity 判据的"bundle 不同名"分支补真反例**（本机凑不出两端不同构建）：在 CI 侧以 `CUSTOMER_URL` 指向一个已知的旧批次 URL 或加 `--selftest` 双 fixture 站，否则该分支永远未覆盖。
-- [ ] **K4 PR 流试点**：现成场景=下一次真实改动走分支→PR→看 CI（含 `release-parity`）→自并。理由：本轮 dependabot 六条已证明"CI 独立复核"能抓到我本机抓不到的东西（parity 位置错误就是 PR 侧 CI 抓的）。
+- [x] **新订单通知（webhook）**：本轮已把设计约束钉死——① 未配 secret 必须 **no-op 且不改订单状态、不消耗重试**（照 `minshop` `env.EMAIL` 未配即 `return null` + `litemall` `isMailEnable()` 的形态，各带一条反例）；② 通知失败绝不让下单主链路失败（对齐既有"失败不冒泡"不变量）；③ 需要 `DASHBOARD_WRITE_ACTIONS` 之外的新登记位时同步文档。命令预检：`grep -n "env.EMAIL\|isMailEnable" `（在本地 clone 的对标仓里）＋ 本仓 `grep -n "DASHBOARD_WRITE_ACTIONS" functions/lib/backend.js`
+- [x] **parity 判据的"bundle 不同名"分支补真反例**（本机凑不出两端不同构建）：在 CI 侧以 `CUSTOMER_URL` 指向一个已知的旧批次 URL 或加 `--selftest` 双 fixture 站，否则该分支永远未覆盖。
+- [x] **K4 PR 流试点**：现成场景=下一次真实改动走分支→PR→看 CI（含 `release-parity`）→自并。理由：本轮 dependabot 六条已证明"CI 独立复核"能抓到我本机抓不到的东西（parity 位置错误就是 PR 侧 CI 抓的）。
 - [ ] N4 执行模型：**维持不改**，除非无人值守时复现 OOM（本轮低负载 5 连跑 0 OOM、wall 29s→10~11s 已归档）。候选仍是 `pool:'vmThreads'`/`isolate:false`/`maxWorkers`，且禁止抬 `testTimeout` 掩盖机制缺陷。
 - [ ] M2 CoC 降级为**不做**（实测对标组 1/8 有）、M3 diff-cover **不做**（0/8 在 CI 卡覆盖率 + 本机无该工具，不静默装系统依赖）。
 - [ ] 不变项：K3 线上目视复核（要生产密钥）、D1↔seed 对账、order 41 生产行订正、28/55 上架口径、D2 49 单运营处置（人）、`CF_D1_BACKUP_TOKEN`（注意非 private 会响亮失败的新守卫）、R2 桶。
