@@ -34,6 +34,13 @@
   "等基座变绿再推"在此不可满足。走 PR 也能先证绿，但会在远端留下他人可见的对象，
   而逃生门是本契约自带、强制带理由、并把账印在推送输出里的通道。**用了绕过通道不等于免于验证**：
   落库后本笔自己的 run 回执补在下一次提交里，远端不绿就当场写在册上。
+- **回执（读自 `gh api .../commits/0e8c567/check-runs` 原文，非推送时的钩子输出）**：
+  `build-and-test=success`、`e2e=success`、`e2e-cloud-stub=success`、`visual=success`、`deploy=success`
+  （另 `parity`/`dispatch`/`PR test-coverage advisory` 全 success，8/8 completed）
+  ⇒ 逃生门只用了一次、基线已回绿，下一笔恢复正常判定。
+  修复面另有**日志原文**为证（`gh run view 36319557640 --log`，step `Workspace memory pointer sync (advisory)`）：
+  ubuntu 上印的是 `GATE-PASS memory-pointer-sync :: 内层 36 轮｜外层 不在｜已核对 1/2｜未验证 P2`
+  —— 外层不在场时它把"没比"写在脸上，而不是静默按通过记。
 
 ### 2026-09-27 追加五十（对标第三十六轮：把"只有措辞在守"的三件事变成会红的东西）
 
