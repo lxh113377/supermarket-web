@@ -3,7 +3,7 @@
 // @vitest-environment node
 import { describe, it, expect, afterAll } from 'vitest'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, existsSync, writeFileSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -15,6 +15,9 @@ const SELF = join(REPO, 'scripts', 'check-memory-pointer-sync.mjs')
 const tmpDirs = []
 afterAll(() => { for (const d of tmpDirs) rmSync(d, { recursive: true, force: true }) })
 const row = (rows, id) => rows.find((r) => r.id === id)
+/** cn(36) → '三十六'：cnNum 的反向，只为造合成外层；配对是否成立由夹具自己往返断言。 */
+const CN_D = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九']
+const cn = (n) => (n < 10 ? CN_D[n] : `${CN_D[Math.floor(n / 10)] || ''}十${n % 10 ? CN_D[n % 10] : ''}`)
 
 describe('中文轮次解析（读不懂必须返回空，不得当 0）', () => {
   it('单值与边界', () => {
@@ -67,13 +70,45 @@ describe('真面与入口', () => {
     const parent = resolve(REPO, '..')
     expect(resolve(OUTER_MEMORY)).toBe(join(parent, '超市', 'memory'))
   })
-  it('真跑本仓：内层能取到轮次，外层要么跟上(PASS)要么判红，不得是"沉默的未验证"', () => {
+  it('真跑本仓：内层取到轮次；外层**在不在场由本机决定**，但两条分支各有一条真断言', () => {
+    // 第八形态教训（第三十六轮 CI 实测）：本腿曾无条件断言"外层目录必须存在"，
+    // 而 CI 只检出代码仓 ⇒ 一条讲本机事实的断言把 81cd520 判红。环境可以缺，断言不能空。
     const inner = latestRound(join(REPO, 'memory'))
     expect(inner.round, '内层 07 系里应能取到"对标第N轮"标题').not.toBeNull()
-    const outer = latestRound(OUTER_MEMORY)
-    expect(outer, '本机应能找到外层目录（找不到说明路径又写错了）').not.toBeNull()
-    const v = evaluate({ inner, outer })
-    expect(v.some((r) => r.state === 'UNVERIFIED'), `外层在本地可见却报未验证：${JSON.stringify(v)}`).toBe(false)
+    const present = existsSync(OUTER_MEMORY)
+    const outer = present ? latestRound(OUTER_MEMORY) : null
+    const v = evaluate({ inner, outer, outerPath: OUTER_MEMORY })
+    if (present) {
+      expect(outer, '本机外层目录存在 ⇒ 必须读出轮次，读不出就是取数面坏了').not.toBeNull()
+      expect(v.some((r) => r.state === 'UNVERIFIED'), `外层在本地可见却报未验证：${JSON.stringify(v)}`).toBe(false)
+    } else {
+      // CI：外层不在场 ⇒ 判据必须把"没比"写在脸上，且分母要降下来（不得印 检查 2/2）
+      expect(row(v, 'P2').state).toBe('UNVERIFIED')
+      const r = spawnSync(process.execPath, [SELF], { cwd: REPO, encoding: 'utf8', timeout: 60_000 })
+      expect(r.status, r.stdout + r.stderr).toBe(0)
+      expect(r.stdout).toContain('已核对 1/2')
+      expect(r.stdout).toContain('未验证 P2')
+      expect(r.stdout).not.toContain('检查 2/2')
+    }
+  })
+  it('合成外层在场 ⇒ 观测通道真的通（CI 里外层永远不在，这条用注入替它自证）', () => {
+    const inner = latestRound(join(REPO, 'memory'))
+    expect(inner.round).not.toBeNull()
+    const dir = mkdtempSync(join(tmpdir(), 'smouter-'))
+    tmpDirs.push(dir)
+    writeFileSync(join(dir, '07-next-steps.md'), `## 2026-09-27 — 对标第${cn(inner.round)}轮（工作区级指针）\n`)
+    // 夹具自身先做往返自证：我写的中文轮次必须能被同一套解析器读回同一个数，否则绿的是空气
+    expect(roundsOf(readFileSync(join(dir, '07-next-steps.md'), 'utf8'))).toEqual([inner.round])
+    const same = spawnSync(process.execPath, [SELF, '--outer', dir], { cwd: REPO, encoding: 'utf8', timeout: 60_000 })
+    expect(same.status, same.stdout + same.stderr).toBe(0)
+    expect(same.stdout).toContain('已核对 2/2')
+    expect(same.stdout).not.toContain('未验证')
+    const behind = mkdtempSync(join(tmpdir(), 'smouter-'))
+    tmpDirs.push(behind)
+    writeFileSync(join(behind, '07-next-steps.md'), `## 2026-09-27 — 对标第${cn(Math.max(1, inner.round - 3))}轮（工作区级指针）\n`)
+    const lag = spawnSync(process.execPath, [SELF, '--outer', behind], { cwd: REPO, encoding: 'utf8', timeout: 60_000 })
+    expect(lag.status, lag.stdout + lag.stderr).toBe(1)
+    expect(lag.stdout).toContain('断更 3 轮')
   })
   it('子进程：GATE 行 + rc（红=1 / 绿=0），--json 出结构', () => {
     const r = spawnSync(process.execPath, [SELF], { cwd: REPO, encoding: 'utf8', timeout: 60_000 })
@@ -81,6 +116,7 @@ describe('真面与入口', () => {
     expect(r.stdout).toContain('GATE-PASS memory-pointer-sync')
     const j = JSON.parse(spawnSync(process.execPath, [SELF, '--json'], { cwd: REPO, encoding: 'utf8', timeout: 60_000 }).stdout)
     expect(j.rows.map((x) => x.id)).toEqual(['P1', 'P2'])
+    expect(j.checked + j.rows.filter((x) => x.state === 'UNVERIFIED').length).toBe(j.declared)
   })
   it('缺输入面：只有脚本、没有 memory/ 的假仓 ⇒ rc=2 且点名取不到（不得静默 0）', () => {
     const dir = mkdtempSync(join(tmpdir(), 'smptr-'))

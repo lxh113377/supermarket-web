@@ -76,7 +76,7 @@ export function latestRound(dir) {
   return best === null ? { round: null, seen } : { round: best, seen }
 }
 
-export function evaluate({ inner, outer }) {
+export function evaluate({ inner, outer, outerPath = OUTER_MEMORY }) {
   const rows = []
   const push = (id, state, label, detail) => rows.push({ id, state, ok: state !== 'FAIL', label, detail })
   if (!inner) {
@@ -86,7 +86,7 @@ export function evaluate({ inner, outer }) {
   if (outer === null) {
     push('P1', 'PASS', 'P1 内层最新轮次取到', `内层最新 = 第 ${inner.round} 轮（标题命中 ${inner.seen.length} 处）`)
     push('P2', 'UNVERIFIED', 'P2 外层工作区指针是否跟上内层轮次',
-      `外层目录不存在（${OUTER_MEMORY} 在代码仓之外，CI 只检出本仓）⇒ 这是未观测，不是已核对`)
+      `外层目录不存在（${outerPath} 在代码仓之外，CI 只检出本仓）⇒ 这是未观测，不是已核对`)
     return rows
   }
   if (!outer) {
@@ -106,22 +106,31 @@ export function evaluate({ inner, outer }) {
   return rows
 }
 
-export function main({ dir = root, json = false } = {}) {
+export function main({ dir = root, json = false, outerDir = OUTER_MEMORY } = {}) {
   const innerDir = join(dir, 'memory')
   if (!existsSync(innerDir)) bail('memory-pointer-sync', `取不到 ${innerDir}`)
   const inner = latestRound(innerDir)
-  const outer = existsSync(OUTER_MEMORY) ? latestRound(OUTER_MEMORY) : null
-  const rows = evaluate({ inner: inner && inner.round !== null ? inner : null, outer: outer && outer.round !== null ? outer : (outer === null ? null : outer) })
+  const outer = existsSync(outerDir) ? latestRound(outerDir) : null
+  const rows = evaluate({ inner: inner && inner.round !== null ? inner : null, outer: outer && outer.round !== null ? outer : (outer === null ? null : outer), outerPath: outerDir })
   const bad = rows.filter((r) => r.state === 'FAIL')
   const unver = rows.filter((r) => r.state === 'UNVERIFIED').map((r) => r.id)
+  // `检查 N/N` 是恒真分母（第三十六轮自查）：P2 未观测时它仍印 2/2，等于把"没比"记成"比过"。
+  // 口径与 memory-volume 的 matched/mismatched 一致：已核对数只计真比过的那几条。
+  const checked = rows.length - unver.length
   if (json) {
-    process.stdout.write(JSON.stringify({ rows, outerPresent: outer !== null }, null, 2) + '\n')
+    process.stdout.write(JSON.stringify({ rows, outerPresent: outer !== null, checked, declared: rows.length }, null, 2) + '\n')
   } else {
     for (const r of rows) console.log(`${r.state} ${r.id} :: ${r.label} —— ${r.detail}`)
-    console.log(`${bad.length ? 'GATE-FAIL' : 'GATE-PASS'} memory-pointer-sync :: 内层 ${(inner && inner.round) || '?'} 轮｜外层 ${(outer && outer.round) || '不在'}｜检查 ${rows.length}/${rows.length}${unver.length ? `｜未验证 ${unver.join(',')}` : ''}`)
+    console.log(`${bad.length ? 'GATE-FAIL' : 'GATE-PASS'} memory-pointer-sync :: 内层 ${(inner && inner.round) || '?'} 轮｜外层 ${(outer && outer.round) || '不在'}｜已核对 ${checked}/${rows.length}${unver.length ? `｜未验证 ${unver.join(',')}` : ''}`)
   }
   return bad.length ? 1 : 0
 }
 
 const isCli = !!process.argv[1] && resolve(process.argv[1]).toLowerCase() === fileURLToPath(import.meta.url).toLowerCase()
-if (isCli) process.exit(main({ json: process.argv.includes('--json') }))
+if (isCli) {
+  // --outer 只为"让 CI 也能驱动外层通道"：外层目录在代码仓之外，CI 检出面里永远没有它，
+  // 于是"外层存在时必须观测得到"这条性质在 CI 上不可证。给一个显式注入点，夹具就能拿合成外层跑它。
+  const oi = process.argv.indexOf('--outer')
+  const outerDir = oi >= 0 ? resolve(process.argv[oi + 1] || '') : OUTER_MEMORY
+  process.exit(main({ json: process.argv.includes('--json'), outerDir }))
+}

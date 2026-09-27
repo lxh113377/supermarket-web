@@ -33,16 +33,20 @@ export function verdictOf({ sha, runs, contract }) {
   const mine = (runs || []).filter((r) => r.headSha === sha)
   if (!mine.length) return { state: 'UNKNOWN', reason: `远端查不到 sha=${sha} 的 ${contract.workflow} run ⇒ 可能是首次推送或 gh 鉴权/网络失效，不读成通过` }
   const best = mine.sort((a, b) => (b.databaseId || 0) - (a.databaseId || 0))[0]
-  if (best.status !== 'completed') return { state: 'BLOCKED', reason: `run ${best.databaseId} 仍在跑（status=${best.status}）⇒ 无结论，不放行` }
+  // run id 一律带上它属于哪个 sha：本契约量的是**基线**，新推的 commit 天生还没有 run。
+  // 第三十六轮实测教训：推送时打印 `run 36314824897 全绿` 而没写 sha，我把**上一轮基线**的
+  // 回执读成了"我这笔已绿"，而 81cd520 自己的 run 36318373975 其实在红 —— 回执不指名对象就等于没回执。
+  const who = `run ${best.databaseId}@${String(sha).slice(0, 7)}`
+  if (best.status !== 'completed') return { state: 'BLOCKED', reason: `${who} 仍在跑（status=${best.status}）⇒ 无结论，不放行` }
   const jobs = best.jobs || []
   const have = new Set(jobs.map((j) => j.name))
   const missing = need.filter((j) => !have.has(j))
-  if (missing.length) return { state: 'BLOCKED', reason: `run ${best.databaseId} 缺少必需 job: ${missing.join(', ')}（needs 断了就是没发出去）` }
+  if (missing.length) return { state: 'BLOCKED', reason: `${who} 缺少必需 job: ${missing.join(', ')}（needs 断了就是没发出去）` }
   const red = jobs.filter((j) => need.includes(j.name) && j.conclusion !== 'success').map((j) => `${j.name}=${j.conclusion}`)
   if (best.conclusion !== 'success' || red.length) {
-    return { state: 'RED', reason: `run ${best.databaseId} conclusion=${best.conclusion}${red.length ? '；失败 job: ' + red.join(', ') : ''}` }
+    return { state: 'RED', reason: `${who} conclusion=${best.conclusion}${red.length ? '；失败 job: ' + red.join(', ') : ''}` }
   }
-  return { state: 'GREEN', reason: `run ${best.databaseId} 全绿，必需 job 齐备：${need.join(', ')}` }
+  return { state: 'GREEN', reason: `${who} 全绿，必需 job 齐备：${need.join(', ')}` }
 }
 
 function ghJson(args) {
