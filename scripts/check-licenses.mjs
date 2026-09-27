@@ -49,6 +49,14 @@ try { json = JSON.parse(r.stdout || '{}') } catch {
 }
 const pkgs = new Map()
 walk(json, 'root', pkgs)
+// 零分母不得判绿（第二十五轮实测）：在没有 package.json / node_modules 的目录里 npm ls 返回空对象，
+// 本判据当时打印「0 个生产依赖（含传递）全部 … 白名单 ✅」并 exit 0 —— 把"什么都没扫到"读成"扫过且清白"，
+// 与第十八~二十一轮"CI 全绿"假账同机制。取不到依赖树属环境不满足，按 fail-closed 退出。
+if (pkgs.size === 0) {
+  console.error('[licenses] 环境不满足：npm ls --omit=dev 给出 0 个生产依赖 ⇒ 要么没装依赖（先 npm ci），'
+    + `要么取数面不在此目录（${ROOT}）。没有对象就判"全在白名单"是没意义的，fail-closed 退出（rc=2）`)
+  process.exit(2)
+}
 // npm ls 的 JSON 不携带 license 字段（实测）——逐个回读 node_modules 里的 package.json
 const bad = []
 for (const [id] of pkgs) {

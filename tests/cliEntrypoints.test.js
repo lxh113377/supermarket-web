@@ -12,7 +12,7 @@
 // @vitest-environment node
 import { describe, it, expect, afterAll } from 'vitest'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, cpSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -238,6 +238,69 @@ describe('判据 G1~G8：合成仓双向变异', () => {
     expect(row.pass).toBe(false)
     expect(row.detail).toContain('幽灵豁免')
   })
+})
+
+/**
+ * 缺输入面探针（第二十五轮）：把每个门禁类入口**拷进只有 scripts/ 的空目录**真跑一遍。
+ * 两件事必须同时成立，缺一即红：
+ *   ① rc != 0 —— 拿不到输入面却返回"通过"的判据，等于把"没扫到"记成"扫过且清白"；
+ *   ② 首行必须是自家诊断，不能是 node:/file:// 栈、SyntaxError、MODULE_NOT_FOUND ——
+ *      裸栈会把"环境不满足"伪装成"判据崩溃"，CI 里没人能从 node:fs:441 读出该补什么。
+ * 修之前的基线（本轮实测）：22 个门禁类入口里 8 个甩裸栈、1 个静默放行
+ * —— check-licenses 在没有 package.json 时打印「0 个生产依赖（含传递）全部 … 白名单 ✅」并 exit 0。
+ */
+describe('缺输入面探针：门禁类入口必须 fail-closed 且不崩栈', () => {
+  const SHELL_RE = /^\s*(node:|file:\/\/|\s+at\s|SyntaxError|ReferenceError|TypeError|Error \[|MODULE_NOT_FOUND|ENOENT)/
+  const dir = mkdtempSync(join(tmpdir(), 'smnoinput-'))
+  tmpDirs.push(dir)
+  cpSync(join(REPO, 'scripts'), join(dir, 'scripts'), { recursive: true })
+  const gateClass = collectRegistered().filter((r) => isGateLike(r.sources))
+
+  it('分母非零：门禁类入口由 package.json 结构枚举得出（不手抄）', () => {
+    expect(gateClass.length).toBeGreaterThanOrEqual(20)
+  })
+
+  for (const r of gateClass) {
+    it(`${r.script} 在没有输入面的目录里：非 0 退出 + 首行是人话诊断`, () => {
+      const res = spawnSync(process.execPath, [join(dir, 'scripts', r.script)], { cwd: dir, encoding: 'utf8', timeout: 60_000 })
+      const out = `${res.stdout || ''}${res.stderr || ''}`
+      const first = out.trim().split(/\r?\n/)[0] || '(无输出)'
+      expect(res.status, `${r.script} 缺输入面却返回 0（把"没扫到"当成"扫过且清白"）：${first}`).not.toBe(0)
+      expect(first, `${r.script} 首行是崩栈而不是诊断：${first}`).not.toMatch(SHELL_RE)
+      expect(out.length).toBeGreaterThan(0)
+    }, 90_000)
+  }
+
+  it('探针有牙齿：植入"缺输入仍 exit 0"与"直接崩栈"两种假门禁 ⇒ 同一规则都必须抓住', () => {
+    const openScript = join(dir, 'scripts', 'planted-fail-open.mjs')
+    writeFileSync(openScript, "console.log('[planted] 0 个对象，全部通过')\n")
+    expect(spawnSync(process.execPath, [openScript], { cwd: dir, encoding: 'utf8', timeout: 20_000 }).status).toBe(0)
+    const crashScript = join(dir, 'scripts', 'planted-crash.mjs')
+    writeFileSync(crashScript, 'nopeNotDefined.x()\n')
+    const r = spawnSync(process.execPath, [crashScript], { cwd: dir, encoding: 'utf8', timeout: 20_000 })
+    const first = `${r.stdout}${r.stderr}`.trim().split(/\r?\n/)[0]
+    expect(r.status).not.toBe(0)
+    expect(first).toMatch(SHELL_RE)
+  })
+
+  it('变异体：把 check-licenses 的零分母收口摘掉 ⇒ 同一探针必须把它读成"静默放行"', () => {
+    // 没有这条，上面 22 条"全绿"可能只是因为探针根本没跑东西，或因为**判据自己变瞎**。
+    // 摘的是真源码里那段 `if (pkgs.size === 0)`（第二十五轮实测的那条缺陷：空依赖树被打印成"全部在白名单 ✅"）。
+    const target = join(dir, 'scripts', 'check-licenses.mjs')
+    const src = readFileSync(target, 'utf8')
+    const mutated = src.replace('if (pkgs.size === 0) {', 'if (false) {')
+    expect(mutated, '变异锚点已失效（check-licenses 改形，夹具必须同步）').not.toBe(src)
+    writeFileSync(target, mutated)
+    try {
+      const r = spawnSync(process.execPath, [target], { cwd: dir, encoding: 'utf8', timeout: 60_000 })
+      expect(r.status, '摘掉零分母收口后探针仍判非 0 ⇒ 探针没在看这件事').toBe(0)
+      expect(`${r.stdout}${r.stderr}`).toContain('全部 MIT/BSD/Apache/ISC 类白名单')
+    } finally {
+      writeFileSync(target, src) // 还原：后面的用例还要跑原始副本
+    }
+    const back = spawnSync(process.execPath, [target], { cwd: dir, encoding: 'utf8', timeout: 60_000 })
+    expect(back.status, '还原后必须重新 fail-closed（证明上面那个 0 是变异造成的，不是环境噪声）').not.toBe(0)
+  }, 90_000)
 })
 
 describe('真仓登记册与实测互洽（防文档自说自话）', () => {

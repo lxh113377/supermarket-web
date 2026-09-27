@@ -8,7 +8,7 @@
  */
 import { describe, it, expect } from 'vitest'
 import { DatabaseSync } from 'node:sqlite'
-import { readFileSync, writeFileSync, mkdirSync, copyFileSync, rmSync, readdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, copyFileSync, rmSync, readdirSync, cpSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { execFileSync } from 'node:child_process'
@@ -18,6 +18,20 @@ import {
 } from '../scripts/verify-migrate-replay.mjs'
 
 const SCHEMA = readFileSync(join(process.cwd(), 'db/schema.sql'), 'utf8')
+
+/**
+ * 把门禁脚本拷进夹具仓（夹具靠"脚本按自身位置的上一层锚仓根"来隔离真仓）。
+ * 第二十五轮起必须连 `scripts/lib/` 一起拷：门禁开始共用 `scripts/lib/preflight.mjs`
+ * （缺输入面 fail-closed 收口件），只拷单文件会让被拷脚本以 ERR_MODULE_NOT_FOUND 崩掉，
+ * 于是夹具测到的是"我的复制清单不全"，而不是判据行为。
+ */
+function copyGates(tmp, ...names) {
+  mkdirSync(join(tmp, 'scripts'), { recursive: true })
+  for (const n of names) copyFileSync(join('scripts', n), join(tmp, 'scripts', n))
+  if (readdirSync('scripts').includes('lib')) {
+    cpSync(join('scripts', 'lib'), join(tmp, 'scripts', 'lib'), { recursive: true })
+  }
+}
 const REAL = ['migrate-ai-calls.sql', 'migrate-fix.sql', 'migrate-idempotency.sql',
   'migrate-optimize-indexes.sql', 'migrate-security.sql', 'migrate-spec-options.sql',
   'migrate-stock.sql'].map((f) => ({ file: f, text: readFileSync(join(process.cwd(), 'db', f), 'utf8') }))
@@ -117,9 +131,7 @@ describe('辅助函数与 CLI 退出码', () => {
     // 脚本按**自身位置的上一层**锚仓库根（scripts/ → 仓根），夹具必须复刻这个层级，
     // 否则它找的是 tmp/../db —— 那正是第九轮记下的"runGate 只改 cwd 仍扫真仓"同族坑。
     mkdirSync(join(tmp, 'scripts'), { recursive: true })
-    const src = 'scripts/verify-migrate-replay.mjs'
-    copyFileSync(src, join(tmp, 'scripts', 'verify-migrate-replay.mjs'))
-    copyFileSync('scripts/verify-backup-restore.mjs', join(tmp, 'scripts', 'verify-backup-restore.mjs'))
+    copyGates(tmp, 'verify-migrate-replay.mjs', 'verify-backup-restore.mjs')
     writeFileSync(join(tmp, 'db', 'schema.sql'), SCHEMA, 'utf8')
     writeFileSync(join(tmp, 'db', 'migrate-orphan2.sql'),
       'CREATE TABLE IF NOT EXISTS zz_orphan2 (id INTEGER PRIMARY KEY);\n', 'utf8')
@@ -179,7 +191,7 @@ describe('双门禁对照：既有 verify:schema 放行的类型漂移，本门�
     mkdirSync(join(tmp, 'db'), { recursive: true })
     mkdirSync(join(tmp, 'scripts'), { recursive: true })
     for (const s of ['check-schema-drift.mjs', 'verify-migrate-replay.mjs', 'verify-backup-restore.mjs']) {
-      copyFileSync(join('scripts', s), join(tmp, 'scripts', s))
+      copyGates(tmp, s)
     }
     for (const f of REAL) copyFileSync(join('db', f.file), join(tmp, 'db', f.file))
     const drifted = SCHEMA.replace(/(CREATE TABLE IF NOT EXISTS products[\s\S]*?stock\s+)INTEGER/, '$1TEXT')

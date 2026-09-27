@@ -16,9 +16,11 @@ import { DatabaseSync } from 'node:sqlite'
 import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { requireInputs } from './lib/preflight.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const dbDir = join(root, 'db')
+requireInputs('schema-drift', [dbDir, join(dbDir, 'schema.sql')])
 
 const failures = []
 let checks = 0

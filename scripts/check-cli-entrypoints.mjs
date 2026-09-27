@@ -22,6 +22,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
 export const REGISTRY = 'docs/cli-entrypoints.md'
 export const SELF = 'scripts/check-cli-entrypoints.mjs'
+requireInputs('cli-entrypoints', [join(root, 'package.json'), join(root, 'scripts'), join(root, 'tests'), join(root, REGISTRY)])
+import { requireInputs } from './lib/preflight.mjs'
 const SPAWN_RE = /\b(spawnSync|spawn|execFileSync|execSync|fork)\s*\(/
 
 /** 枚举某个目录下的文件（只一层够用：workflows / .githooks 都不递归）。 */

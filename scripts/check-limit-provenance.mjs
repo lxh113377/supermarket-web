@@ -13,13 +13,18 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join, relative } from 'node:path'
 import { createRequire } from 'node:module'
+import { requireInputs } from './lib/preflight.mjs'
 
 const require = createRequire(import.meta.url)
-const { parse } = require('@babel/parser')
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
 const REGISTRY = 'docs/limit-provenance.md'
+
+// 缺输入面先收口，且必须排在 require('@babel/parser') **之前**：在没有 node_modules 的目录里跑，
+// 原来第一行输出是 MODULE_NOT_FOUND 的裸栈（第二十五轮实测的 8 个崩栈门禁之一）。
+requireInputs('limit-provenance', [join(root, 'node_modules/@babel/parser'), join(root, 'functions'), join(root, 'src'), join(root, REGISTRY)])
+const { parse } = require('@babel/parser')
 
 /** 平台侧真实约束（必须带可核对来源与取证日期；判据 C5 拿它做 ≤ 对账）。 */
 export const PLATFORM_FACTS = {

@@ -13,6 +13,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join, relative, resolve } from 'node:path'
+import { requireInputs } from './lib/preflight.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
@@ -157,6 +158,7 @@ export function scanSilentFallback(src) {
 export async function run() {
   const results = []
   const push = (id, name, ok, detail) => results.push({ id, name, ok, detail })
+  requireInputs('error-semantics', [join(root, 'functions'), join(root, REGISTRY), join(root, MIRROR), join(root, SOURCE_OF_TRUTH)])
 
   const files = collectJs(join(root, 'functions')).map((p) => relative(root, p).replace(/\\/g, '/'))
   const { ERRORS, fail: failFn, apiResponse } = await import(pathToFileURL(join(root, SOURCE_OF_TRUTH)).href)

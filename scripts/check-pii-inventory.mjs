@@ -13,12 +13,17 @@
 // tests/piiExportAllowlist.test.ts（导出表白名单，本判据拿它反推"进导出"列，派生值不双写）。
 import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
+import { requireInputs } from './lib/preflight.mjs'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
 const REGISTRY = 'docs/pii-inventory.md'
 const EXPORT_JUDGE = 'tests/piiExportAllowlist.test.ts'
+// 缺输入面先收口（第二十五轮）：db/ 或登记册不在时，原来是 loadAll 里 readdirSync 抛 ENOENT，
+// 被顶层 catch 印成"判据自身异常"—— 那会把"环境不满足"误报成"判据有 bug"，两回事必须分开。
+requireInputs('pii-inventory', [join(root, 'db'), join(root, REGISTRY), join(root, EXPORT_JUDGE),
+  join(root, 'functions/lib/actions/ai.js'), join(root, 'functions/lib/dify.js')])
 
 export const CATEGORIES = new Set(['个人数据', '凭证', '派生', '运营'])
 export const VISIBILITY = new Set(['pub', 'admin', 'internal'])

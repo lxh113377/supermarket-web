@@ -11,9 +11,17 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join, relative } from 'node:path'
-import { parse } from '@babel/parser'
+import { createRequire } from 'node:module'
 import { openSqlite, createMeteredD1 } from './lib/metered-d1.mjs'
-import { fakeKv } from '../tests/helpers/fakeDb.js'
+import { requireInputs } from './lib/preflight.mjs'
+
+// 两处仓库内依赖改成「先收环境、再取模块」（第二十五轮实测：在只拷 scripts/ 的空目录里跑，
+// 原来第一行输出是 MODULE_NOT_FOUND/package_json_reader 的裸栈，人话文案根本印不出来）：
+//   ① @babel/parser 静态 import ⇒ 缺 node_modules 时崩在解析阶段；
+//   ② tests/helpers/fakeDb.js 静态 import ⇒ 缺 tests/ 时同样崩（本判据与测试共用一份 D1 假件是有意的，
+//      但"取不到"必须是环境不满足，而不是栈）。
+requireInputs('d1-roundtrip', [join(dirname(fileURLToPath(import.meta.url)), '..', 'node_modules/@babel/parser')])
+const { parse } = createRequire(import.meta.url)('@babel/parser')
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
@@ -205,6 +213,9 @@ export async function measure() {
 }
 
 async function measureInner() {
+  requireInputs('d1-roundtrip', [join(root, 'db', 'schema.sql'), join(root, 'db', 'seed.sql'),
+    join(root, 'functions', 'lib', 'backend.js'), join(root, 'tests', 'helpers', 'fakeDb.js')])
+  const { fakeKv } = await import(pathToFileURL(join(root, 'tests', 'helpers', 'fakeDb.js')).href)
   const db = openSqlite([
     readFileSync(join(root, 'db', 'schema.sql'), 'utf8'),
     readFileSync(join(root, 'db', 'seed.sql'), 'utf8'),

@@ -15,10 +15,16 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join, relative, sep } from 'node:path'
-import { parse } from '@babel/parser'
+import { requireInputs } from './lib/preflight.mjs'
+import { createRequire } from 'node:module'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
+
+// @babel/parser 改「先收环境、再取解析器」：静态 import 会让"没有 node_modules 的目录"连本判据的
+// fail-closed 文案都印不出来，只在 stderr 甩 MODULE_NOT_FOUND 栈（第二十五轮实测的崩栈门禁之一）。
+requireInputs('action-authz', [join(root, 'node_modules/@babel/parser')])
+const { parse } = createRequire(import.meta.url)('@babel/parser')
 
 // ── 副作用表白名单（只读密钥也允许触碰的**非业务**表）：逐条点名 + 必须带 why ──
 // 新增表默认落进"业务表面"（见 B7），想进这里必须显式登记并说明。
@@ -241,6 +247,10 @@ export function loadSources(projectRoot = root) {
   // 行尾归一：本仓 git autocrlf=true，未被我改过的文件在盘上是 CRLF、我写的是 LF。
   // 判据一旦依赖行尾形态就会"换个文件就时灵时不灵"，故在入口处统一成 LF。
   const lf = (t) => t.replace(/\r\n/g, '\n')
+  // 缺输入面先收口（第二十五轮实测）：在没有 db/ functions/ 的目录里跑，原来是 readdirSync 抛 ENOENT 栈
+  // —— 栈会把"环境不满足"伪装成"判据崩溃"，CI 里没人能从 node:fs:441 读出该补什么。
+  requireInputs('action-authz', [join(projectRoot, 'db', 'schema.sql'), join(projectRoot, 'functions/lib/backend.js'),
+    join(projectRoot, 'functions/lib/security.js'), join(projectRoot, 'functions')])
   const rec = (d) => readdirSync(d).flatMap((e) => {
     const p = join(d, e)
     return statSync(p).isDirectory() ? rec(p) : [p]
