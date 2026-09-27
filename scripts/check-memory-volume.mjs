@@ -51,7 +51,19 @@ function stagedMemory(dir = root) {
   return (r.stdout || '').split(/\r?\n/).filter((f) => f.startsWith('memory/') && f.endsWith('.md')).map((f) => f.split('/').pop())
 }
 
-export function evaluate({ files, max, all = true }) {
+/** 暂存区里**新增**的记忆文件（V4 用：规则只在"造卷"那一刻可执行，事后无从区分新卷与老卷）。 */
+function stagedAdded(dir = root) {
+  const r = spawnSync('git', ['diff', '--cached', '--name-only', '--diff-filter=A'], { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+  if (r.status !== 0) {
+    bail('memory-volume', `git diff --cached --diff-filter=A 取不到新增清单（${(r.stderr || '').split(/\r?\n/)[0] || `rc=${r.status}`}）⇒ 不猜作用面`)
+  }
+  return new Set((r.stdout || '').split(/\r?\n/).filter((f) => f.startsWith('memory/') && f.endsWith('.md')).map((f) => f.split('/').pop()))
+}
+
+/** 新卷出生余量下限：25%（= 3,072B）。取 25% 的实测依据见登记册「体量预算」节与第三十五轮报告。 */
+export const NEW_VOLUME_MIN_HEADROOM = 0.25
+
+export function evaluate({ files, max, all = true, added = null }) {
   const rows = []
   const overs = files.filter((f) => f.size > max)
   // 两种"零对象"必须长得不一样（同第三十轮 scan-secrets 的口径）：
@@ -69,7 +81,38 @@ export function evaluate({ files, max, all = true }) {
     : `${files.length} 个全部 ≤ ${max}B` })
   const biggest = files.reduce((a, b) => (b.size > (a?.size || 0) ? b : a), null)
   rows.push({ id: 'V3', pass: files.length === 0 || !!biggest, detail: biggest ? `最大卷 ${biggest.name} ${biggest.size}B（阈值余量 ${max - biggest.size}B）` : '无对象' })
-  return { rows, summary: { matched: rows.filter((r) => r.pass).length, mismatched: rows.filter((r) => !r.pass).length, declared: rows.length, over: overs.length, n: files.length } }
+  // V4（第三十五轮）：**新建**的记忆卷必须带着余量出生。
+  // 立它的实测：第三十三轮写了「新卷到 3.5KB 就开新卷号」这条规则，第三十四轮我自己就把卷 50
+  // 造到 4,006B 出生（余 90B）—— 规则在案的下一轮被破，说明它是措辞不是闸。
+  // 追溯普查（`git log --diff-filter=A` + `git show <首提>:<路径> | wc -c`）：现 7 本贴线卷里
+  // **5 本出生即贴线**（part20 3638 / part21 3836 / part22 3985 / part45 4081 / part46 4055），
+  // 其中 part46 的首提就是"立规则那一次"提交 8c3e6bf。⇒ 只拦新增件、历史卷不追溯（否则全仓连坐）。
+  if (added === null) {
+    rows.push({
+      id: 'V4', pass: true, status: 'UNVERIFIED',
+      detail: `--all（CI）模式没有"本次新增"概念 ⇒ 本条不判（这是未验证，不是通过）；提交前跑不带 --all 即生效`,
+    })
+  } else {
+    const fresh = files.filter((f) => added.has(f.name))
+    const born = fresh.filter((f) => f.size > max * (1 - NEW_VOLUME_MIN_HEADROOM))
+    rows.push({
+      id: 'V4', pass: born.length === 0,
+      detail: fresh.length === 0
+        ? `本次无新增记忆卷（暂存面 ${files.length} 件）⇒ 无可判对象`
+        : (born.length
+          ? `出生即贴线 ${born.length}/${fresh.length} 本（新卷须 ≤${Math.floor(max * (1 - NEW_VOLUME_MIN_HEADROOM))}B，留足 ${(NEW_VOLUME_MIN_HEADROOM * 100).toFixed(0)}% 余量）：${born.map((f) => `${f.name} ${f.size}B(余 ${max - f.size}B)`).join(' , ')} ⇒ 现在就拆成两卷，别等提交前压字节`
+          : `新增 ${fresh.length} 本，最大的 ${Math.max(...fresh.map((f) => f.size))}B ≤ ${Math.floor(max * (1 - NEW_VOLUME_MIN_HEADROOM))}B（余量下限 ${(NEW_VOLUME_MIN_HEADROOM * 100).toFixed(0)}%）`),
+    })
+  }
+  return {
+    rows,
+    summary: {
+      matched: rows.filter((r) => r.pass && r.status !== 'UNVERIFIED').length,
+      mismatched: rows.filter((r) => !r.pass).length,
+      declared: rows.length,
+      over: overs.length, n: files.length,
+    },
+  }
 }
 
 export function main({ dir = root, all = false } = {}) {
@@ -86,7 +129,7 @@ export function main({ dir = root, all = false } = {}) {
     if (!c.inScope) { excluded.push(`${name}（${c.why}）`); continue }
     scope.push({ name, size: statSync(join(memDir, name)).size })
   }
-  const res = evaluate({ files: scope, max, all })
+  const res = evaluate({ files: scope, max, all, added: all ? null : stagedAdded(dir) })
   // 贴线告警（第三十三轮）：余量 < 15% 只报不拦。为什么不拦：把 3,900B 判红会逼人"为了绿而拆卷"
   // 或删事实；但完全不报，就会连续三轮出现"写卷时踩线、提交前手忙脚乱压字节"（本轮实测三本卷
   // 余量分别只有 15B / 41B / 95B）。⇒ 告警走 **stderr**（stdout 是结论通道，不能被污染），
@@ -105,8 +148,10 @@ export function main({ dir = root, all = false } = {}) {
   }
   console.log(`[memory-volume] 阈值 ${max}B｜来源：${source}｜模式 ${all ? '--all 全量' : '仅暂存面'}`)
   if (excluded.length) console.log(`[memory-volume] 命中但按类排除（不判）：${excluded.join(' , ')}`)
-  for (const r of res.rows) console.log(`${r.pass ? 'PASS' : 'FAIL'} ${r.id} :: ${r.detail}`)
-  console.log(`${res.summary.mismatched === 0 ? 'GATE-PASS' : 'GATE-FAIL'} memory-volume :: 判 ${res.summary.n} 卷｜超限 ${res.summary.over}｜检查 ${res.summary.matched}/${res.summary.declared}`)
+  // 未验证态不得印成 PASS：V4 在 --all 模式下"不判"，若复用 PASS 就会被读成"新卷余量已核过"。
+  const unver = res.rows.filter((r) => r.status === 'UNVERIFIED').map((r) => r.id)
+  for (const r of res.rows) console.log(`${r.status === 'UNVERIFIED' ? 'UNVERIFIED' : (r.pass ? 'PASS' : 'FAIL')} ${r.id} :: ${r.detail}`)
+  console.log(`${res.summary.mismatched === 0 ? 'GATE-PASS' : 'GATE-FAIL'} memory-volume :: 判 ${res.summary.n} 卷｜超限 ${res.summary.over}｜检查 ${res.summary.matched}/${res.summary.declared}${unver.length ? `｜未验证 ${unver.join(',')}` : ''}`)
   return res.summary.mismatched === 0 ? 0 : 1
 }
 

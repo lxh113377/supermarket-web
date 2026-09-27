@@ -37,10 +37,10 @@ if (rec.status !== 0) throw new Error(`取录制失败 rc=${rec.status}: ${Strin
 
 const clone = (o) => JSON.parse(JSON.stringify(o))
 const producingOf = (set) => Object.keys(set).filter((k) => (set[k].envelopeSeen || []).length > 0)
-/** 缺口集由 covered 反推（派生值；不在夹具里手抄 action 清单）。 */
+/** 缺口集由 covered 反推（派生值；不在夹具里手抄 action 清单）。理由须可证伪（V3 第三十五轮起核）。 */
 const gapsForAll = (set) => Object.fromEntries(
   api.filter((k) => !producingOf(set).includes(k))
-    .map((k) => [k, '夹具用：本轮未录到成功形状的具名理由（长度足够过厚度检查）']),
+    .map((k) => [k, '夹具用：本轮实测 0 条成功形状，`node scripts/verify-backend.mjs` 无该 action 的正向探针']),
 )
 const ev = (over = {}) => evaluate({
   derived: clone(committed), committed, apiActions: api, gaps: gapsForAll(committed), ...over,
@@ -119,14 +119,23 @@ describe('V1~V6 双向变异', () => {
     expect(missing.detail).toContain('未登记缺口')
     expect(missing.detail).toContain(covered)
     // 门禁必须收得下真话：给被抽掉那条补上理由 ⇒ V3 转绿（否则是在逼虚报"零缺口"）
-    expect(row(ev({ derived: lost, gaps: { ...gapsForAll(committed), [covered]: '夹具：本轮故意抽掉' } }), 'V3').ok).toBe(true)
+    expect(row(ev({ derived: lost, gaps: { ...gapsForAll(committed), [covered]: '夹具：本轮抽掉 1 条录制（derived 实测少 1 项）' } }), 'V3').ok).toBe(true)
     // 前提自证：被抽掉那条必须**确实在册**，否则 uncovered 根本装不下它，这条反例会静默失去牙齿
     expect(api).toContain(covered)
     expect(producingOf(committed).length).toBeGreaterThan(0)
-    const phantom = row(ev({ gaps: { ...gapsForAll(committed), [covered]: '这条其实已被实测覆盖，挂着就是幽灵行' } }), 'V3')
+    const phantom = row(ev({ gaps: { ...gapsForAll(committed), [covered]: '这条实测已有 1 次成功响应（calls≥1），挂着就是幽灵行' } }), 'V3')
     expect(phantom.ok).toBe(false)
     expect(phantom.detail).toContain('幽灵登记')
     expect(phantom.detail).toContain(covered)
+    // 理由质量腿（第三十五轮 V3 扩）：RESPONSE_GAPS 今天**是空集** ⇒ 这条必须自造前提，
+    // 否则它和上一轮那个失效的 `gaps: {}` 变异体同形：没有样本的判据＝没有牙齿。
+    const thin = row(ev({ derived: lost, gaps: { [covered]: '这个跑不通大概是环境问题吧' } }), 'V3')
+    expect(thin.ok).toBe(false)
+    expect(thin.detail).toContain('不可证伪')
+    expect(thin.detail).toContain(covered)
+    // 红因只许来自这一条（㉓ red_sub）：缺口本身已具名、也没挂幽灵 ⇒ 若混进另两类就是夹具没造干净
+    expect(thin.detail).not.toContain('未登记缺口')
+    expect(thin.detail).not.toContain('幽灵登记')
   })
   it('V4 反例：字段少一个 / 整条没录到都必须红，且 detail 要指出差在哪个字段', () => {
     const drifted = clone(committed)

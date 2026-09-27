@@ -64,6 +64,7 @@ export async function createProduct(DB, payload) {
   // 图片 scheme 白名单（纵深防御，管理端同样收敛）
   if (data.image && !isSafeImageUrl(data.image)) return fail('invalid_image', '商品主图格式无效')
   if (Array.isArray(data.images)) {
+    if (data.images.length > 9) return fail('too_many_images', '商品图册最多 9 张')
     const imgOk = validateImages(data.images)
     if (imgOk === null) return fail('invalid_image', '商品图片格式无效')
     data.images = imgOk
@@ -115,6 +116,7 @@ export async function applyProductUpdate(DB, productId, payload) {
   // 图片 scheme 白名单（纵深防御）
   if (data.image && !isSafeImageUrl(data.image)) return fail('invalid_image', '商品主图格式无效')
   if (Array.isArray(data.images)) {
+    if (data.images.length > 9) return fail('too_many_images', '商品图册最多 9 张')
     const imgOk = validateImages(data.images)
     if (imgOk === null) return fail('invalid_image', '商品图片格式无效')
     data.images = imgOk

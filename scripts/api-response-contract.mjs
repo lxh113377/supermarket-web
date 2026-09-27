@@ -14,6 +14,7 @@
 // 退出码：0=通过 / 1=判出漂移或未具名 / 2=环境不满足（见 scripts/lib/preflight.mjs）
 import { readFileSync, existsSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
+import { reasonDefects } from './lib/registry-reason.mjs'
 import { dirname, join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
@@ -49,6 +50,9 @@ export const RESPONSE_GAPS = {
 export const CONDITIONAL_FIELDS = {
   '/pub createOrder': ['deduplicated（幂等命中时才带；前端 Boolean() 读，缺省即非重复）'],
   '/web createProduct': ['spec（有规格才回）', 'specOptions（配了可选规格才回）',
+    // 第三十五轮实测新增：createProduct 的响应回显入库文档，请求没带 images 时该键就不存在
+    // （条数 cap 探针带 9 张、其余探针不带 ⇒ 同一 action 两种形状）。与下面 stock 同因。
+    'images（payload 未带 images 时不返回该键；前端保存后走列表重拉，不读此返回值）',
     // 形状随 payload：payload.stock 缺省时响应就没有 stock 键。实测两个消费方都不读这个返回值
     // （ProductInlineEditForm 提交后走 onSaved() 重拉列表），所以今天是无害的；
     // 但"响应形状取决于请求里带了哪些字段"这件事必须留在册上，谁改成读返回值时会当场看到。
@@ -102,11 +106,15 @@ export function evaluate({ derived, committed, apiActions, gaps = RESPONSE_GAPS,
   const uncovered = [...api].filter((k) => !covered.has(k))
   const missingGap = uncovered.filter((k) => !gaps[k])
   const phantomGap = Object.keys(gaps).filter((k) => !uncovered.includes(k) || !api.has(k))
-  push('V3', missingGap.length === 0 && phantomGap.length === 0,
-    'V3 未录到成功形状的在册 action 必须逐条具名理由（双向对账，防"少录就是少守"）',
+  // 第三十五轮：理由本身要**可证伪**（含实测数字或反引号命令），共用 lib/registry-reason.mjs 一份实现。
+  // 立它的实证：第二十九轮我写过的两条理由被一条 payload 证伪（images 本就可选）⇒ 光"有登记"不构成守住。
+  const thinGap = Object.entries(gaps).flatMap(([k, r]) => reasonDefects(`缺口 ${k}`, r))
+  push('V3', missingGap.length === 0 && phantomGap.length === 0 && thinGap.length === 0,
+    'V3 未录到成功形状的在册 action 必须逐条具名理由，且理由可证伪（双向对账，防"少录就是少守"）',
     [missingGap.length && `未登记缺口: ${missingGap.join(', ')}`,
-      phantomGap.length && `幽灵登记（其实已覆盖/不在册）: ${phantomGap.join(', ')}`].filter(Boolean).join(' | ')
-      || `覆盖 ${covered.size}/${api.size}，缺口 ${uncovered.length} 条全部具名`)
+      phantomGap.length && `幽灵登记（其实已覆盖/不在册）: ${phantomGap.join(', ')}`,
+      thinGap.length && `理由不可证伪: ${thinGap.join(' ; ')}`].filter(Boolean).join(' | ')
+      || `覆盖 ${covered.size}/${api.size}，缺口 ${uncovered.length} 条全部具名且理由可证伪`)
 
   if (!committedKeys.length) {
     push('V4', false, 'V4 契约与实测逐字段对账（漂移=红）', 'committed 契约缺失 ⇒ 先跑 npm run gen:response-contract（缺基准不判"通过"）')

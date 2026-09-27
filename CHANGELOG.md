@@ -3,6 +3,62 @@
 本项目采用 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式。此前未维护本文件，历史条目按 git 提交记录补记（自 2026-09-23 起持续维护）。
 
 ## [未发布]
+### 2026-09-27 追加四十九（对标第三十五轮：让"登记表说的"和"代码做的"必须互相作证）
+
+- 取号先列盘：在册最大「四十八」⇒ 本条「四十九」。轮初锚 `b37738d`（R34 收口提交，CI 8 个 check 全
+  completed/success 已用 `check-runs` 原文核过）。
+- **Step 0 台账 76 条**（45 仍有效 / 18 待复测 / 13 已失效，扫过 65 个文件；`07-next-steps.part*` 实数 51 卷）。
+  台账浮出的**头号不是判据而是功能缺陷**：图片**条数**上限只活在前端。
+- **H0 服务端补条数 cap（接续台账 A-08/A-09）**：4 个 `validateImages` 出口实测只有 `addReview` 有 cap（`>3`），
+  `createSubmission`（前端 ≤5）与 `createProduct`/`updateProduct`（前端 `slice(0,9)`）**服务端不查条数**，
+  而 `docs/limit-provenance.md` 自己写着这件事 ⇒ 三处补齐（复用已在册的 `too_many_images`/400，两处产品出口同笔改，
+  缺一侧即被另一侧绕过）。普查 63→65 项，判据 9→10 条。
+- **新判据 C9（扩进 `check-limit-provenance`，不另立第二把尺）**：凡调用 `validateImages(...)` 的函数，
+  必须对**被校验的那个数组**有条数 cap；按函数核不按文件核。
+  **首版被自己的变异体证伪**：通用 `\.length\s*>\s*\d+` 把同函数的单张体积 cap（`img.length > 2*1024*1024`）
+  当成条数 cap ⇒ 摘掉真 cap 仍判绿。改为绑定实参源码路径后：变异点名
+  `submissions.js:14 函数 createSubmission 收图片却无 clean.images.length 的条数 cap`，还原后 10/10。
+- **运行时探针 9 条 + 一条工具级守卫**：cap 断言全部要求机器可读 `errorCode`（不只 `code===-1`）；
+  首跑被限流桶顶替（`rate_limited` 冒充"条数被拒"、正向腿假失败）⇒ 每条探针改用独立合成
+  `CF-Connecting-IP` 并加**前提自证**断言。另把 `verify-backend` 的 `ok()` 加固：空标签一律判红并点名
+  （本轮真实事故：内联 shell 把 `${}` 当命令替换吃掉，6 条断言落成 `ok(cond, )`；
+  变异验证 `142 通过 / 1 失败`）。
+- **H1+H2 新闸 `verify:registry`（接续 A-01/A-02/A-44）**：代码分发面 ⇄ 三张登记表双向差集。
+  一手数字：分发面 39（`/pub` 8 + `/web` 31，与 `api-contract.json` 双向逐字相等）、SQL 基线 **43 键**、
+  形状登记 **42 条** ⇒ 两张表各自多出**同样 3 条**越权/未知 action 探针键，另有 `amortized:audit-retention-purge`
+  （第二十八轮的桶，**迟到 6 轮**才入册）。4 条落成 `PROBE_EXCEPTIONS`，每条例外理由须含实测数字或可复跑命令
+  （新共用件 `scripts/lib/registry-reason.mjs`，`RESPONSE_GAPS` 与例外册同一份实现）；
+  **例外册自身也反查**——对不上任何登记键的例外判红，文案照 `rust-lang/rust` tidy 的
+  `Remove from EXCEPTIONS list if it is no longer used.`。夹具 16 条含三条真入口子进程腿（真跑 rc=0／
+  假仓缺输入面 rc=2／`--json` 六行）。
+- **V3 补强（同一轮把"理由质量"也接到响应契约上）**：`RESPONSE_GAPS` 今天**是空集** ⇒ 新腿全部**自造前提**
+  （注入一条散文式理由 ⇒ 红，且红因只许来自"不可证伪"这一类）。这正是上一轮被整链复验抓出的形态。
+- **H3 `V4` 把措辞变成闸（接续 A-03）**：`check-memory-volume` 新增"新卷出生余量 ≥25%"，**只拦本次新增件**
+  （`git diff --cached --diff-filter=A`），历史卷不追溯；`--all`（CI）模式没有"新增"概念 ⇒ 印
+  `UNVERIFIED` 且门面行记 `检查 3/4｜未验证 V4`，绝不复用 PASS。追溯普查（首提字节）：现 7 本贴线卷里
+  **5 本出生即贴线**，其中 `part46` 的首提就是"立这条规则"那次提交 `8c3e6bf`。夹具 6 条（含两条真入口腿）。
+- **响应形状契约当场抓住我 own 的下游效应**：cap 探针让 `createProduct` 响应多出"时有时无"的 `images` 键、
+  三条 action 首次录到失败信封 ⇒ V4/V5 判红。按流程登记条件字段后 `--write` 重录，**逐字段差集核对**
+  （42→42 条、新增 0、删除 0、6 条字段变化全部由本轮探针解释）。
+- **Step 0 的另一手：外层工作区记忆断更 5 轮**。`超市/memory/07-next-steps.md` 的"工作区级指针"序列止于
+  第二十九轮（末次写入 commit `b619339` 13:57），R30~R34 无人补；且它只被 `handoff.py volume` 的
+  `shell_max=40,960B` 口径量着（内层 4,096B 判据作用面不含它）⇒ **两把相差 10 倍的尺，更松的那把量着更旧的那份**。
+  本轮写停更声明 + 一次补齐 R30~R35 指针（20,995→23,625B），机器化提案带分母留给 R36。
+- 文档追上真相源：`README.md` 单测文件数 89→91、**补上从未登记的「响应形状契约」闸**与两条新闸、
+  `G1~G10`→`G1~G11`；`ci.yml` 里响应契约步骤的旧注释（"12 个没观测过"）改为现状。
+- **整链独占复验跑出两次红，两次都红在本轮自己身上**（这是本轮最该记的事实）：
+  ① `oxlint --max-warnings 0` 判红：新闸里留了未使用的常量 `EXPECT_PREFIX` ⇒ 死代码摘除；
+  ② 既有「零分母探针」判红：`check-registry-sync.mjs` 在"输入文件存在但 0 字节"时直读
+  `JSON.parse('')` 抛裸 `SyntaxError`，违反本仓第二十五轮立的"缺输入面必须 rc=2 + 人话诊断"
+  ⇒ 改用 `requireJson` 并给合法但结构错的 JSON 加兜底（让 R1 的零分母去判红，而不是让进程崩）。
+  **新闸上线当轮就被自家探针拦下两次，说明探针是活的**；两次都改实现，未放宽任何判据。
+- 复验回执：`npm run verify` 独占重跑 ⇒ `VERIFY_RC=0`、`Test Files 91 passed`、`Tests 1204 passed (1204)`；
+  链内 `GATE-PASS registry-sync :: … 检查 6/6`、`response-contract 6/6`、`cli-entrypoints 11/11`
+  （入口 38／子进程跑过 27／缺口 11／分母 32／带风险 15）、`memory-volume 判 63 卷 超限 0（检查 3/4｜未验证 V4）`、
+  `limit-provenance 10/10`、`verify-backend 142/0`。
+
+
+
 ### 2026-09-27 追加四十八（对标第三十四轮：把挂了 5 轮的 `aiChat` 形状做掉，且是用"证伪自己的旧理由"的方式）
 
 - 取号先列盘：在册最大「四十七」⇒ 本条「四十八」。回滚锚 `aef58fa`（其 CI 五 job 全 success 已确认），

@@ -79,10 +79,16 @@ jobs:
       - name: API contract drift check
         run: npm run verify:contract
 
-      # 对标第二十七轮：action 响应形状契约（39 个 action 里今天有 12 个连成功形状都没被观测过，
-      # 缺口须具名；字段漂移与新出现的可选字段当场判红）
+      # 对标第二十七轮：action 响应形状契约（当年 39 个 action 里 12 个连成功形状都没被观测过；
+      # 第三十四轮把具名缺口做到 0 条 ⇒ 现在这条判据守的是"漂移"与"新增可选字段必须登记"）
       - name: API response-shape contract gate
         run: npm run verify:response
+
+      # 对标第三十五轮：登记表 ⇄ 生产者（代码分发面）双向差集。
+      # 立它的一手事实：docs/sql-baseline.json 43 键 vs 分发面 39 条，4 个键长期没人解释，
+      # 其中 amortized:audit-retention-purge 迟到 6 轮才入册；反向（登记有、代码已无）此前无人守。
+      - name: Registry-producer two-way sync gate
+        run: npm run verify:registry
 
       # 第八轮 H2：README/ARCHITECTURE 里可静态派生的数字（action 数、覆盖率棘轮阈值、
       # 单测文件数、文档内链）必须等于真相源。实测抓到的漂移：`/web 30 action`（契约 31）、

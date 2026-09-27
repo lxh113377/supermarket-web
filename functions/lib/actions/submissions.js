@@ -8,6 +8,9 @@ import { fail } from '../errors.js'
 export async function createSubmission(DB, payload) {
   const clean = pick(payload, SUBMISSION_FIELDS)
   if (!clean.serviceId || !clean.serviceName) return fail('missing_service_info', '缺少服务信息')
+  // 条数 cap（第三十五轮补）：此前「≤5 张」只写在 src/pages/ServiceFormPage.tsx 的拒绝分支里，
+  // 服务端只查 scheme 与单张体积 ⇒ 直接 POST 可塞任意多张。值与前端同值，理由见 docs/limit-provenance.md。
+  if (Array.isArray(clean.images) && clean.images.length > 5) return fail('too_many_images', '最多上传 5 张图片')
   // 图片 scheme 白名单：仅 data:image/(jpeg|png|webp|gif);base64 或 https
   const cleanImages = validateImages(clean.images)
   if (cleanImages === null) return fail('invalid_image', '图片格式无效')

@@ -90,6 +90,14 @@ const env = { DB: D1, ADMIN_KEY: 'test-key-123' }
 let pass = 0, fail = 0
 const fails = []
 function ok(cond, msg) {
+  // 空标签直接判红并点名：断言没有名字＝失败项无法归因（第三十五轮一手：shell 把 `${}` 当
+  // 命令替换吃掉后，6 条断言变成 `ok(cond, )`，条件仍在跑、结论却全是空白）。
+  if (typeof msg !== 'string' || !msg.trim()) {
+    fail++
+    fails.push('ok() 缺标签 ⇒ 该断言失败时也报不出是谁（判为工具缺陷，不按通过计）')
+    console.log('FAIL  <空标签断言>')
+    return
+  }
   if (cond) { pass++ } else { fail++; fails.push(msg) }
   console.log(`${cond ? 'PASS' : 'FAIL'}  ${msg}`)
 }
@@ -368,6 +376,31 @@ const goodImg = await handlePublic(env, 'addPublicReview', { productOrder: 1, us
 ok(goodImg.code === 0, 'addPublicReview base64 dataURL 图片通过')
 const badText = await handlePublic(env, 'addPublicReview', { productOrder: 1, user: 'x', rating: 5, text: '<script>alert(1)</script>' })
 ok(badText.code === -1, 'addPublicReview 注入关键词文本被拒')
+// ---------- 第三十五轮：图片**条数**的服务端 cap（此前只有评价侧有，其余只查 scheme/体积）----------
+// 每条都断言 errorCode（机器可读），不只判 code===-1：第十八轮的教训是「57 个失败共用一个 -1」，
+// 只判「被拒」会把「因为格式被拒」误当成「因为条数被拒」。
+// 每条另加一条**前提自证**：探针必须用独立合成 IP。本轮实测 —— 共用默认桶时
+// addPublicReview 的第 4 张返回的是 rate_limited（quota 类，与条数无关），限流桶会顶替 cap 判定。
+const imgReq = (ip) => ({ headers: new Headers({ 'CF-Connecting-IP': ip }) })
+const manyImgs = (n) => Array.from({ length: n }, () => 'data:image/jpeg;base64,/9j/4AAQSkZJRg==')
+const sub6 = await handlePublic(env, 'createSubmission', { serviceId: 'svc_x', serviceName: '空调维修', images: manyImgs(6) }, imgReq('10.90.0.1'))
+ok(sub6.errorCode !== 'rate_limited', 'createSubmission 6 张探针未撞限流桶（前提自证）')
+ok(sub6.code === -1 && sub6.errorCode === 'too_many_images', `createSubmission 第 6 张被拒（实得 errorCode=${sub6.errorCode}）`)
+const sub5 = await handlePublic(env, 'createSubmission', { serviceId: 'svc_x', serviceName: '空调维修', images: manyImgs(5) }, imgReq('10.90.0.2'))
+ok(sub5.errorCode !== 'rate_limited', 'createSubmission 5 张探针未撞限流桶（前提自证）')
+ok(sub5.code === 0, `createSubmission 5 张图通过（cap 边界 =5 合法；正向腿，实得 code=${sub5.code}）`)
+const rev4 = await handlePublic(env, 'addPublicReview', { productOrder: 1, user: 'x', rating: 5, text: '好', images: manyImgs(4) }, imgReq('10.90.0.3'))
+ok(rev4.errorCode !== 'rate_limited', 'addPublicReview 4 张探针未撞限流桶（前提自证）')
+ok(rev4.code === -1 && rev4.errorCode === 'too_many_images', `addPublicReview 第 4 张被拒（实得 errorCode=${rev4.errorCode}）`)
+const prod10 = await handleAdmin(env, 'createProduct', 'test-key-123', { name: '条数探针商品', price: 1, images: manyImgs(10) }, imgReq('10.90.0.4'))
+ok(prod10.code === -1 && prod10.errorCode === 'too_many_images', `createProduct 第 10 张被拒（实得 errorCode=${prod10.errorCode}）`)
+const prod9 = await handleAdmin(env, 'createProduct', 'test-key-123', { name: '条数探针商品', price: 1, images: manyImgs(9) }, imgReq('10.90.0.5'))
+ok(prod9.code === 0, `createProduct 9 张图通过（与前端 slice(0,9) 同值；实得 code=${prod9.code}）`)
+const upd10 = await handleAdmin(env, 'updateProduct', 'test-key-123', { productId: prod9.data?._id, images: manyImgs(10) }, imgReq('10.90.0.5'))
+ok(upd10.code === -1 && upd10.errorCode === 'too_many_images', `updateProduct 第 10 张被拒（同族两个出口都得堵；实得 errorCode=${upd10.errorCode}）`)
+if (prod9.data?._id) await handleAdmin(env, 'deleteProduct', 'test-key-123', { productId: prod9.data._id }, imgReq('10.90.0.5'))
+if (sub5.data?.id || sub5.data?._id) await handleAdmin(env, 'deleteSubmission', 'test-key-123', { submissionId: sub5.data.id || sub5.data._id }, imgReq('10.90.0.2'))
+
 
 // ---------- 商品增改删（管理）----------
 // 基线取增删前的 getProducts 总数（含下架），断言相对基线而非硬编码

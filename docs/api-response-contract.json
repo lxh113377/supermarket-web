@@ -5,7 +5,7 @@
     "/pub addPublicReview": {
       "side": "/pub",
       "action": "addPublicReview",
-      "calls": 4,
+      "calls": 5,
       "dataKinds": [
         "object"
       ],
@@ -122,7 +122,7 @@
     "/pub createSubmission": {
       "side": "/pub",
       "action": "createSubmission",
-      "calls": 1,
+      "calls": 3,
       "dataKinds": [
         "object"
       ],
@@ -140,8 +140,20 @@
       "keysSeen": [
         "id"
       ],
-      "errEnvelopeAlways": [],
-      "errEnvelopeSeen": []
+      "errEnvelopeAlways": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ],
+      "errEnvelopeSeen": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ]
     },
     "/pub getOrderStatus": {
       "side": "/pub",
@@ -574,7 +586,7 @@
     "/web createProduct": {
       "side": "/web",
       "action": "createProduct",
-      "calls": 9,
+      "calls": 11,
       "dataKinds": [
         "object"
       ],
@@ -598,6 +610,7 @@
         "_id",
         "createdAt",
         "enabled",
+        "images",
         "name",
         "price",
         "spec",
@@ -605,8 +618,20 @@
         "stock",
         "updatedAt"
       ],
-      "errEnvelopeAlways": [],
-      "errEnvelopeSeen": []
+      "errEnvelopeAlways": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ],
+      "errEnvelopeSeen": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ]
     },
     "/web createSubmission": {
       "side": "/web",
@@ -653,7 +678,7 @@
     "/web deleteProduct": {
       "side": "/web",
       "action": "deleteProduct",
-      "calls": 7,
+      "calls": 8,
       "dataKinds": [
         "absent"
       ],
@@ -689,7 +714,7 @@
     "/web deleteSubmission": {
       "side": "/web",
       "action": "deleteSubmission",
-      "calls": 2,
+      "calls": 3,
       "dataKinds": [
         "absent"
       ],
@@ -1327,7 +1352,7 @@
     "/web updateProduct": {
       "side": "/web",
       "action": "updateProduct",
-      "calls": 4,
+      "calls": 5,
       "dataKinds": [
         "absent"
       ],
@@ -1339,8 +1364,20 @@
       ],
       "keysAlways": [],
       "keysSeen": [],
-      "errEnvelopeAlways": [],
-      "errEnvelopeSeen": []
+      "errEnvelopeAlways": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ],
+      "errEnvelopeSeen": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ]
     },
     "/web updateSubmissionStatus": {
       "side": "/web",

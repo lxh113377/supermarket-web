@@ -159,3 +159,53 @@ describe('memory-volume：超限必须点名 + 两种"零对象"不得同形', (
 afterAll(() => {
   for (const d of tmpDirs) { try { rmSync(d, { recursive: true, force: true }) } catch { /* 临时目录清理失败不改结论 */ } }
 })
+
+describe('V4：新卷必须带着余量出生（第三十五轮，把上一轮立的措辞变成闸）', () => {
+  const row = (over) => evaluate({ files: [], max: 4096, ...over }).rows.find((r) => r.id === 'V4')
+  const f = (name, size) => ({ name, size })
+
+  it('反例：新增卷 3,900B（余 106B）⇒ 判红并点名，且给出该怎么做', () => {
+    const r = row({ files: [f('07-next-steps.part77.md', 3900)], all: false, added: new Set(['07-next-steps.part77.md']) })
+    expect(r.pass).toBe(false)
+    expect(r.detail).toContain('出生即贴线')
+    expect(r.detail).toContain('07-next-steps.part77.md 3900B(余 196B)')
+    expect(r.detail).toContain('拆成两卷')
+  })
+
+  it('正向：新增卷 2,400B ⇒ 判绿（门禁必须收得下合规做法）', () => {
+    const r = row({ files: [f('07-next-steps.part78.md', 2400)], all: false, added: new Set(['07-next-steps.part78.md']) })
+    expect(r.pass).toBe(true)
+    expect(r.detail).toContain('新增 1 本')
+  })
+
+  it('两种"没判"不得同形：无新增对象 ≠ 未验证态 ≠ 通过', () => {
+    const none = row({ files: [f('07-next-steps.md', 2400)], all: false, added: new Set() })
+    expect(none.pass).toBe(true)
+    expect(none.detail).toContain('无可判对象')
+    const un = row({ files: [f('07-next-steps.part79.md', 3900)], all: true, added: null })
+    expect(un.status).toBe('UNVERIFIED')
+    expect(un.detail).toContain('不是通过')
+  })
+
+  it('summary 对账：未验证行不得计入 matched（否则"检查 4/4"是假的）', () => {
+    const res = evaluate({ files: [f('07-next-steps.part80.md', 3900)], max: 4096, all: true, added: null })
+    expect(res.summary.declared).toBe(res.summary.matched + res.summary.mismatched + 1)
+    expect(res.summary.matched).toBeLessThan(res.summary.declared)
+  })
+
+  it('真入口腿：假仓 git add 一个 3.9KB 新卷 ⇒ 子进程 rc=1 并点名（证明 stagedAdded 接线通）', () => {
+    const dir = repo({ '07-next-steps.part81.md': pad(3900, '# 卷 81') })
+    spawnSync('git', ['add', 'memory/07-next-steps.part81.md'], { cwd: dir, encoding: 'utf8', timeout: 30_000 })
+    const { rc, out } = runIn(dir, [])
+    expect(rc, out.slice(-400)).toBe(1)
+    expect(out).toContain('出生即贴线')
+  })
+
+  it('真入口对偶腿：同一步骤但新卷 2.4KB ⇒ rc=0（不是"只要新增就拦"）', () => {
+    const dir = repo({ '07-next-steps.part82.md': pad(2400, '# 卷 82') })
+    spawnSync('git', ['add', 'memory/07-next-steps.part82.md'], { cwd: dir, encoding: 'utf8', timeout: 30_000 })
+    const { rc, out } = runIn(dir, [])
+    expect(rc, out.slice(-400)).toBe(0)
+    expect(out).toMatch(/V4 :: 新增 1 本/)
+  })
+})

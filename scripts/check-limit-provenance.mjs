@@ -145,6 +145,58 @@ export function parseRegistry(md) {
 
 export const ALLOWED_KINDS = new Set(['platform', 'schema', 'product', 'perf', 'self'])
 
+/**
+ * C9 图片入口的**服务端条数 cap**（第三十五轮；由台账 A-08 的一手缺陷立出来）。
+ * 规则：凡调用 `validateImages(...)` 的函数，函数体内必须同时存在一条**条数**拒绝
+ * （`.length > N` / `>= N`，或直接返回 `too_many_images`）。
+ * 一手动因：普查 4 个出口里只有 `addReview` 有 cap（>3），`createSubmission` 与
+ * `createProduct`/`updateProduct` 三处只查 scheme 与单张体积 ⇒ "最多 5 张"只活在
+ * `ServiceFormPage.tsx` 的拒绝分支里，直接 POST 可塞任意多张。
+ * **按函数核、不按文件核**：products.js 有两个出口，只给一个加 cap 时按文件的判据会绿，
+ * 而漏掉的那个正是同一条攻击路径（同一 action 族走哪个出口都能把图册塞满）。
+ */
+export function imageCapGaps(sources) {
+  const gaps = []
+  for (const { rel, code } of sources || []) {
+    if (!code.includes('validateImages(')) continue
+    const ast = parseFor(rel, code, () => {})
+    if (!ast) { gaps.push(`${rel}：解析失败 ⇒ 无法判定条数 cap（不得当作有 cap）`); continue }
+    const fns = []
+    const calls = []
+    walk(ast, (n) => {
+      if (n.type === 'FunctionDeclaration' || n.type === 'FunctionExpression' || n.type === 'ArrowFunctionExpression') {
+        if (typeof n.start === 'number' && typeof n.end === 'number') fns.push(n)
+      }
+      if (n.type === 'CallExpression' && n.callee?.name === 'validateImages' && typeof n.start === 'number') {
+        const arg = n.arguments?.[0]
+        // 被校验对象的**源码文本**就是要核的对象（`clean.images` / `data.images`）。
+        // 只认"路径完全相同"的比较，是为了不放过这一手：首版我写成通用的
+        // /\.length\s*>\s*\d+/，于是同一函数里的**单张体积** cap（`img.length > 2 * 1024 * 1024`）
+        // 被当成条数 cap，摘掉真正的条数判断后 C9 仍然绿 —— 反例当场证伪了首版判据。
+        calls.push({ at: n.start, target: arg && typeof arg.start === 'number' ? code.slice(arg.start, arg.end).trim() : null })
+      }
+    })
+    for (const { at, target } of calls) {
+      const owner = fns.filter((f) => f.start <= at && at < f.end).sort((a, b) => (b.end - b.start) - (a.end - a.start))[0]
+      if (!owner) { gaps.push(`${rel}：validateImages 调用落在任何函数体外 ⇒ 判据无法归属，按缺失处理`); continue }
+      const name = owner.id?.name || '(匿名)'
+      const body = code.slice(owner.start, owner.end)
+      const line = code.slice(0, at).split('\n').length
+      if (!target) {
+        if (!/too_many_images/.test(body)) gaps.push(`${rel}:${line} 函数 ${name} 的 validateImages 实参不可解析且无 too_many_images ⇒ 无法证明有条数 cap`)
+        continue
+      }
+      const esc = target.replace(/[.*+?^${}()|[\]\\]/g, String.fromCharCode(92) + '$&')
+      const countCap = new RegExp(esc + '\\.length\\s*(?:>|>=)\\s*\\d+(?!\\s*\\*)')
+      const constCap = new RegExp(esc + '\\.length\\s*(?:>|>=)\\s*[A-Za-z_$]')
+      if (!countCap.test(body) && !(constCap.test(body) && /too_many_images/.test(body))) {
+        gaps.push(`${rel}:${line} 函数 ${name} 收图片却无 ${target}.length 的条数 cap`)
+      }
+    }
+  }
+  return gaps.sort()
+}
+
 /** 判据核心（纯函数，喂任意输入即可反证；同第十四/十五轮口径）。 */
 export function evaluate({ items, rows, planRegistered, parseErrors, sources }) {
   const out = []
@@ -209,6 +261,13 @@ export function evaluate({ items, rows, planRegistered, parseErrors, sources }) 
   //      而这正是"看起来全绿其实没测"的形态（R236：命令跑失败输出空被当成通过）。
   push('C8', (parseErrors || []).length === 0, 'C8 面内文件零静默跳过（解析失败即点名）',
     parseErrors && parseErrors.length ? `解析失败 ${parseErrors.length} 个: ${parseErrors.slice(0, 4).join(' | ')}` : `${(sources || []).length} 个文件全部解析成功`)
+
+  // C9（第三十五轮）：图片出口的**条数** cap 必须与服务端同在 —— 见 imageCapGaps 的动因注释。
+  const capGaps = imageCapGaps(sources)
+  push('C9', capGaps.length === 0,
+    'C9 收图片的函数必须有服务端条数 cap（"≤N 张"不得只活在前端）',
+    capGaps.length ? `缺 cap: ${capGaps.slice(0, 6).join(' ; ')}`
+      : `validateImages 出口 ${(sources || []).filter((s) => s.code.includes('validateImages(')).length} 个文件全部带条数 cap`)
   return out
 }
 

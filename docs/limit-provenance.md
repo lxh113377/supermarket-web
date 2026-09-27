@@ -63,7 +63,9 @@
 | functions/lib/security.js | 截断型 | 8 | schema | 结果码/前缀类短字段截 8 字：与同文件 detail 截 500、fingerprint 截 64 同族，审计表列宽由应用层自定 |
 
 | src/auth.ts | 常量 | BATCH_UPDATE_CHUNK=40 | platform | 前端批量改价分片大小，必须等于服务端 BATCH_UPDATE_MAX=40（那边按 d1_queries_per_invocation_free=50 推导：语句数 1+n ⇒ 41<50）；两侧等值由 tests/batchChunkContract.test.ts 钉住 |
-| src/components/admin/ProductInlineEditForm.tsx | 截断型 | 9 | product | 内联编辑保存前只提交前 9 张图片：商品图册可视区一屏约 3×3，再多就没人翻到；服务端对商品图片条数不设 cap（validateImages 只查 scheme），所以这一侧就是唯一的条数上限 |
+| src/components/admin/ProductInlineEditForm.tsx | 截断型 | 9 | product | 商品图册保存前只提交前 9 张：一屏约 3×3，再多没人翻到。**第三十五轮起服务端 createProduct/updateProduct 对 >9 直接拒（too_many_images）**，前端截断不再独自承担上限 |
+| functions/lib/actions/submissions.js | 拒绝型 | 5 | product | 第三十五轮补的服务端条数 cap，与 ServiceFormPage 的 ≤5 同值（此前只有前端有 cap，直接 POST 可塞任意多张）。不用 d1_statement_bytes 反推：线上实测单条提交 images 最大 442KB（本文件 :37 注释）仍写成功 ⇒ 100KB 只管语句文本、不含绑定参数，拿它当图片上限会得出错误结论 |
+| functions/lib/actions/products.js | 拒绝型 | 9 | product | 第三十五轮补：与 ProductInlineEditForm 的 slice(0,9) 同值。服务端从"只查 scheme"升到"也查条数"，两处出口（createProduct/updateProduct）同笔加，缺一侧就会被另一侧绕过 |
 | src/components/DashboardTab.tsx | 截断型 | 10 | product | 看板"日期"标签取 ISO 串前 10 位（YYYY-MM-DD）：日历日粒度，不是容量上限；与 src/localStore.ts 的 date 同源同形 |
 | src/components/OrdersTab.tsx | 截断型 | 10 | product | 导出 CSV 文件名里的日期戳截 10 位（YYYY-MM-DD）：命名粒度，不参与数据裁剪 |
 | src/components/product/ProductGallery.tsx | 拒绝型 | 1 | product | 不是容量上限，是"有没有第二张"的可用性阈值：>1 才渲染上一张/下一张箭头。登记它的唯一目的是让普查面不留洞 |
@@ -83,7 +85,7 @@
 | src/localStore.ts | 截断型 | 500 | schema | 本地演示模式评价正文截 500 字：对齐服务端 checkPublicText(clean.text, 500)，两侧不一致会出现"云端收、本地丢一半" |
 | src/pages/CustomerPage.tsx | 截断型 | 5 | product | 搜索建议下拉最多 5 条：再长就超出下拉可视区，且顾客本可以直接回车进结果页 |
 | src/pages/OrderConfirmPage.tsx | 体积型 | 5 | product | 付款截图原图 ≤5MB 才进压缩：下单必附凭证的场景实拍常见 2~4MB，5MB 是"明显误传大文件"的分界 |
-| src/pages/ServiceFormPage.tsx | 拒绝型 | 5 | product | 服务提交图片总数 ≤5 张：产品决定。**服务端 createSubmission 不查条数**（只查 scheme 与单张 2MB），所以这是全链唯一 cap —— 已登记第十八轮待办：要么服务端补 cap，要么把这行改成两侧同值的契约 |
+| src/pages/ServiceFormPage.tsx | 拒绝型 | 5 | product | 服务提交图片总数 ≤5 张：产品决定。**第三十五轮起服务端 createSubmission 同值拒绝（too_many_images）**，这一行不再是全链唯一 cap ⇒ 两侧同值的契约已成立 |
 | src/pages/ServiceFormPage.tsx | 体积型 | 10 | product | 单张原图 ≤10MB 门槛：与 ReviewForm 的 10MB 同因（压不动就别上传） |
 ## 平台档位假设（C6 读取本节）
 
