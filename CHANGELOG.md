@@ -56,6 +56,13 @@
   链内 `GATE-PASS registry-sync :: … 检查 6/6`、`response-contract 6/6`、`cli-entrypoints 11/11`
   （入口 38／子进程跑过 27／缺口 11／分母 32／带风险 15）、`memory-volume 判 63 卷 超限 0（检查 3/4｜未验证 V4）`、
   `limit-provenance 10/10`、`verify-backend 142/0`。
+- 远端可见物：内仓 `00cc307`（22 件；push 时 pre-push 的 ci-green 判 base=`b37738d` 五必需 job 齐备）、
+  外层报告 `dc1a87a`；`00cc307` 的 CI **8 个 check 全 `completed/success`**（19:07 读自
+  `gh api …/commits/<sha>/check-runs` 原文，不采信后台通知）。
+- 收口时自记一次：给卷 54 追加"台账对账"两条时，Edit 的 old_string 取了**同段落已有整条**，
+  把"外层工作区记忆断更"那一整条替换掉 ⇒ `grep -c` 归 0 当场暴露。该文件已在 `00cc307` 内有基线，
+  按行放回（不 `git checkout`，否则会连新加两条一起丢），复核 `git diff --numstat` = `8 插入 / 0 删除`。
+  这是在册"长行台账禁拿既有行前缀当锚点"的同族复发，改法不变：**加条目用列表末行锚点 + 事后核 deletions**。
 
 
 
