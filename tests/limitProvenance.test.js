@@ -178,3 +178,33 @@ describe('C6/C7 与枚举器边界', () => {
     expect(rows.some((r) => r.file.includes('来源类别') || r.shape === '类型')).toBe(false)
   })
 })
+
+// 第三十八轮 R38-H3：行尾注释按解析器区间剥除（R37 只剥了块注释，册上还写着"行尾未覆盖"）。
+describe('取数面第二半：行尾注释精确剥除，且不伤含 // 的字符串', () => {
+  it('真上限在代码里、注释里另有一个数 ⇒ 只算真的那个（含 URL 的行不被误剥）', () => {
+    const code = [
+      "export async function f(DB, xs) {",
+      "  if (xs.length > 7) return null // 曾经写成 999，见 docs/limit-provenance.md",
+      "  const y = xs.slice(0, 9) // 文档站 https://example.com/a//b 里也有双斜杠",
+      "  const url = 'https://developers.cloudflare.com/x' // 平台事实来源",
+      "  return DB.prepare('SELECT 1 FROM t LIMIT 13').all()",
+      '}',
+    ].join(String.fromCharCode(10))
+    const vals = census([{ rel: 'functions/lib/tail.js', code }], (m) => { throw new Error(`不该有解析失败：${m}`) }).map((i) => i.value)
+    expect(vals).toEqual(expect.arrayContaining([7, 9, 13]))
+    expect(vals, '注释里的 999 被当成上限 ⇒ 行尾剥除没生效').not.toContain(999)
+    expect(vals, 'URL 字符串被误剥会连带吃掉同行代码里的数').toContain(9)
+  })
+  it('反向对照：把注释放最前也照样只算代码（防"只测了一种位置"）', () => {
+    const code = '// 说明：这里曾有 800 * 1024 的假上限\nexport const MAX_X = 42\n'
+    const vals = census([{ rel: 'functions/lib/head.js', code }]).map((i) => i.value)
+    expect(vals).toContain(42)
+    expect(vals).not.toContain(800)
+  })
+  it('解析失败 ⇒ 降级朴素剥除并**点名**（静默退回弱口径就是假覆盖面）', () => {
+    const errs = []
+    const broken = 'export const o = { 坏语法 (((( }'
+    census([{ rel: 'functions/lib/broken.js', code: broken }], (m) => errs.push(m))
+    expect(errs.join(' '), '降级没被报告').toContain('降级')
+  })
+})

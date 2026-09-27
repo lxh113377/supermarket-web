@@ -19,10 +19,26 @@ export interface CompressedImage {
  */
 export const MAX_IMAGE_DATAURL_CHARS = 90_000
 
-/** 按最大边等比缩到 maxSize 以内（只缩不放），JPEG 质量 quality（0~1） */
+/**
+ * 降质阶梯（第三十八轮 R38-H3）：从起始质量按 0.8 倍往下走，最多 steps 档。
+ * 抽成纯函数是因为它决定"这张图还能不能再小一点"，不该只在浏览器里才跑得动（可测性）。
+ */
+export function qualityLadder(start = 0.5, steps = 4): number[] {
+  const out: number[] = []
+  let q = Math.min(1, Math.max(0.05, start))
+  for (let i = 0; i < steps; i++) {
+    const v = Number(q.toFixed(3))
+    if (!out.includes(v)) out.push(v)
+    q *= 0.8
+  }
+  return out
+}
+
+/** 按最大边等比缩到 maxSize 以内（只缩不放），JPEG 质量从 quality 起；
+ *  给了 maxBytes 就**先反复降质**，压不进预算也只返回最小一档（丢不丢由调用方决定）。 */
 export function compressImageFile(
   file: File,
-  { maxSize = 640, quality = 0.5 }: { maxSize?: number; quality?: number } = {},
+  { maxSize = 640, quality = 0.5, maxBytes = 0 }: { maxSize?: number; quality?: number; maxBytes?: number } = {},
 ): Promise<CompressedImage> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -53,16 +69,24 @@ export function compressImageFile(
           return
         }
         ctx.drawImage(img, 0, 0, width, height)
+        // 第三十八轮 R38-H3：改前压一次就交卷，超预算的整张被调用方过滤掉 ⇒
+        // 用户只看到「部分图片过大，已自动跳过」，凭空少一张且无从补救。
+        // 现在先在阶梯里找到第一张能进预算的；全都不合格才返回最小一档（此时调用方的过滤才生效）。
+        const ladder = qualityLadder(quality)
+        let chosenQ = ladder[ladder.length - 1]
+        let dataUrl = ''
+        for (const q of ladder) {
+          dataUrl = canvas.toDataURL('image/jpeg', q)
+          chosenQ = q
+          if (!maxBytes || dataUrl.length <= maxBytes) break
+        }
         canvas.toBlob((blob) => {
           if (!blob) {
             reject(new Error('图片压缩失败'))
             return
           }
-          resolve({
-            dataUrl: canvas.toDataURL('image/jpeg', quality),
-            blob,
-          })
-        }, 'image/jpeg', quality)
+          resolve({ dataUrl, blob })
+        }, 'image/jpeg', chosenQ)
       }
       img.onerror = reject
       img.src = result

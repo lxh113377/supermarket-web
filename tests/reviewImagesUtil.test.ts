@@ -3,18 +3,29 @@
 // 这几个函数本身反而没被直接验证过）。
 import { describe, it, expect, vi } from 'vitest'
 const compressImageFile = vi.hoisted(() => vi.fn())
-vi.mock('../src/utils/imageCompress', () => ({ compressImageFile }))
+// 第三十九轮修正：mock 只给了 `compressImageFile` 一个导出，而 reviewImages.ts 从 R38 起还要
+// `MAX_IMAGE_DATAURL_CHARS` 当默认预算 ⇒ 真实模块的其余导出全没了（报错原文就是
+// "No MAX_IMAGE_DATAURL_CHARS export is defined on the mock"）。改成**铺开真实模块再只替换函数**，
+// 这样以后被 mock 的模块再加导出，这个文件不会静默变成"测到的是残缺形状"。
+vi.mock('../src/utils/imageCompress', async (importOriginal) => ({
+  ...(await importOriginal()),
+  compressImageFile,
+}))
 
 import { compressImage, fileExt, resolveReviewImages, uploadReviewImages } from '../src/utils/reviewImages'
+import { MAX_IMAGE_DATAURL_CHARS } from '../src/utils/imageCompress'
 
 describe('compressImage 参数口径', () => {
-  it('评价场景固定 640/0.5（三处重复实现收口后的唯一口径）', async () => {
+  it('评价场景固定 640/0.5 + 单语句预算（三处重复实现收口后的唯一口径）', async () => {
     compressImageFile.mockResolvedValue({ dataUrl: 'd', blob: new Blob(['x']) })
     const file = new File(['x'], 'a.png', { type: 'image/png' })
     await compressImage(file)
-    expect(compressImageFile).toHaveBeenLastCalledWith(file, { maxSize: 640, quality: 0.5 })
+    expect(compressImageFile).toHaveBeenLastCalledWith(file, { maxSize: 640, quality: 0.5, maxBytes: MAX_IMAGE_DATAURL_CHARS })
     await compressImage(file, 800, 0.7)
-    expect(compressImageFile).toHaveBeenLastCalledWith(file, { maxSize: 800, quality: 0.7 })
+    expect(compressImageFile).toHaveBeenLastCalledWith(file, { maxSize: 800, quality: 0.7, maxBytes: MAX_IMAGE_DATAURL_CHARS })
+    // 显式给预算必须原样透传（R38-H3 的降质阶梯靠它，被吞掉就等于回到"压一次就交卷"）
+    await compressImage(file, 640, 0.5, 1234)
+    expect(compressImageFile).toHaveBeenLastCalledWith(file, { maxSize: 640, quality: 0.5, maxBytes: 1234 })
   })
 })
 

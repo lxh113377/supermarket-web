@@ -120,6 +120,12 @@ jobs:
       - name: Error semantics registry gate
         run: npm run verify:errors
 
+      # 第三十八轮：备份恢复的端到端闭环（合成 dump → 加密 → 解密 → 逐字节相等 → 交恢复判据）。
+      # 立它的实测：在册写"verify:restore 需 CF 凭据故恒红"，本轮用本机 dump 实跑判 OK ⇒ 演练不需要云凭据。
+      # 跨机取回（真实产物）没有凭据时判 UNVERIFIED —— 记未验证，不折算成通过。
+      - name: Backup restore drill (encrypt -> decrypt -> restore, no CF creds needed)
+        run: npm run verify:restore-drill
+
       # 对标第二十轮：个人数据登记册 ⇄ schema 全量列双向对账，并与导出面白名单互锁
       - name: PII inventory gate
         run: npm run verify:pii
@@ -139,6 +145,12 @@ jobs:
       # 对标第三十六轮：外层"工作区级记忆指针"是否跟上内层轮次（实测断更过 5 轮无人知）。
       # 该目录在代码仓之外 ⇒ CI 里必然取不到，判据对此只报 UNVERIFIED 且 rc=0（不阻断、也不假装核过）；
       # 真正会红的是本地 `npm run verify`——那才是它设计时要守的现场。
+      # 第三十八轮：线上 /_health 的响应形状 ⇄ 本仓声明键集（只读 GET，advisory：发布在用户侧）。
+      # 立它的事实：本仓 _health.js:4 自述 deploy 字段就是为了发现"改了没部署"，却从来没有东西做这个比对。
+      - name: Live endpoint shape vs declared keys (advisory)
+        continue-on-error: true
+        run: npm run check:live-shape
+
       - name: Workspace memory pointer sync (advisory)
         run: npm run verify:pointers
 

@@ -1,14 +1,18 @@
 // 评价晒图：压缩 + base64 dataURL 直传（不再依赖云存储）
 // 图片以 base64 字符串存入 reviews.images，后端直接持久化，前端直接 <img src> 渲染。
 // 压缩实现收口到 ./imageCompress（2026-09-23 三合一，本文件只保留评价场景的参数与语义）。
-import { compressImageFile, type CompressedImage } from './imageCompress'
+import { compressImageFile, MAX_IMAGE_DATAURL_CHARS, type CompressedImage } from './imageCompress'
 
 export type { CompressedImage }
 
-// 压缩图片：canvas 最大边 640px、质量 0.5，同时产出 { dataUrl, blob }。
-// ≤800KB 校验由调用方按 dataUrl 长度判断（与旧行为一致，阈值收紧防 D1 体积膨胀）。
-export function compressImage(file: File, maxSize = 640, quality = 0.5): Promise<CompressedImage> {
-  return compressImageFile(file, { maxSize, quality })
+// 压缩图片：canvas 最大边 640px、起始质量 0.5，同时产出 { dataUrl, blob }。
+// 第三十八轮起把**预算**直接传进压缩器（maxBytes = 与单语句预算同值的字符数），压不进就自动降质，
+// 而不是整张丢掉。本文件原注释写的是「≤800KB 校验由调用方按 dataUrl 长度判断」——
+// 那句比代码旧：调用方早就改用 MAX_IMAGE_DATAURL_CHARS(90,000)，800KB 那条线 R37 已判为虚设。
+export function compressImage(
+  file: File, maxSize = 640, quality = 0.5, maxBytes: number = MAX_IMAGE_DATAURL_CHARS,
+): Promise<CompressedImage> {
+  return compressImageFile(file, { maxSize, quality, maxBytes })
 }
 
 // 扩展名映射：压缩产物恒为 jpeg，但保留输入类型语义便于测试/扩展

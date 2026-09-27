@@ -105,6 +105,7 @@ G11 认的是"已证明停在门口"这个整词，不是子串 —— 否则 �
 | check-backup-liveness.mjs | gh-cli | ✅ 已证明停在门口：骨架实测 rc=2 / 0s（缺 GITHUB_REPOSITORY 即 bail），`gh api` 在其后 ⇒ 回到分母 |
 | check-catalog-facts.mjs | network-fetch | ✅ 已证明停在门口：rc=2 / 1s（缺 `db/seed.sql`）；`--live` 才走 fetch ⇒ 回到分母 |
 | check-functions-build.mjs | wrangler | ✅ 已证明停在门口：rc=2 / 0s（缺 `node_modules/wrangler`）；esbuild 冷编译实测 9.0s 在其后。门禁类，CI 必跑 |
+| check-live-shape.mjs | network-fetch | ✅ 已证明停在门口：骨架实测 rc=2 / 0s（`existsSync(functions/_health.js)` 拦在 fetch 之前即 bail），线上请求在其后才走 ⇒ 回到分母。真仓实测 4s 回 HTTP=200；CI 里是 **advisory**（`continue-on-error`）——线上取不到判 UNREACHABLE 而不折算成通过 |
 | check-pr-has-tests.mjs | gh-cli | ❌ 未停在门口：无开放 PR 时按设计 rc=0（看守型）⇒ 探针的 rc≠0 断言对它不成立，永不进自动面；每轮 push main 在 `dispatch.yml:44` 真跑 |
 | ci-green-contract.mjs | gh-cli | ✅ 已证明停在门口：rc=1 / 0s（读不到 `.ci/contract.json` 即 fail-closed），gh 调用在其后 ⇒ 回到分母 |
 | ci-status.mjs | network-fetch | ❌ 未停在门口：实测 9s 真打 api.github.com（通道是 curl —— 本机 node fetch 不走系统代理） |

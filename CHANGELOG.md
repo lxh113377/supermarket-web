@@ -3,7 +3,51 @@
 本项目采用 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式。此前未维护本文件，历史条目按 git 提交记录补记（自 2026-09-23 起持续维护）。
 
 ## [未发布]
-## [未发布]
+### 2026-09-28 追加五十三（对标第三十九轮：接手在途第三十八轮 + 立"提交面必须自足"这道闸）
+
+- 取号先列盘：在册最大「五十二」⇒ 本条「五十三」。本轮开场实测重建现状：内层 HEAD 三次探测
+  （00:42/00:45/00:50）恒为 `a19cc0e`，而磁盘躺着**上一轮第三十八轮的 10 件未入库工作**
+  （6 改 + 4 全新未跟踪），静置 3.5 小时无人察觉；`npm run verify` 首跑 `VERIFY_RC=1` 停在
+  `verify:docs`（README 写 95 ⇄ 实测 97）。手工补跑被它挡在后面的门，又抓到一处红：
+  `GATE-FAIL cli-entrypoints` G9「派生风险 16 ⇄ 登记 15；漏登 `check-live-shape.mjs`」。
+  **接手收口（R38-H1/H2/H3 三件都在盘上，本轮只做核验与补登记，不重写）**：
+  `scripts/restore-drill.mjs`（D1 合成 dump→加密→解密→交恢复判据，D5 跨机取回记 UNVERIFIED 不折算通过）、
+  `scripts/check-live-shape.mjs`（线上 `/_health` 键集 ⇄ 本仓声明，`git show` 现取 HEAD 短 sha 比对）、
+  `compressImageFile` 的 `qualityLadder` 降质阶梯（R38-H3：改前超预算整张丢，现在先降质再决定丢不丢）。
+  本轮实测把 R38 头注里那条"线上没有 deploy 键"改判了：`node scripts/check-live-shape.mjs` 真跑 4s 回
+  `HTTP=200`、5 键双向对上、`deploy=a19cc0e == 本地 HEAD` ⇒ push 自动部署已把漂移消掉，
+  **在册挂账 N3「部署欠账」按本轮读数记为当前不成立**（机制年龄判据：那条陈述产于 15:40Z，其后部署发生过）。
+  两件在测脚本按在册口径登记：`@probe-safe` 声明 + 风险分类表（骨架实测 rc=2 / 0s 停在门口 ⇒ 回分母）。
+- **R39-H1 新闸 `scripts/check-head-closure.mjs`（提交面自足）**：一手事实是本地 43 个判据全绿与
+  "这次提交到 CI 必红"能同时成立——`package.json`/`ci.yml` 已把 `verify:restore-drill`、`check:live-shape`
+  接进链路，而这两个脚本文件一件都没入库；CI 只看提交面、本地链只看磁盘面，**两者从不互相比对**。
+  五腿：H1 HEAD 链引用必须在 HEAD 内解出 / H2 工作面链引用必须被 git 跟踪（本轮事故的形态）/
+  H3 HEAD 里 `scripts/` 入口要么被引用要么在具名豁免册 / H4 豁免册反向对账 / H5 本判据自己在链上。
+  第一次真跑就独立复现了事故：H2 只点名 `check-live-shape.mjs`、`restore-drill.mjs`（加上本轮自己的
+  `check-head-closure.mjs` 共 3 件），其余 41 个引用全绿 ⇒ 判据不是照着事故写的，是量出来的。
+  对标（`owner/name` 全名，引文 @2026-09-27T17:00:56Z 由本机 `gh api contents` 现取现验）：
+  `kubernetes/kubernetes` `hack/lib/verify-generated.sh:35,41,49`
+  「`git worktree add -f -q "${_tmpdir}" HEAD`」+「`diffs=$(git status --porcelain | wc -l)`」= 判定对象是提交态；
+  `rust-lang/rust` `src/tools/tidy/src/mir_opt_tests.rs:11,42`
+  「the following output file is not associated with any mir-opt test, you can remove it」= 盘上有而没人登记就红；
+  同仓 `deps.rs:967,979-983`「Remove from PERMITTED_DEPENDENCIES list if it is no longer used」= 例外册也要反向核；
+  `prettier/prettier` `scripts/ensure-no-files-changed.js:5-8,25`（`git diff --name-only` / `--exit-code`）是**反例**：
+  52,314★ 的链只看已跟踪文件，未跟踪件永不进它的视野——与本仓事故同型盲区，所以 H2 取 `git ls-files`
+  而不照抄它。接线落点 = `.githooks/pre-push`（"未跟踪文件"在 CI 检出里不存在，挂 CI 的那半恒绿=假绿），
+  逃生门与 ci-green 同规格：`HEAD_CLOSURE_SKIP=1` 必须同时给 `HEAD_CLOSURE_REASON`，否则照样拒推。
+  夹具 `tests/headClosure.test.ts` 16 条：五腿各配"改一个变量→点名红因"、YAML 整行/行尾注释不算引用而
+  引号里的 `#` 算命令（防"量具把散文当数据"）、`--drill` 合成面必须真翻红、骨架 rc=2 停在门口不崩栈。
+- **本轮自失三条**：① `evaluate()` 取 `trackedFiles` 而 `collect()` 返回 `tracked`——键名不一致把 44 个
+  已跟踪脚本全报成未跟踪（**假阳性比假绿更吵**，靠 H1/H3 仍绿才发现是分母而非仓库）；
+  ② 新测试文件又带 1 个未用 import（同形第四次：R35 三处、R36 三处、R37 两处、本轮一处）⇒ 规则继续生效
+  "新脚本与新测试文件写完立刻单跑 lint"；③ 我给新脚本挂了 `@probe-safe` 而它**根本没有危险特征**，
+  G11 当场判"无效声明"⇒ 摘掉。三次都是自家门禁抓的，不是人看出来的。
+- 在册缺口挂账（带分母，禁无数字提案）：上限普查取数面 `SURFACE_PREFIXES = ['functions/','src/']`
+  **不含 `scripts/`** ⇒ 门禁脚本自己的数值全在登记册外（本轮实测人口：`CONST_RE` 形状的可命名常量
+  **5 个**，含 `_MS` 后缀 4 个；另有 `STATEMENT_BUDGET_FREE=50` 这类平台事实值 1 个未挂平台行）。
+  改面要动 `check-limit-provenance.mjs`——该文件正被并行会话在途修改（00:14 的 R38-H2 那 65/10 行），
+  本轮**不碰**，记 R40-P0 并把分母写进 P0。
+
 ### 2026-09-27 追加五十二（对标第三十七轮：把"各说各话的尺"和"看起来存在的产品"两类假绿一次收掉）
 
 - 取号先列盘：在册最大「五十一」⇒ 本条「五十二」。轮初锚 `f96cdf9`（R36 再收尾，其 CI run

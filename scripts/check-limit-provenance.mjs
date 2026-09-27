@@ -111,20 +111,69 @@ function parseFor(rel, code, onError) {
   }
 }
 
+/** 收集注释区间（交给解析器判"哪里是注释"，不用朴素正则 —— 正则分不清 `//` 在字符串里还是注释里）。
+ *  ⚠️ 本轮实跑踩过的坑：`onComment` 是 **acorn** 的选项，`@babel/parser` 不认；传了它不会报错，
+ *  只会安静地一条注释都不给 ⇒ "精确遮蔽"退化成"什么都没剥"，phantom 项原封不动。
+ *  babel 的取法是返回对象上的 `ast.comments`，所以读它、并断言拿到的确实是数组（拿不到就降级并点名）。 */
+export function commentRanges(code, rel, onError) {
+  const ranges = []
+  try {
+    const tsx = /\.tsx$/.test(rel)
+    const ts = /\.tsx?$/.test(rel)
+    const ast = parse(code, {
+      sourceType: 'module',
+      ...(ts ? { plugins: tsx ? ['typescript', 'jsx'] : ['typescript'] } : tsx ? { plugins: ['jsx'] } : {}),
+    })
+    const cs = ast.comments || (ast.program && ast.program.comments)
+    if (!Array.isArray(cs)) {
+      onError(`${rel} 解析器没给出注释数组（ast.comments 缺失）⇒ 降级为朴素剥除，行尾注释可能仍计入`)
+      return null
+    }
+    for (const c of cs) ranges.push([c.start, c.end])
+    return ranges
+  } catch (e) {
+    // 解析失败 ⇒ 退回"整行 + 块注释"的朴素剥除（本轮之前的行为），并**把降级说出来**：
+    // 静默退回弱口径 = 该类文件的行尾注释悄悄留在面内，正是 C8 禁止的形态。
+    onError(`${rel} 注释区间解析失败（${e.message.split(String.fromCharCode(10))[0]}）⇒ 降级为朴素剥除`)
+    return null
+  }
+}
+
+/** 用空格替换注释字节：长度与换行位置都不动 ⇒ 登记册/告警里的行号不会漂（R37 已经为漂行号改过一次）。 */
+function maskRanges(code, ranges) {
+  const out = []
+  let cursor = 0
+  for (const [s, e] of ranges.sort((a, b) => a[0] - b[0])) {
+    if (s < cursor) continue
+    out.push(code.slice(cursor, s))
+    out.push(code.slice(s, e).replace(/[^\n]/g, ' '))
+    cursor = e
+  }
+  out.push(code.slice(cursor))
+  return out.join('')
+}
+
 /** 普查：返回 [{key, file, shape, value, line}]，key = `文件#类型#值`（同值同文件归一行，防噪）。 */
 export function census(sources, onParseError = () => {}) {
   const hits = new Map()
+  let masked = 0
+  let degraded = 0
   for (const { rel, code } of sources) {
-    // 先剥掉整行注释：登记册统计的是「代码里真的会砍东西的数」，注释与文档里的数字不算
-    // （不剥的话，像「远低于 SQLite 999 参数上限」这种解释性注释会被当成上限，噪声到没人肯修）。
-    // 第三十七轮补剥**块注释**（`/* … *\/`）：一手反例是本轮自己在 `shared.js` 的 JSDoc 里写了
-    // "submissions 那处 2 * 1024 * 1024" 作对比说明 ⇒ 普查把散文里的数字当成第 8 个上限，
-    // 逼出的处置不是改判据就是改措辞（后者等于"为了绿而闭嘴"，不可接受）。
-    // 已知未覆盖面：**行尾**注释（`code // 800 * 1024`）仍会被计入 —— 含 `//` 的字符串（URL）
-    // 让朴素剥行有风险，故本轮不顺手做，登记在 limit-provenance 册的「取数面边界」节。
-    const noBlock = code.replace(/\/\*[\s\S]*?\*\//g, (m) => '\n'.repeat(m.split('\n').length - 1))
-    const body = noBlock.split(String.fromCharCode(10))
-      .map((l) => (/^\s*(--|\/\/)/.test(l) ? '' : l)).join(String.fromCharCode(10))
+    // 取数面只算**代码里的数**。注释里的数字不算上限（第一版只剥整行注释 ⇒
+    // 「远低于 SQLite 999 参数上限」这类解释性文字被当成上限，噪声到没人肯修）。
+    // 第三十八轮补第二半：**行尾注释**按解析器区间精确剥除（朴素正则会把 `'https://x'` 里的 // 当注释）。
+    const ranges = commentRanges(code, rel, onParseError)
+    let body
+    if (ranges) {
+      const before = code
+      body = maskRanges(before, ranges)
+      if (body !== before) masked++
+    } else {
+      degraded++
+      const noBlock = code.replace(/\/\*[\s\S]*?\*\//g, (m) => String.fromCharCode(10).repeat(m.split(String.fromCharCode(10)).length - 1))
+      body = noBlock.split(String.fromCharCode(10)).map((l) => (/^\s*(--|\/\/)/.test(l) ? '' : l)).join(String.fromCharCode(10))
+    }
+    body = body.split(String.fromCharCode(10)).map((l) => (/^\s*(--|\/\/)/.test(l) ? '' : l)).join(String.fromCharCode(10))
     for (const [shape, re] of Object.entries(SHAPES)) {
       for (const m of body.matchAll(re)) {
         // 「常量上限」的右值是一个标识符（值在常量定义处），其余形状取数字
@@ -143,6 +192,12 @@ export function census(sources, onParseError = () => {}) {
       const key = `${rel}#常量#${name}=${n.init.value}`
       if (!hits.has(key)) hits.set(key, { key, file: rel, shape: '常量', value: n.init.value, name, line: n.loc.start.line })
     })
+  }
+  if (masked || degraded) {
+    // 摊开取数面的工作量：静默降级 = 那类文件的行尾注释仍留在面内而没人知道。
+    // 走 stderr（stdout 是结论通道，不能被统计污染）。
+    process.stderr.write('[limit-provenance] 注释遮蔽统计：剥到注释的文件 ' + masked + ' 个｜解析失败降级 ' + degraded
+      + ' 个（降级即行尾注释仍可能计入，属未覆盖面）\n')
   }
   return [...hits.values()].sort((a, b) => a.key.localeCompare(b.key))
 }
