@@ -209,3 +209,57 @@ describe('V4：新卷必须带着余量出生（第三十五轮，把上一轮�
     expect(out).toMatch(/V4 :: 新增 1 本/)
   })
 })
+
+describe('V5：主卷「在册卷号」声明 ⇄ 磁盘分卷双向对账（第三十六轮收尾，把又一条措辞变成闸）', () => {
+  const v5 = (over) => evaluate({ files: [{ name: '07-next-steps.md', size: 100 }], max: 4096, ...over }).rows.find((r) => r.id === 'V5')
+  it('opt-in：调用方没交出取数面 ⇒ 不出这一行（旧用例不该凭空多一行）', () => {
+    const rows = evaluate({ files: [{ name: 'x.md', size: 10 }], max: 4096, all: true }).rows
+    expect(rows.some((r) => r.id === 'V5')).toBe(false)
+  })
+  it('双向对得上 ⇒ PASS，并把"无跳号、无未并号"写在结论里', () => {
+    const r = v5({ partNumbers: [1, 2, 3], declaredRange: { lo: 1, hi: 3 } })
+    expect(r.pass).toBe(true)
+    expect(r.detail).toContain('双向对得上')
+  })
+  it('建卷不并号 ⇒ FAIL 且点名漏了哪几个号、给出改法（本轮真实形态：声明 1–56、磁盘到 58）', () => {
+    const r = v5({ partNumbers: [1, 2, 3], declaredRange: { lo: 1, hi: 2 } })
+    expect(r.pass).toBe(false)
+    expect(r.detail).toContain('未并号 = 3')
+    expect(r.detail).toContain('改成 3')
+  })
+  it('声明里有、磁盘上没有（跳号/误删卷）⇒ 同样 FAIL，且方向与上一例不同', () => {
+    const r = v5({ partNumbers: [1, 3], declaredRange: { lo: 1, hi: 3 } })
+    expect(r.pass).toBe(false)
+    expect(r.detail).toContain('声明有、磁盘无')
+    expect(r.detail).toContain('= 2')
+  })
+  it('主卷那行读不到 ⇒ UNVERIFIED（"没声明可对"不是"对上了"）', () => {
+    const r = v5({ partNumbers: [1], declaredRange: null })
+    expect(r.status).toBe('UNVERIFIED')
+    expect(r.pass).toBe(true)
+    expect(r.detail).toContain('不是通过')
+  })
+  it('声明存在但磁盘一本都没扫到 ⇒ FAIL（取数面坏了，不是没得对）', () => {
+    expect(v5({ partNumbers: [], declaredRange: { lo: 1, hi: 9 } }).pass).toBe(false)
+  })
+  it('真入口：假仓声明 1–1、磁盘两本 ⇒ 子进程 rc=1 并点名卷号 2', () => {
+    const dir = repo({
+      '07-next-steps.md': '## 分卷目录\n\n- 在册卷号：1–1。文件名一律 `07-next-steps.part<N>.md`。\n',
+      '07-next-steps.part1.md': pad(200, '# 卷 1'),
+      '07-next-steps.part2.md': pad(200, '# 卷 2'),
+    })
+    const { rc, out } = runIn(dir, ['--all'])
+    expect(rc, out.slice(-400)).toBe(1)
+    expect(out).toContain('未并号 = 2')
+  })
+  it('真入口对偶腿：把声明并成 1–2 ⇒ rc=0（拦的是"不并号"，不是"有多卷"）', () => {
+    const dir = repo({
+      '07-next-steps.md': '## 分卷目录\n\n- 在册卷号：1–2。文件名一律 `07-next-steps.part<N>.md`。\n',
+      '07-next-steps.part1.md': pad(200, '# 卷 1'),
+      '07-next-steps.part2.md': pad(200, '# 卷 2'),
+    })
+    const { rc, out } = runIn(dir, ['--all'])
+    expect(rc, out.slice(-400)).toBe(0)
+    expect(out).toMatch(/PASS V5 :: 声明 1–2 ⇄ 磁盘 2 本/)
+  })
+})

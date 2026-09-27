@@ -63,7 +63,20 @@ function stagedAdded(dir = root) {
 /** 新卷出生余量下限：25%（= 3,072B）。取 25% 的实测依据见登记册「体量预算」节与第三十五轮报告。 */
 export const NEW_VOLUME_MIN_HEADROOM = 0.25
 
-export function evaluate({ files, max, all = true, added = null }) {
+/** 主卷那行「在册卷号：1–58」的声明区间；解析不到 ⇒ null（V5 据此记未验证，不记通过）。 */
+export function readDeclaredRange(memDir) {
+  const p = join(memDir, '07-next-steps.md')
+  if (!existsSync(p)) return null
+  const m = /在册卷号[：:]\s*(\d+)\s*[–\-~〜]\s*(\d+)/.exec(readFileSync(p, 'utf8'))
+  return m ? { lo: Number(m[1]), hi: Number(m[2]) } : null
+}
+
+/** 磁盘上的 07 分卷卷号（结构性枚举：卷号只由文件名决定，与暂存面无关）。 */
+export function partNumbersOf(names) {
+  return [...new Set(names.map((n) => /^07-next-steps\.part(\d+)\.md$/.exec(n)?.[1]).filter(Boolean).map(Number))].sort((a, b) => a - b)
+}
+
+export function evaluate({ files, max, all = true, added = null, partNumbers, declaredRange }) {
   const rows = []
   const overs = files.filter((f) => f.size > max)
   // 两种"零对象"必须长得不一样（同第三十轮 scan-secrets 的口径）：
@@ -104,6 +117,31 @@ export function evaluate({ files, max, all = true, added = null }) {
           : `新增 ${fresh.length} 本，最大的 ${Math.max(...fresh.map((f) => f.size))}B ≤ ${Math.floor(max * (1 - NEW_VOLUME_MIN_HEADROOM))}B（余量下限 ${(NEW_VOLUME_MIN_HEADROOM * 100).toFixed(0)}%）`),
     })
   }
+  // V5（第三十六轮收尾）：主卷那行「在册卷号：A–B」是**手工措辞**，本轮实测它已经落后磁盘一格
+  // —— 建卷 57 时没并号（声明 1–56、磁盘 1..57），与本轮主题同一族：约定没有判据就会无声失效。
+  // opt-in：只有调用方交出取数面时才出这一行（单元测试直接喂 files 的旧用例不该凭空多一行）。
+  if (Array.isArray(partNumbers) || declaredRange) {
+    const nums = [...new Set(partNumbers || [])].sort((a, b) => a - b)
+    if (!declaredRange) {
+      rows.push({ id: 'V5', pass: true, status: 'UNVERIFIED',
+        detail: `主卷取不到「在册卷号：A–B」声明（磁盘扫到 ${nums.length} 本分卷）⇒ 无声明可对，这是未验证不是通过` })
+    } else if (!nums.length) {
+      rows.push({ id: 'V5', pass: false,
+        detail: `声明 ${declaredRange.lo}–${declaredRange.hi}，但磁盘上一本 07 分卷都没扫到 ⇒ 取数面坏了，不是"没得对"` })
+    } else {
+      const have = new Set(nums)
+      const missing = []
+      for (let n = declaredRange.lo; n <= declaredRange.hi; n++) if (!have.has(n)) missing.push(n)
+      const extra = nums.filter((n) => n < declaredRange.lo || n > declaredRange.hi)
+      rows.push({ id: 'V5', pass: !missing.length && !extra.length,
+        detail: missing.length || extra.length
+          ? `声明 ${declaredRange.lo}–${declaredRange.hi} ⇄ 磁盘 ${nums.length} 本对不上：` +
+            [missing.length ? `声明有、磁盘无（跳号或被删）= ${missing.slice(0, 6).join(',')}` : '',
+              extra.length ? `磁盘有、声明未并号 = ${extra.slice(0, 6).join(',')} ⇒ 把主卷那行上界改成 ${Math.max(...nums)}` : '']
+              .filter(Boolean).join(' ｜ ')
+          : `声明 ${declaredRange.lo}–${declaredRange.hi} ⇄ 磁盘 ${nums.length} 本双向对得上（无跳号、无未并号）` })
+    }
+  }
   return {
     rows,
     summary: {
@@ -129,7 +167,10 @@ export function main({ dir = root, all = false } = {}) {
     if (!c.inScope) { excluded.push(`${name}（${c.why}）`); continue }
     scope.push({ name, size: statSync(join(memDir, name)).size })
   }
-  const res = evaluate({ files: scope, max, all, added: all ? null : stagedAdded(dir) })
+  const res = evaluate({
+    files: scope, max, all, added: all ? null : stagedAdded(dir),
+    partNumbers: partNumbersOf(allNames), declaredRange: readDeclaredRange(memDir),
+  })
   // 贴线告警（第三十三轮）：余量 < 15% 只报不拦。为什么不拦：把 3,900B 判红会逼人"为了绿而拆卷"
   // 或删事实；但完全不报，就会连续三轮出现"写卷时踩线、提交前手忙脚乱压字节"（本轮实测三本卷
   // 余量分别只有 15B / 41B / 95B）。⇒ 告警走 **stderr**（stdout 是结论通道，不能被污染），

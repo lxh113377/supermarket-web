@@ -64,6 +64,22 @@ describe('四态判定', () => {
     expect(r.state).toBe('UNKNOWN')
     expect(r.reason).toContain(SHA.slice(0, 7))
   })
+  it('回执身份：四态 reason 一律含"被喂的 sha"——不带对象的 ID 不是回执（第三十六轮一手）', () => {
+    // 实测起因：pre-push 打印 `run 36314824897 全绿` 未带 sha，我把**基线 bec6252** 的回执
+    // 读成"本轮 81cd520 已绿"，而它自己的 run 36318373975 其实 build-and-test=failure。
+    // 变异对照（实跑）：把 `who` 退回 `run ${best.databaseId}` ⇒ GREEN/RED/BLOCKED 三条同时翻红。
+    const cases = [
+      ['GREEN', v([run({ jobs: allJobs() })])],
+      ['RED', v([run({ conclusion: 'failure', jobs: allJobs() })])],
+      ['BLOCKED', v([run({ status: 'in_progress', conclusion: '', jobs: allJobs() })])],
+      ['BLOCKED', v([run({ conclusion: 'success', jobs: allJobs().slice(1) })])],
+      ['UNKNOWN', v([run({ headSha: 'other', jobs: allJobs() })])],
+    ]
+    for (const [want, r] of cases) {
+      expect(r.state, JSON.stringify(r)).toBe(want)
+      expect(r.reason, `${want} 的回执没指名它是哪个 sha 的 run`).toContain(SHA.slice(0, 7))
+    }
+  })
   it('UNKNOWN 边界：runs 为空数组同样判红（零输入不得记 PASS）', () => {
     expect(v([]).state).toBe('UNKNOWN')
   })
