@@ -3,6 +3,13 @@
 本项目采用 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式。此前未维护本文件，历史条目按 git 提交记录补记（自 2026-09-23 起持续维护）。
 
 ## [未发布]
+### 2026-09-27 追加三十六（对标第二十二轮：e2e 三条红的真因是我自己第十八轮的语义混用）
+
+- 取号先列盘（当日最大「三十五」⇒ 本条「三十六」）。
+- **定性结果**：第二十一轮留下的 e2e 红不是线上老后端的问题，是**我自己引入的语义回归**。`playwright.config.ts` 的注释自己写明 e2e 跑在 `IS_CLOUD=false` 的本地演示模式；而第十八轮把 `!IS_CLOUD` 分支也返回 `localFallback: true`，于是成功页在演示模式下显示「订单已暂存本机、商家还收不到」，`getByText('下单成功')` 三条断言当场打红。**demo 是该构建形态本就没有后端，fallback 是云端调用失败后暂住 —— 一个标记不能同时表达两件事。**
+- 修法：`createOrder` 的 `!IS_CLOUD` 分支改回 `demo: true`，成功页横幅只认 `localFallback`；`OrderConfirmPage` 透传 `demo`；新增用例钉住两者互斥（demo 时 `localFallback` 必须 undefined，fallback 时 `demo` 必须 undefined）—— 防以后有人把两个标记又合并回去。
+- **验证（远端回执，不用本地退出码下结论）**：本地 playwright 22/22、vitest 83 files/979 tests；推送后 `gh run view --json conclusion,jobs` 实测 **e2e success / e2e-cloud-stub success / visual success**，而 `build-and-test` **转为 failure** —— 原因是 `CHANGELOG entry gate`：本提交碰了 `src/**` 却没带变更记录。**这条红是门禁在正常工作**，本条即其补账；未用 `--relaxed` 逃生门绕过。
+- 承第二十一轮未做项：`.ci/contract.json` + pre-push「CI 全绿契约」在本仓**从未接线**（红 CI 连推 7 次的结构性原因），上下文耗尽未及落地，仍列下一轮 P0。
 ### 2026-09-27 追加三十四（对标第十九轮 H4：导出面个人数据白名单）—— **补记，非当轮所写**
 
 - **补记原因（本轮必须如实）**：第十九轮当时这条变更记录**根本没落盘** —— 写入用的是 `python3 - <<PY`，而本机 `python3` 已解析到 WindowsApps 存根，执行体什么都没做（`python3 -c "print(1)"` 亦无输出、rc=49），**却没有拦住后面的 `&&`**，于是文件没改、提交照做、提交说明里还写着"追加三十四"。事后靠 `grep -c 追加三十四 CHANGELOG.md` = 0 才发现。**教训：命令"无输出 + 退出码 0"不等于成功，写入类动作必须回读产物计数自证。**
