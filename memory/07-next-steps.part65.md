@@ -32,3 +32,9 @@
    未 `git add` 时零对象 ⇒ 判「跳过」而不是「超限」。教训：改卷/新卷写完要 `git add` 后再跑 `verify:volume`，
    或直接算字节，别把"跳过"读成"通过"。
 
+
+## 一条被实测否证的提案（留数字不留错话）
+
+- 我一度把「`.github/workflows/` 里 `uses:` 无 pinned sha」写成 R40-H2。取数即否证：`grep -rhoE "uses: [^ ]+" .github/workflows/` = **24 个引用、24 个全是 40 位 sha、0 个 tag 钉版**（checkout@3d3c42e x9、upload-artifact@043fb46 x7、setup-node@49933ea x6、github-script@f28e40c x1、download-artifact@3e5f45b x1）⇒ 提案以「否证数字」形态关闭。
+- 下一半也不成立：`uses:` 本地 action 与 `workflow_call` 触发器实测**均为 0** ⇒ 给空集立判据没有判定力。
+- R40-H2 的完整取数面（grep 命中 0 的原文命令与两份平台引文逐字）见外层报告 §1 取证 #10/#11。
