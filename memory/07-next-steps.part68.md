@@ -8,6 +8,7 @@
   - **spec 零漂移，且线上 p046.spec 本来就是「帮泡」**：长文案「帮泡+可选十三香/麻辣香/山西老陈醋」
     从未进过生产库，只存在于 seed.ts/seed.sql。⇒ 原计划的"收敛 spec"迁移对生产是零操作，
     而其回滚件会把一个**从未存在过的值**写进生产库＝数据损坏。该迁移与回滚件已当场删除，
-    口味迁移最终只动 specOptions 一列（见 db/migrate-baixiang-flavor.sql 文件头）。
+    口味迁移最终只动 specOptions 一列，且文件名取 taste- 前缀以保证排在 migrate-spec-options.sql
+    之后（改历史件被账目表判 DRIFT，实测 exit 1）。详见 db/migrate-taste-baixiang.sql 文件头。
   - 教训固化：回滚件的正确性不能靠"和 seed 一致"来推，必须靠**生产快照载回断言**。
     本轮若不是先做了载回断言，就会带着一条损坏性回滚件上线。

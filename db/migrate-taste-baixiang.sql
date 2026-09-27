@@ -15,6 +15,12 @@
 --    （备份只有被载回并断言过才算备份；未验证的备份是愿望不是保险）。
 -- ⚠️ 顺序：先跑本件、再部署读 specOptions 的前端；反序不报错，只是顾客端暂时不出口味选择器。
 -- ⚠️ 禁由 db/seed.sql 覆盖 D1：实测线上 54 条里 **35 条 price 与 seed 不一致**（seed 系统性过期），
---    用 seed 覆盖会把 35 个在售价改回旧值。本件只做定向 UPDATE。回滚见 rollback-baixiang-flavor.sql。
+--    用 seed 覆盖会把 35 个在售价改回旧值。本件只做定向 UPDATE。回滚见 rollback-taste-baixiang.sql。
+-- ⚠️ 文件名取 taste- 前缀是**排序约束**，不是命名偏好：账目表按文件名排序应用，
+--    本件必须排在 migrate-spec-options.sql 之后 —— 那件末行有
+--    "UPDATE ... WHERE \"order\" NOT IN (33,34,40,52)" 的清空语句，若本件排在它前面，
+--    任何一次"从零重放"（恢复演练/重放校验）都会把 46 的口味抹掉。
+--    曾因把本件命名为 migrate-baixiang-flavor.sql（b < s）而踩中，也曾因直接改
+--    migrate-spec-options.sql 的名单被账目表判 DRIFT（历史迁移禁改）——两条都是本轮实测。
 -- 幂等：按 "order" 定位，可安全重跑。
 UPDATE products SET specOptions='[{"label":"十三香"},{"label":"麻辣香"},{"label":"山西老陈醋"}]' WHERE "order"=46;

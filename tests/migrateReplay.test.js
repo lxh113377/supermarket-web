@@ -50,8 +50,12 @@ describe('verify-migrate-replay 正例', () => {
     // 前向迁移数由磁盘枚举算出来，不写常量：写 0 就等于「每加一个迁移都得记得改这条测试」，
     // 忘了改的话新迁移从测试眼里消失（而门禁本体看得见它）—— 那正是 A6/A7 要防的形态。
     expect(r.stats.forward).toBe(MIGRATE_FILES.filter((f) => !BASELINE_ERA.has(f)).length)
-    // 反向：枚举器真的看得见新落盘的迁移（否则上面那条等式靠「两边都漏」也能成立）
-    expect(MIGRATE_FILES).toContain('migrate-baixiang-flavor.sql')
+    // 反向：枚举器真的看得见新落盘的迁移（否则上面那条等式靠「两边都漏」也能成立）。
+    // 这里写死本轮新增件的文件名是刻意的：改名或删件时这条会红——本轮它正好抓到了
+    // 我把 baixiang- 改成 taste- 之后留下的悬空引用。
+    expect(MIGRATE_FILES.length, '磁盘枚举到 0 本迁移 ⇒ 取数面坏了').toBeGreaterThan(0)
+    expect(MIGRATE_FILES).toContain('migrate-taste-baixiang.sql')
+    expect(MIGRATE_FILES).not.toContain('migrate-baixiang-flavor.sql')
     expect(r.stats.files).toBe(MIGRATE_FILES.length)
   })
 

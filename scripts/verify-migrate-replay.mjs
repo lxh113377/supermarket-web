@@ -254,7 +254,7 @@ export function judge({ files, schemaSql, extraFiles = [] }) {
   }
   const ROLLBACK_DATA = {
     'rollback-rename-order20.sql': { forward: 'adhoc-rename-order20.sql' },
-    'rollback-baixiang-flavor.sql': { forward: 'migrate-baixiang-flavor.sql' },
+    'rollback-taste-baixiang.sql': { forward: 'migrate-taste-baixiang.sql' },
   }
   const textOf = (name) => [...files, ...(extraFiles || [])].find((f) => f.file === name)?.text
   const seedSql = textOf('seed.sql') || ''
