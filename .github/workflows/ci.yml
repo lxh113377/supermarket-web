@@ -130,6 +130,13 @@ jobs:
       - name: Memory volume budget gate
         run: npm run verify:volume
 
+      # 对标第三十三轮：用户侧安全设置普查（advisory，故意不阻断）——借 ossf/scorecard 的 Branch-Protection
+      # 形态，但取不到时绝不按"满足"计：四态 ENFORCED / NOT_ENFORCED / UNVERIFIED + 时刻，每轮在 CI 日志留痕，
+      # 免得"分支保护还没开"这件事只活在报告作者的记忆里。runner 上的 token 无 admin ⇒ 预期读数是 UNVERIFIED。
+      - name: Branch protection census (advisory)
+        continue-on-error: true
+        run: node scripts/check-branch-protection.mjs
+
       # 对标第三轮 C2：生产依赖（含传递）license 白名单，拦 GPL/AGPL 类传染（本项目 MIT 发布）
       - name: Production license gate
         run: npm run verify:licenses

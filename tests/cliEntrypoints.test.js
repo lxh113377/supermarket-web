@@ -470,10 +470,7 @@ describe('缺输入面探针：探针分母（门禁类 + 非门禁可安全 spa
   it('分母非零 + 不变式：非门禁项进这一腿，只能"无危险特征"或"自带 @probe-safe 实测声明"', () => {
     expect(denom.filter((r) => isGateLike(r.sources)).length).toBeGreaterThanOrEqual(20)
     // 第三十二轮的口径（借 golang/go 的 -short：条件由被试对象自述，框架只机械核对）。
-    // 实测依据：这 5 项在**两种骨架**里都 rc=1/2、0–1s、首行为自家诊断 ⇒ "停在门口"为真；
-    // 而 check-pr-has-tests（按设计 rc=0）、ci-status（9s 真打网络）、local-api-stub（挂死 30s）、
-    // smoke-deploy / uptime-check（先打线上）没有声明 ⇒ 仍在面外。名字点在这里是有意的：
-    // 它们是"分母扩容"的全部来源，少一个就意味着有条声明被静默摘掉。
+    // 实测依据：这些项在**两种骨架**里都 rc=1/2、0–1s、首行为自家诊断 ⇒ "停在门口"为真。
     const admitted = []
     for (const r of denom.filter((x) => !isGateLike(x.sources))) {
       const src = readFileSync(join(SCRIPTS, r.script), 'utf8')
@@ -484,9 +481,15 @@ describe('缺输入面探针：探针分母（门禁类 + 非门禁可安全 spa
       expect(String(ev), `${r.script} 的声明必须带实测数字`).toMatch(/\d/)
       admitted.push(r.script)
     }
-    expect(admitted.sort()).toEqual([
-      'check-catalog-facts.mjs', 'ci-green-contract.mjs', 'gen-api-doc.mjs', 'migrate.mjs', 'purge-security-events.mjs',
-    ])
+    // 期望集**读登记册风险表**，不再在测试里抄第三份名单（第三十三轮 M1）：
+    // 「账本 ⇄ 源码」由 G11 双向核，「账本 ⇄ 分母」由这条核 —— 三份清单必然会漂，一处为准。
+    const fromLedger = parseRegistry(readFileSync(join(REPO, REGISTRY), 'utf8')).risk
+      .filter((row) => row.note.includes('已证明停在门口'))
+      .map((row) => row.script)
+      .filter((s) => { const e = denom.find((x) => x.script === s); return e && !isGateLike(e.sources) })
+      .sort()
+    expect(fromLedger.length, '风险表里应有"已证明停在门口"的非门禁行（空表会让这条断言失去意义）').toBeGreaterThan(0)
+    expect(admitted.sort()).toEqual(fromLedger)
   })
 
   for (const r of denom) {

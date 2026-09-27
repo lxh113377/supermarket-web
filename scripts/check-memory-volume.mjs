@@ -87,6 +87,17 @@ export function main({ dir = root, all = false } = {}) {
     scope.push({ name, size: statSync(join(memDir, name)).size })
   }
   const res = evaluate({ files: scope, max, all })
+  // 贴线告警（第三十三轮）：余量 < 15% 只报不拦。为什么不拦：把 3,900B 判红会逼人"为了绿而拆卷"
+  // 或删事实；但完全不报，就会连续三轮出现"写卷时踩线、提交前手忙脚乱压字节"（本轮实测三本卷
+  // 余量分别只有 15B / 41B / 95B）。⇒ 告警走 **stderr**（stdout 是结论通道，不能被污染），
+  // 并且下一轮反哺前就该照它腾地方。
+  const tight = scope.filter((f) => f.size > max * 0.85).sort((a, b) => b.size - a.size)
+  // 只列最紧的 3 本 + 总数：第三十三轮首次跑出的真实画面是"9 本贴线、4 本余量 <100B"，
+  // 那说明整库是被压到天花板用的 ⇒ 结论不是"下次写短点"，而是**新卷过 3.5KB 就开新卷号**（见登记册）。
+  if (tight.length) {
+    const top = tight.slice(0, 3).map((f) => `${f.name} ${f.size}B(余 ${max - f.size}B)`).join(' , ')
+    console.error(`[memory-volume] WARN 贴线卷 ${tight.length} 本（余量 < ${Math.round(max * 0.15)}B）：${top}${tight.length > 3 ? ' …' : ''} ⇒ 新卷写满 3.5KB 就开下一个卷号，别压措辞`)
+  }
   // "每个卷都是 0 字节"不是"都在预算内"，而是**没有对象可判**（第二十六轮零分母那一族）。
   // 本仓 53 个记忆卷同时为 0B 只能是坏检出/镜像骨架 ⇒ 在这里 fail-closed，好过印一句 GATE-PASS。
   if (scope.length && scope.every((f) => f.size === 0)) {

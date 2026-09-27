@@ -57,7 +57,8 @@
     "verify:changelog": "node scripts/check-changelog.mjs",
     "verify:response": "node scripts/api-response-contract.mjs",
     "gen:response-contract": "node scripts/api-response-contract.mjs --write",
-    "verify:volume": "node scripts/check-memory-volume.mjs --all"
+    "verify:volume": "node scripts/check-memory-volume.mjs --all",
+    "report:branch-protection": "node scripts/check-branch-protection.mjs"
   },
   "dependencies": {
     "echarts": "^5.6.0",

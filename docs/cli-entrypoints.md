@@ -116,6 +116,7 @@ G11 认的是"已证明停在门口"这个整词，不是子串 —— 否则 �
 | uptime-check.mjs | network-fetch | ❌ 未停在门口：实测 13s 真打线上 `/_health`（回 `{"status":"ok","db":"ok",…}`） |
 | verify-backend.mjs | sql-delete | ✅ 已证明停在门口：rc=2 / 0s（缺 `db/schema.sql`）⇒ 夹具链里的 DELETE 分支走不到。它同时是 PROBED 第 11 条 |
 | verify-release-parity.mjs | network-fetch | ✅ 已证明停在门口：缺 `PARITY_AFTER_TS` 起点时按设计 rc=2 / 0s（"没有起点就不判看起来一样"）。另见「不可子进程豁免」 |
+| check-branch-protection.mjs | gh-cli | ❌ **未停在门口**：真跑会打 api.github.com（需 gh 鉴权）⇒ 不进 ②③ 自动面；它的**入口**由 `tests/branchProtection.test.js` 以 `BRANCH_PROTECTION_JSON` 注入读数的方式被子进程真跑（7 条，含四态与变异体） |
 ## 为什么"CI 里真跑过"算减轻因素、但不抵消缺口
 
 被豁免/挂账的入口大多确实在 CI 或部署流程里以 `node scripts/X.mjs` 真跑过 —— 入口崩了 CI 就红，
