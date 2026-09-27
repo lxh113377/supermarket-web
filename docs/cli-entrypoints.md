@@ -47,7 +47,7 @@
 | --- | --- |
 | check-pr-has-tests.mjs | 要 `gh` 查开放 PR（网络）；CI 无 PR 时只报空集。已在 CI 的 PR job 以真命令跑过 ⇒ 入口崩溃会当场红，缺的是本地夹具 |
 | ci-status.mjs | 纯线上只读查询 `gh run list`，无本地判据可断言；探针跑它等于测 GitHub API 可用性，不是测代码 |
-| gen-api-doc.mjs | 每次运行**改写** `docs/API.md`，spawn 会弄脏工作树；漂移已由 `verify:contract` 双向对账兜住 |
+| gen-api-doc.mjs | 每次运行**改写** `docs/API.md`，spawn 会弄脏工作树；漂移已由 `verify:contract` 双向对账兜住。<br>同族的 `api-response-contract.mjs --write` 也一样会改写 `docs/api-response-contract.json`，所以只挂 `--write` 别名进登记面；它的**读侧**（`verify:response`）已在 PROBED 清单里被真跑 |
 | local-api-stub.mjs | 常驻 HTTP 服务，spawn 会挂到超时；它由 `test:stub` 的 Playwright 链以真进程拉起（e2e 覆盖入口） |
 | migrate.mjs | 会 `d1 execute` **写库**（迁移/基线），夹具侧绝不能碰真库；`verify:migrate-replay` 已在一次性内存 SQLite 里重放同一套迁移 |
 | purge-security-events.mjs | 破坏性运维命令（删审计日志行），同样绝不能被自动探针跑到 |

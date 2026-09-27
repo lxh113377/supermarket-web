@@ -32,7 +32,7 @@ const PROBED = [
   'check-action-authz.mjs', 'check-csp-static.mjs', 'check-env-docs.mjs',
   'check-import-cycles.mjs', 'check-licenses.mjs', 'check-schema-drift.mjs',
   'check-d1-roundtrips.mjs', 'verify-backend.mjs', 'api-contract.mjs',
-  'list-uncovered.mjs', 'check-cli-entrypoints.mjs',
+  'list-uncovered.mjs', 'check-cli-entrypoints.mjs', 'api-response-contract.mjs',
 ]
 
 function probe(script, { cwd = REPO } = {}) {

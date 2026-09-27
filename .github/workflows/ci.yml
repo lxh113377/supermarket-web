@@ -79,6 +79,11 @@ jobs:
       - name: API contract drift check
         run: npm run verify:contract
 
+      # 对标第二十七轮：action 响应形状契约（39 个 action 里今天有 12 个连成功形状都没被观测过，
+      # 缺口须具名；字段漂移与新出现的可选字段当场判红）
+      - name: API response-shape contract gate
+        run: npm run verify:response
+
       # 第八轮 H2：README/ARCHITECTURE 里可静态派生的数字（action 数、覆盖率棘轮阈值、
       # 单测文件数、文档内链）必须等于真相源。实测抓到的漂移：`/web 30 action`（契约 31）、
       # 手写徽章 `tests-176 passed`（同文件另一行写 631）。对标 microfeed 的 `docs:check` step。

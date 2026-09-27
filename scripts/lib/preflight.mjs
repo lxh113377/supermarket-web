@@ -40,8 +40,8 @@ export function requireParams(label, names) {
  */
 export function requireJson(label, paths) {
   const broken = []
-  for (const p of paths || []) {
-    if (!p || !existsSync(p)) { broken.push(`${p}（不存在）`); continue }
+  for (const p of (paths || []).filter(Boolean)) {   // 刻意允许传 null："这一项本次不需要"（如 --write 时基准文件还没生成）
+    if (!existsSync(p)) { broken.push(`${p}（不存在）`); continue }
     try {
       const t = readFileSync(p, 'utf8').trim()
       if (!t) { broken.push(`${p}（空文件）`); continue }

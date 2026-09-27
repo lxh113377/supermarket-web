@@ -3,6 +3,33 @@
 本项目采用 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式。此前未维护本文件，历史条目按 git 提交记录补记（自 2026-09-23 起持续维护）。
 
 ## [未发布]
+### 2026-09-27 追加四十一（对标第二十七轮：action **响应形状**有没有契约 —— 39 个 action 里 12 个连成功形状都没被观测）
+
+- 取号先列盘：在册最大「四十」⇒ 本条「四十一」。
+- 起点：`docs/api-contract.json` 在册 39 个 action，每条只有 `write / cacheKey / rateBucket` 三个属性；
+  verify-backend 的 118 条断言里 **`Object.keys(...data)` 命中 0** ⇒ "后端少回一个字段"和"偷偷加一个可选字段"
+  今天都不会让任何闸变红。本轮把它做成可 diff 的契约：`docs/api-response-contract.json`（30 条实测形状）。
+- 形状从**真实流量**录，不另写驱动：`verify-backend.mjs` 的 `wrapHandle` 是本仓唯一 action 出口，
+  已经带真实 payload 跑过全部 action；新增 `RESPONSE_CONTRACT_OUT` 录制段 + 共用件
+  `scripts/lib/response-shape.mjs`（信封键 / data 形态 / 顶层键；**交集=保证有**、**并集=可能出现**）。
+- 新门禁 `npm run verify:response`（V1 分母非零 / V2 流量⇄api-contract 幽灵 / V3 未覆盖须具名理由（双向）/
+  V4 逐字段漂移 / V5 **条件字段逐条具名** / V6 对象型必须有保证字段）。已进 `npm run verify` 与 CI。
+- 第一次跑就抓到两笔真账：① `batchUpdateProducts`/`batchDeleteProducts` **成功分支的形状从未被观测**
+  （整条链里只以"只读密钥被拒"出现过）⇒ 补真实批量写探针（断言 `updated`/`deleted` 计数）而不是挂账了事；
+  ② `createProduct` 的 `stock` 是**随 payload 出现与否而出现的条件字段**（payload 不带就没有这个键）
+  ⇒ 具名入册，并记下"两个消费方都不读这个返回值"这一事实。
+- 顺带查出一条**比本轮主题更老**的缺陷：C1 的 SQL 峰值基线是随机变的 —— 同一段代码连跑 5 次，
+  每次都有某个 action 峰值比基线多 1（抖动的 action 每轮换）。已确证两件事：把归因从
+  "action 边界做差"换成 `AsyncLocalStorage` 异步上下文（`scripts/lib/metered-d1.mjs` + `runInSqlScope`）后**抖动仍在**；
+  固定 `Math.random` 后 `A:createProduct` 恒为 3。**机制未归因到底**，但"一条正常提交会随机变红的闸"这个结论已足够：
+  基线更新与本轮实测都改成同口径的 N=5 次采样取上界，带内(+1)只打印 WARN 不判红，带外才红
+  （该闸目的是抓 N+1，那种回归一次就是 +商品数量级，绝不会只 +1）。
+- 夹具：`tests/apiResponseContract.test.js` 14 条（形状口径 + V1~V6 双向变异 + 真流量 GATE-PASS +
+  篡改基准必红 + 缺基准/坏注入点 rc=2 fail-closed）；`tests/cliEntrypoints.test.js` 的 PROBED 加 `api-response-contract.mjs`。
+- 本轮自己的四处如实记录：① 批量文本替换把 `import` 与语句插错位置（一次写坏 main 的三行）；
+  ② `require('node:fs')` 写进 ESM（本仓第 N 次同类，靠 lint/真跑抓到）；③ 第一版夹具的"正向腿"要选手抄 action
+  清单，改为由 covered 反推缺口；④ 往登记册缺口表加的说明行因不带 `.mjs` 结尾被解析器整行跳过 ——
+  等于没登记，靠 G2 复跑发现（登记册的行有格式约束，写之前该看一眼解析器）。
 ### 2026-09-27 追加四十（对标第二十六轮：输入**在但为空**时判据说什么 —— 零分母姿态普查）
 
 - 取号先列盘：在册最大「三十九」⇒ 本条「四十」。

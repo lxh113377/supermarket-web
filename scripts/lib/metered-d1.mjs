@@ -13,6 +13,30 @@ export function openSqlite(scripts = []) {
   return db
 }
 
+import { AsyncLocalStorage } from 'node:async_hooks'
+
+/**
+ * 按 action 归因 SQL 条数的**异步上下文**（第二十七轮）。
+ *
+ * 为什么不用"全局计数器在 action 边界做差"：那种口径假设一个 action 的所有语句都在它的 await 窗口内跑完，
+ * 而 `functions/lib/backend.js` 里 `maybeNotifyNewOrder` 是**故意不 await** 的（通知再慢也不能延后顾客的
+ * 下单响应）。于是同一次跑里多出来的那条语句会落进"下一个开始计数的 action"的窗口 ——
+ * 实测：`A:createProduct` 峰值在未固定 `Math.random` 时 5 次跑出 4×2 + 1×3，固定种子后 6/6 恒为 3，
+ * 而 createProduct 自身只发 1 条 INSERT ⇒ **抖的是归因，不是被测代码**。一条会随机变红的配额闸，
+ * 比没有闸更让人学会忽略闸。
+ */
+export const sqlScope = new AsyncLocalStorage()
+
+export function runInSqlScope(name, fn) {
+  const store = { name, statements: 0 }
+  return sqlScope.run(store, fn).then((r) => ({ result: r, statements: store.statements }))
+}
+
+/** 当前 action 上下文里已计到的语句数（无上下文时返回 null，调用方按旧口径兜底）。 */
+export function currentScope() {
+  return sqlScope.getStore() || null
+}
+
 export function createMeteredD1(db) {
   const counters = { statements: 0, roundTrips: 0 }
   const log = []
@@ -31,6 +55,8 @@ export function createMeteredD1(db) {
     __sqlite: db,
     prepare(sql) {
       counters.statements += 1
+      const scope = sqlScope.getStore()
+      if (scope) scope.statements += 1
       const member = { sql, params: [] }
       const api = {
         __member: member,

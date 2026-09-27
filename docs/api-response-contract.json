@@ -1,0 +1,1008 @@
+{
+  "version": 1,
+  "source": "由 scripts/verify-backend.mjs 的真实流量录制（wrapHandle 单点），勿手改",
+  "entries": {
+    "/pub addPublicReview": {
+      "side": "/pub",
+      "action": "addPublicReview",
+      "calls": 4,
+      "dataKinds": [
+        "object"
+      ],
+      "envelopeAlways": [
+        "code",
+        "data"
+      ],
+      "envelopeSeen": [
+        "code",
+        "data"
+      ],
+      "keysAlways": [
+        "_id",
+        "createdAt",
+        "id",
+        "images",
+        "productOrder",
+        "rating",
+        "text",
+        "user"
+      ],
+      "keysSeen": [
+        "_id",
+        "createdAt",
+        "id",
+        "images",
+        "productOrder",
+        "rating",
+        "text",
+        "user"
+      ],
+      "errEnvelopeAlways": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ],
+      "errEnvelopeSeen": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ]
+    },
+    "/pub createOrder": {
+      "side": "/pub",
+      "action": "createOrder",
+      "calls": 26,
+      "dataKinds": [
+        "object"
+      ],
+      "envelopeAlways": [
+        "code",
+        "data"
+      ],
+      "envelopeSeen": [
+        "code",
+        "data"
+      ],
+      "keysAlways": [
+        "id",
+        "totalAmount"
+      ],
+      "keysSeen": [
+        "deduplicated",
+        "id",
+        "totalAmount"
+      ],
+      "errEnvelopeAlways": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ],
+      "errEnvelopeSeen": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ]
+    },
+    "/pub getOrderStatus": {
+      "side": "/pub",
+      "action": "getOrderStatus",
+      "calls": 3,
+      "dataKinds": [
+        "object"
+      ],
+      "envelopeAlways": [
+        "code",
+        "data"
+      ],
+      "envelopeSeen": [
+        "code",
+        "data"
+      ],
+      "keysAlways": [
+        "orderId",
+        "status",
+        "updatedAt"
+      ],
+      "keysSeen": [
+        "orderId",
+        "status",
+        "updatedAt"
+      ],
+      "errEnvelopeAlways": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ],
+      "errEnvelopeSeen": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ]
+    },
+    "/pub getProducts": {
+      "side": "/pub",
+      "action": "getProducts",
+      "calls": 1,
+      "dataKinds": [],
+      "envelopeAlways": [],
+      "envelopeSeen": [],
+      "keysAlways": [],
+      "keysSeen": [],
+      "errEnvelopeAlways": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ],
+      "errEnvelopeSeen": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ]
+    },
+    "/pub getPublicCategories": {
+      "side": "/pub",
+      "action": "getPublicCategories",
+      "calls": 1,
+      "dataKinds": [
+        "array"
+      ],
+      "envelopeAlways": [
+        "code",
+        "data"
+      ],
+      "envelopeSeen": [
+        "code",
+        "data"
+      ],
+      "keysAlways": [
+        "_id",
+        "name",
+        "order",
+        "subcategories",
+        "type"
+      ],
+      "keysSeen": [
+        "_id",
+        "name",
+        "order",
+        "subcategories",
+        "type"
+      ],
+      "errEnvelopeAlways": [],
+      "errEnvelopeSeen": []
+    },
+    "/pub getPublicProducts": {
+      "side": "/pub",
+      "action": "getPublicProducts",
+      "calls": 3,
+      "dataKinds": [
+        "array"
+      ],
+      "envelopeAlways": [
+        "code",
+        "data"
+      ],
+      "envelopeSeen": [
+        "code",
+        "data"
+      ],
+      "keysAlways": [
+        "_id",
+        "costPrice",
+        "description",
+        "enabled",
+        "image",
+        "images",
+        "name",
+        "order",
+        "price",
+        "reviews",
+        "spec",
+        "specOptions",
+        "stock",
+        "subcategories"
+      ],
+      "keysSeen": [
+        "_id",
+        "costPrice",
+        "description",
+        "enabled",
+        "image",
+        "images",
+        "name",
+        "order",
+        "price",
+        "reviews",
+        "spec",
+        "specOptions",
+        "stock",
+        "subcategories"
+      ],
+      "errEnvelopeAlways": [],
+      "errEnvelopeSeen": []
+    },
+    "/pub getReviews": {
+      "side": "/pub",
+      "action": "getReviews",
+      "calls": 1,
+      "dataKinds": [
+        "array"
+      ],
+      "envelopeAlways": [
+        "code",
+        "data"
+      ],
+      "envelopeSeen": [
+        "code",
+        "data"
+      ],
+      "keysAlways": [
+        "_id",
+        "createdAt",
+        "images",
+        "productOrder",
+        "rating",
+        "text",
+        "user"
+      ],
+      "keysSeen": [
+        "_id",
+        "createdAt",
+        "images",
+        "productOrder",
+        "rating",
+        "text",
+        "user"
+      ],
+      "errEnvelopeAlways": [],
+      "errEnvelopeSeen": []
+    },
+    "/pub stalePendingReport": {
+      "side": "/pub",
+      "action": "stalePendingReport",
+      "calls": 1,
+      "dataKinds": [],
+      "envelopeAlways": [],
+      "envelopeSeen": [],
+      "keysAlways": [],
+      "keysSeen": [],
+      "errEnvelopeAlways": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ],
+      "errEnvelopeSeen": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ]
+    },
+    "/web aiAdvice": {
+      "side": "/web",
+      "action": "aiAdvice",
+      "calls": 13,
+      "dataKinds": [
+        "object"
+      ],
+      "envelopeAlways": [
+        "code",
+        "data"
+      ],
+      "envelopeSeen": [
+        "code",
+        "data"
+      ],
+      "keysAlways": [
+        "content",
+        "source"
+      ],
+      "keysSeen": [
+        "content",
+        "source"
+      ],
+      "errEnvelopeAlways": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryAfterMs",
+        "retryable"
+      ],
+      "errEnvelopeSeen": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryAfterMs",
+        "retryable"
+      ]
+    },
+    "/web batchDeleteProducts": {
+      "side": "/web",
+      "action": "batchDeleteProducts",
+      "calls": 2,
+      "dataKinds": [
+        "object"
+      ],
+      "envelopeAlways": [
+        "code",
+        "data"
+      ],
+      "envelopeSeen": [
+        "code",
+        "data"
+      ],
+      "keysAlways": [
+        "deleted",
+        "failed",
+        "total"
+      ],
+      "keysSeen": [
+        "deleted",
+        "failed",
+        "total"
+      ],
+      "errEnvelopeAlways": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ],
+      "errEnvelopeSeen": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ]
+    },
+    "/web batchUpdateProducts": {
+      "side": "/web",
+      "action": "batchUpdateProducts",
+      "calls": 2,
+      "dataKinds": [
+        "object"
+      ],
+      "envelopeAlways": [
+        "code",
+        "data"
+      ],
+      "envelopeSeen": [
+        "code",
+        "data"
+      ],
+      "keysAlways": [
+        "failed",
+        "total",
+        "updated"
+      ],
+      "keysSeen": [
+        "failed",
+        "total",
+        "updated"
+      ],
+      "errEnvelopeAlways": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ],
+      "errEnvelopeSeen": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ]
+    },
+    "/web createProduct": {
+      "side": "/web",
+      "action": "createProduct",
+      "calls": 9,
+      "dataKinds": [
+        "object"
+      ],
+      "envelopeAlways": [
+        "code",
+        "data"
+      ],
+      "envelopeSeen": [
+        "code",
+        "data"
+      ],
+      "keysAlways": [
+        "_id",
+        "createdAt",
+        "enabled",
+        "name",
+        "price",
+        "updatedAt"
+      ],
+      "keysSeen": [
+        "_id",
+        "createdAt",
+        "enabled",
+        "name",
+        "price",
+        "spec",
+        "specOptions",
+        "stock",
+        "updatedAt"
+      ],
+      "errEnvelopeAlways": [],
+      "errEnvelopeSeen": []
+    },
+    "/web createSubmission": {
+      "side": "/web",
+      "action": "createSubmission",
+      "calls": 1,
+      "dataKinds": [
+        "object"
+      ],
+      "envelopeAlways": [
+        "code",
+        "data"
+      ],
+      "envelopeSeen": [
+        "code",
+        "data"
+      ],
+      "keysAlways": [
+        "id"
+      ],
+      "keysSeen": [
+        "id"
+      ],
+      "errEnvelopeAlways": [],
+      "errEnvelopeSeen": []
+    },
+    "/web deleteOrder": {
+      "side": "/web",
+      "action": "deleteOrder",
+      "calls": 8,
+      "dataKinds": [
+        "absent"
+      ],
+      "envelopeAlways": [
+        "code"
+      ],
+      "envelopeSeen": [
+        "code"
+      ],
+      "keysAlways": [],
+      "keysSeen": [],
+      "errEnvelopeAlways": [],
+      "errEnvelopeSeen": []
+    },
+    "/web deleteProduct": {
+      "side": "/web",
+      "action": "deleteProduct",
+      "calls": 7,
+      "dataKinds": [
+        "absent"
+      ],
+      "envelopeAlways": [
+        "code"
+      ],
+      "envelopeSeen": [
+        "code"
+      ],
+      "keysAlways": [],
+      "keysSeen": [],
+      "errEnvelopeAlways": [],
+      "errEnvelopeSeen": []
+    },
+    "/web deleteSubmission": {
+      "side": "/web",
+      "action": "deleteSubmission",
+      "calls": 1,
+      "dataKinds": [
+        "absent"
+      ],
+      "envelopeAlways": [
+        "code"
+      ],
+      "envelopeSeen": [
+        "code"
+      ],
+      "keysAlways": [],
+      "keysSeen": [],
+      "errEnvelopeAlways": [],
+      "errEnvelopeSeen": []
+    },
+    "/web getAllReviews": {
+      "side": "/web",
+      "action": "getAllReviews",
+      "calls": 2,
+      "dataKinds": [
+        "array"
+      ],
+      "envelopeAlways": [
+        "code",
+        "data"
+      ],
+      "envelopeSeen": [
+        "code",
+        "data"
+      ],
+      "keysAlways": [
+        "_id",
+        "createdAt",
+        "productOrder",
+        "rating",
+        "text",
+        "user"
+      ],
+      "keysSeen": [
+        "_id",
+        "createdAt",
+        "productOrder",
+        "rating",
+        "text",
+        "user"
+      ],
+      "errEnvelopeAlways": [],
+      "errEnvelopeSeen": []
+    },
+    "/web getOrder": {
+      "side": "/web",
+      "action": "getOrder",
+      "calls": 2,
+      "dataKinds": [
+        "object"
+      ],
+      "envelopeAlways": [
+        "code",
+        "data"
+      ],
+      "envelopeSeen": [
+        "code",
+        "data"
+      ],
+      "keysAlways": [
+        "_id",
+        "createdAt",
+        "idempotencyKey",
+        "items",
+        "paymentScreenshot",
+        "remark",
+        "roomNumber",
+        "status",
+        "totalAmount",
+        "updatedAt",
+        "wechat"
+      ],
+      "keysSeen": [
+        "_id",
+        "createdAt",
+        "idempotencyKey",
+        "items",
+        "paymentScreenshot",
+        "remark",
+        "roomNumber",
+        "status",
+        "totalAmount",
+        "updatedAt",
+        "wechat"
+      ],
+      "errEnvelopeAlways": [],
+      "errEnvelopeSeen": []
+    },
+    "/web getOrders": {
+      "side": "/web",
+      "action": "getOrders",
+      "calls": 2,
+      "dataKinds": [
+        "array"
+      ],
+      "envelopeAlways": [
+        "code",
+        "data",
+        "hasMore",
+        "page",
+        "pageSize"
+      ],
+      "envelopeSeen": [
+        "code",
+        "data",
+        "hasMore",
+        "page",
+        "pageSize"
+      ],
+      "keysAlways": [
+        "_id",
+        "createdAt",
+        "items",
+        "remark",
+        "roomNumber",
+        "status",
+        "totalAmount",
+        "updatedAt",
+        "wechat"
+      ],
+      "keysSeen": [
+        "_id",
+        "createdAt",
+        "items",
+        "remark",
+        "roomNumber",
+        "status",
+        "totalAmount",
+        "updatedAt",
+        "wechat"
+      ],
+      "errEnvelopeAlways": [],
+      "errEnvelopeSeen": []
+    },
+    "/web getOrderStatus": {
+      "side": "/web",
+      "action": "getOrderStatus",
+      "calls": 3,
+      "dataKinds": [
+        "object"
+      ],
+      "envelopeAlways": [
+        "code",
+        "data"
+      ],
+      "envelopeSeen": [
+        "code",
+        "data"
+      ],
+      "keysAlways": [
+        "orderId",
+        "status",
+        "updatedAt"
+      ],
+      "keysSeen": [
+        "orderId",
+        "status",
+        "updatedAt"
+      ],
+      "errEnvelopeAlways": [],
+      "errEnvelopeSeen": []
+    },
+    "/web getProducts": {
+      "side": "/web",
+      "action": "getProducts",
+      "calls": 23,
+      "dataKinds": [
+        "array"
+      ],
+      "envelopeAlways": [
+        "code",
+        "data"
+      ],
+      "envelopeSeen": [
+        "code",
+        "data"
+      ],
+      "keysAlways": [
+        "_id",
+        "costPrice",
+        "description",
+        "enabled",
+        "image",
+        "images",
+        "name",
+        "order",
+        "price",
+        "reviews",
+        "spec",
+        "specOptions",
+        "stock",
+        "subcategories"
+      ],
+      "keysSeen": [
+        "_id",
+        "costPrice",
+        "description",
+        "enabled",
+        "image",
+        "images",
+        "name",
+        "order",
+        "price",
+        "reviews",
+        "spec",
+        "specOptions",
+        "stock",
+        "subcategories"
+      ],
+      "errEnvelopeAlways": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ],
+      "errEnvelopeSeen": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ]
+    },
+    "/web getSubmissions": {
+      "side": "/web",
+      "action": "getSubmissions",
+      "calls": 1,
+      "dataKinds": [
+        "array"
+      ],
+      "envelopeAlways": [
+        "code",
+        "data"
+      ],
+      "envelopeSeen": [
+        "code",
+        "data"
+      ],
+      "keysAlways": [
+        "_id",
+        "categoryId",
+        "categoryName",
+        "createdAt",
+        "formData",
+        "imageCount",
+        "serviceId",
+        "serviceName",
+        "status",
+        "updatedAt"
+      ],
+      "keysSeen": [
+        "_id",
+        "categoryId",
+        "categoryName",
+        "createdAt",
+        "formData",
+        "imageCount",
+        "serviceId",
+        "serviceName",
+        "status",
+        "updatedAt"
+      ],
+      "errEnvelopeAlways": [],
+      "errEnvelopeSeen": []
+    },
+    "/web login": {
+      "side": "/web",
+      "action": "login",
+      "calls": 6,
+      "dataKinds": [
+        "absent"
+      ],
+      "envelopeAlways": [
+        "code",
+        "role"
+      ],
+      "envelopeSeen": [
+        "code",
+        "role"
+      ],
+      "keysAlways": [],
+      "keysSeen": [],
+      "errEnvelopeAlways": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ],
+      "errEnvelopeSeen": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryAfterMs",
+        "retryable"
+      ]
+    },
+    "/web noSuchAction": {
+      "side": "/web",
+      "action": "noSuchAction",
+      "calls": 1,
+      "dataKinds": [],
+      "envelopeAlways": [],
+      "envelopeSeen": [],
+      "keysAlways": [],
+      "keysSeen": [],
+      "errEnvelopeAlways": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ],
+      "errEnvelopeSeen": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ]
+    },
+    "/web recalculateOrders": {
+      "side": "/web",
+      "action": "recalculateOrders",
+      "calls": 1,
+      "dataKinds": [
+        "object"
+      ],
+      "envelopeAlways": [
+        "code",
+        "data"
+      ],
+      "envelopeSeen": [
+        "code",
+        "data"
+      ],
+      "keysAlways": [
+        "fixed",
+        "total"
+      ],
+      "keysSeen": [
+        "fixed",
+        "total"
+      ],
+      "errEnvelopeAlways": [],
+      "errEnvelopeSeen": []
+    },
+    "/web seedReviews": {
+      "side": "/web",
+      "action": "seedReviews",
+      "calls": 3,
+      "dataKinds": [
+        "object"
+      ],
+      "envelopeAlways": [
+        "code",
+        "data"
+      ],
+      "envelopeSeen": [
+        "code",
+        "data"
+      ],
+      "keysAlways": [
+        "added"
+      ],
+      "keysSeen": [
+        "added",
+        "skipped"
+      ],
+      "errEnvelopeAlways": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ],
+      "errEnvelopeSeen": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ]
+    },
+    "/web stalePendingReport": {
+      "side": "/web",
+      "action": "stalePendingReport",
+      "calls": 1,
+      "dataKinds": [
+        "object"
+      ],
+      "envelopeAlways": [
+        "code",
+        "data"
+      ],
+      "envelopeSeen": [
+        "code",
+        "data"
+      ],
+      "keysAlways": [
+        "count",
+        "orders",
+        "stockReserved",
+        "thresholdMinutes"
+      ],
+      "keysSeen": [
+        "count",
+        "orders",
+        "stockReserved",
+        "thresholdMinutes"
+      ],
+      "errEnvelopeAlways": [],
+      "errEnvelopeSeen": []
+    },
+    "/web updateOrderStatus": {
+      "side": "/web",
+      "action": "updateOrderStatus",
+      "calls": 11,
+      "dataKinds": [
+        "absent"
+      ],
+      "envelopeAlways": [
+        "code"
+      ],
+      "envelopeSeen": [
+        "code"
+      ],
+      "keysAlways": [],
+      "keysSeen": [],
+      "errEnvelopeAlways": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ],
+      "errEnvelopeSeen": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ]
+    },
+    "/web updateProduct": {
+      "side": "/web",
+      "action": "updateProduct",
+      "calls": 4,
+      "dataKinds": [
+        "absent"
+      ],
+      "envelopeAlways": [
+        "code"
+      ],
+      "envelopeSeen": [
+        "code"
+      ],
+      "keysAlways": [],
+      "keysSeen": [],
+      "errEnvelopeAlways": [],
+      "errEnvelopeSeen": []
+    },
+    "/web updateSubmissionStatus": {
+      "side": "/web",
+      "action": "updateSubmissionStatus",
+      "calls": 1,
+      "dataKinds": [
+        "absent"
+      ],
+      "envelopeAlways": [
+        "code"
+      ],
+      "envelopeSeen": [
+        "code"
+      ],
+      "keysAlways": [],
+      "keysSeen": [],
+      "errEnvelopeAlways": [],
+      "errEnvelopeSeen": []
+    }
+  }
+}
