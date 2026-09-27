@@ -1,6 +1,8 @@
 #!/bin/sh
-# 本地提交门禁：扫描 git 暂存区，发现疑似密钥即阻断提交。
+# 本地提交门禁：① 扫描 git 暂存区，发现疑似密钥即阻断提交；② 记忆卷 4KB 上限（只判本次要提交的记忆文件）。
 # 由 `git config core.hooksPath .githooks` 启用（仓库级，无需全局配置）。
-# 误报且确认非密钥时可用 `git commit --no-verify` 临时绕过，但请先确认。
+# 误报时先复核"为什么会命中"并把结论记进 docs/，不要用跳过钩子的开关提交——绕过去的那一次不留痕迹。
+# 记忆卷超限的完整普查在 CI 里跑 `npm run verify:volume`（--all 全量面），本地这条只拦新增。
 set -e
 node scripts/scan-secrets.mjs --staged
+node scripts/check-memory-volume.mjs

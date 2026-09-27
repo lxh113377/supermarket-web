@@ -125,6 +125,11 @@ jobs:
       - name: CLI entrypoint real-run gate
         run: npm run verify:entrypoints
 
+      # 对标第三十一轮：记忆卷 4KB 上限的仓内闸（借 pre-commit/pre-commit-hooks 的 check-added-large-files
+      # 形态：阈值显式 + 默认只管要提交的面；CI 这条走 --all 全量面，所以外部 handoff.py 只是报告型也不裸奔）
+      - name: Memory volume budget gate
+        run: npm run verify:volume
+
       # 对标第三轮 C2：生产依赖（含传递）license 白名单，拦 GPL/AGPL 类传染（本项目 MIT 发布）
       - name: Production license gate
         run: npm run verify:licenses

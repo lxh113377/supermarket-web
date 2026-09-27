@@ -34,6 +34,7 @@ const PROBED = [
   'check-import-cycles.mjs', 'check-licenses.mjs', 'check-schema-drift.mjs',
   'check-d1-roundtrips.mjs', 'verify-backend.mjs', 'api-contract.mjs',
   'list-uncovered.mjs', 'check-cli-entrypoints.mjs', 'api-response-contract.mjs',
+  'scan-secrets.mjs',
 ]
 
 function probe(script, { cwd = REPO } = {}) {
@@ -92,6 +93,7 @@ describe('判据 G1~G9：合成仓双向变异', () => {
    */
   const SELF = 'check-cli-entrypoints.mjs'
   const cleanRegistry = `- **覆盖地板**：2
+- **分母地板**：2
 
 ## 已知缺口
 
@@ -127,7 +129,7 @@ describe('判据 G1~G9：合成仓双向变异', () => {
     const bad = res.rows.filter((r) => !r.pass)
     expect(bad.map((r) => `${r.id}:${r.detail}`), JSON.stringify(res.rows, null, 1)).toEqual([])
     expect(res.summary.matched).toBe(res.summary.declared)
-    expect(res.summary.declared).toBe(9)
+    expect(res.summary.declared).toBe(10)
   })
 
   it('G1 反例：登记面枚举为空 ⇒ 判红（零输入不得 PASS）', () => {
@@ -137,22 +139,22 @@ describe('判据 G1~G9：合成仓双向变异', () => {
   })
 
   it('G2 反例：实测未覆盖却不登记 ⇒ 红；登记了个已覆盖的 ⇒ 也算红（幽灵缺口）', () => {
-    const undeclared = baseRepo({ registry: '- **覆盖地板**：1\n\n## 已知缺口\n\n| 脚本 | 理由 |\n| --- | --- |\n' })
+    const undeclared = baseRepo({ registry: '- **覆盖地板**：1\n- **分母地板**：2\n\n## 已知缺口\n\n| 脚本 | 理由 |\n| --- | --- |\n' })
     expect(undeclared.res.rows.find((r) => r.id === 'G2').pass).toBe(false)
     expect(undeclared.res.rows.find((r) => r.id === 'G2').detail).toContain('未登记缺口: other-gate.mjs')
 
-    const phantom = baseRepo({ registry: '- **覆盖地板**：1\n\n## 已知缺口\n\n| 脚本 | 理由 |\n| --- | --- |\n| demo-gate.mjs | 其实已被夹具覆盖，这里挂着就是幽灵行 |\n' })
+    const phantom = baseRepo({ registry: '- **覆盖地板**：1\n- **分母地板**：2\n\n## 已知缺口\n\n| 脚本 | 理由 |\n| --- | --- |\n| demo-gate.mjs | 其实已被夹具覆盖，这里挂着就是幽灵行 |\n' })
     expect(phantom.res.rows.find((r) => r.id === 'G2').pass).toBe(false)
     expect(phantom.res.rows.find((r) => r.id === 'G2').detail).toContain('幽灵登记')
   })
 
   it('G3 反例：理由写成 TODO / 太薄 ⇒ 判红（防空格把缺口洗成"已登记"）', () => {
-    const thin = baseRepo({ registry: '- **覆盖地板**：1\n\n## 已知缺口\n\n| 脚本 | 理由 |\n| --- | --- |\n| other-gate.mjs | TODO |\n' })
+    const thin = baseRepo({ registry: '- **覆盖地板**：1\n- **分母地板**：2\n\n## 已知缺口\n\n| 脚本 | 理由 |\n| --- | --- |\n| other-gate.mjs | TODO |\n' })
     expect(thin.res.rows.find((r) => r.id === 'G3').pass).toBe(false)
   })
 
   it('G4 反例：地板写高于实际覆盖 ⇒ 判红（棘轮不许靠改数字变绿，改数字要改的是代码）', () => {
-    const high = baseRepo({ registry: '- **覆盖地板**：99\n\n## 已知缺口\n\n| 脚本 | 理由 |\n| --- | --- |\n| other-gate.mjs | 不在 verify 链里，本轮先挂账待补夹具 |\n' })
+    const high = baseRepo({ registry: '- **覆盖地板**：99\n- **分母地板**：2\n\n## 已知缺口\n\n| 脚本 | 理由 |\n| --- | --- |\n| other-gate.mjs | 不在 verify 链里，本轮先挂账待补夹具 |\n' })
     expect(high.res.rows.find((r) => r.id === 'G4').pass).toBe(false)
     expect(high.res.rows.find((r) => r.id === 'G4').detail).toContain('99')
   })
@@ -188,7 +190,7 @@ describe('判据 G1~G9：合成仓双向变异', () => {
   it('G8 反例：新增一道门禁却没夹具没豁免 ⇒ 当场判红（本轮缺陷的类级修法）', () => {
     const added = baseRepo({
       pkg: { 'verify:newcomer': 'node scripts/newcomer.mjs' },
-      registry: '- **覆盖地板**：1\n\n## 已知缺口\n\n| 脚本 | 理由 |\n| --- | --- |\n| other-gate.mjs | 不在 verify 链里，本轮先挂账待补夹具 |\n',
+      registry: '- **覆盖地板**：1\n- **分母地板**：2\n\n## 已知缺口\n\n| 脚本 | 理由 |\n| --- | --- |\n| other-gate.mjs | 不在 verify 链里，本轮先挂账待补夹具 |\n',
     })
     writeFileSync(join(added.dir, 'scripts', 'newcomer.mjs'), 'console.log("ok")\n')
     const row = evaluate(collect(added.dir)).rows.find((r) => r.id === 'G8')
@@ -199,6 +201,7 @@ describe('判据 G1~G9：合成仓双向变异', () => {
     const waived = baseRepo({
       pkg: { 'verify:newcomer': 'node scripts/newcomer.mjs' },
       registry: `- **覆盖地板**：1
+- **分母地板**：2
 ## 已知缺口
 
 | 脚本 | 理由 |
@@ -222,6 +225,7 @@ describe('判据 G1~G9：合成仓双向变异', () => {
   it('G8 反例：豁免表挂了一个其实已覆盖的脚本 ⇒ 幽灵豁免判红', () => {
     const w = baseRepo({
       registry: `- **覆盖地板**：1
+- **分母地板**：2
 ## 已知缺口
 
 | 脚本 | 理由 |
@@ -248,6 +252,7 @@ describe('判据 G1~G9：合成仓双向变异', () => {
     const r = baseRepo({
       pkg: { 'report:danger': 'node scripts/danger.mjs' },
       registry: `- **覆盖地板**：1
+- **分母地板**：2
 ## 已知缺口
 
 | 脚本 | 理由 |
@@ -306,6 +311,7 @@ ${riskRows}
     const withGhost = baseRepo({
       pkg: { 'verify:ghost': 'node scripts/ghost.mjs' },
       registry: `- **覆盖地板**：1
+- **分母地板**：2
 ## 已知缺口
 
 | 脚本 | 理由 |
@@ -357,6 +363,43 @@ describe('classifyRisk：风险从代码读，不从散文读', () => {
   it('保守方向：行尾注释里的词仍然算（只删整行注释，不做词法分析 ⇒ 宁可多报不可漏报）', () => {
     expect(classifyRisk("spawnSync('gh', a) // gh 只是举例")).toEqual(['gh-cli'])
     expect(classifyRisk('doWork(x) // 这里其实有 DELETE FROM 也没关系')).toEqual(['sql-delete'])
+  })
+})
+
+/**
+ * 覆盖面口径自身（第三十一轮 H1）。它决定"某道门禁被真跑过"这句话成不成立，
+ * 所以三向都要钉：真跑的必须记账、死数组与只在断言里提到的**不得**记账。
+ * 上一版规则＝"文件里有 spawn + 出现过文件名"，第二向/第三向全会被误记（本轮实测复现过）。
+ */
+describe('collectCovered：名字必须沿调用链到达执行点才算覆盖', () => {
+  const dir = tmpRepo({
+    'package.json': JSON.stringify({
+      name: 'f',
+      scripts: { 'verify:a': 'node scripts/a.mjs', 'verify:b': 'node scripts/b.mjs', 'verify:c': 'node scripts/c.mjs' },
+    }),
+    'scripts/a.mjs': 'console.log("ok")\n',
+    'scripts/b.mjs': 'console.log("ok")\n',
+    'scripts/c.mjs': 'console.log("ok")\n',
+    'tests/cover.test.js': [
+      "import { spawnSync } from 'node:child_process'",
+      "const PROBED = ['a.mjs']",
+      'function runGate(p) { return spawnSync(process.execPath, [p]) }',
+      'for (const p of PROBED) { runGate(p) }',
+      "const IGNORED = ['b.mjs']",
+      "expect(true).toBe(true && 'c.mjs' === 'c.mjs')",
+    ].join('\n'),
+  })
+  const cov = collectCovered(dir)
+  it('正例：数组 + for..of + 本地 runner（体内有 spawn）⇒ 记账', () => {
+    expect([...cov.keys()]).toContain('a.mjs')
+  })
+  it('反例两向：没人用的数组、只在断言里提到的名字 ⇒ 都不许记账', () => {
+    expect(cov.has('b.mjs'), '死数组被记成"已跑过"').toBe(false)
+    expect(cov.has('c.mjs'), '仅出现在断言里被记成"已跑过"').toBe(false)
+  })
+  it('反向自检：这个合成仓确实"有 spawn"（否则上面两条只是因为整个探针没启动）', () => {
+    expect(/\bspawnSync\s*\(/.test(readFileSync(join(dir, 'tests', 'cover.test.js'), 'utf8'))).toBe(true)
+    expect(cov.size).toBe(1)
   })
 })
 
@@ -542,6 +585,43 @@ describe('preflight 出口件：bail / requireInputs / requireParams / requireJs
     }
     expect(go('json', join(dir, 'ok.json')).stdout).toContain('PASSED-THROUGH')
   })
+})
+
+/**
+ * 密钥扫描的三种分母形状（第三十一轮 H2）：第二十五/二十六轮把"零对象不得记绿"立成了规矩，
+ * 而这条入口当时不在分母里（它就是那轮被抓到的病号）。这里把它三种输出形状钉死，防止回退。
+ */
+describe('scan-secrets：扫到了 / 没得扫 / 暂存区为空，三种输出必须不同', () => {
+  const git = (dir, args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8', timeout: 30_000 })
+  const run = (dir, args = []) => spawnSync(process.execPath, [join(SCRIPTS, 'scan-secrets.mjs'), ...args],
+    { cwd: dir, encoding: 'utf8', timeout: 60_000 })
+  const out = (r) => `${r.stdout || ''}${r.stderr || ''}`
+
+  it('暂存区有文件 ⇒ rc=0 且印出"已读 N 个文件"（N≥1）', () => {
+    const dir = tmpRepo({ 'a.txt': 'hello\n' })
+    git(dir, ['init', '-q'])
+    git(dir, ['add', 'a.txt'])
+    const r = run(dir, ['--staged'])
+    expect(out(r), out(r)).toContain('已读 1 个文件')
+    expect(r.status, out(r)).toBe(0)
+  }, 90_000)
+
+  it('暂存区为空 ⇒ 必须说"跳过"并且不得说"通过"（看守型不阻断，但"没得扫"≠"扫过且干净"）', () => {
+    const dir = tmpRepo({ 'a.txt': 'hello\n' })
+    git(dir, ['init', '-q'])
+    const r = run(dir, ['--staged'])
+    expect(out(r)).toContain('跳过')
+    expect(out(r)).not.toContain('密钥扫描通过')
+    expect(r.status).toBe(0)
+  }, 90_000)
+
+  it('整仓零跟踪文件 ⇒ rc=2 fail-closed（第三十轮的病：这一情形曾打印与真扫 632 文件逐字相同的"通过"）', () => {
+    const dir = tmpRepo({})
+    git(dir, ['init', '-q'])
+    const r = run(dir)
+    expect(r.status, out(r)).toBe(2)
+    expect(out(r)).toContain('环境不满足')
+  }, 90_000)
 })
 
 describe('真仓登记册与实测互洽（防文档自说自话）', () => {

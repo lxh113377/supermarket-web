@@ -63,8 +63,60 @@ export function collectRegistered(dir = root) {
 }
 
 /**
- * 取数面 B：被测试当**子进程真跑过**的脚本 —— 文件里既有 spawn/exec 家族调用，
- * 又以字符串形式出现该脚本文件名（`join(REPO,'scripts','x.mjs')` 这种分片写法也算）。
+ * 括号配对扫描（第三十一轮，H1 的地基）：只认**代码里**的 `()` / `[]`，字符串与注释里的括号一概不算。
+ * 刻意不做完整词法分析（正则字面量等边角不管）：失配的后果是"某对括号没被配对"⇒ 那个范围不算数 ⇒
+ * 覆盖面**少记**而不是多记。这个方向是安全的：少记会让判据来问"这条到底跑没跑"，
+ * 多记会让假绿永久存续（本轮要治的正是后者）。
+ */
+function scanBrackets(src) {
+  const parens = []
+  const brackets = []
+  const stack = []
+  let state = null
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i]
+    const d = src[i + 1]
+    if (state === 'line') { if (c === '\n') state = null; continue }
+    if (state === 'block') { if (c === '*' && d === '/') { i++; state = null }; continue }
+    if (state === 'sq' || state === 'dq' || state === 'tpl') {
+      if (c === '\\') { i++; continue }
+      if (c === state) state = null
+      continue
+    }
+    if (c === '/' && d === '/') { state = 'line'; i++; continue }
+    if (c === '/' && d === '*') { state = 'block'; i++; continue }
+    if (c === "'" || c === '"' || c === '`') { state = c; continue }
+    if (c === '(' || c === '[') { stack.push([c, i]); continue }
+    if (c === ')' || c === ']') {
+      const want = c === ')' ? '(' : '['
+      for (let k = stack.length - 1; k >= 0; k--) {
+        if (stack[k][0] === want) {
+          const pair = stack.splice(k, 1)[0]
+          ;(c === ')' ? parens : brackets).push([pair[1], i])
+          break
+        }
+      }
+      continue
+    }
+  }
+  return { parens, brackets }
+}
+
+const inRange = (ranges, at) => ranges.some(([a, b]) => at > a && at < b)
+
+/**
+ * 取数面 B：被测试当**子进程真跑过**的脚本。
+ *
+ * 第三十一轮把口径收紧（台账 #1 坐实的假覆盖）：上一版只要"文件里有 spawn + 出现过这个文件名"就记账，
+ * 于是 `expect(... === 'dangerous.mjs').toBe(false)` 这种**只在否定断言里提到名字**的写法也会把它读成
+ * "已覆盖"（合成仓实测复现：覆盖面凭空多出 dangerous.mjs，真仓 24 条里掺了水）。现在名字必须**沿调用链
+ * 到达执行点**，四种合法形态（不要求人额外登记任何东西）：
+ * ① 直接写在 spawn/exec 家族的实参里；
+ * ② 写在数组字面量里（本仓 `const PROBED = [...]` + `for (const s of PROBED) probe(s)` 的约定）；
+ * ③ 写在 `const X = join(...,'x.mjs')` 这类**同一行**的声明里，且 `X` 被喂进了①/④那类调用；
+ * ④ 写在**本地 runner** 的实参里 —— runner = "函数体内确实有 spawn"的自定义封装（`runGate(DOCS, dir)`）。
+ *    补④的原因：收紧后第一轮实测有真夹具走封装被误判未覆盖 ⇒ 加的是"一跳封装"的通用判据，不是给名字开洞。
+ * 反例照样被排除：`toContain('x.mjs')`、`expect(x === 'x.mjs')` 的被调方是断言方法，不在执行点集合里。
  * 只做 import 的（`import { evaluate } from '../scripts/x.mjs'`）不算覆盖：那测不到入口。
  */
 export function collectCovered(dir = root) {
@@ -79,14 +131,66 @@ export function collectCovered(dir = root) {
       else if (/\.m?[jt]sx?$/.test(e)) files.push(p)
     }
   })(testDir)
+  const SPAWN_FNS = new Set(['spawnSync', 'spawn', 'execFileSync', 'execSync', 'fork'])
+  const CALLEE_RE = /([A-Za-z0-9_$]+)\s*\($/
+  const DEF_RE = /\b(?:function\s+([A-Za-z0-9_$]+)\s*\(|const\s+([A-Za-z0-9_$]+)\s*=\s*(?:async\s*)?(?:\([^)]*\)|[A-Za-z0-9_$]+)\s*=>\s*[\s(])/g
   for (const f of files) {
     const src = readFileSync(f, 'utf8')
     if (!SPAWN_RE.test(src)) continue
+    const { parens, brackets } = scanBrackets(src)
+    // 每个左括号 → 紧邻其前的被调方名（取不到就当链式/匿名，不计入执行点：宁少记不多记）
+    const calleeAt = new Map()
+    for (const [open] of parens) {
+      const m = CALLEE_RE.exec(src.slice(Math.max(0, open - 60), open + 1))
+      calleeAt.set(open, m ? m[1] : '')
+    }
+    // runner = 函数体里确实有 spawn 的本地封装（`runGate(DOCS, dir)` 这种）。体的边界按
+    // "到下一个顶层定义为止"近似 —— 失配的后果是少认一个 runner ⇒ 少记覆盖，方向安全。
+    const defs = [...src.matchAll(DEF_RE)].map((m) => ({ name: m[1] || m[2], at: m.index }))
+    const runners = new Set(defs.filter((d, i) => {
+      const end = i + 1 < defs.length ? defs[i + 1].at : src.length
+      return SPAWN_RE.test(src.slice(d.at, end))
+    }).map((d) => d.name))
+    const execRanges = parens.filter(([open]) => {
+      const c = calleeAt.get(open)
+      return SPAWN_FNS.has(c) || runners.has(c)
+    })
+    const execText = execRanges.map(([a, b]) => src.slice(a, b + 1)).join('\n')
+    // ② 的可信版本：数组字面量只有**真的被喂进执行点**才算覆盖清单。判据＝该数组绑定的名字出现在执行点
+    // 文本里，或它是 `for (const it of ARR)` 的数据源且 `it` 出现在执行点里（本仓 PROBED 就是这一形）。
+    // 没有这一步，`const IGNORED = ['some-gate.mjs']` 就能凭空给一道门禁记上"已跑过"。
+    const reachNames = new Set()
+    for (const m of src.matchAll(/for\s*\(\s*(?:const|let|var)\s+([A-Za-z0-9_$]+)\s+of\s+([A-Za-z0-9_$]+)\s*\)/g)) {
+      const [, it, arr] = m
+      if (new RegExp(`\\b${it}\\b`).test(execText)) reachNames.add(arr)
+    }
+    const arrayRanges = brackets.filter(([a]) => {
+      const decl = /\s*=\s*$/.exec(src.slice(Math.max(0, a - 60), a))
+      if (!decl) return inRange(execRanges, a)          // 直接写在执行点里的数组（如 argv）
+      const head = src.slice(0, a - decl[0].length)
+      const nm = /(?:const|let|var)\s+([A-Za-z0-9_$]+)$/.exec(head.trimEnd())
+      if (!nm) return inRange(execRanges, a)
+      // 只问"这个名字有没有到达执行点"——不许把名字边遍历边塞进可达集再拿来自查（那是一条恒真条件）
+      return new RegExp(`\\b${nm[1]}\\b`).test(execText) || reachNames.has(nm[1])
+    })
+    // ③ 用：收集"声明在同一行、且该变量被喂进了执行点"的行区间
+    const declLines = []
+    for (const m of src.matchAll(/\b(?:const|let|var)\s+([A-Za-z0-9_$]+)\s*=/g)) {
+      const ident = m[1]
+      if (!new RegExp(`\\b${ident.replace(/\$/g, '\\$')}\\b`).test(execText)) continue
+      const ls = src.lastIndexOf('\n', m.index) + 1
+      const le = src.indexOf('\n', m.index)
+      declLines.push([ls, le === -1 ? src.length : le])
+    }
+    const rel = relative(dir, f).replace(/\\/g, '/')
     // 允许 `'scripts/x.mjs'` / `'../scripts/x.mjs'` 这类带路径前缀的写法：只认裸文件名的话，
-    // 真跑过它的夹具会被判成"没跑过"（本轮合成夹具首次落地时就踩到过，覆盖数凭空少一截）。
+    // 真跑过它的夹具会被判成"没跑过"（第二十四轮合成夹具首次落地时就踩到过，覆盖数凭空少一截）。
     for (const m of src.matchAll(/['"`][A-Za-z0-9._/\\-]*?([A-Za-z0-9._-]+\.mjs)['"`]/g)) {
+      const at = m.index
+      const ok = inRange(execRanges, at) || inRange(arrayRanges, at) || declLines.some(([a, b]) => at >= a && at <= b)
+      if (!ok) continue
       if (!covered.has(m[1])) covered.set(m[1], new Set())
-      covered.get(m[1]).add(relative(dir, f).replace(/\\/g, '/'))
+      covered.get(m[1]).add(rel)
     }
   }
   return covered
@@ -95,6 +199,7 @@ export function collectCovered(dir = root) {
 /** 登记册解析：`- **覆盖地板**：N` + 三张表（已知缺口 / 不可子进程豁免 / 风险分类）的数据行。 */
 export function parseRegistry(md) {
   const floorM = /覆盖地板\*{0,2}[：:]\s*(\d+)/.exec(md)
+  const denomM = /分母地板\*{0,2}[：:]\s*(\d+)/.exec(md)
   const table = (heading) => {
     // 只取**本节**：按 `## ` 切节后取以该标题开头的那一段，到下一节为止。
     // 上一版取"该标题之后的全部内容"，前一张表把后一张表的行也吞了进来
@@ -116,6 +221,7 @@ export function parseRegistry(md) {
   }))
   return {
     floor: floorM ? Number(floorM[1]) : null, declaredFloor: !!floorM,
+    denomFloor: denomM ? Number(denomM[1]) : null, declaredDenomFloor: !!denomM,
     gaps: table('已知缺口'), exemptions: table('不可子进程豁免'), risk: riskRows,
   }
 }
@@ -126,6 +232,12 @@ export function isGateLike(sources) {
 }
 
 /**
+ * 能不能被自动探针 spawn：门禁类全部可以（它们本来就必须在 CI/本地跑），
+ * 非门禁类只有"源码推不出危险特征"的才可以。判据只写这一处，evaluate 与 probeDenominator 共用。
+ */
+const isProbeable = (r, riskOf) => isGateLike(r.sources) || !(riskOf.get(r.script) || []).length
+
+/**
  * **探针分母**（第三十轮）：门禁类全部 + 非门禁类里"源码推不出危险特征"的那部分。
  * 为什么由判据导出而不是测试里各写一遍：同一把尺量两处，改口径时只会有一处需要改；
  * 测试若自己复制条件，判据和夹具会在两次重构后悄悄量不同的东西（第二十七轮踩过同型坑）。
@@ -133,7 +245,7 @@ export function isGateLike(sources) {
  */
 export function probeDenominator(dir = root) {
   const { registered, riskOf } = collect(dir)
-  return registered.filter((r) => isGateLike(r.sources) || !(riskOf.get(r.script) || []).length)
+  return registered.filter((r) => isProbeable(r, riskOf))
 }
 
 /**
@@ -261,6 +373,18 @@ export function evaluate({ registered, covered, declared, floorOk, hookTargets, 
       (riskPhantom.length ? `；幽灵（表里挂着但源码已无该特征/脚本不存在）: ${riskPhantom.join(', ')}` : '') +
       (riskMismatch.length ? `；标签不符: ${riskMismatch.join(' , ')}` : '') +
       (riskThin.length ? `；缺实测依据（第四列为空或含 TODO）: ${riskThin.join(', ')}` : ''),
+  })
+
+  // G10 分母自身要是有棘轮，否则"把尺子缩短"这件事没有任何后果：有人把某个 npm 别名从 `verify:` 改名成
+  // `report:`（而脚本里正好有 fetch）⇒ 该项**静默离开探针分母**，覆盖数、缺口数一起变好看，CI 照样全绿。
+  // 缺「分母地板」这行同样判红：不给"没有基准"留成空子（同 G4 的口径）。
+  const denom = registered.filter((r) => isProbeable(r, riskOf))
+  rows.push({
+    id: 'G10',
+    pass: declared.denomFloor !== null && denom.length >= declared.denomFloor,
+    detail: declared.denomFloor === null
+      ? '登记册缺「分母地板」行 ⇒ 探针分母无基准（分母=可被自动 spawn 的入口数）'
+      : `探针分母 ${denom.length} ${denom.length >= declared.denomFloor ? `>= 地板 ${declared.denomFloor}` : `< 地板 ${declared.denomFloor}（**分母被缩短 ${declared.denomFloor - denom.length} 项**：改别名或加危险特征都会走到这里）`}`,
   })
 
   const bad = rows.filter((r) => !r.pass).length
