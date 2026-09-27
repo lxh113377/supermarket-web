@@ -28,8 +28,8 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 export const sqlScope = new AsyncLocalStorage()
 
 export function runInSqlScope(name, fn) {
-  const store = { name, statements: 0 }
-  return sqlScope.run(store, fn).then((r) => ({ result: r, statements: store.statements }))
+  const store = { name, statements: 0, amortized: [] }
+  return sqlScope.run(store, fn).then((r) => ({ result: r, statements: store.statements, amortized: store.amortized }))
 }
 
 /** 当前 action 上下文里已计到的语句数（无上下文时返回 null，调用方按旧口径兜底）。 */
@@ -37,14 +37,24 @@ export function currentScope() {
   return sqlScope.getStore() || null
 }
 
-export function createMeteredD1(db) {
-  const counters = { statements: 0, roundTrips: 0 }
+/**
+ * @param db  内存 SQLite
+ * @param opts.classify  (sql) => 桶名 | null —— 把"摊销型后台清理"这类语句从当前 action 的计数里摘出去，
+ *   单独记账。第二十八轮归因实证：`logSecurityEvent` 以 **5% 概率**顺带执行
+ *   `DELETE FROM security_events WHERE ts < datetime('now','-90 days')`（Pages 无 cron，写时采样），
+ *   于是这条语句被算到"恰好触发它的那个 action"头上 ⇒ 11/30 个 action 的语句峰值随机 +1、
+ *   每轮换一个受害者。生产代码的摊销设计没变，错的是测量口径把它当成 action 自身的开销。
+ */
+export function createMeteredD1(db, { classify = null } = {}) {
+  const counters = { statements: 0, roundTrips: 0, buckets: {} }
   const log = []
+  // 归因实验（第二十八轮）：每条日志带上"发起它的 action"，用于把抖动的语句找出来。
+  const stamp = (e) => { e.scope = sqlScope.getStore()?.name || null; log.push(e); return e }
   const coerce = (v) => (typeof v === 'boolean' ? (v ? 1 : 0) : v === undefined ? null : v)
 
   // batch 成员专用：两个计数器都不动（prepare 已计 statements，整批只计 1 次 roundTrips）
   function runMember(member) {
-    log.push({ sql: member.sql, kind: 'batch-member', params: member.params })
+    stamp({ sql: member.sql, kind: 'batch-member', params: member.params })
     const info = db.prepare(member.sql).run(...member.params.map(coerce))
     return { success: true, meta: { changes: info.changes, last_row_id: info.lastInsertRowid } }
   }
@@ -55,8 +65,12 @@ export function createMeteredD1(db) {
     __sqlite: db,
     prepare(sql) {
       counters.statements += 1
+      const bucket = classify ? classify(sql) : null
       const scope = sqlScope.getStore()
-      if (scope) scope.statements += 1
+      if (bucket) {
+        counters.buckets[bucket] = (counters.buckets[bucket] || 0) + 1
+        if (scope) (scope.amortized = scope.amortized || []).push(bucket)
+      } else if (scope) scope.statements += 1
       const member = { sql, params: [] }
       const api = {
         __member: member,
@@ -66,18 +80,18 @@ export function createMeteredD1(db) {
         },
         async all() {
           counters.roundTrips += 1
-          log.push({ sql, kind: 'all', params: member.params })
+          stamp({ sql, kind: 'all', params: member.params })
           return { results: db.prepare(sql).all(...member.params.map(coerce)) }
         },
         async first() {
           counters.roundTrips += 1
-          log.push({ sql, kind: 'first', params: member.params })
+          stamp({ sql, kind: 'first', params: member.params })
           const row = db.prepare(sql).get(...member.params.map(coerce))
           return row === undefined ? null : row
         },
         async run() {
           counters.roundTrips += 1
-          log.push({ sql, kind: 'run', params: member.params })
+          stamp({ sql, kind: 'run', params: member.params })
           const info = db.prepare(sql).run(...member.params.map(coerce))
           return { success: true, meta: { changes: info.changes, last_row_id: info.lastInsertRowid } }
         },
@@ -91,7 +105,7 @@ export function createMeteredD1(db) {
     async batch(list) {
       if (!Array.isArray(list)) throw new TypeError('D1 batch(): 参数必须是已 prepare 的语句数组')
       counters.roundTrips += 1
-      log.push({ sql: `<<batch(${list.length})>>`, kind: 'batch', params: list.map((s) => s.__member.sql) })
+      stamp({ sql: `<<batch(${list.length})>>`, kind: 'batch', params: list.map((s) => s.__member.sql) })
       db.exec('BEGIN')
       try {
         const results = list.map((s) => runMember(s.__member))

@@ -27,16 +27,12 @@ export const SELF = 'api-response-contract.mjs'
 
 /** 未录到"成功形状"的在册 action ⇒ 必须逐条具名理由（缺一条判红，幽灵理由同样判红）。 */
 export const RESPONSE_GAPS = {
-  '/web verifyKey': 'verify-backend 只跑了 login（两者共用同一 role 解析路径），没跑 verifyKey ⇒ 下一轮补一行 payload',
   '/web createOrder': '管理端下单与 /pub createOrder 同一 handler，本轮只在 /pub 侧录到 ⇒ 若管理端 payload 有特殊分支需单独录',
   '/web getPublicProducts': '顾客端形状已在 /pub 侧录到；/web 回退路径同 handler 同代码，未重复录',
   '/web getPublicCategories': '同上：/pub 侧已录，回退路径共用一个 handler',
   '/web getReviews': '同上：/pub 侧已录，回退路径共用一个 handler',
   '/web addPublicReview': '同上：/pub 侧已录（PUBLIC_ACTIONS 免鉴权那条）',
-  '/web addReview': '评价写路径需要先有已支付订单 + 商品，verify-backend 当前 seed 里没有这条链 ⇒ 待补',
-  '/web deleteReview': '需先有一条可删的评价：verify-backend 走的是 seedReviews，未跑删除 ⇒ 待补 payload',
   '/web getSubmissionImages': '需要提交带图片才有对象可取，本轮 seed 里没有带图提交 ⇒ 待补',
-  '/web getDashboardStats': '看板聚合的**纯函数**由 tests/stats.test.js 钉口径，但 HTTP 信封形状未录 ⇒ 下一轮补 payload',
   '/pub createSubmission': '要带 base64 图片才能走通校验链（图片上限判据在 limits 册里），本轮未录 ⇒ 待补',
   '/pub aiChat': '需要 fetch stub（在 tests/aiContract.test.js 里），verify-backend 不联网 ⇒ 信封形状由那侧单测承担',
 }

@@ -297,6 +297,44 @@
         "retryable"
       ]
     },
+    "/web addReview": {
+      "side": "/web",
+      "action": "addReview",
+      "calls": 1,
+      "dataKinds": [
+        "object"
+      ],
+      "envelopeAlways": [
+        "code",
+        "data"
+      ],
+      "envelopeSeen": [
+        "code",
+        "data"
+      ],
+      "keysAlways": [
+        "_id",
+        "createdAt",
+        "id",
+        "images",
+        "productOrder",
+        "rating",
+        "text",
+        "user"
+      ],
+      "keysSeen": [
+        "_id",
+        "createdAt",
+        "id",
+        "images",
+        "productOrder",
+        "rating",
+        "text",
+        "user"
+      ],
+      "errEnvelopeAlways": [],
+      "errEnvelopeSeen": []
+    },
     "/web aiAdvice": {
       "side": "/web",
       "action": "aiAdvice",
@@ -514,6 +552,24 @@
       "errEnvelopeAlways": [],
       "errEnvelopeSeen": []
     },
+    "/web deleteReview": {
+      "side": "/web",
+      "action": "deleteReview",
+      "calls": 1,
+      "dataKinds": [
+        "absent"
+      ],
+      "envelopeAlways": [
+        "code"
+      ],
+      "envelopeSeen": [
+        "code"
+      ],
+      "keysAlways": [],
+      "keysSeen": [],
+      "errEnvelopeAlways": [],
+      "errEnvelopeSeen": []
+    },
     "/web deleteSubmission": {
       "side": "/web",
       "action": "deleteSubmission",
@@ -562,6 +618,48 @@
         "rating",
         "text",
         "user"
+      ],
+      "errEnvelopeAlways": [],
+      "errEnvelopeSeen": []
+    },
+    "/web getDashboardStats": {
+      "side": "/web",
+      "action": "getDashboardStats",
+      "calls": 1,
+      "dataKinds": [
+        "object"
+      ],
+      "envelopeAlways": [
+        "code",
+        "data"
+      ],
+      "envelopeSeen": [
+        "code",
+        "data"
+      ],
+      "keysAlways": [
+        "delta",
+        "margin",
+        "orderSum",
+        "pieSegments",
+        "rangeData",
+        "rangeDays",
+        "revenueSum",
+        "reviewTrend",
+        "topRevenue",
+        "totalOrders"
+      ],
+      "keysSeen": [
+        "delta",
+        "margin",
+        "orderSum",
+        "pieSegments",
+        "rangeData",
+        "rangeDays",
+        "revenueSum",
+        "reviewTrend",
+        "topRevenue",
+        "totalOrders"
       ],
       "errEnvelopeAlways": [],
       "errEnvelopeSeen": []
@@ -998,6 +1096,26 @@
       ],
       "envelopeSeen": [
         "code"
+      ],
+      "keysAlways": [],
+      "keysSeen": [],
+      "errEnvelopeAlways": [],
+      "errEnvelopeSeen": []
+    },
+    "/web verifyKey": {
+      "side": "/web",
+      "action": "verifyKey",
+      "calls": 1,
+      "dataKinds": [
+        "absent"
+      ],
+      "envelopeAlways": [
+        "code",
+        "role"
+      ],
+      "envelopeSeen": [
+        "code",
+        "role"
       ],
       "keysAlways": [],
       "keysSeen": [],

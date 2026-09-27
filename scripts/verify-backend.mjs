@@ -33,7 +33,19 @@ db.exec(readFileSync(join(root, 'db', 'seed.sql'), 'utf8'))
 // 4×2 + 1×3，固定种子后 6/6 恒为 3，而 createProduct 自己只发 1 条 INSERT ⇒ 抖的是归因不是被测代码。
 // 现在按 AsyncLocalStorage 上下文归因：语句记在**发起它的那个 action** 头上，与执行顺序无关。
 const SQL_PEAK = {}
-const D1 = createMeteredD1(db)
+// 摊销型清理单独立账（口径见 metered-d1 的 classify 注释）：审计保留裁剪以 5% 概率被顺带触发，
+// 记在触发它的 action 头上就是测量误差，不是那次调用真的多查了一次它自己的活。
+// 注意匹配口径：这条 SQL 里带 datetime('now', '-90 days') 这种"字面量内含空格"，
+// 先把空白抹掉再匹配会让分类器永不命中（第二十八轮第一版就这么漏过一次，现象是"收回噪声带后立刻冒回归"）。
+// 不用正则：这条 SQL 的 datetime(...) 参数里有空格与引号，正则转义在本仓的写入链路上已是第三次踩坑，
+// 改成小写化之后的两个子串判断——'delete from security_events' 与 'datetime(' 同时在，就是那条摊销清理。
+const isAmortizedAuditPurge = (sql) => {
+  const s = String(sql).toLowerCase()
+  return s.includes('delete from security_events') && s.includes('datetime(')
+}
+const D1 = createMeteredD1(db, {
+  classify: (sql) => (isAmortizedAuditPurge(sql) ? 'amortized:audit-retention-purge' : null),
+})
 function noteSql(name, used) {
   SQL_PEAK[name] = Math.max(SQL_PEAK[name] || 0, used)
 }
@@ -53,8 +65,10 @@ function wrapHandle(raw, prefix) {
   return async (env, action, ...rest) => {
     // 归因走异步上下文（见上面 C1 段）：不 await 的副作用仍记在发起它的那个 action 上
     // 计数必须从 runInSqlScope 的返回值取：作用域一退出，getStore() 就读不到刚才那个 store 了
-    const { result, statements } = await runInSqlScope(prefix + action, () => raw(env, action, ...rest))
+    const { result, statements, amortized } = await runInSqlScope(prefix + action, () => raw(env, action, ...rest))
     noteSql(prefix + action, statements)
+    // 摊销语句按"桶"记（值是**全程累计次数**，不是单次峰值——它本来就不属于任何一次调用）
+    for (const b of amortized || []) noteSql(b, (SQL_PEAK[b] || 0) + 1)
     if (SHAPE_OUT && action) {
       const side = prefix === 'A:' ? '/web' : '/pub'
       const key = `${side} ${action}`
@@ -468,6 +482,20 @@ ok(Number(aiadvRow.c) >= 1, `rate_limits 表有 aiAdvice 限流桶 (实际 ${aia
 const unknown = await handleAdmin(env, 'noSuchAction', 'test-key-123', {})
 ok(unknown.code === -1, '未知 action 返回 -1')
 
+// ---------- 补齐四条从未观测过成功形状的行动（第二十八轮，R27-M2）----------
+// 上一轮的 `verify:response` 把"哪些 action 的成功形状从没被真实流量跑过"摊开成 12 条具名缺口，
+// 其中 4 条本轮确认只缺 payload、不缺环境 ⇒ 在这里补上，缺口从 12 收到 8。
+// 顺序刻意放在最后：这一段会新增/删除 reviews 行，跑在前面那些"评价数量"断言之后才不影响它们。
+const vkShapeProbe = await handleAdmin(env, 'verifyKey', 'test-key-123')
+ok(vkShapeProbe.code === 0 && typeof vkShapeProbe.role === 'string', `verifyKey 成功返回 role (${vkShapeProbe.role})`)
+const revShapeProbe = await handleAdmin(env, 'addReview', 'test-key-123', { productOrder: 9001, rating: 4, text: '契约探针用的评价', user: 'shape-probe' })
+ok(revShapeProbe.code === 0 && revShapeProbe.data?._id && revShapeProbe.data.id === revShapeProbe.data._id, `addReview 成功且 _id/id 同值 (${revShapeProbe.data?._id})`)
+const revDelShapeProbe = await handleAdmin(env, 'deleteReview', 'test-key-123', { reviewId: revShapeProbe.data?._id })
+ok(revDelShapeProbe.code === 0, 'deleteReview 成功（探针评价已回收，不影响后续数量断言）')
+const dashShapeProbe = await handleAdmin(env, 'getDashboardStats', 'test-key-123', { rangeDays: 7 })
+ok(dashShapeProbe.code === 0 && dashShapeProbe.data?.rangeData && Array.isArray(dashShapeProbe.data.rangeData.labels),
+  `getDashboardStats 成功返回看板聚合 (${dashShapeProbe.data?.rangeData?.labels?.length} 天)`)
+
 // ---------- C1：单次调用 SQL 语句数基线（只降不升）----------
 const SQL_BASELINE_PATH = join(root, 'docs', 'sql-baseline.json')
 const UPDATE_BASELINE = process.argv.includes('--update-sql-baseline')
@@ -476,7 +504,10 @@ const UPDATE_BASELINE = process.argv.includes('--update-sql-baseline')
 // 只要"基线"和"本轮实测"都各自是一次随机采样，这条配额闸就会随机变红 ⇒ 人很快学会无视它。
 // 正解是把两边都变成**同口径的 N 次采样上界**：基线是 5 次取最大，本轮也是 5 次取最大。
 const EMIT_PEAKS = (() => { const i = process.argv.indexOf('--emit-peaks'); return i >= 0 ? process.argv[i + 1] : null })()
-const PEAK_SAMPLES = Math.max(1, Number(process.env.SQL_PEAK_SAMPLES || 5))
+// 采样次数默认 1：第二十八轮把抖动归因到那条 5% 采样的摊销清理并单独立账后，实测 12 轮单采样下
+// 30 个 action 峰值全等（只有摊销桶自己在变）。采样能力留着 —— 未来再出现随机路径时把它调回去即可，
+// 不必回头改判据逻辑。
+const PEAK_SAMPLES = Math.max(1, Number(process.env.SQL_PEAK_SAMPLES || 1))
 
 /** 采样 N 次（本进程算 1 次，其余用子进程），返回逐 action 的语句峰值上界。 */
 function samplePeaks() {
@@ -494,8 +525,14 @@ function samplePeaks() {
   return merged
 }
 
+const EMIT_LOG = (() => { const i = process.argv.indexOf('--emit-log'); return i >= 0 ? process.argv[i + 1] : null })()
 if (EMIT_PEAKS) {
   writeFileSync(EMIT_PEAKS, JSON.stringify(SQL_PEAK, null, 2) + '\n')
+  if (EMIT_LOG) {
+    writeFileSync(EMIT_LOG, JSON.stringify(D1.__log.map((e) => ({
+      scope: e.scope, kind: e.kind, sql: String(e.sql).replace(/\s+/g, ' ').slice(0, 88),
+    })), null, 2) + '\n')
+  }
 } else if (UPDATE_BASELINE) {
   const merged = samplePeaks()
   writeFileSync(SQL_BASELINE_PATH, JSON.stringify({ updatedAt: new Date().toISOString(), peakStatements: merged, samples: PEAK_SAMPLES }, null, 2) + '\n')
@@ -508,23 +545,23 @@ if (EMIT_PEAKS) {
     ok(false, 'sql-baseline.json 缺失/损坏（跑 node scripts/verify-backend.mjs --update-sql-baseline 生成）')
   } else {
     const keys = new Set([...Object.keys(baseline), ...Object.keys(measured)])
-    // 噪声带 +1（第二十七轮，如实记：**机制未归因到底**）。已确证的是现象 —— 同一段代码连跑 5 次，
-    // 每次都有某个 action 的峰值比基线多 1（抖动的 action 每轮都换：createProduct / seedReviews /
-    // createSubmission / recalculateOrders…）。本轮还试过把归因从"action 边界做差"换成
-    // AsyncLocalStorage 上下文，抖动仍在 ⇒ 不是归因窗口串味。
-    // 为什么 +1 可以放、而这条闸还有意义：它的目的是抓 N+1（循环里逐条 SELECT），
-    // 那种回归一次就是 **+商品数**（本仓量级 ≥20），绝不会只多 1 条。
-    // 而"因为 ±1 随机变红"的闸会教人无视它 —— 所以带内打印 WARN、带外才判红。
-    const NOISE_BAND = 1
-    const jitter = []
+    // 第二十八轮：抖动归因到具体一条语句后，噪声带撤了。
+    // 归因结论（可复跑）：functions/lib/security.js 的审计保留裁剪以 **5% 概率**顺带执行
+    //   DELETE FROM security_events WHERE ts < datetime('now','-90 days')
+    // 它记在"恰好触发它的那个 action"头上 ⇒ 上一版实测 11/30 个 action 峰值随机 +1、每轮换受害者，
+    // 而全链总语句数几乎不变。现在这类语句按 classify 单独立到 amortized:* 桶（见 metered-d1），
+    // **不参与逐 action 的峰值回归比较**（它是"全程发生了几次"的计数，不是某一次调用的开销），
+    // 只在本轮信息行里报出来。归因修好后 12 轮单采样：31 个键里只有摊销桶自己在变。
+    const amortized = [...keys].filter((k) => k.startsWith('amortized:'))
+    for (const k of amortized) console.log(`INFO  摊销型后台清理 ${k}：本轮累计 ${measured[k] || 0} 次（不计入逐 action 峰值回归）`)
     for (const k of keys) {
+      if (k.startsWith('amortized:')) continue
       const b = baseline[k], actual = measured[k] || 0
       if (b === undefined) { ok(false, `SQL 基线缺 action ${k}（新增调用路径？--update-sql-baseline 确认后入册）`); continue }
-      if (actual > b + NOISE_BAND) { ok(false, `SQL 语句数回归 ${k}: 峰值 ${actual} > 基线 ${b} +噪声带 ${NOISE_BAND}`) }
-      else if (actual > b) { jitter.push(`${k} ${b}→${actual}`) }
+      if (actual > b) { ok(false, `SQL 语句数回归 ${k}: 峰值 ${actual} > 基线 ${b}`) }
     }
-    if (jitter.length) console.log(`WARN  SQL 峰值落在噪声带内（机制未归因，见脚本注释）：${jitter.join(' , ')}`)
-    ok(Object.keys(baseline).every((k) => measured[k] !== undefined), '基线内全部 action 本轮均有执行')
+    ok(Object.keys(baseline).filter((k) => !k.startsWith('amortized:')).every((k) => measured[k] !== undefined),
+      '基线内全部 action 本轮均有执行')
   }
 }
 

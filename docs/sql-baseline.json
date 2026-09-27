@@ -1,19 +1,20 @@
 {
-  "updatedAt": "2026-09-27T05:06:48.208Z",
+  "updatedAt": "2026-09-27T05:40:09.600Z",
   "peakStatements": {
     "P:getPublicCategories": 1,
     "P:getPublicProducts": 1,
     "P:createOrder": 6,
     "A:getOrder": 1,
     "A:getOrders": 1,
-    "A:updateOrderStatus": 5,
+    "A:updateOrderStatus": 4,
     "P:getOrderStatus": 1,
     "A:getOrderStatus": 1,
-    "A:createProduct": 3,
+    "A:createProduct": 2,
     "A:getProducts": 1,
-    "A:deleteOrder": 5,
+    "amortized:audit-retention-purge": 5,
+    "A:deleteOrder": 4,
     "A:deleteProduct": 2,
-    "A:updateProduct": 3,
+    "A:updateProduct": 2,
     "A:stalePendingReport": 2,
     "P:stalePendingReport": 0,
     "A:seedReviews": 22,
@@ -25,12 +26,16 @@
     "A:createSubmission": 2,
     "A:getSubmissions": 1,
     "A:updateSubmissionStatus": 2,
-    "A:deleteSubmission": 3,
+    "A:deleteSubmission": 2,
     "A:recalculateOrders": 2,
     "P:getProducts": 0,
-    "A:login": 4,
+    "A:login": 3,
     "A:aiAdvice": 6,
-    "A:noSuchAction": 0
+    "A:noSuchAction": 0,
+    "A:verifyKey": 0,
+    "A:addReview": 2,
+    "A:deleteReview": 2,
+    "A:getDashboardStats": 3
   },
-  "samples": 5
+  "samples": 1
 }
