@@ -109,6 +109,10 @@ jobs:
       - name: Error semantics registry gate
         run: npm run verify:errors
 
+      # 对标第二十轮：个人数据登记册 ⇄ schema 全量列双向对账，并与导出面白名单互锁
+      - name: PII inventory gate
+        run: npm run verify:pii
+
       # 对标第三轮 C2：生产依赖（含传递）license 白名单，拦 GPL/AGPL 类传染（本项目 MIT 发布）
       - name: Production license gate
         run: npm run verify:licenses

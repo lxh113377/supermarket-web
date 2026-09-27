@@ -140,6 +140,7 @@ describe('关键 step 存在性（改名即红，防"门禁静默消失"）', ()
     'Function-level authorization coverage gate',
     'Numeric limit provenance gate',
     'Error semantics registry gate',
+    'PII inventory gate',
     'Production license gate',
     'CHANGELOG entry gate',
     'Bundle size budget (gzip, first-load)',
