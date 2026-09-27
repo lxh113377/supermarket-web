@@ -1,0 +1,20 @@
+-- 白象方便面（帮泡，order 46）口味结构化迁移（2026-09-28）
+-- 背景：三种口味原先只在 src/data/products-seed.ts 的 spec 长文案「帮泡+可选十三香/麻辣香/山西老陈醋」里，
+--       顾客端点不到、后台也读不出顾客选了哪个；前端改由一个不进 D1 的演示聚合层
+--       （src/data/variants-demo.ts，已退役）渲染选择器，它产出的 specText 服务端 allowedOrderSpecs
+--       不认，被 resolveOrderSpec 静默回落成静态规格 ⇒ 顾客点了口味而后台看不见。
+--       口味由此迁到唯一权威载体 products.specOptions。
+-- ⚠️ 本件只动 specOptions 一列。**不改 spec**：2026-09-28 用 `wrangler d1 export --remote` 载回断言时实测
+--    线上 p046.spec 早就是 '帮泡'（长文案只存在于 seed.ts/seed.sql，从未进过生产库），
+--    所以"收敛 spec"是一条对生产为零操作、而回滚件会把一个从未存在过的值写进生产库的伪迁移 —— 已删除。
+--    seed 侧的 spec 同步改 '帮泡' 属于**修 seed→线上的漂移**，不走本件。
+-- 执行方式（chaoshi-web-deploy skill §4，一律走账目表，禁裸 d1 execute --file）：
+--   node scripts/migrate.mjs status --remote
+--   node scripts/migrate.mjs apply --remote --yes
+-- ⚠️ 前置：先 `wrangler d1 export supermarket --remote --output=<路径>` 全量备份并载回断言
+--    （备份只有被载回并断言过才算备份；未验证的备份是愿望不是保险）。
+-- ⚠️ 顺序：先跑本件、再部署读 specOptions 的前端；反序不报错，只是顾客端暂时不出口味选择器。
+-- ⚠️ 禁由 db/seed.sql 覆盖 D1：实测线上 54 条里 **35 条 price 与 seed 不一致**（seed 系统性过期），
+--    用 seed 覆盖会把 35 个在售价改回旧值。本件只做定向 UPDATE。回滚见 rollback-baixiang-flavor.sql。
+-- 幂等：按 "order" 定位，可安全重跑。
+UPDATE products SET specOptions='[{"label":"十三香"},{"label":"麻辣香"},{"label":"山西老陈醋"}]' WHERE "order"=46;

@@ -1,5 +1,6 @@
 // 可选规格（口味）合成层 —— 把管理后台维护的 product.specOptions 变成一条单轴变体组，
-// 与 src/data/variants-demo.ts 的演示组共用 utils/variants.ts 的纯函数与 VariantPicker。
+// 复用 utils/variants.ts 的纯函数与 VariantPicker。这是口味唯一的合成入口：
+// 任何绕过本文件、在前端另造 specText 的层都会在服务端 allowedOrderSpecs 处被丢掉。
 //
 // 口径：口味只决定「要哪一个」，单价、实拍图、商品名仍是这条商品记录的真实值，不编造。
 // enabled=false 的口味由后台开关关掉，这里直接过滤掉，顾客端不渲染。

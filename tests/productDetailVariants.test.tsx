@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
-// 详情页的规格交互：两条来源都要过 —— ① 跨记录聚合组（白象 帮泡/零售，src/data/variants-demo.ts）
-// ② 商品自带口味（乐事薯片等 4 款，后台写进 D1 的 specOptions）。
+// 详情页的规格交互：口味只有一条来路 —— 商品自带的 specOptions（后台写进 D1）。
+// 原先的第二条来路是跨记录演示层 src/data/variants-demo.ts，已于 2026-09-28 退役：
+// 它不进 D1、不参与下单接口，却在详情页优先渲染出选择器，产出的 specText 服务端
+// allowedOrderSpecs 不认，被 resolveOrderSpec 静默回落 ⇒ 顾客选了口味而后台看不见。
 //
 // 用例商品直接用 products-seed.ts 的真实行，断言里的价格/口味就是目录里的真实值 ——
 // 与 variants.test.ts 的诚实性判据同源，不另编一份测试夹具冒充生产数据。
@@ -9,6 +11,8 @@ import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/re
 import { MemoryRouter } from 'react-router-dom'
 import ProductDetailPage from '../src/pages/ProductDetailPage'
 import { products as seedProducts } from '../src/data/products-seed'
+import { allowedOrderSpecs } from '../functions/lib/actions/orders.js'
+import { splitOrderSpec } from '../src/utils/spec-options'
 import type { Product } from '../src/types'
 
 /**
@@ -70,17 +74,26 @@ beforeEach(() => {
 })
 afterEach(() => { cleanup() })
 
-describe('跨记录规格选择器（白象 帮泡/零售）', () => {
-  it('按真实属性渲染两轴（版本 / 口味），不硬套「颜色」字样', async () => {
+describe('白象帮泡的口味选择器（口味由 specOptions 承载，跨记录演示层已退役）', () => {
+  it('渲染出「口味」单轴，选项就是目录里那条记录维护的三个口味，不硬套「颜色」字样', async () => {
     page()
     await screen.findByLabelText('购买数量')
-    expect(hasAxis('版本')).toBe(true)
     expect(hasAxis('口味')).toBe(true)
     expect(hasAxis('颜色')).toBe(false)
+    for (const label of ['十三香', '麻辣香', '山西老陈醋']) {
+      expect(screen.getByRole('button', { name: label }), `缺口味 ${label}`).toBeTruthy()
+    }
+  })
+
+  it('不再有「版本」轴：帮泡与零售是目录里两条独立记录，不在详情页互相切换', async () => {
+    page()
+    await screen.findByLabelText('购买数量')
+    expect(hasAxis('版本')).toBe(false)
+    expect(screen.queryByRole('button', { name: '零售装' })).toBeNull()
   })
 
   it('无规格数据的商品不渲染选择器（不编造规格）', async () => {
-    m.id = '22' // 有糖可乐 罐装330ml：本轮口径下既无聚合组也无口味
+    m.id = '22' // 有糖可乐 罐装330ml：既无聚合组也无口味
     page()
     await screen.findByLabelText('购买数量')
     expect(hasAxis('版本')).toBe(false)
@@ -101,37 +114,40 @@ describe('跨记录规格选择器（白象 帮泡/零售）', () => {
     expect(hasAxis('容量')).toBe(false)
   })
 
-  it('进入某条目录记录时，选择器初始选中该项自身', async () => {
-    m.id = '47' // 白象 零售装
+  it('进入 order 47（零售装）不渲染任何选择器 —— 它没有口味清单，页面不替它编', async () => {
+    m.id = '47'
     page()
     await screen.findByLabelText('购买数量')
-    expect(screen.getByRole('button', { name: '零售装' }).getAttribute('aria-pressed')).toBe('true')
-    expect(screen.getByRole('button', { name: '帮泡装' }).getAttribute('aria-pressed')).toBe('false')
+    expect(hasAxis('口味')).toBe(false)
+    expect(hasAxis('版本')).toBe(false)
   })
 
-  it('换规格 → 价格随真实单价变化（帮泡 3.66 ↔ 零售 1.88）', async () => {
-    page()
-    await screen.findByLabelText('购买数量')
-    expect(screen.getAllByText('¥3.66').length).toBeGreaterThan(0)
-    fireEvent.click(screen.getByRole('button', { name: '零售装' }))
-    await waitFor(() => expect(screen.getAllByText('¥1.88').length).toBeGreaterThan(0))
-  })
-
-  it('【缺陷回归】帮泡装+十三香 点零售装：口味自动清空并如实播报，不静默改用户规格', async () => {
+  it('选口味不改价：单价仍是这条商品记录的真实值 3.66（口味不是另一条记录）', async () => {
     page()
     await screen.findByLabelText('购买数量')
     fireEvent.click(screen.getByRole('button', { name: '山西老陈醋' }))
-    fireEvent.click(screen.getByRole('button', { name: '零售装' }))
-    expect(await screen.findByText(/没有可售组合/)).toBeTruthy()
-    await waitFor(() => expect(screen.getAllByText('¥1.88').length).toBeGreaterThan(0))
-    expect(screen.getByRole('button', { name: '零售装' }).getAttribute('aria-pressed')).toBe('true')
+    await waitFor(() => expect(screen.getAllByText('¥3.66').length).toBeGreaterThan(0))
   })
 
-  it('如实标注哪些是真实值、哪些是聚合交互', async () => {
+  it('【缺陷回归】所选口味写进加购 spec 的那串，必须被服务端 allowedOrderSpecs 放行', async () => {
+    // 演示层退役前这里产出的是「帮泡装 · 十三香」：服务端白名单里没有这一项，
+    // resolveOrderSpec 会**静默**回落成静态规格 —— 不报错、不回传原因，后台就永远看不到口味。
+    // 所以这条判据必须打到服务端那个函数上，而不是只比对前端自己的字符串。
     page()
     await screen.findByLabelText('购买数量')
-    expect(screen.getByText(/数据说明：/)).toBeTruthy()
-    expect(screen.getByText(/演示交互/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '山西老陈醋' }))
+    fireEvent.click(screen.getByRole('button', { name: '加入购物车' }))
+    const called = m.add.mock.calls[0][0] as { _id: string; spec: string }
+    const p46 = rows.find((p) => Number(p.order) === 46)!
+    expect([...allowedOrderSpecs(p46)], `服务端不认 "${called.spec}"，会被静默丢掉`).toContain(called.spec)
+    expect(splitOrderSpec(called.spec).flavor).toBe('山西老陈醋')
+  })
+
+  it('口味是真实目录数据，页面不得再把它标成演示交互', async () => {
+    page()
+    await screen.findByLabelText('购买数量')
+    expect(screen.getByText(/管理后台维护/)).toBeTruthy()
+    expect(screen.queryByText(/演示交互/)).toBeNull()
   })
 })
 
@@ -184,34 +200,47 @@ describe('后台口味选择器（specOptions · 乐事薯片）', () => {
   })
 })
 
-describe('缩略图与主图双向联动', () => {
-  it('跨记录组有几条真实商品记录就出几张真实缩略图', async () => {
-    const { container } = page()
-    await screen.findByLabelText('购买数量')
-    const nav = screen.getByRole('navigation', { name: /图片缩略图/ })
-    expect(nav.querySelectorAll('button').length).toBe(2)
-    expect(nav.querySelectorAll('img').length).toBe(2)
-    expect(container.querySelector('[data-main-image] img')).toBeTruthy()
-  })
-
-  it('点缩略图同时切主图与规格（同一份 selection 驱动，不会两态打架）', async () => {
+describe('缩略图与主图：口味共用同一条商品记录的真实实拍图', () => {
+  it('白象帮泡三个口味都落在 order 46 ⇒ 图集里只有 46 那张，不凭空多出零售装那张', async () => {
     page()
     await screen.findByLabelText('购买数量')
-    const nav = screen.getByRole('navigation', { name: /图片缩略图/ })
-    fireEvent.click(nav.querySelectorAll('button')[1]) // 第二张 = 零售装（order 47）
-    await waitFor(() => expect(screen.getAllByText('¥1.88').length).toBeGreaterThan(0))
-    expect(screen.getByRole('button', { name: '零售装' }).getAttribute('aria-pressed')).toBe('true')
+    // 单图时 ProductGallery 不渲染缩略图导航，所以按 src 取证而不是数导航按钮
+    const main = document.querySelector('[data-main-image] img')
+    expect(main!.getAttribute('src')).toBe('/images/46.webp')
+    const shown = Array.from(document.querySelectorAll('img'))
+      .map((i) => i.getAttribute('src') || '')
+      .filter((s) => /^\/images\/\d+\.webp$/.test(s))
+    expect(shown).toContain('/images/46.webp')
+    expect(shown, '零售装（47）的图不该出现在帮泡详情页').not.toContain('/images/47.webp')
+  })
+
+  it('换口味不改主图（口径：口味只决定"要哪一个"，图/价/名仍是这条记录的真值）', async () => {
+    page()
+    await screen.findByLabelText('购买数量')
+    const before = document.querySelector('[data-main-image] img')!.getAttribute('src')
+    expect(before).toBe('/images/46.webp')
+    fireEvent.click(screen.getByRole('button', { name: '麻辣香' }))
     await waitFor(() => expect(
       document.querySelector('[data-main-image] img')!.getAttribute('src'),
-    ).toBe('/images/47.webp'))
+    ).toBe(before))
   })
 })
 
 describe('加购按规格入账', () => {
-  it('跨记录组加购带的是该规格对应的那条真实商品（价格与 _id 都对得上）', async () => {
+  it('白象帮泡加购带的就是 order 46 这条记录本身（_id 与真实单价对得上）', async () => {
     page()
     await screen.findByLabelText('购买数量')
-    fireEvent.click(screen.getByRole('button', { name: '零售装' }))
+    fireEvent.click(screen.getByRole('button', { name: '加入购物车' }))
+    expect(m.add).toHaveBeenCalledWith(
+      expect.objectContaining({ _id: 'p46', price: 3.66, name: '白象方便面' }),
+      1,
+    )
+  })
+
+  it('零售装（order 47）加购带的是它自己那条记录，价格 1.88 不被帮泡顶掉', async () => {
+    m.id = '47'
+    page()
+    await screen.findByLabelText('购买数量')
     fireEvent.click(screen.getByRole('button', { name: '加入购物车' }))
     expect(m.add).toHaveBeenCalledWith(
       expect.objectContaining({ _id: 'p47', price: 1.88, name: '白象方便面' }),
@@ -243,17 +272,20 @@ describe('演示订单摘要（不真实支付）', () => {
     expect(m.navigate).not.toHaveBeenCalled()
   })
 
-  it('摘要里的金额 = 规格真实单价 × 所选数量', async () => {
+  it('摘要里的金额 = 规格真实单价 × 所选数量，且口味不改单价', async () => {
     page()
     await screen.findByLabelText('购买数量')
-    fireEvent.click(screen.getByRole('button', { name: '零售装' })) // ¥1.88
+    fireEvent.click(screen.getByRole('button', { name: '麻辣香' })) // 单价仍 3.66
     fireEvent.click(screen.getByRole('button', { name: '增加购买数量' }))
     fireEvent.click(screen.getByRole('button', { name: '增加购买数量' })) // 数量 3
     fireEvent.click(screen.getByRole('button', { name: '立即购买（演示摘要）' }))
     await screen.findByRole('dialog', { name: '演示订单摘要' })
     expect(screen.getByText('× 3')).toBeTruthy()
-    expect(screen.getByText('¥5.64')).toBeTruthy() // 1.88 × 3
-    expect(screen.getByText(/当前对应目录编号 47/)).toBeTruthy()
+    expect(screen.getByText('¥10.98')).toBeTruthy() // 3.66 × 3
+    expect(screen.getByText('已选口味：麻辣香')).toBeTruthy()
+    // 「当前对应目录编号 N」那行只在所选规格落到**另一条**商品记录时才出现（跨记录聚合组的痕迹）。
+    // 口味共用同一条记录 ⇒ 这行不该存在；它若回来了，说明又有人让前端把用户指向别的行。
+    expect(screen.queryByText(/当前对应目录编号/)).toBeNull()
   })
 
   it('关闭摘要后焦点回到触发按钮（Overlay 的焦点归还）', async () => {

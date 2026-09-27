@@ -28,19 +28,31 @@ const SCHEMA = readFileSync(join(process.cwd(), 'db/schema.sql'), 'utf8')
 function copyGates(tmp, ...names) {
   copyGateScripts(process.cwd(), tmp, ...names)
 }
-const REAL = ['migrate-ai-calls.sql', 'migrate-fix.sql', 'migrate-idempotency.sql',
-  'migrate-optimize-indexes.sql', 'migrate-security.sql', 'migrate-spec-options.sql',
-  'migrate-stock.sql'].map((f) => ({ file: f, text: readFileSync(join(process.cwd(), 'db', f), 'utf8') }))
+/**
+ * 迁移面按**磁盘枚举**取，不手抄文件名清单。
+ * 手抄的那份清单（本文件此前 REAL 的写法）会让新加的 `migrate-*.sql` 对 A6/A7 双双隐形：
+ * 新文件不在清单里 ⇒ 正例夹具的 `files` 不含它 ⇒ rollback 找不到正向件而判红，
+ * 而门禁本体（main 走 readdirSync）其实是看得见它的 —— 测试比门禁瞎，这正是要防的形态。
+ */
+const MIGRATE_FILES = readdirSync(join(process.cwd(), 'db'))
+  .filter((f) => /^migrate-.*\.sql$/.test(f))
+  .sort()
+const REAL = MIGRATE_FILES.map((f) => ({ file: f, text: readFileSync(join(process.cwd(), 'db', f), 'utf8') }))
 
 const files = (extra) => [...REAL, extra]
 const mig = (file, text) => ({ file, text })
 
 describe('verify-migrate-replay 正例', () => {
-  it('真实仓：基线可重建 + 7 个历史迁移全部豁免 + 无前向迁移 ⇒ 零问题', () => {
+  it('真实仓：基线可重建 + 历史迁移全部豁免 + 前向迁移可重放 ⇒ 零问题', () => {
     const r = judge({ files: REAL, schemaSql: SCHEMA })
     expect(r.problems, r.problems.join('\n   ')).toEqual([])
     expect(r.stats.waived).toBe(BASELINE_ERA.size)
-    expect(r.stats.forward).toBe(0)
+    // 前向迁移数由磁盘枚举算出来，不写常量：写 0 就等于「每加一个迁移都得记得改这条测试」，
+    // 忘了改的话新迁移从测试眼里消失（而门禁本体看得见它）—— 那正是 A6/A7 要防的形态。
+    expect(r.stats.forward).toBe(MIGRATE_FILES.filter((f) => !BASELINE_ERA.has(f)).length)
+    // 反向：枚举器真的看得见新落盘的迁移（否则上面那条等式靠「两边都漏」也能成立）
+    expect(MIGRATE_FILES).toContain('migrate-baixiang-flavor.sql')
+    expect(r.stats.files).toBe(MIGRATE_FILES.length)
   })
 
   it('幂等的前向迁移（CREATE TABLE IF NOT EXISTS 且已同步真相源）⇒ 仍判过', () => {
@@ -50,7 +62,10 @@ describe('verify-migrate-replay 正例', () => {
       schemaSql: schema,
     })
     expect(r.problems, r.problems.join('\n   ')).toEqual([])
-    expect(r.stats.forward).toBe(1)
+    // 「加了 1 条前向迁移就被计为前向」——按 REAL 自身的前向数取基准，
+    // 写绝对值 1 会在每次落新迁移时假红（REAL 现已是磁盘枚举，含仓内既有前向件）。
+    const realForward = MIGRATE_FILES.filter((f) => !BASELINE_ERA.has(f)).length
+    expect(r.stats.forward).toBe(realForward + 1)
   })
 })
 

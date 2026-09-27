@@ -3,9 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import type { Product } from '../types'
 import { productImageUrl, productSrcSet } from '../utils/images'
 import { formatPrice } from '../utils/format'
-import { variantGroupOf } from '../data/variants-demo'
 import { enabledSpecOptions } from '../utils/spec-options'
-import { groupImageOrders } from '../utils/variants'
 import { prefetchRoute } from '../prefetchBus'
 
 interface ProductCardProps {
@@ -36,10 +34,9 @@ function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
   const [imgErr, setImgErr] = useState(false)
   const imgSrc = productImageUrl(product.order)
   const imgSrcSet = productSrcSet(product.order)
-  // 角标口径：跨记录聚合组数的是「几条真实记录」，商品自带口味数的是「几个可选口味」；
-  // 只有 1 种时不显示角标（无变体组也无口味时为 0）
-  const group = variantGroupOf(product.order)
-  const variantCount = group ? groupImageOrders(group).length : enabledSpecOptions(product).length
+  // 角标口径：数的是这条商品记录自己有几个可选口味（后台关掉的不计）；
+  // 只有 1 种时不显示角标，无口味时为 0
+  const variantCount = enabledSpecOptions(product).length
 
   const goDetail = () => {
     if (!disabled) navigate(`/product/${product._id}`)

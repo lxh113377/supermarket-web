@@ -17,7 +17,6 @@ import { IconEmpty } from '../components/Icons'
 import { productImageUrl, productSrcSet } from '../utils/images'
 import { formatYuan } from '../utils/format'
 import { useIsNarrow } from '../hooks/useMediaQuery'
-import { variantGroupOf } from '../data/variants-demo'
 import { SPEC_AXIS_ID, specOptionGroupOf } from '../utils/spec-options'
 import {
   groupImageOrders,
@@ -37,10 +36,11 @@ import type { Category, Product, Review } from '../types'
 // 「立即购买」只弹演示订单摘要，不建单、不跳 /order-confirm、不接支付；
 // 真实下单链路仍由 购物袋 → 确认订单 → 支付 承担。
 //
-// 规格有两个来源：① src/data/variants-demo.ts —— 同一商品的几条真实记录（白象帮泡/零售）；
-// ② product.specOptions —— 商品自带的可选口味，由管理后台维护、关掉即不显示。
-// 每个可售组合的编号、单价、商品名、图片都对应目录里的真实商品行，聚合关系已在
-// disclosure 里如实标注为演示交互。两处都没有可用规格的商品不渲染选择器，不编造规格。
+// 规格只有一个来源：product.specOptions —— 商品自带的可选口味，由管理后台维护、关掉即不显示。
+// 曾经有过第二个来源（src/data/variants-demo.ts 跨记录聚合层，已退役）：它不进 D1、不参与下单接口，
+// 却在前端优先于 specOptions 渲染出选择器，产出的 specText 服务端白名单不认，被 resolveOrderSpec
+// 静默回落成静态规格 —— 顾客点了口味而后台看不见。故口味一律由后台的 specOptions 承载。
+// 每个可售组合的编号、单价、商品名、图片都对应目录里的真实商品行。没有可用规格的商品不渲染选择器，不编造规格。
 
 /** 某轴某选项 id → 展示文案 */
 function optionLabel(group: VariantGroup, axisId: string, optionId: string): string {
@@ -71,8 +71,8 @@ export default function ProductDetailPage() {
   const imgSrc = product?.image || productImageUrl(orderNum)
 
   // 规格组与图集（必须在条件 return 之前计算，遵守 Hooks 顺序）：
-  // 先认跨记录聚合组（白象帮泡/零售），没有再退到该商品自己的口味清单（后台 specOptions）
-  const group = useMemo(() => variantGroupOf(orderNum) ?? specOptionGroupOf(product), [orderNum, product])
+  // 口味只认该商品自己在后台维护的 specOptions（组内已按 order 定位，无需再查 orderNum）
+  const group = useMemo(() => specOptionGroupOf(product), [product])
 
   const galleryItems: GalleryItem[] = useMemo(() => {
     if (group) {

@@ -112,7 +112,15 @@ export const products: SeedProduct[] = [
   { name: '乌梅干', spec: '', price: 2.33, subcategories: ['snacks'], order: 45 },
 
   // 垫腹
-  { name: '白象方便面', spec: '帮泡+可选十三香/麻辣香/山西老陈醋', price: 3.66, subcategories: ['filling'], order: 46 },
+  // 口味走 specOptions（2026-09-28）：原先只写在 spec 文案「帮泡+可选十三香/…」里，顾客点不到、
+  // 后台也读不出顾客选了哪个。生产库 p046.spec 实测本来就是「帮泡」（长文案从未进过 D1），
+  // 所以这里把 seed 的 spec 对齐线上是**修 seed→线上漂移**，不是一次生产变更。
+  // 注：seed 的 price 与线上系统性不一致（实测 54 条里 35 条不同），本行 price 仍是 seed 旧值，
+  // 未被本次改动触碰，也不得用 seed 反向覆盖 D1。
+  {
+    name: '白象方便面', spec: '帮泡', price: 3.66, subcategories: ['filling'], order: 46,
+    specOptions: [{ label: '十三香' }, { label: '麻辣香' }, { label: '山西老陈醋' }],
+  },
   { name: '白象方便面', spec: '零售', price: 1.88, subcategories: ['filling'], order: 47 },
   { name: '乡巴佬卤蛋', spec: '', price: 1.37, subcategories: ['filling'], order: 48 },
   { name: '双汇火腿肠', spec: '', price: 0.88, subcategories: ['filling'], order: 49 },

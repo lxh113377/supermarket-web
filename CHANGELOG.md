@@ -3,6 +3,37 @@
 本项目采用 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式。此前未维护本文件，历史条目按 git 提交记录补记（自 2026-09-23 起持续维护）。
 
 ## [未发布]
+### 2026-09-28 追加五十四（老大点名三件事：换图 / 顾客所选口味后台可见 / 上架开关白圈溢出）
+
+- **② 口味「后台看不见」不是功能没做，是被另一条链绕开后的静默丢数据。** 口味徽标早已上线
+ （`6c32c1a`/`8c9ed95`，线上 `AdminPage-*.js` 内 grep 到 ``children:[`口味 `,i]`` 原文），但详情页
+ `ProductDetailPage.tsx:75` 写的是 `variantGroupOf(orderNum) ?? specOptionGroupOf(product)`，
+ 演示层 `src/data/variants-demo.ts` 覆盖白象 46/47 且优先级在前 ⇒ `specOptions` 永不被读；
+ 该层产出的 `'帮泡装 · 十三香'` 又不在服务端 `allowedOrderSpecs`（线上 `p046.specOptions='[]'`）内，
+ `resolveOrderSpec` 第 102 行**静默回落**成静态规格、不报错 ⇒ 顾客点了口味而后台看不到。
+ 该文件头自称「不参与下单接口」却在生成下单 payload，这就是缺陷本体。
+- **处置**：白象三口味升为真实 `specOptions`、演示层整体退役（`git rm`）、`migrate-spec-options.sql`
+  的 `NOT IN` 名单并入 46（否则重放链每跑一次就抹掉一次白象口味）。
+- **回滚件差点上线成数据损坏，被备份载回断言拦下**：`wrangler d1 export --remote` 导出 1,461,184 B
+  并**载回 sqlite 逐条断言**测得线上 `p046.spec` 本来就是 `'帮泡'`（长文案从未进过生产库），
+  所以原计划的"收敛 spec"迁移对生产是零操作、其回滚件会把一个**从未存在过的值**写进库 ⇒ 当场删除该对文件。
+  顺带实测 seed⇄线上漂移面比台账更大：54 条里 **35 条 price 不一致**，再次坐实「严禁用 seed.sql 覆盖 D1」。
+- **③ 开关溢出已复现，且根因与静态读码结论相反。** 实测轨道 36×20、旋钮 16 落在 x=36..52，
+  **溢出恰为 16px = 旋钮全宽**：旋钮 `left:auto` 的落点取「静态位置」，Chrome 给的是 18px 而非 0，
+  于是 `translate-x-[18px]` 把它推到 36px。改为全 rem 的 flex 写法（无 abspos、无硬编码 px），
+  实测两态均 18..34、两侧各留 2px。新增 `tests/e2e-visual/admin-switch.spec.ts`：判据印实测值，
+  并配 CSSOM 变异体证明会红（`addStyleTag` 那条路被本页 CSP `style-src 'self'` 拦死，未为测试放宽 CSP）。
+- **① 换图零合格，四张原图一律未动。** 两轮必应 murl 共 51 张 ≥360px 候选逐张编号目检：冰红茶 7 张全为
+  对面海报/logo/代言人/整箱堆头且换词后新增 0 张（检索面见底）；好友趣混「呀！土豆」+13 张《战锤40K》
+  封面 + 13 张百香果园（裸数字"40"串域）；白象唯一袋装是带横幅字的 banner 裁切件。按 Step 3
+  「搜不到就承认搜不到」保留原图、未降级生成图。取证细节见 `memory/07-next-steps.part67.md`。
+- **验证**：`npm run verify` 全链绿（含 `verify:volume` GATE-PASS、`migrateReplay` 26/26）、
+  `npx vitest run` 1334/1334、`npx vite build` ✓ built、Playwright e2e 23 全过、visual 19 过 + 1 显式 skip
+ （多图画集驱动随演示层消失，未删判据，改成带前置条件的大声 skip）。
+- **同轮修掉两处判据自身的缺陷**：`tests/migrateReplay.test.js` 的迁移清单是手抄的 ⇒ 新 `migrate-*.sql`
+  对 A6/A7 双双隐形，改为磁盘枚举并把 `forward` 的绝对值断言改成相对基准；
+  `variants.test.ts` 的诚实性判据在演示数据清空后会 0 次迭代假绿，改为遍历真实合成组并钉住分母非空。
+
 ### 2026-09-28 追加五十三（对标第三十九轮：接手在途第三十八轮 + 立"提交面必须自足"这道闸）
 
 - 取号先列盘：在册最大「五十二」⇒ 本条「五十三」。本轮开场实测重建现状：内层 HEAD 三次探测

@@ -1,14 +1,17 @@
-// 变体解析层 variants.ts + spec-options.ts + 演示数据 variants-demo.ts
+// 变体解析层 variants.ts + 口味合成层 spec-options.ts
 //
 // 锁三件事：
 //   ① 纯函数行为（key 拼接稳定性 / 组合解析 / 硬钉轴 / 自动回落 / 初始选择）——
-//      跨轴与「不存在的组合」这些形态现在由本地夹具提供，演示数据只剩白象一条，
-//      夹具与生产数据解耦，纯函数覆盖率不因演示组减少而掉。
-//   ② 一个真实缺陷的回归：白象方便面从「帮泡装+十三香」点「零售装」，
+//      全部由本文件的**本地夹具**驱动。原先靠演示数据 variants-demo.ts 供形态，那个模块
+//      已于 2026-09-28 退役（理由见 db/migrate-baixiang-flavor.sql 头部）；夹具与生产数据
+//      解耦后，跨轴／「不存在的组合」／硬钉回归这些覆盖率一条不掉。
+//   ② 一个真实缺陷的回归：两轴组从「帮泡装+十三香」点「零售装」，
 //      旧算法会因「帮泡装+十三香」匹配分更高而把用户刚点的零售装吃掉
-//   ③ 诚实性判据 + 本轮口径：可售 combo 的 order / price / productName 必须与
-//      products-seed.ts 逐字段相符；口味当前只留给 4 款小包薯片，饮品不得靠缺省 enabled 长出选择器
+//   ③ 诚实性判据：口味合成组必须与 products-seed.ts 逐字段相符，且顾客选出的
+//      specText 必须被服务端 allowedOrderSpecs 认得（认不得就会被静默丢掉 —— 本轮修的就是它）
 import { describe, it, expect } from 'vitest'
+import { readdirSync, readFileSync } from 'node:fs'
+import { join, relative } from 'node:path'
 import {
   COMBO_SEP,
   comboKey,
@@ -22,12 +25,28 @@ import {
   initialSelection,
   type VariantGroup,
 } from '../src/utils/variants'
-import { VARIANT_GROUPS, variantGroupOf } from '../src/data/variants-demo'
 import { SPEC_FLAVOR_SEP, enabledSpecOptions, specOptionGroupOf, specSearchText, splitOrderSpec } from '../src/utils/spec-options'
 import { products as seedProducts } from '../src/data/products-seed'
 
-const byId = (id: string) => VARIANT_GROUPS.find((g) => g.id === id)!
-const baixiang = byId('baixiang-noodle')
+/**
+ * 两轴 + 「某一轴取值后另一轴为空」的夹具 —— 复刻退役演示组 baixiang-noodle 的形状。
+ * 保留它是因为 pickCombo 的硬钉回归只有在「一个轴对某选项整体为空」时才会暴露旧算法的缺陷。
+ */
+const baixiang: VariantGroup = {
+  id: 'fixture-baixiang',
+  title: '夹具 · 版本与口味',
+  memberOrders: [46, 47],
+  axes: [
+    { id: 'edition', name: '版本', options: [{ id: 'help-soak', label: '帮泡装' }, { id: 'retail', label: '零售装' }] },
+    { id: 'flavor', name: '口味', options: [{ id: 'shisanxiang', label: '十三香' }, { id: 'mala', label: '麻辣香' }, { id: 'vinegar', label: '山西老陈醋' }] },
+  ],
+  combos: {
+    'help-soak|shisanxiang': { price: 3.66, order: 46, productName: '白象方便面', specText: '帮泡 · 十三香', available: true },
+    'help-soak|mala': { price: 3.66, order: 46, productName: '白象方便面', specText: '帮泡 · 麻辣香', available: true },
+    'help-soak|vinegar': { price: 3.66, order: 46, productName: '白象方便面', specText: '帮泡 · 山西老陈醋', available: true },
+    'retail|': { price: 1.88, order: 47, productName: '白象方便面', specText: '零售', available: true },
+  },
+}
 
 /** 两轴夹具：含一个真实不存在的组合（盒装 + 500ml）与并列打分场景 */
 const twoAxis: VariantGroup = {
@@ -92,27 +111,23 @@ describe('comboKey / parseComboKey', () => {
   })
 })
 
-describe('getVariantGroup / variantGroupOf', () => {
+describe('getVariantGroup', () => {
+  const GROUPS: VariantGroup[] = [baixiang, twoAxis]
+
   it('order 为 number 或 string 都能命中（D1 回传两种类型）', () => {
-    expect(getVariantGroup(VARIANT_GROUPS, 46)?.id).toBe('baixiang-noodle')
-    expect(getVariantGroup(VARIANT_GROUPS, '47')?.id).toBe('baixiang-noodle')
+    expect(getVariantGroup(GROUPS, 46)?.id).toBe('fixture-baixiang')
+    expect(getVariantGroup(GROUPS, '47')?.id).toBe('fixture-baixiang')
   })
 
-  it('不在演示数据里的商品返回 undefined（页面据此不渲染选择器）', () => {
-    expect(getVariantGroup(VARIANT_GROUPS, 999)).toBeUndefined()
-    expect(getVariantGroup(VARIANT_GROUPS, undefined)).toBeUndefined()
-    expect(getVariantGroup(VARIANT_GROUPS, null)).toBeUndefined()
-    expect(getVariantGroup(VARIANT_GROUPS, 'abc')).toBeUndefined()
+  it('不在组里的 order / 脏输入返回 undefined（页面据此不渲染选择器）', () => {
+    expect(getVariantGroup(GROUPS, 999)).toBeUndefined()
+    expect(getVariantGroup(GROUPS, undefined)).toBeUndefined()
+    expect(getVariantGroup(GROUPS, null)).toBeUndefined()
+    expect(getVariantGroup(GROUPS, 'abc')).toBeUndefined()
   })
 
-  it('饮品与其余商品的跨记录聚合组已下线：东鹏·康师傅茶饮·农夫山泉·怡宝都不再命中', () => {
-    for (const o of [16, 17, 18, 1, 6, 53, 54, 24, 27, 25, 29]) {
-      expect(variantGroupOf(o), `order ${o} 不应再有规格组`).toBeUndefined()
-    }
-  })
-
-  it('variantGroupOf 是绑定同一份数据的等价入口', () => {
-    expect(variantGroupOf(47)).toBe(getVariantGroup(VARIANT_GROUPS, 47))
+  it('空组清单一律 undefined（枚举器没有对象时不得凭空命中）', () => {
+    expect(getVariantGroup([], 46)).toBeUndefined()
   })
 })
 
@@ -284,11 +299,11 @@ describe('specOptions —— 后台维护的口味合成单轴组', () => {
   })
 })
 
-describe('本轮口径：可选规格只留给 4 款小包薯片 + 白象', () => {
-  const KEEP_FLAVOR_ORDERS = [33, 34, 40, 52]
+describe('本轮口径：可选规格只留给 4 款小包薯片 + 白象帮泡', () => {
+  const KEEP_FLAVOR_ORDERS = [33, 34, 40, 46, 52]
   const FOOD_SUBS = ['snacks', 'filling']
 
-  it('4 款小包薯片的口味清单不得被误删（回归保护）', () => {
+  it('这 5 款的口味清单不得被误删（回归保护）', () => {
     for (const o of KEEP_FLAVOR_ORDERS) {
       const p = seedProducts.find((x) => Number(x.order) === o)
       expect(p, `order ${o} 从目录里消失了`).toBeTruthy()
@@ -296,12 +311,19 @@ describe('本轮口径：可选规格只留给 4 款小包薯片 + 白象', () =
     }
   })
 
-  it('目录里带口味的商品当前仍只有这 4 款（新增须显式改这条并说明依据）', () => {
+  it('目录里带口味的商品当前仍只有这 5 款（新增须显式改这条并说明依据）', () => {
     const withFlavors = seedProducts
       .filter((p) => (p.specOptions?.length ?? 0) > 0)
       .map((p) => Number(p.order))
       .sort((a, b) => a - b)
     expect(withFlavors).toEqual(KEEP_FLAVOR_ORDERS)
+  })
+
+  it('白象帮泡的三种口味与退役前演示组声明的那三个逐字相符（换载体不许换文案）', () => {
+    const p = seedProducts.find((x) => Number(x.order) === 46)!
+    expect(p.spec, '静态规格仍带着口味长文案，后台会读成重复信息').toBe('帮泡')
+    expect(enabledSpecOptions(p).map((o) => o.label))
+      .toEqual(['十三香', '麻辣香', '山西老陈醋'])
   })
 
   it('每个口味都是干净的 label（防脏值流到前端渲染成空按钮）', () => {
@@ -325,7 +347,7 @@ describe('本轮口径：可选规格只留给 4 款小包薯片 + 白象', () =
     expect(drinks.length).toBeGreaterThan(20)
     for (const p of drinks) {
       expect((p.specOptions ?? []).length, `${p.name} 是饮品却带口味`).toBe(0)
-      expect(variantGroupOf(p.order), `${p.name} 是饮品却有规格选择器`).toBeUndefined()
+      expect(specOptionGroupOf(p), `${p.name} 是饮品却有规格选择器`).toBeUndefined()
     }
   })
 
@@ -357,17 +379,48 @@ describe('本轮口径：可选规格只留给 4 款小包薯片 + 白象', () =
     expect(violated).toBeGreaterThanOrEqual(0)
   })
 
-  it('跨记录聚合层只剩白象 46/47 一条', () => {
-    expect(VARIANT_GROUPS.map((g) => g.id)).toEqual(['baixiang-noodle'])
-    expect(VARIANT_GROUPS.flatMap((g) => g.memberOrders).sort((a, b) => a - b)).toEqual([46, 47])
+  it('跨记录演示层已退役：src 里不得再有第二个 specText 合成出口', () => {
+    // 退役理由不是"用不上"，而是它绕过了服务端白名单：一个不进 D1、自称"不参与下单接口"的层
+    // 在前端优先渲染出选择器，产出的 specText 服务端不认 ⇒ 顾客选的口味被静默丢掉。
+    // 判据取「往组合对象里写 specText 属性」这一形态（variants-demo.ts 当年就是这么写的），
+    // 不取裸子串：`specText={effSpec}` 那种 JSX 传值是**消费方**，算进来就是假红。
+    const ALLOWED = [/[\\/]utils[\\/]spec-options\.tsx?$/, /[\\/]utils[\\/]variants\.tsx?$/]
+    const walk = (dir: string): string[] => readdirSync(dir, { withFileTypes: true })
+      .flatMap((e) => (e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)]))
+    const files = walk(join(process.cwd(), 'src')).filter((f) => /\.tsx?$/.test(f))
+    const producers = files.filter((f) => {
+      if (ALLOWED.some((re) => re.test(f))) return false
+      const code = readFileSync(f, 'utf8').split('\n')
+        .filter((l) => !l.trim().startsWith('//') && !l.trim().startsWith('*'))
+        .join('\n')
+      return /\bspecText\s*:/.test(code)
+    })
+    // 反向断言：这条判据不是恒绿的空扫描 —— 把唯一出口自己也算进扫描面时必须有命中
+    const allProducers = files.filter((f) => {
+      const code = readFileSync(f, 'utf8').split('\n')
+        .filter((l) => !l.trim().startsWith('//') && !l.trim().startsWith('*'))
+        .join('\n')
+      return /\bspecText\s*:/.test(code)
+    })
+    expect(allProducers.length, '扫描面里一个 specText 生产者都没有 ⇒ 正则或取数面坏了').toBeGreaterThan(0)
+    expect(producers.map((f) => relative(process.cwd(), f))).toEqual([])
   })
 })
 
-describe('诚实性判据：演示数据必须与真实目录逐字段相符', () => {
+describe('诚实性判据：口味合成组必须与真实目录逐字段相符', () => {
   const rows = new Map(seedProducts.map((p) => [Number(p.order), p]))
+  /**
+   * 判据对象从「演示数据」换成「生产路径实际会渲染出来的组」—— 演示层退役后若还留着
+   * 遍历空清单的循环，这 7 条会全部 0 次迭代而显示绿色（零分母假通过）。
+   * 所以下面先钉住分母非空。
+   */
+  const realGroups = seedProducts
+    .map((p) => specOptionGroupOf({ ...p, _id: p._id ?? `p${p.order}` }))
+    .filter((g): g is VariantGroup => !!g)
+  expect(realGroups.length).toBeGreaterThan(0)
 
   it('每个可售 combo 的 order 都是目录里真实存在的商品行', () => {
-    for (const g of VARIANT_GROUPS) {
+    for (const g of realGroups) {
       for (const [key, combo] of Object.entries(g.combos)) {
         if (!combo.available) continue
         expect(rows.has(combo.order), `${g.id}/${key} 的 order ${combo.order} 不在 products-seed.ts`).toBe(true)
@@ -376,7 +429,7 @@ describe('诚实性判据：演示数据必须与真实目录逐字段相符', (
   })
 
   it('每个可售 combo 的价格与商品名等于真实行（防止"真实数据"退化成注释自称）', () => {
-    for (const g of VARIANT_GROUPS) {
+    for (const g of realGroups) {
       for (const [key, combo] of Object.entries(g.combos)) {
         if (!combo.available) continue
         const row = rows.get(combo.order)!
@@ -387,7 +440,7 @@ describe('诚实性判据：演示数据必须与真实目录逐字段相符', (
   })
 
   it('memberOrders 全部是真实商品行，且每个 order 至少落在一个可售组合里', () => {
-    for (const g of VARIANT_GROUPS) {
+    for (const g of realGroups) {
       const covered = new Set(
         Object.values(g.combos).filter((c) => c.available).map((c) => c.order),
       )
@@ -399,7 +452,7 @@ describe('诚实性判据：演示数据必须与真实目录逐字段相符', (
   })
 
   it('不可售组合不得带非零价格（否则会被人误当成真实标价）', () => {
-    for (const g of VARIANT_GROUPS) {
+    for (const g of realGroups) {
       for (const [key, combo] of Object.entries(g.combos)) {
         if (combo.available) continue
         expect(combo.price, `${g.id}/${key} 标了 available:false 却带价格`).toBe(0)
@@ -408,7 +461,7 @@ describe('诚实性判据：演示数据必须与真实目录逐字段相符', (
   })
 
   it('每个轴的每个选项都有 label（选择器全靠文字表意，色块轴已于第十一轮删除）', () => {
-    for (const g of VARIANT_GROUPS) {
+    for (const g of realGroups) {
       expect(g.axes.length, `${g.id} 无轴`).toBeGreaterThan(0)
       for (const axis of g.axes) {
         for (const opt of axis.options) expect(opt.label, `${g.id}/${axis.id}/${opt.id} 缺 label`).toBeTruthy()
@@ -417,7 +470,7 @@ describe('诚实性判据：演示数据必须与真实目录逐字段相符', (
   })
 
   it('每组都带真实性声明 disclosure（演示聚合必须如实标注）', () => {
-    for (const g of VARIANT_GROUPS) {
+    for (const g of realGroups) {
       expect(g.disclosure, `${g.id} 缺 disclosure`).toBeTruthy()
       expect(g.disclosure!.length).toBeGreaterThan(10)
     }
@@ -425,7 +478,7 @@ describe('诚实性判据：演示数据必须与真实目录逐字段相符', (
 
   it('同一 order 不得同时属于两个变体组（否则详情页选组不确定）', () => {
     const seen = new Map<number, string>()
-    for (const g of VARIANT_GROUPS) {
+    for (const g of realGroups) {
       for (const o of g.memberOrders) {
         expect(seen.has(o), `order ${o} 同时属于 ${seen.get(o)} 与 ${g.id}`).toBe(false)
         seen.set(o, g.id)

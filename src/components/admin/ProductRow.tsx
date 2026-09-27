@@ -103,12 +103,20 @@ function ProductRow({
             aria-pressed={enabled}
             className="w-11 h-11 flex items-center justify-center shrink-0"
           >
+            {/* 旋钮用流内 flex 定位，不用 absolute：
+                旧写法旋钮是 `absolute` 且 left 取 auto，落点依赖「静态位置」——实测 Chrome 给的是
+                轨道中点 18px 而不是 0，于是 translate-x-[18px] 把它推到 36px，整颗圆完全骑到轨道
+                右沿之外（实测 overflow right = 16px = 旋钮全宽）。
+                另外旧写法尺寸走 rem（w-9/h-5/w-4）而位移走硬编码 px（top-[2px]/translate-x-[18px]），
+                根字号一变两者就脱钩。这里全部改用 Tailwind rem 刻度：
+                轨道 36、内缩 p-0.5=2、旋钮 16、行程 translate-x-4=16 ⇒ 上架态占 18..34，两侧各留 2。
+                几何由 tests/e2e-visual/admin-switch.spec.ts 量着钉住。 */}
             <span
               aria-hidden="true"
-              className={`w-9 h-5 rounded-full transition-colors relative ${enabled ? 'bg-green-400' : 'bg-gray-300'}`}
+              className={`flex w-9 h-5 items-center rounded-full p-0.5 transition-colors ${enabled ? 'bg-green-400' : 'bg-gray-300'}`}
             >
               <span
-                className={`absolute top-[2px] w-4 h-4 rounded-full bg-white shadow transition-transform ${enabled ? 'translate-x-[18px]' : 'translate-x-[2px]'}`}
+                className={`h-4 w-4 shrink-0 rounded-full bg-white shadow transition-transform ${enabled ? 'translate-x-4' : 'translate-x-0'}`}
               />
             </span>
           </button>

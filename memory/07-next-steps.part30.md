@@ -10,3 +10,4 @@
 - [ ] **`src/cart.ts:51-53` productId 单键合行未修**（追加二十六已登记）—— 同一商品先后选两个口味会并成一行并保留第一次的 spec，第二次选择在购物车层面就丢了。它改的是购物车键控（`removeFromCart`/`updateQuantity` 同用该键），blast radius 与口味标签不同量级，单独排期。
   ⚠️ 第三十六轮纠偏：**`updateQuantity` 在本仓不存在**（`grep -rn updateQuantity src/ tests/` 零命中，`cart.ts` 只导出
   add/remove/delete/getItemQuantity/getTotal/getItemCount），该指针会让下轮去找不存在的函数 ⇒ 真实清单见卷 54（15 处）。
+- → 换图第四轮（2026-09-28）网图零合格取证 + 本轮 D1⇄seed 漂移实测，见 07-next-steps.part67.md（换图取证）与 part68.md（D1⇄seed 漂移实测）

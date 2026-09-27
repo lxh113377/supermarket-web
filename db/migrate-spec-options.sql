@@ -13,6 +13,9 @@ UPDATE products SET specOptions = '[{"label":"里脊牛排味"},{"label":"芝士
 UPDATE products SET specOptions = '[{"label":"韩国泡菜味"},{"label":"多汁牛排味"},{"label":"蜂蜜黄油味"},{"label":"加勒比烤翅味"},{"label":"火鸡面味"},{"label":"见手青味"},{"label":"香菜塔可味"}]', updatedAt = CURRENT_TIMESTAMP WHERE "order" = 40;
 UPDATE products SET specOptions = '[{"label":"海苔味"},{"label":"芥末味"},{"label":"鸡肉味"},{"label":"烧烤味"},{"label":"番茄味"},{"label":"泡菜味"},{"label":"咖喱牛肉味"},{"label":"香洋葱味"}]', updatedAt = CURRENT_TIMESTAMP WHERE "order" = 52;
 
--- 其余商品（含全部饮品）一律清空：本轮口径是「只保留 4 款小包薯片 + 白象方便面的可选规格」，
--- 白象的帮泡/零售由前端跨记录聚合层提供（src/data/variants-demo.ts），不走本列。
-UPDATE products SET specOptions = '[]', updatedAt = CURRENT_TIMESTAMP WHERE "order" NOT IN (33, 34, 40, 52);
+-- 其余商品（含全部饮品）一律清空：本轮口径是「只保留 4 款小包薯片 + 白象帮泡的可选规格」。
+-- 2026-09-28 修订：名单加入 46。白象帮泡的口味原先由前端跨记录聚合层提供（该层已退役，
+-- 理由见 db/migrate-baixiang-flavor.sql 头部），现改由本列承载。本文件虽早已对生产执行过，
+-- 但重放链（scripts/verify-migrate-replay.mjs、恢复演练）会再跑一遍这里的清空语句 ——
+-- 不把 46 放进白名单，重放一次就把白象的口味抹掉一次。
+UPDATE products SET specOptions = '[]', updatedAt = CURRENT_TIMESTAMP WHERE "order" NOT IN (33, 34, 40, 46, 52);

@@ -43,13 +43,16 @@ async function open(page: import('@playwright/test').Page, order: number, vp = D
 }
 
 /**
- * 锚点商品＝白象方便面 46（`src/data/variants-demo.ts` 里唯一残存的跨记录聚合组 46/47）。
- * 第八轮重锚说明：本文件与下面两条原锚 order 16「盒装东鹏特饮」，而 `d598cf8` 把东鹏特饮
- * 等 4 条饮品聚合组删了 ⇒ 该商品退化成单图（无缩略图列、无左右箭头），三条几何判据失去驱动数据。
- * 当时只删了对应的一条 playwright e2e，这三条因为 `test:visual` 不在 CI、且本机跑在过期
- * dist-e2e 上而一直没暴露（第八轮 M4 把它接进 CI 后立刻红了 4 条）。
+ * 锚点商品＝白象方便面 46。
+ * 2026-09-28 变更：`src/data/variants-demo.ts`（跨记录聚合层）已退役，理由见
+ * db/migrate-baixiang-flavor.sql 头部 —— 它渲染出的 specText 服务端不认，会静默丢掉顾客口味。
+ * 目录里因此**不再有**任何多图画集商品（口味共用同一条记录的一张实拍图，
+ * 而 products.images[] 全库为空），所以本文件原来靠 46 的缩略图列驱动的那半截判据
+ * 失去了驱动数据。处理：并排布局那半截照旧在 46 上量（单图也成立），
+ * 缩略图列那半截拆成独立用例并带**显式前置条件**——找不到多图画集商品就大声 skip，
+ * 绝不让它退化成"没有对象也算通过"（第八轮 M4 记录过同形事故）。
  */
-test('桌面 1440：主图 + 缩略图列在左，购买信息在右，两栏真正并排', async ({ page }) => {
+test('桌面 1440：主图在左、购买信息在右，两栏真正并排', async ({ page }) => {
   await open(page, 46)
   const g = await page.locator('[data-main-image]').boundingBox()
   const i = await page.getByRole('heading', { level: 2, name: '白象方便面' }).boundingBox()
@@ -57,13 +60,46 @@ test('桌面 1440：主图 + 缩略图列在左，购买信息在右，两栏真
   // 信息栏起点在主图右半之外 ⇒ 确实并排而非堆叠
   expect(i!.x).toBeGreaterThan(g!.x + g!.width * 0.6)
   expect(Math.abs(i!.y - g!.y)).toBeLessThan(300)
-  // 「大幅」主图：明显宽于缩略图列（5 倍以上），且在宽屏下达到可读尺寸
+  // 「大幅」主图：宽屏下达到可读尺寸
   expect(g!.width).toBeGreaterThan(450)
+})
+
+test('多图画集商品：缩略图列竖排在主图左侧且明显窄于主图', async ({ page }) => {
+  // 取数面 = 目录里真正会渲染出 >1 张图的商品。今天为空 ⇒ 显式 skip（不是 pass）。
+  const multi = await page.evaluate(async () => {
+    const { products } = await import('/src/data/products-seed.ts')
+    return products.filter((p: any) => Array.isArray(p.images) && p.images.length > 1).map((p: any) => p.order)
+  }).catch(() => [] as number[])
+  test.skip(multi.length === 0, '目录当前无多图画集商品（variants-demo 退役后 images[] 全库为空）⇒ 本判据无驱动数据')
+  await open(page, multi[0])
+  const g = await page.locator('[data-main-image]').boundingBox()
   const thumbs = await page.getByRole('navigation', { name: /图片缩略图/ }).boundingBox()
-  expect(thumbs, '聚合组商品必须长出缩略图列（没有它这条判据就退化成空转真）').toBeTruthy()
+  expect(thumbs, '多图画集商品必须长出缩略图列（没有它这条判据就退化成空转真）').toBeTruthy()
   expect(g!.width).toBeGreaterThan(thumbs!.width * 5)
-  // 缩略图列竖排在主图左侧（桌面端 lg:order-first）
   expect(thumbs!.x + thumbs!.width).toBeLessThanOrEqual(g!.x + 8)
+
+  // 轮播箭头的几何（原挂在 tap-44 那条判据里，随驱动数据一起搬到这里）
+  const m = await page.evaluate(() => {
+    const r = (el: Element | null) => (el ? el.getBoundingClientRect() : null)
+    const group = document.querySelector('[role="group"]')
+    const img = document.querySelector('[data-main-image] img')
+    const prev = document.querySelector('[aria-label="上一张图片"]')
+    const next = document.querySelector('[aria-label="下一张图片"]')
+    const gb = r(group), ib = r(img)
+    return {
+      prevPos: prev && getComputedStyle(prev).position,
+      nextPos: next && getComputedStyle(next).position,
+      groupH: gb && Math.round(gb.height),
+      imgH: ib && Math.round(ib.height),
+      prevCentered: !!gb && !!r(prev) && Math.abs((r(prev)!.top + 16) - (gb.top + gb.height / 2)) < 2,
+      nextOnRight: !!gb && !!r(next) && r(next)!.right > gb.right - 12,
+    }
+  })
+  expect(m.prevPos).toBe('absolute')
+  expect(m.nextPos).toBe('absolute')
+  expect(m.groupH).toBe(m.imgH) // 箭头不再撑高容器
+  expect(m.prevCentered).toBe(true)
+  expect(m.nextOnRight).toBe(true)
 })
 
 /**
@@ -247,33 +283,35 @@ test('图区底板全站统一且图片参与 multiply 混合（素材底色不�
 /**
  * 回归锁：.tap-44 曾写在裸 CSS 区（优先级高于所有 @layer），它的 position:relative
  * 会盖掉 Tailwind utilities 层的 absolute ⇒ 所有 `tap-44 absolute` 角标按钮退化成流式排布。
- * 实测表现：轮播箭头被挤到图片下方，且把 group 高度从 420 撑到 484。
- * 修法：.tap-44 收进 @layer components。这里同时验「箭头是 absolute」和「group 高 == 图高」。
+ * 实测表现：轮播箭头被挤到图片下方，且把 group 高度从 420 撑到 484。修法：.tap-44 收进 @layer components。
+ *
+ * 2026-09-28 改锚：原来这条靠"打开白象 46 看轮播箭头"来验，因为它是目录里唯一的多图画集商品。
+ * 跨记录演示层退役后目录里不再有 multi-image 商品 ⇒ 那个驱动数据没了。
+ * 但这条判据真正要锁的是**样式表里的层叠优先级**，与箭头是不是箭头无关，
+ * 所以改成在真实页面上就地造一个带同样 class 组合的探针元素：量的还是同一份 CSS，
+ * 且配了对照腿（只有 tap-44 时必须回落成 relative），探针本身打偏就会红。
+ * 轮播箭头那半截几何（group 高 == 图高）确实需要多图驱动，已并入下面带显式前置条件的用例。
  */
-test('tap-44 不得压过 Tailwind 的 absolute（角标按钮定位回归锁）', async ({ page }) => {
-  await open(page, 46) // 第八轮重锚：单图商品没有左右箭头，必须用仍存跨记录聚合组的白象 46
-  const m = await page.evaluate(() => {
-    const r = (el: Element | null) => el ? el.getBoundingClientRect() : null
-    const group = document.querySelector('[role="group"]')
-    const img = document.querySelector('[data-main-image] img')
-    const prev = document.querySelector('[aria-label="上一张图片"]')
-    const next = document.querySelector('[aria-label="下一张图片"]')
-    const gb = r(group), ib = r(img)
+test('tap-44 不得压过 Tailwind 的 absolute（CSS 层叠优先级回归锁）', async ({ page }) => {
+  await open(page, 46)
+  const probe = await page.evaluate(() => {
+    const mk = (cls: string) => {
+      const el = document.createElement('button')
+      el.className = cls
+      document.body.appendChild(el)
+      const pos = getComputedStyle(el).position
+      el.remove()
+      return pos
+    }
     return {
-      prevPos: prev && getComputedStyle(prev).position,
-      nextPos: next && getComputedStyle(next).position,
-      groupH: gb && Math.round(gb.height),
-      imgH: ib && Math.round(ib.height),
-      // 箭头垂直居中于图内，且 next 贴在右侧（不是在左侧堆叠）
-      prevCentered: !!gb && !!r(prev) && Math.abs((r(prev)!.top + 16) - (gb.top + gb.height / 2)) < 2,
-      nextOnRight: !!gb && !!r(next) && r(next)!.right > gb.right - 12,
+      both: mk('tap-44 absolute'),   // 必须 absolute：utilities 层要赢过 @layer components
+      only: mk('tap-44'),             // 必须 relative：证明探针真的读到了 .tap-44 的规则
+      bare: mk(''),                   // 必须 static：证明不是"任何元素都返回 absolute"
     }
   })
-  expect(m.prevPos).toBe('absolute')
-  expect(m.nextPos).toBe('absolute')
-  expect(m.groupH).toBe(m.imgH) // 箭头不再撑高容器
-  expect(m.prevCentered).toBe(true)
-  expect(m.nextOnRight).toBe(true)
+  expect(probe.both, `tap-44 又压过了 absolute：${JSON.stringify(probe)}`).toBe('absolute')
+  expect(probe.only, `探针没读到 .tap-44 规则，both 那条会假绿：${JSON.stringify(probe)}`).toBe('relative')
+  expect(probe.bare, `探针恒真（连裸元素都有 position）：${JSON.stringify(probe)}`).toBe('static')
 })
 
 /* ================= 商城页 /shop（阶段二「暖白画廊」两端各自设计） ================= */

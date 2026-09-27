@@ -160,13 +160,16 @@ describe('CustomerPage 商城页', () => {
   })
 
   it('有规格的商品卡标出规格数；无规格的商品不凭空长出一个规格', async () => {
-    // order 46 = 白象方便面（跨记录聚合组，2 条真实记录）；
+    // order 46 = 白象方便面（帮泡，后台 specOptions 三个口味）；
     // order 33 = 乐事薯片（后台 specOptions 里 8 项、其中烤虾味已关 → 7 个在显示）；
-    // order 22 = 有糖可乐（既无聚合组也无口味，不得长出角标）。
+    // order 22 = 有糖可乐（无口味清单，不得长出角标）。
     // 只留食品大类：/shop 默认落第一个大类，把三条样本都放进可见面里才数得准角标。
     h.getCategories.mockResolvedValue([cats[1]])
     h.getProducts.mockResolvedValue([
-      { _id: 'p46', name: '白象方便面', spec: '帮泡', price: 3.66, order: 46, enabled: true, subcategories: ['filling'] },
+      {
+        _id: 'p46', name: '白象方便面', spec: '帮泡', price: 3.66, order: 46, enabled: true, subcategories: ['filling'],
+        specOptions: [{ label: '十三香' }, { label: '麻辣香' }, { label: '山西老陈醋' }],
+      },
       {
         _id: 'p33', name: '乐事薯片', spec: '40g', price: 2.66, order: 33, enabled: true, subcategories: ['snacks'],
         specOptions: [
@@ -179,7 +182,8 @@ describe('CustomerPage 商城页', () => {
     renderShop()
     // 7 个未关掉的口味才算数：enabled:false 的烤虾味不能混进角标
     expect(await screen.findByText('可选 7 种口味')).toBeTruthy()
-    expect(screen.getByText('可选 2 种口味')).toBeTruthy()
+    // 白象的角标数的是它自己的三个口味，不再是演示组那"2 条真实记录"
+    expect(screen.getByText('可选 3 种口味')).toBeTruthy()
     expect(screen.getAllByText(/种口味/).length).toBe(2) // 只有这两条带角标
     const cardOf = (n: string) => screen.getByText(n).closest('p')!
     expect(cardOf('2.66').textContent).toContain('可选 7 种口味')
