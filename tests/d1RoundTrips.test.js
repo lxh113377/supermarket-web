@@ -1,3 +1,9 @@
+// @vitest-environment node
+// ↑ 本文件 import scripts/lib/metered-d1.mjs（内部用 node:sqlite），必须跑在 node 环境。
+//   jsdom 下 Vite 会把 node:sqlite 当可打包模块 ⇒ ubuntu runner 直接报错，本机 Node 24 侥幸通过。
+//   这条不变量曾由 backupRestore/catalogFacts/migrateReplay 三份文件的同名 docblock 守住，
+//   本文件第十四轮新增时漏写 ⇒ CI 从那次提交起连红 7 个 commit 且 deploy 被 needs 掐住。
+//   现已由 tests/vitestEnvironment.test.js 机器守住，新文件再漏写当场判红。
 // 对标第十四轮：D1 往返判据的反向验证（mutation audit）。
 // 规矩（第十/十三轮立）：判据必须能被逐条打红，且每条反例只绑一条判据 id——
 // 「跑一遍没红」不等于「它有牙齿」。这里既打纯函数 evaluate，也打真 AST 扫描器与真 mock。
