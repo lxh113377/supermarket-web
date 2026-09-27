@@ -1,0 +1,8 @@
+{
+  "branch": "main",
+  "workflow": "CI",
+  "requiredJobs": ["build-and-test", "e2e", "e2e-cloud-stub", "visual", "deploy"],
+  "graceMinutes": 90,
+  "escapeHatch": "CI_GREEN_SKIP",
+  "why": "pre-push 只认远端回执（gh run view 的 conclusion/jobs），不认本地退出码。实证代价：d1RoundTrips 缺 @vitest-environment node 让 CI 连红 7 个 commit、deploy 被 needs 掐住，而期间的报告写着 CI 全绿。"
+}

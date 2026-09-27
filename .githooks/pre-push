@@ -1,0 +1,12 @@
+#!/bin/sh
+# CI 全绿契约（第二十三轮接线）：推 main 之前，先确认远端 CI 对本次 HEAD 是 GREEN。
+# 为什么必须是硬闸而不是"记得看一眼"：d1RoundTrips 缺 @vitest-environment node 让 CI 连红
+# 7 个 commit、deploy 被 needs 掐住，而三份对标报告都写着"CI 全绿"——本地绿与 CI 绿可以
+# 同时不成立，所以唯一凭据是远端回执。四态里 UNKNOWN/BLOCKED 一律判红（裸静音判红）。
+# 逃生门：CI_GREEN_SKIP=1 且必须同时给 CI_GREEN_REASON="..."，否则照样拒。
+set -e
+if [ "$CI_GREEN_SKIP" = "1" ]; then
+  node scripts/ci-green-contract.mjs "$@" && exit 0
+  exit 1
+fi
+node scripts/ci-green-contract.mjs "$@"
