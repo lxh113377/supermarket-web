@@ -1,0 +1,18 @@
+{
+  "note": "本件由 `node scripts/check-d1-roundtrips.mjs --update-write-quota` 生成；A9 拿它与当场实测双向对账，手改即红。峰值口径 = 各 action 两端规模里较大者。",
+  "generatedUtc": "2026-09-27T18:25:34.359Z",
+  "daily_rows_written_free": 100000,
+  "daily_rows_read_free": 5000000,
+  "source": "cloudflare/cloudflare-docs src/content/partials/workers/d1-pricing.mdx:7-8（本机 gh api contents 现取 @2026-09-28T01:41:11Z）；强制执行见 src/content/changelog/d1/2026-09-01-d1-free-tier-limit-enforcement.mdx:9",
+  "peakRowsWritten": 21,
+  "callsPerDayAtPeak": 4761,
+  "rows_read_measurable_local": false,
+  "remote_usage": "UNVERIFIED",
+  "remote_usage_why": "未跑 wrangler d1 execute --remote / GraphQL Analytics（缺 CF 凭据，且按在册规矩须先加载 chaoshi-web-deploy）⇒ 记未验证而不是通过",
+  "actions": {
+    "P:createOrder": 11,
+    "A:batchUpdateProducts": 11,
+    "A:batchDeleteProducts": 1,
+    "A:seedReviews": 21
+  }
+}

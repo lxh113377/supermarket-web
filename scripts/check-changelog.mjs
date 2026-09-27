@@ -3,6 +3,11 @@
 // 逃生门：--relaxed（hotfix 场景显式跳过，需在 PR/提交说明里给出理由；跳过行为本身会打印进 CI 日志留痕）。
 // 对标来源：changesets 的"changeset 随 PR 声明"思想的个人项目化——把"交付留痕"从自觉变机器。
 import { spawnSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 const RELAXED = process.argv.includes('--relaxed')
 
@@ -62,6 +67,42 @@ if (!ensureRev(RANGE.baseRev) && RANGE.baseRev !== 'HEAD~1') {
   MODE = 'HEAD~1'
 }
 console.log(`[changelog] 比对基线：${RANGE.why} → ${MODE}`)
+
+// ── 结构判据（第四十一轮）：一手事实是本仓 CHANGELOG.md 曾**叠了 3 个 `## [未发布]`**
+// 抬头（第三十九轮实测把它收敛为 1），而旧判据只问"改动有没有配套条目"，从不问树对不对。
+// 借 keep-a-changelog 的形态：未发布段恰好一个、且必须在文件顶部区。它独立于"本轮是否改了
+// 产品代码"，所以排在 codeTouched 早退**之前**——否则纯文档轮就绕过结构检查（重复抬头恰恰
+// 多半是纯文档轮叠出来的）。
+// 可演习性：CHANGELOG_FILE 换输入面 + --structure-only 只跑这一条就退出，
+// 这样反例能驱动真入口（子进程、真退出码），不是 import 一个纯函数自比。
+function headingProblems(text) {
+  const bad = []
+  const hits = String(text || '').split('\n')
+    .map((l, i) => [i + 1, l.trim()])
+    .filter(([, l]) => /^##\s*\[(未发布|Unreleased)\]/i.test(l))
+  if (hits.length !== 1) {
+    bad.push('未发布抬头必须**恰好 1 个**，实测 ' + hits.length + ' 个'
+      + (hits.length ? '：' + hits.map(([n]) => 'L' + n).join(' ') : '（一个都没有）')
+      + ' ⇒ 重复抬头会让每次追加落到不同段，[未发布] 变成 N 份平行历史')
+  } else if (hits[0][0] > 12) {
+    bad.push('未发布抬头在 L' + hits[0][0] + '（> 12）⇒ 上面堆的不是版本段就是遗留标题')
+  }
+  return { bad, headings: hits.length }
+}
+
+function checkChangelogStructure() {
+  const target = process.env.CHANGELOG_FILE || join(ROOT, 'CHANGELOG.md')
+  let text = null
+  try { text = readFileSync(target, 'utf8') } catch (e) {
+    console.error(`[changelog] 读不到 ${target}（${String(e.message).split('\n')[0]}）⇒ 结构判据没有对象，拒绝放行（rc=1）`)
+    process.exit(1)
+  }
+  const { bad, headings } = headingProblems(text)
+  if (bad.length) { for (const b of bad) console.error('[changelog] ' + b); process.exit(1) }
+  console.log('[changelog] CHANGELOG 结构对账 ✅（未发布抬头 ' + headings + ' 个，在顶部区）对象=' + target)
+  if (process.argv.includes('--structure-only')) process.exit(0)
+}
+checkChangelogStructure()
 
 let changed
 try {

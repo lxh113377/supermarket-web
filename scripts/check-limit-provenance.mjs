@@ -33,6 +33,10 @@ export const PLATFORM_FACTS = {
   d1_queries_per_invocation_paid: { max: 1000, unit: '查询/调用', src: '同上页' },
   d1_batch_wallclock_ms: { max: 30_000, unit: 'ms/整批', src: '同上页脚注「Requests to Cloudflare API must resolve in 30 seconds … applies to the entire batch call」' },
   sqlite_bound_params: { max: 999, unit: '绑定参数/语句', src: 'SQLite 官方 SQLITE_MAX_VARIABLE_NUMBER（旧默认 999；本仓 products.js:156 注释早已引它）' },
+  // 第四十一轮补：此前只登记「每次调用」两把尺（字节/条数），**每日**配额在册 0 条 ——
+  // 而它自 2026-09-01 起会让超限查询直接失败，属「不登记就永远没人看」那一类。
+  d1_rows_written_free_per_day: { max: 100_000, unit: '行写入/日', src: 'cloudflare/cloudflare-docs src/content/partials/workers/d1-pricing.mdx:8「Rows written | 100,000 / day」+ 定义 :18 + 00:00 UTC 重置 :24 + 强制执行 changelog/d1/2026-09-01-d1-free-tier-limit-enforcement.mdx:9「will fail」（@2026-09-28T01:41:11Z gh api 现取）' },
+  d1_rows_read_free_per_day: { max: 5_000_000, unit: '行读取/日', src: '同上文件 :7「Rows read | 5 million / day」；:17 说明它按**扫描行**计（全表扫 5000 行就计 5000）⇒ 未建索引的列过滤会虚高' },
 }
 
 /** 六类"会砍东西"的数值形态 —— 判据的分母由这六个形状定义，不靠人记。
@@ -75,6 +79,19 @@ const CONST_RE = /^(MAX|MIN|LIMIT|TOP|TTL|BATCH|_MS$|DAYS|SIZE|WINDOW|RATE_|TIME
 export const SURFACE_PREFIXES = ['functions/', 'src/']
 /** 面内排除：d.ts 无可执行上限，纯类型声明。 */
 const SURFACE_SKIP = /\.d\.ts$/
+/**
+ * 每个声明前缀各自的后缀集 —— 必须与前缀表一一对上（第四十一轮 C7b 钉这件事）。
+ * 一手实测：把 'scripts/' 加进 SURFACE_PREFIXES 之后普查**一项没多**（74 项 → 74 项照样 PASS），
+ * 因为采集器读的是 loadAll 里硬编码的 roots，而 C7 的 outsideLeak 又明确禁止 scripts 入面
+ * ⇒「扩面」在旧结构下是一次看起来成功的空操作，还会被 C7 印成「面已含 scripts/」。
+ * 现在：roots 由本表派生；前缀没登记后缀集=红、前缀一个上限项都没贡献=红（逐根各出一行分母）。
+ * 另记一条口径决定：判据自己不入产品码普查面（SURFACE_NEVER 保住 C7 的既有教义），
+ * 所以「43 个门禁脚本自己的数值」的正确落点不是扩这张面，而是判据侧的出处注释 +
+ * docs/d1-write-quota.json 那类登记件（见 check-d1-roundtrips.mjs 的 A9/A10）。
+ */
+export const SURFACE_EXT = { 'functions/': ['.js'], 'src/': ['.ts', '.tsx'] }
+/** 永不入面的面（判据/文档/测试/迁移件）：它们各有自己的登记件，不进产品码上限普查。 */
+export const SURFACE_NEVER = ['scripts/', 'docs/', 'tests/', 'db/']
 
 export function collectJs(dir, out = [], exts = ['.js']) {
   for (const e of readdirSync(dir)) {
@@ -326,6 +343,16 @@ export function evaluate({ items, rows, planRegistered, parseErrors, sources }) 
   const leaked = items.filter((i) => !SURFACE_PREFIXES.some((p) => i.file.startsWith(p)))
   const outsideLeak = items.filter((i) => /^(scripts|docs|tests|db)\//.test(i.file))
   const hasSrc = items.some((i) => i.file.startsWith('src/'))
+  // C7b（第四十一轮）：把「声明了面」与「面真的在贡献东西」分成两件事判。
+  const noExts = SURFACE_PREFIXES.filter((p) => !(p in SURFACE_EXT) || !SURFACE_EXT[p].length)
+  const extraExts = Object.keys(SURFACE_EXT).filter((p) => !SURFACE_PREFIXES.includes(p))
+  const silent = SURFACE_PREFIXES.filter((p) => !items.some((i) => i.file.startsWith(p)))
+  const neverIn = SURFACE_NEVER.filter((p) => SURFACE_PREFIXES.includes(p))
+  push('C7b', !noExts.length && !extraExts.length && !silent.length && !neverIn.length,
+    'C7b 取数面单一来源 + 逐根有产出（前缀⇄后缀集双向、空根即红、判据面永不入面）',
+    (!noExts.length && !extraExts.length && !silent.length && !neverIn.length)
+      ? SURFACE_PREFIXES.map((p) => `${p} 后缀=${SURFACE_EXT[p].join('+')} 实贡献 ${items.filter((i) => i.file.startsWith(p)).length} 项`).join(' ｜ ')
+      : `缺后缀集 [${noExts.join(',')}]；多写后缀集 [${extraExts.join(',')}]；声明了却零贡献的空根 [${silent.join(',')}]；把判据面拉进来了 [${neverIn.join(',')}] —— 空根不是「没有上限」，是这根没被量`)
   push('C7', leaked.length === 0 && outsideLeak.length === 0 && hasSrc,
     'C7 取数面自证（前缀内 + 判据/文档不入面 + src/ 真在里面）',
     leaked.length || outsideLeak.length
@@ -348,7 +375,7 @@ export function evaluate({ items, rows, planRegistered, parseErrors, sources }) 
 
 export function loadAll() {
   const parseErrors = []
-  const roots = [['functions', ['.js']], ['src', ['.ts', '.tsx']]]
+  const roots = SURFACE_PREFIXES.map((p) => [p.replace(/\/$/, ''), SURFACE_EXT[p] || []])
   const sources = []
   for (const [dir, exts] of roots) {
     for (const f of collectJs(join(root, dir), [], exts)) {

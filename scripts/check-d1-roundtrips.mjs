@@ -1,3 +1,6 @@
+// 注：本判据运行时会**改写受版本控制的产物** docs/d1-write-quota.json，但只在 --update-write-quota 分支，
+//     且路径藏在常量里 ⇒ classifyRisk 推不出 writes-artifacts（风险词表要求字面路径出现在调用括号内）。
+//     所以这里**不挂** @probe-safe：没有可推导的危险特征却写声明，G11 会判无效声明（第四十一轮实测）。
 // 对标第十四轮（2026-09-26/27）：D1「往返数」判据 —— 一次业务动作打多少次数据库。
 //
 // 与第三轮 C1 的分工（两把尺，互不顶替；第一把尺口径一字未动）：
@@ -8,7 +11,7 @@
 //
 // 零凭据离线：node:sqlite + functions/lib/backend.js 直跑，不需要 Cloudflare 账号/网络（同 verify-backend 口径）。
 // 判据 A1~A7b，失败原因带机器可读前缀。
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join, relative } from 'node:path'
 import { createRequire } from 'node:module'
@@ -33,6 +36,21 @@ const ADMIN_KEY = 'roundtrip-probe-key'
 // D1 官方「Queries per Worker invocation」：Workers Paid 1000 / Free 50。
 // 本仓无 CF 凭据、判不出当前档位 ⇒ 一律按最坏情况（免费档 50）设防。
 export const STATEMENT_BUDGET_FREE = 50
+
+// ── 第四十一轮：第三把尺「每次调用写多少行」的对端常量与登记册 ──
+// 每日配额此前在册 0 条（第三十九轮 grep 实测），而它自 2026-09-01 起会让超限查询直接失败。
+// 同一事实只在本仓一处写死，出处见 docs/limit-provenance.md 的 PLATFORM_FACTS。
+export const WRITE_QUOTA_FILE = join(root, 'docs', 'd1-write-quota.json')
+export const DAILY_ROWS_WRITTEN_FREE = 100_000
+/** 本机测不到的那半，如实登记成事实而不是留给下一轮猜：
+ *  D1 生产 meta 里有 rows_read / rows_written 两个字段（cloudflare/cloudflare-docs
+ *  src/content/docs/d1/worker-api/return-object.mdx:43-44），官方「Track your D1 usage」
+ *  三条路 = meta object / GraphQL Analytics(d1AnalyticsAdaptiveGroups) /
+ *  dashboard Metrics&gt;Row Metrics（同 partials/workers/d1-pricing.mdx:11-12）。node:sqlite
+ *  只给 changes（=受影响行数，与该文件 :18 的 rows written 定义同口径），扫描行数拿不到
+ *  ⇒ 每日行「读取」配额在册但本机无法对账 ⇒ remote_usage 一律记 UNVERIFIED。
+ */
+export const ROWS_READ_MEASURABLE_LOCALLY = false
 
 let pass = 0
 const failures = []
@@ -249,11 +267,13 @@ async function measureInner() {
       const payload = entry.payload(ctx, n)
       const s0 = D1.__counters.statements
       const r0 = D1.__counters.roundTrips
+      const w0 = D1.__counters.rowsWritten
       const res = entry.channel === 'admin'
         ? await be.handleAdmin(env, entry.name.slice(2), ADMIN_KEY, payload)
         : await be.handlePublic(env, entry.name.slice(2), payload)
       if (res.code !== 0) throw new Error(`${entry.name} 规模 ${n} 驱动失败: ${res.message || JSON.stringify(res)}`)
-      point.push({ n, statements: D1.__counters.statements - s0, roundTrips: D1.__counters.roundTrips - r0 })
+      point.push({ n, statements: D1.__counters.statements - s0, roundTrips: D1.__counters.roundTrips - r0,
+        rowsWritten: D1.__counters.rowsWritten - w0 })
     }
     const span = entry.at[1] - entry.at[0]
     const last = point[point.length - 1]
@@ -263,6 +283,7 @@ async function measureInner() {
       stSlope: span === 0 ? null : (point[1].statements - point[0].statements) / span,
       maxStatements: Math.max(...point.map((p) => p.statements)),
       maxRoundTrips: last.roundTrips,
+      maxRowsWritten: Math.max(...point.map((p) => p.rowsWritten)),
     })
   }
   return { rows }
@@ -270,7 +291,7 @@ async function measureInner() {
 
 // ── 判据核心（纯函数，可对任意输入反证）────────────────────────────────────
 // 第十轮立的规矩：判据要能脱离真实环境被逐条打红，否则「跑一遍没红」不等于「它有牙齿」。
-export function evaluate({ rows, hits, sourcesCount }, {
+export function evaluate({ rows, hits, sourcesCount, quota }, {
   register = REGISTER, exempt = EXEMPT, budgetExempt = STATEMENT_BUDGET_EXEMPT,
   budget = STATEMENT_BUDGET_FREE,
 } = {}) {
@@ -308,6 +329,44 @@ export function evaluate({ rows, hits, sourcesCount }, {
     push('A3b', register.some((x) => x.name === e.action), `A3b 预算豁免须在在册清单内 ${e.action}`)
   }
 
+  // ── 第三把尺三条腿（第四十一轮 R41-H2）：全吃注入数据，反例不碰真仓 ──
+  const withRows = rows.filter((r) => Number.isInteger(r.maxRowsWritten) && r.maxRowsWritten >= 0)
+  push('A8', rows.length > 0 && withRows.length === rows.length,
+    'A8 行写入尺对每个在册 action 都有非负整数读数',
+    `${withRows.length}/${rows.length}${withRows.length === rows.length ? '' : '（缺读数 = 尺没接到生产出口，比读到 0 更危险）'}`)
+  const anyWrite = rows.some((r) => (r.maxRowsWritten || 0) > 0)
+  push('A8b', anyWrite, 'A8b 行写入读数不得全体为 0（零输入不算通过）',
+    anyWrite ? `峰值 ${Math.max(...rows.map((r) => r.maxRowsWritten || 0))} 行` : '实测全 0 ⇒ 这条尺没有判定力，别信它的绿')
+
+  const peakRows = Math.max(0, ...rows.map((r) => r.maxRowsWritten || 0))
+  const callsPerDay = peakRows > 0 ? Math.floor(DAILY_ROWS_WRITTEN_FREE / peakRows) : 0
+  if (quota === undefined) {
+    // 未注入 = 本次调用不参与登记对账（旧的纯函数夹具电池走这一支）；
+    // 注意它与「查过登记册但没有」是两件事 ⇒ CLI 一律显式传 null，缺件照样红。
+    push('A9', true, 'A9 行写入登记册 ⇄ 当场实测双向对账',
+      '本次调用未注入登记册（SKIP，不是 PASS）：真跑判据时 CLI 会显式传入内容或 null')
+  } else if (quota === null) {
+    push('A9', false, 'A9 行写入登记册 ⇄ 当场实测双向对账',
+      '缺 docs/d1-write-quota.json ⇒ 跑 `node scripts/check-d1-roundtrips.mjs --update-write-quota` 生成并提交（登记与实测不配套 = 两个真相源）')
+  } else {
+    const qa = quota.actions || {}
+    const measured = Object.fromEntries(rows.map((r) => [r.name, r.maxRowsWritten]))
+    const missing = Object.keys(measured).filter((k) => !(k in qa))
+    const ghost = Object.keys(qa).filter((k) => !(k in measured))
+    const drift = Object.keys(measured).filter((k) => k in qa && qa[k] !== measured[k])
+    push('A9', !missing.length && !ghost.length && !drift.length && Object.keys(qa).length > 0,
+      'A9 行写入登记册 ⇄ 当场实测双向对账（漏项/幽灵/值漂三类都红）',
+      (!missing.length && !ghost.length && !drift.length)
+        ? `${Object.keys(qa).length} 项逐值相等（登记即实测）`
+        : `漏登 ${missing.length} [${missing.join(', ')}]；幽灵 ${ghost.length} [${ghost.join(', ')}]；漂移 ${drift.length} [${drift.map((k) => `${k} 登记${qa[k]}≠实测${measured[k]}`).join(' , ')}]`)
+    push('A10', quota.daily_rows_written_free === DAILY_ROWS_WRITTEN_FREE
+      && quota.remote_usage === 'UNVERIFIED'
+      && quota.rows_read_measurable_local === ROWS_READ_MEASURABLE_LOCALLY
+      && callsPerDay >= 1,
+      'A10 配额口径自洽：常量 ⇄ 登记册同值、现网用量必须显式记未验证',
+      `${DAILY_ROWS_WRITTEN_FREE} 行写入/日 ÷ 峰值 ${peakRows} 行 = 最重 action 每天约 ${callsPerDay} 次。`
+      + `现网真实日用量=${quota.remote_usage}（本机 rows_read 可测=${ROWS_READ_MEASURABLE_LOCALLY}，真取法见文件头注）`)
+  }
   push('A6', sourcesCount > 0, 'A6 源码扫描面非空', `${sourcesCount} 个文件`)
   for (const h of hits) {
     push('A7', exemptSites.has(h.site), `A7 循环内 DB 调用已具名豁免 ${h.site}`, `经由 ${h.via} @L${h.line}`)
@@ -323,10 +382,32 @@ export function evaluate({ rows, hits, sourcesCount }, {
 
 async function main() {
   const { rows } = await measure()
+  const measuredNow = Object.fromEntries(rows.map((r) => [r.name, r.maxRowsWritten]))
+  if (process.argv.includes('--update-write-quota')) {
+    const peak = Math.max(0, ...rows.map((r) => r.maxRowsWritten || 0))
+    const doc = {
+      note: '本件由 `node scripts/check-d1-roundtrips.mjs --update-write-quota` 生成；A9 拿它与当场实测双向对账，手改即红。峰值口径 = 各 action 两端规模里较大者。',
+      generatedUtc: new Date().toISOString(),
+      daily_rows_written_free: DAILY_ROWS_WRITTEN_FREE,
+      daily_rows_read_free: 5_000_000,
+      source: 'cloudflare/cloudflare-docs src/content/partials/workers/d1-pricing.mdx:7-8（本机 gh api contents 现取 @2026-09-28T01:41:11Z）；强制执行见 src/content/changelog/d1/2026-09-01-d1-free-tier-limit-enforcement.mdx:9',
+      peakRowsWritten: peak,
+      callsPerDayAtPeak: peak > 0 ? Math.floor(DAILY_ROWS_WRITTEN_FREE / peak) : null,
+      rows_read_measurable_local: ROWS_READ_MEASURABLE_LOCALLY,
+      remote_usage: 'UNVERIFIED',
+      remote_usage_why: '未跑远端导出与 GraphQL Analytics 用量面（缺 CF 凭据，且按在册规矩须先加载部署权威 skill）⇒ 记未验证而不是通过',
+      actions: measuredNow,
+    }
+    writeFileSync(WRITE_QUOTA_FILE, JSON.stringify(doc, null, 2) + '\n')
+    console.log(`[d1-roundtrip] 已写 ${relative(root, WRITE_QUOTA_FILE)}：峰值 ${peak} 行 ⇒ 约 ${doc.callsPerDayAtPeak} 次/日，登记 ${Object.keys(measuredNow).length} 项`)
+    process.exit(0)
+  }
+  let quota = null
+  try { quota = JSON.parse(readFileSync(WRITE_QUOTA_FILE, 'utf8')) } catch { quota = null }
   const sources = collectSources(join(root, 'functions'))
   const hits = scanLoopedDbCalls(sources, root)
   let aborted = false
-  for (const v of evaluate({ rows, hits, sourcesCount: sources.length })) {
+  for (const v of evaluate({ rows, hits, sourcesCount: sources.length, quota })) {
     console.log(`${v.ok ? 'PASS' : 'FAIL'}  ${v.label}${v.detail ? ` (${v.detail})` : ''}`)
     if (v.ok) pass++
     else failures.push(v.label)
@@ -384,7 +465,12 @@ function finish(loopHits = 0) {
   const failed = failures.length
   console.log(`\n==== 结果: ${pass} 通过 / ${failed} 失败 ====`)
   if (failed) { console.log('失败项:'); failures.forEach((f) => console.log('  - ' + f)); process.exit(1) }
-  console.log(`[d1-roundtrip] OK 在册 ${REGISTER.length} 项、循环内 DB 调用命中 ${loopHits} 处（全部具名豁免）、语句预算 ${STATEMENT_BUDGET_FREE}`)
+  let qk = ''
+  try {
+    const j = JSON.parse(readFileSync(WRITE_QUOTA_FILE, 'utf8'))
+    qk = `｜行写入峰值 ${j.peakRowsWritten} ⇒ 最重 action 约 ${j.callsPerDayAtPeak} 次/日｜现网用量 ${j.remote_usage}`
+  } catch { qk = '｜行写入登记册缺失（A9 已判红）' }
+  console.log(`[d1-roundtrip] OK 在册 ${REGISTER.length} 项、循环内 DB 调用命中 ${loopHits} 处（全部具名豁免）、语句预算 ${STATEMENT_BUDGET_FREE}${qk}`)
   process.exit(0)
 }
 

@@ -3,6 +3,38 @@
 本项目采用 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式。此前未维护本文件，历史条目按 git 提交记录补记（自 2026-09-23 起持续维护）。
 
 ## [未发布]
+### 2026-09-28 追加五十五（对标第四十一轮：把「每日配额」从在册 0 条量成第三把尺，并封掉一次看起来成功的假扩面）
+
+- 取号先列盘：在册最大「五十四」⇒ 本条「五十五」（并行会话已占五十四，本轮顺延取号）。轮初锚 `f098f9c`（第三十九轮台账笔，其 CI run `36337389643` = `completed/success`，读自 `gh run view --json conclusion`）。
+- **R41-H2 行写入尺（第三把）**：平台事实 `Rows written 100,000 / day`（`cloudflare/cloudflare-docs
+  src/content/partials/workers/d1-pricing.mdx:8`，定义 :18，00:00 UTC 重置 :24；强制执行见
+  `src/content/changelog/d1/2026-09-01-d1-free-tier-limit-enforcement.mdx:9`「will fail」），本仓此前**在册 0 条**
+  （grep 实测），引文 @2026-09-28T01:41:11Z 本机现取。`metered-d1` 加 `rowsWritten`（取 `meta.changes`，与该定义
+  同口径）。实测：`P:createOrder`(10 件) **11 行**、`A:batchUpdateProducts` 11 行、`A:batchDeleteProducts`(50) 1 行、
+  `A:seedReviews` 21 行 ⇒ **100,000 ÷ 11 ≈ 每天 9,090 单**、按最重 action 峰值 21 行算 ≈ 4,761 次
+  ⇒ 配额当前不是瓶颈，但这个数字此前从没被量过、也没人会被提醒它存在。判据四条：A8 每个在册 action 都要有
+  非负整数读数；A8b 全体为 0 即红（零输入不算通过）；A9 `docs/d1-write-quota.json` ⇄ 当场实测双向对账
+  （漏项/幽灵/值漂三类各点名成员名）；A10 常量 ⇄ 登记册同值且 `remote_usage` 必须是 UNVERIFIED
+  （现网真实用量取不到：未跑 `d1 execute --remote` / GraphQL Analytics，缺凭据且须先过部署 skill）。
+  夹具 `tests/d1WriteQuota.test.js` 9 条，含变异腿「撤掉 A8b 后同一份全 0 输入会被读成通过」。
+- **一次看起来成功的假扩面（R41-H1 改判，不硬扩）**：把 `'scripts/'` 加进 `SURFACE_PREFIXES` 后普查**一项没多**
+  （74 项 → 74 项、照样 PASS）——采集器读的是 `loadAll` 里硬编码的 `roots`，而 C7 的 `outsideLeak` 又禁止
+  scripts 入面 ⇒ 「扩面」是空操作，还会被 C7 印成「面已含 scripts/」。正解：`SURFACE_EXT` 前缀⇄后缀集单源派生
+  roots + 新腿 **C7b**（缺后缀集 / 多写后缀集 / **声明了却零贡献的空根** / 把判据面拉进来，四类各自点名）。
+  双向实测：正向 `functions/ 实贡献 45 项 ｜ src/ 29 项`、11 检查全过；反向把 scripts/ 塞进前缀表 ⇒ C7b 红且
+  `rc=1`；还原 ⇒ 11/11。判据/文档/测试面按既有教义**永不入面**（写成 `SURFACE_NEVER` 在册），所以「门禁脚本
+  自己的数值」的落点改成判据侧登记件——本条的 `docs/d1-write-quota.json` 是第一个。
+- `CHANGELOG 门禁` 现在**也判结构**：`headingProblems` 要求未发布抬头恰好 1 个且在顶部区，
+  `CHANGELOG_FILE` + `--structure-only` 让反例驱动真入口（子进程 + 真退出码，不是 import 纯函数自比）。
+  四向实测：真文件 rc=0；叠两个抬头 rc=1 且点名 L1 L3；抬头合法但在 L20 rc=1；文件读不到 rc=1（没有对象不算通过）。
+  对标（本轮现取）：`googleapis/release-please` `src/updaters/changelog.ts:22,39-40,63-65`（版本头正则 + 标题层级归一）、
+  `sass/sass` `.github/workflows/ci.yml:87-92`（CHANGELOG 第 1 个标题必须等于机器可读版本）、
+  `juniper`/`derive_more` 各自断言 `## [x.y.z]` 的日期==today；**反向证据**：`release-please` 与 `release-drafter`
+  两仓代码搜索 "Unreleased" 均 `total_count=0` ⇒ 全行业没有「未发布抬头唯一」这条闸，本仓这条是补位不是抄。
+- 配额可观测的正规做法（写进头注，供 R42 用）：`d1/worker-api/return-object.mdx:43-44` 的 meta 里有
+  `rows_read`/`rows_written`；官方「Track your D1 usage」（`d1-pricing.mdx:11-12`）给三条路 = meta object /
+  GraphQL Analytics(`d1AnalyticsAdaptiveGroups`) / dashboard Metrics>Row Metrics。node:sqlite 给不了扫描行数
+  ⇒ 行读取配额只能「在册 + 待远端对账」，本机不许冒充实测。
 ### 2026-09-28 追加五十四（老大点名三件事：换图 / 顾客所选口味后台可见 / 上架开关白圈溢出）
 
 - **② 口味「后台看不见」不是功能没做，是被另一条链绕开后的静默丢数据。** 口味徽标早已上线
@@ -12,8 +44,11 @@
  该层产出的 `'帮泡装 · 十三香'` 又不在服务端 `allowedOrderSpecs`（线上 `p046.specOptions='[]'`）内，
  `resolveOrderSpec` 第 102 行**静默回落**成静态规格、不报错 ⇒ 顾客点了口味而后台看不到。
  该文件头自称「不参与下单接口」却在生成下单 payload，这就是缺陷本体。
-- **处置**：白象三口味升为真实 `specOptions`、演示层整体退役（`git rm`）、`migrate-spec-options.sql`
-  的 `NOT IN` 名单并入 46（否则重放链每跑一次就抹掉一次白象口味）。
+- **处置**：白象三口味升为真实 `specOptions`、演示层 `variants-demo.ts` 整体退役。
+  重放安全靠**文件名排序**而不是改历史迁移件：`migrate-spec-options.sql` 末行有
+  `WHERE "order" NOT IN (33,34,40,52)` 的清空语句 ⇒ 新件必须排在它之后，故取名
+  `migrate-taste-baixiang.sql`（t > s）。曾试过直接改那份名单，被迁移账目表判
+  `DRIFT … 历史迁移被修改，禁止`（exit 1）⇒ 已回退，改由排序解决。
 - **回滚件差点上线成数据损坏，被备份载回断言拦下**：`wrangler d1 export --remote` 导出 1,461,184 B
   并**载回 sqlite 逐条断言**测得线上 `p046.spec` 本来就是 `'帮泡'`（长文案从未进过生产库），
   所以原计划的"收敛 spec"迁移对生产是零操作、其回滚件会把一个**从未存在过的值**写进库 ⇒ 当场删除该对文件。

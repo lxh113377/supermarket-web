@@ -46,7 +46,15 @@ export function currentScope() {
  *   每轮换一个受害者。生产代码的摊销设计没变，错的是测量口径把它当成 action 自身的开销。
  */
 export function createMeteredD1(db, { classify = null } = {}) {
-  const counters = { statements: 0, roundTrips: 0, buckets: {} }
+  // 第三把尺 rowsWritten —— 平台侧 D1 免费档按「行写入」计**每日**配额：
+  //   cloudflare/cloudflare-docs src/content/partials/workers/d1-pricing.mdx:8
+  //     "| Rows written            | 100,000 / day ..."
+  //   同文件 :18 给定义（INSERT/UPDATE/DELETE 都算，一次 INSERT 10 行 = 10 rows written）；
+  //   同文件 :24 "Free limits reset daily at 00:00 UTC"；
+  //   changelog/d1/2026-09-01-d1-free-tier-limit-enforcement.mdx:9 明写超限 "will fail"。
+  //   引文均 @2026-09-28T01:41:11Z 本机 gh api contents 现取现验，不是转述。
+  // 取 info.changes 与那句定义同一口径（它就是 SQLite 的受影响行数）。
+  const counters = { statements: 0, roundTrips: 0, rowsWritten: 0, buckets: {} }
   const log = []
   // 归因实验（第二十八轮）：每条日志带上"发起它的 action"，用于把抖动的语句找出来。
   const stamp = (e) => { e.scope = sqlScope.getStore()?.name || null; log.push(e); return e }
@@ -56,6 +64,7 @@ export function createMeteredD1(db, { classify = null } = {}) {
   function runMember(member) {
     stamp({ sql: member.sql, kind: 'batch-member', params: member.params })
     const info = db.prepare(member.sql).run(...member.params.map(coerce))
+    counters.rowsWritten += Number(info.changes) || 0
     return { success: true, meta: { changes: info.changes, last_row_id: info.lastInsertRowid } }
   }
 
@@ -93,6 +102,7 @@ export function createMeteredD1(db, { classify = null } = {}) {
           counters.roundTrips += 1
           stamp({ sql, kind: 'run', params: member.params })
           const info = db.prepare(sql).run(...member.params.map(coerce))
+          counters.rowsWritten += Number(info.changes) || 0
           return { success: true, meta: { changes: info.changes, last_row_id: info.lastInsertRowid } }
         },
       }
@@ -122,5 +132,6 @@ export function createMeteredD1(db, { classify = null } = {}) {
 export function resetCounters(d1) {
   d1.__counters.statements = 0
   d1.__counters.roundTrips = 0
+  d1.__counters.rowsWritten = 0
   d1.__log.length = 0
 }

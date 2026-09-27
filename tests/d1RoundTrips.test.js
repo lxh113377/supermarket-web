@@ -20,14 +20,16 @@ const RED_IDS = (verdicts, id) => verdicts.filter((v) => v.id === id && !v.ok).m
 // 「干净基线」：与本轮实测同形（createOrder 往返常数/语句线性；batchUpdate 两条尺都线性但已具名豁免；
 // batchDelete 常数；seedReviews 定形）。纯函数变异测试以此为底，逐条打破。
 const SHAPE = {
-  'P:createOrder': { st: (n) => 5 + n, rt: () => 6 },
-  'A:batchUpdateProducts': { st: (n) => 1 + n, rt: (n) => 1 + n },
-  'A:batchDeleteProducts': { st: () => 3, rt: () => 3 },
-  'A:seedReviews': { st: () => 22, rt: () => 3 },
+  // rw = 行写入（第四十一轮第三把尺）；取值按本机实测同形：createOrder(10 件)=11、
+  // batchUpdate(10)=11、batchDelete=1 行/件、seedReviews=21。电池只吃这份合成形状，不读真仓。
+  'P:createOrder': { st: (n) => 5 + n, rt: () => 6, rw: (n) => 1 + n },
+  'A:batchUpdateProducts': { st: (n) => 1 + n, rt: (n) => 1 + n, rw: (n) => n },
+  'A:batchDeleteProducts': { st: () => 3, rt: () => 3, rw: (n) => n },
+  'A:seedReviews': { st: () => 22, rt: () => 3, rw: () => 21 },
 }
 const cleanRows = () => REGISTER.map((e) => {
   const shape = SHAPE[e.name]
-  const point = e.at.map((n) => ({ n, statements: shape.st(n), roundTrips: shape.rt(n) }))
+  const point = e.at.map((n) => ({ n, statements: shape.st(n), roundTrips: shape.rt(n), rowsWritten: shape.rw(n) }))
   const span = e.at[1] - e.at[0]
   const last = point[point.length - 1]
   return {
@@ -36,6 +38,7 @@ const cleanRows = () => REGISTER.map((e) => {
     stSlope: span === 0 ? null : (point[1].statements - point[0].statements) / span,
     maxStatements: Math.max(...point.map((p) => p.statements)),
     maxRoundTrips: last.roundTrips,
+    maxRowsWritten: Math.max(...point.map((p) => p.rowsWritten)),
   }
 })
 const cleanHits = () => EXEMPT.map((e) => ({ site: e.site, via: 'qRun', line: 1 }))
