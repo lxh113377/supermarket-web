@@ -3,6 +3,54 @@
 本项目采用 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式。此前未维护本文件，历史条目按 git 提交记录补记（自 2026-09-23 起持续维护）。
 
 ## [未发布]
+### 2026-09-27 追加五十（对标第三十六轮：把"只有措辞在守"的三件事变成会红的东西）
+
+- 取号先列盘：在册最大「四十九」⇒ 本条「五十」。轮初锚 `bec6252`（R35 收尾，其 CI 8 个 check 全
+  `completed/success`，读数取自 `check-runs` 原文）。Step 0 台账重扫：A 仍有效 28 / B 待实测 13 / C 已失效 6。
+- **H1 购物车行身份 = `(productId, spec)`**（台账 A-19，挂 8 轮）：`addToCart` 原先只比 `productId`，
+  条目却带着 `spec` ⇒ 先加「黄瓜味」再加「柠檬味」会并成一行且保留第一个口味，**第二次选择在购物袋层面就被吞**。
+  15 处全改（`cart.ts` 键控与三个 mutate、`getItemQuantity` 改跨口味聚合、`useCart` 三个包装、
+  `CartPage` 三回调 + `key`、`CustomerPage` 减号、`OrderConfirmPage` 的 `key`）。
+  顺带修 `existing.quantity += n`：`[...cart.items]` 只拷数组不拷元素 ⇒ 旧实现**就地改调用方手里的旧 cart**，
+  现改 map 出新对象并配断言。服务端与下单链路一行未动（本来就逐 item 一行、spec 走 `allowedOrderSpecs` 白名单、
+  幂等指纹含 spec）⇒ 缺陷 100% 在前端键控层，这条结论本身写在代码注释里。
+  测试：`cart.test.js` 13→21、`cartPage.test.tsx` 4→7（接线级，断言 spec 真的被传下去）。
+  ⚠️ 台账纠偏：R35 在册写的是"9 处消费者"，穷举实为 **15 处** —— 少列会让下一轮以为改完了。
+- **H2 上限普查面补两半 + 四对两侧同值契约**：旧「拒绝型」正则要求右值是数字 ⇒ 面内 **8 处**
+  `.length >= 某常量`（`SPEC_OPTION_LIMIT`/`MAX_REVIEW_IMAGES`/`BATCH_UPDATE_MAX`/`BATCH_DELETE_MAX`/`BATCH`/`PAGE_SIZE`）
+  **完全隐形**；「截断型」同理漏掉 **3 处** `.slice(0, 常量)`（含前端 `FLAVOR_MAX_LEN=20` vs 服务端 `slice(0, 20)`）。
+  新增两个形状后普查 **65 → 74 项**，74 行全部带溯源（`limit-provenance 10/10`）；
+  新契约 `tests/limitCapParity.test.ts`（8 条）钉服务申请 5 / 图册 9 / 口味 20 / 口味名 20 四对两侧同值，
+  每条带"解析不到即判红"的防空转腿 —— 它上线第一件事就是把我自己猜错的前端写法（链式 `.slice(0, 9)`）抓红。
+- **H3 新判据 `verify:pointers`**：外层工作区记忆指针是否跟上内层轮次（实测停在第 29 轮、内层已到第 35 轮，
+  **5 轮断更无人在意**）。三态：跟上 PASS／漂移 FAIL／外层目录不在（CI 只检出代码仓）报 **UNVERIFIED 且 rc=0**，
+  绝不复用 PASS。CI 里它是 advisory，真正守现场的是本地 `npm run verify`。本轮主卷写到第 36 轮的瞬间它就判红，
+  逼出外层那条指针 —— 耦合当天闭环。夹具 12 条（含"路径必须是代码仓**同级**"的自证腿）。
+- **H0 自动备份链现状入册**：`Uptime` run `36299454141` 判红，本地实跑同结论 —— 窗口内 **4/4 次
+  `D1 Daily Backup` 全部 `Export remote D1=skipped`、`Upload backup artifact=skipped`、`artifact=0`**
+  ⇒ **生产库从未被这条链备份过**（其中 2 次 conclusion 还是 success = 恒绿空转）。两道成因写进 `SECURITY.md`：
+  缺 `CF_D1_BACKUP_TOKEN` + 仓库 2026-09-25 起 public 后**自身守卫拒绝上传明文全库导出**。
+  **不设 `BACKUP_SKIP_OK`** —— 那是把真红消音，正是第十二轮"绿色零备份"的原始教训。
+  顺手修判据自己的结构性失明：原先只给最近 3 次 run 取步骤明细（窗口 4 天 ⇒ 第 4 次永远瞎，
+  那句"1/4 取不到明细"看着像 API 不稳其实是 `slice(0,3)`）；现按窗口全取（上限 12），
+  并把失明三分成"取数失败（带原因）／主动未取／无记录"，覆盖度印成 `N/M`；夹具 17 条（+2）。
+- 复验：`limit-provenance 10/10`、`registry-sync 6/6`、`cli-entrypoints 11/11`（入口 39／跑过 28／分母 33）、
+  `memory-pointer-sync 2/2`、`memory-volume 判 66 卷 超限 0（未验证 V4）`、`verify:docs OK（93 文件）`、
+  `verify:backend 142/0`。**整链独占复验 `VERIFY_RC=0`、`Test Files 93 passed`、`Tests 1238 passed (1238)`**（19:5x 本地，跑期间不写盘）。
+- 整链第一次是红的，但红得不属于本轮代码：`apiResponseContract` 的子进程 rc = **3221225794（0xC0000142，Windows 进程启动失败）**，
+  同一轮 vitest 还报 `Failed to start forks worker`。归因顺序：单独重跑那两个文件 ⇒ 21/21 绿；整链再跑一次 ⇒
+  换了位置且全绿 ⇒ 判为测试并发下的**进程创建抖动**，不改任何断言。（不写"环境偶发"就完事：
+  留了复现码与两次对照结果，若下轮同点再红两次就必须当真修。）
+- lint 第三次抓到同一族（R35 已为同类记过形态）：新脚本 `pathToFileURL` 与新夹具 `mkdirSync`/`writeFileSync`
+  三个未用 import ⇒ 清干净后 `0 errors`。这条"新判据自带死代码"的复发说明：**新文件的 lint 必须在写它就位后立刻跑**，
+  而不是等整链。
+
+- **本轮四次自失（都由自家探针/自检抓出）**：① 新判据路径多写一级 ⇒ 恒 UNVERIFIED 且输出看着合理，
+  靠"真面必须观测得到"那条腿逼出；② 解析器读不懂区间写法"第三十~三十五轮"⇒ 误报"停在 29"，
+  是量具的洞不是事实；③ 两次 Edit 拿同段既有整行当 `old_string`，一次吞掉下一个 `describe` 头、
+  一次吞掉一条在册记忆 ⇒ 靠结构计数与 `git diff --numstat` 现形；④ 一条缺输入面夹具写成恒真断言
+  （`expect([..].length).toBe(1)`），落盘前自查删除。
+
 ### 2026-09-27 追加四十九（对标第三十五轮：让"登记表说的"和"代码做的"必须互相作证）
 
 - 取号先列盘：在册最大「四十八」⇒ 本条「四十九」。轮初锚 `b37738d`（R34 收口提交，CI 8 个 check 全

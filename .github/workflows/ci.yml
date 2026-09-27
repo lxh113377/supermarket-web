@@ -136,6 +136,12 @@ jobs:
       - name: Memory volume budget gate
         run: npm run verify:volume
 
+      # 对标第三十六轮：外层"工作区级记忆指针"是否跟上内层轮次（实测断更过 5 轮无人知）。
+      # 该目录在代码仓之外 ⇒ CI 里必然取不到，判据对此只报 UNVERIFIED 且 rc=0（不阻断、也不假装核过）；
+      # 真正会红的是本地 `npm run verify`——那才是它设计时要守的现场。
+      - name: Workspace memory pointer sync (advisory)
+        run: npm run verify:pointers
+
       # 对标第三十三轮：用户侧安全设置普查（advisory，故意不阻断）——借 ossf/scorecard 的 Branch-Protection
       # 形态，但取不到时绝不按"满足"计：四态 ENFORCED / NOT_ENFORCED / UNVERIFIED + 时刻，每轮在 CI 日志留痕，
       # 免得"分支保护还没开"这件事只活在报告作者的记忆里。runner 上的 token 无 admin ⇒ 预期读数是 UNVERIFIED。

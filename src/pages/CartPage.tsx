@@ -28,6 +28,8 @@ export default function CartPage() {
       const changes: PriceChange[] = []
       let needUpdate = false
       const updatedItems = cart.items.map(item => {
+        // 按 productId 查目录是**有意**的：口味不决定单价（`src/utils/spec-options.ts` 头部口径），
+        // 所以同商品的两个口味行共用同一个目录价，这里不需要按行身份查。别"顺手改成按 spec 查"。
         const latest = products.find(p => p._id === item.productId)
         if (latest && Math.abs(latest.price - item.price) > 0.001) {
           changes.push({ name: item.name, oldPrice: item.price, newPrice: latest.price })
@@ -47,6 +49,8 @@ export default function CartPage() {
 
   // 三个回调用 useCallback 固定引用：CartItem 已 memo，
   // 传内联箭头函数会让 memo 完全失效（每次渲染都是新函数）。
+  // 行身份是 (productId, spec)：三个回调都拿到整条 item，所以必须把 spec 一起传回去。
+  // 只传 productId 的话，同商品的两个口味会被 +/- 与删除一起连带改动（第三十六轮修的那条键控的同侧）。
   const handleAdd = useCallback((item: CartItemType) => {
     const product = { _id: item.productId, name: item.name, spec: item.spec, price: item.price }
     const newCart = addToCart(cart, product)
@@ -55,13 +59,13 @@ export default function CartPage() {
   }, [cart])
 
   const handleRemove = useCallback((item: CartItemType) => {
-    const newCart = removeFromCart(cart, item.productId)
+    const newCart = removeFromCart(cart, item.productId, item.spec || '')
     setCart(newCart)
     saveCart(newCart)
   }, [cart])
 
   const handleDelete = useCallback((item: CartItemType) => {
-    const newCart = deleteFromCart(cart, item.productId)
+    const newCart = deleteFromCart(cart, item.productId, item.spec || '')
     setCart(newCart)
     saveCart(newCart)
   }, [cart])
@@ -140,7 +144,7 @@ export default function CartPage() {
         ) : (
           <div className="space-y-3">
             {cart.items.map((item, i) => (
-              <div key={item.productId} className={`animate-fade-in-up stagger-${Math.min(i + 1, 6)}`}>
+              <div key={`${item.productId}::${item.spec || ''}`} className={`animate-fade-in-up stagger-${Math.min(i + 1, 6)}`}>
                 <CartItem
                   item={item}
                   onAdd={handleAdd}

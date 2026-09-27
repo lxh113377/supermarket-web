@@ -82,7 +82,24 @@ describe('分母与模式断言（治"列表非空但全不相干"的假绿）',
   it('取不到步骤明细 ⇒ 必须出"步骤级断言是空话"的警告，不能静默按 artifact 过关', () => {
     const r = judge([{ id: 5, event: 'schedule', createdAt: dayAgo(0.2), conclusion: 'success', artifactCount: 1, steps: [] }])
     expect(r.problems).toEqual([])
-    expect(r.warnings.join()).toContain('步骤级断言对它们是空话')
+    // 第三十六轮：文案从"1/4 取不到"改成**分子/分母 + 三种成因分形**（旧写法把
+    // "判据自己少取"“取数失败”“没走到取数分支”混成一个数，看着像 API 不稳）。
+    const w = r.warnings.join()
+    expect(w).toContain('步骤明细覆盖 0/1')
+    expect(w).toContain('步骤级断言是空话')
+    expect(w).toContain('无取数记录 1 次')
+  })
+  it('三种失明成因不得同形：取数失败（带原因）／判据主动未取／无取数记录', () => {
+    const base = { event: 'schedule', conclusion: 'success', artifactCount: 1, steps: [] }
+    const failed = judge([{ ...base, id: 1, createdAt: dayAgo(0.1), stepBlind: '取 jobs 失败：HTTP 403' }]).warnings.join()
+    expect(failed).toContain('取数失败 1 次')
+    expect(failed).toContain('HTTP 403')
+    const capped = judge([{ ...base, id: 2, createdAt: dayAgo(0.1), stepBlind: '超出步骤明细上限 12（本轮未取）' }]).warnings.join()
+    expect(capped).toContain('判据主动未取 1 次')
+    expect(capped).not.toContain('取数失败')
+    // 对偶：全覆盖时**不得**再出这条警告（否则它会变成一条永远响的噪声）
+    const allCovered = judge([{ ...base, id: 3, createdAt: dayAgo(0.1), steps: [{ name: 'Export remote D1', conclusion: 'success' }] }]).warnings.join()
+    expect(allCovered).not.toContain('步骤明细覆盖')
   })
   it('presence 模式（自动化链互指）：不看 artifact，只认成功的定时 run', () => {
     const r = judge([{ id: 6, event: 'schedule', createdAt: dayAgo(0.5), conclusion: 'success', artifactCount: 0 }], { mode: 'presence' })

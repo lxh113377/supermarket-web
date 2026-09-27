@@ -121,7 +121,9 @@ export default function CustomerPage() {
   // 减数量也要播报：原先每张商品卡自带一个 aria-live 报数字，55 张卡就是 55 个
   // live region，加一次购读屏会连播一屏。现统一收敛到页面级这一条 toast。
   const handleRemove = useCallback((product: Product) => {
-    remove(product._id)
+    // 商品卡代表的是**这一条记录**（含它自己的 spec），减号只该减这一口味那一行；
+    // 不传 spec 会命中"该商品全部口味各减一件"，与卡上角标的加法侧（add(product) 带 spec）不对称。
+    remove(product._id, product.spec || '')
     showToast('已减少 ' + product.name)
   }, [remove, showToast])
 

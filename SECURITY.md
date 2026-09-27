@@ -53,6 +53,32 @@
   勾选 *Require a pull request before merging* 与 *Require status checks to pass*（`build-and-test`、`deploy`）。
   开完后本判据应转 `ENFORCED`，`docs/cli-entrypoints.md` 与轮次报告的挂账随之销账。
 
+## 备份与恢复现状（机器在册，不靠记忆）
+
+数据可恢复性是安全属性，不是运维细节。本仓把它做成一条可复跑判据：
+`node scripts/check-backup-liveness.mjs`（`npm run check:backup-liveness`，同时接在 `Uptime` 日巡检里）。
+
+- **当前实测读数：`FAIL`（备份不可依赖）**。取证时刻 `2026-09-27T11:36Z` 本地实跑（rc=1），
+  与 CI 侧 `Uptime` run `36299454141`（`2026-09-27T06:13Z`，step 6 failure）同结论：
+  窗口内 **4/4 次 `D1 Daily Backup` run 全部 `Export remote D1=skipped`、`Upload backup artifact=skipped`、`artifact=0`**
+  （run `36276262768`/`36242719500` = failure，`36199812627`/`36070786268` = **success 却零证据**，即"恒绿空转"形状）
+  ⇒ **生产库从未被这条链备份过**。
+- **两道因（都要成立才有备份，缺一不可）**：
+  ① 未配置 `CF_D1_BACKUP_TOKEN`（需 D1:Read 的 API Token）⇒ 导出与上传被 `if` 跳过；
+  ② 本仓 **2026-09-25 起为 public**（`gh api repos/…` 实测 `visibility=public private=false`），
+  而工作流里有一道**排在导出之前**的守卫：非私有仓即使配了 token 也**拒绝**把全库明文导出物放进 artifact
+  （依据：未鉴权下载被拒，但**任意已登录 GitHub 用户**可下载 ⇒ 可见面已不是"仅协作者"）。
+- **两条出路（原文见 `.github/workflows/d1-backup.yml` 顶部注释，二者选一）**：
+  ① 仓库转回 private；② 上传前用 `age`/`openssl` 加密并另配一个只放解密口令的 secret。
+  红线写在册上：**绝不允许"明文导出 + 公开仓"同时成立**。
+- **Agent 侧不擅动的部分**：新增 secret、改仓库可见性、以及**设 `BACKUP_SKIP_OK=true`** ——
+  最后这项会把 FAIL 降成 WARN，属于"承认暂时不备份"的显式决定，只能由仓库管理员做；
+  本轮明确**不设**，让这条红继续每天响（沉默的零备份比红色的无备份危险得多，这是第十二轮的一手教训）。
+- **本轮顺手修掉的是判据自己的洞**：它原先只给"最近 3 次 run"取步骤明细，而窗口默认 4 天 ⇒
+  第 4 次**结构性失明**（日志里那句 `1/4 次取不到步骤明细` 不是 API 抖动，是 `slice(0, 3)`）。
+  现改为窗口内全取（上限 12），并把失明按成因三分：**取数失败（带原因）／判据主动未取／无取数记录**，
+  覆盖度以 `步骤明细覆盖 N/M` 摊出；全覆盖时不再出该警告。夹具 17 条（本轮 +2）。
+
 ## 我们存了哪些个人数据（受 `npm run verify:pii` 对账）
 
 权威清单是 **`docs/pii-inventory.md`**，本节只给口径，具体到列的判定以那份登记册为准 ——

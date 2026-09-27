@@ -27,6 +27,10 @@ import { fileURLToPath } from 'node:url'
 import { bail } from './lib/preflight.mjs'
 
 const DAY_MS = 86400_000
+/** 步骤明细取数上限（每次 run 一个 `/jobs` 调用）。默认窗口 4 天/日调度 ⇒ 4 次够用；
+ *  留上限是为了"窗口被 LIVENESS_LOOKBACK_DAYS 拉大时不打爆 API"，超出的部分**必须**在输出里
+ *  标明"未取"，不得与"取到了但没有步骤"同形。 */
+export const STEP_DETAIL_CAP = 12
 
 /**
  * runs: [{ id, createdAt, conclusion, event, artifactCount, steps? }]
@@ -55,9 +59,19 @@ export function judgeLiveness({ runs, nowMs, maxAgeDays = 2, exempt = false, mod
   const artifactOk = (r) => mode === 'presence' || (typeof r.artifactCount === 'number' && r.artifactCount > 0)
   const isGood = (r) => r.conclusion === 'success' && stepsOk(r) && artifactOk(r)
   const good = runs.find(isGood) || null
-  const blind = runs.filter((r) => r.conclusion === 'success' && !hasStepDetail(r)).length
+  // 步骤明细的**覆盖度**要印成分子/分母，且"取数失败"与"没去取"不得同形（第三十六轮：
+  // 旧版把两者混成一条 blind 计数，看起来像 API 不稳，其实是自己 slice(0,3) 少取了）。
+  const succeeded = runs.filter((r) => r.conclusion === 'success')
+  const covered = succeeded.filter(hasStepDetail).length
+  const failedFetch = succeeded.filter((r) => !hasStepDetail(r) && /取 jobs 失败/.test(r.stepBlind || ''))
+  const notFetched = succeeded.filter((r) => !hasStepDetail(r) && !!r.stepBlind && !/取 jobs 失败/.test(r.stepBlind || ''))
+  const neverTried = succeeded.filter((r) => !hasStepDetail(r) && !r.stepBlind)
+  const blind = succeeded.length - covered
   if (mode === 'backup' && blind) {
-    warnings.push(`${blind}/${runs.length} 次 success run **取不到步骤明细** ⇒ 步骤级断言对它们是空话，只由 artifact 定性（要真证就得补 jobs 取数）`)
+    warnings.push(`步骤明细覆盖 ${covered}/${succeeded.length} 次 success run ⇒ 缺的 ${blind} 次上步骤级断言是空话，只由 artifact 定性`
+      + (failedFetch.length ? `；取数失败 ${failedFetch.length} 次（${failedFetch.map((r) => r.stepBlind).join(' / ')}）` : '')
+      + (notFetched.length ? `；判据主动未取 ${notFetched.length} 次（${notFetched.map((r) => r.stepBlind).join(' / ')}）` : '')
+      + (neverTried.length ? `；无取数记录 ${neverTried.length} 次（夹具态或未走到取数分支）` : ''))
   }
 
   const vacuous = runs.filter((r) => r.conclusion === 'success' && !isGood(r))
@@ -144,13 +158,23 @@ function main() {
     }
     r.artifactCount = r.artifacts ?? -1
   }
-  // 摊开步骤形态（只对最近 3 次，避免 N+1 打爆 API）：全 skipped 却 success 的形状要肉眼可见
+  // 摊开步骤形态：第三十六轮把"只取最近 3 次"改成**窗口内全取**（上限见 STEP_DETAIL_CAP）。
+  // 一手实测：窗口=4 天扫到 4 次 run 时，第 4 次永远没有明细 ⇒ 判据自己报的
+  // 「1/4 次取不到步骤明细」不是网络抖动，而是 `slice(0, 3)` 的**结构性失明**
+  // （我手查那次 run 有 10 个步骤，API 给得出）。N+1 的成本是每天 4 次调用，换"步骤级断言不再空转"。
   if (!fixture) {
-    for (const r of runs.slice(0, 3)) {
+    for (const r of runs.slice(0, STEP_DETAIL_CAP)) {
       try {
         const jobs = ghApi(`repos/${repo}/actions/runs/${r.id}/jobs`).jobs || []
         r.steps = jobs.flatMap((j) => j.steps || []).map((s) => ({ name: s.name, conclusion: s.conclusion }))
-      } catch { /* 取不到步骤不判红，artifact 计数已足够定性 */ }
+        if (!r.steps.length) r.stepBlind = 'jobs 返回 0 个步骤'
+      } catch (e) {
+        // 取数失败与"没去取"必须分形：前者带原因摊出来，后者是判据自己的洞。
+        r.stepBlind = `取 jobs 失败：${String((e && e.message) || e).split('\n')[0].slice(0, 90)}`
+      }
+    }
+    if (runs.length > STEP_DETAIL_CAP) {
+      for (const r of runs.slice(STEP_DETAIL_CAP)) r.stepBlind = `超出步骤明细上限 ${STEP_DETAIL_CAP}（本轮未取）`
     }
   }
   const exempt = String(process.env.BACKUP_SKIP_OK || '').toLowerCase() === 'true'

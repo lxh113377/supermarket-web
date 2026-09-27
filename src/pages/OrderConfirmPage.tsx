@@ -118,7 +118,8 @@ export default function OrderConfirmPage() {
             <h3 className="section-title mb-3">已选商品</h3>
             <div className="space-y-2">
               {cart.items.map(item => (
-                <OrderItem key={item.productId} item={item} />
+                // 行身份 = (productId, spec)：同商品两口味是两行，key 只用 productId 会撞 key
+                <OrderItem key={`${item.productId}::${item.spec || ''}`} item={item} />
               ))}
             </div>
             <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-100">

@@ -8,3 +8,5 @@
 - [ ] **饮品/茶饮口味需商家在后台自行维护** —— 本轮实测否决"由 agent 造饮品口味清单"：本店目录里饮品的口味就是各条独立记录（康师傅 1L 的 order 1~6 = 冰糖雪梨/青梅绿茶/金桔柠檬/冰糖红西柚/绿茶/冰红茶），再写成下级口味 = 同一直通向两条不同价商品，且其中 4 条已下架会给出"点了就报错"的死选项。能力早已就绪（后台口味药丸可加/删/开关，`SPEC_OPTION_LIMIT=20`）。判据已改绑为"饮品可带口味但每条必须显式 `enabled`"（`tests/variants.test.ts`）。
 - [ ] **只有净含量的商品现在读作"口味：1L"** —— 老大明确选择"所有规格字样全改成口味"，非推荐档。若日后要单点回退，改这四处即可：`ProductInfoSections.tsx` 参数行、`ProductDetailPage.tsx` 口味行、`ProductInlineEditForm.tsx` 字段标签、两处搜索框占位。
 - [ ] **`src/cart.ts:51-53` productId 单键合行未修**（追加二十六已登记）—— 同一商品先后选两个口味会并成一行并保留第一次的 spec，第二次选择在购物车层面就丢了。它改的是购物车键控（`removeFromCart`/`updateQuantity` 同用该键），blast radius 与口味标签不同量级，单独排期。
+  ⚠️ 第三十六轮纠偏：**`updateQuantity` 在本仓不存在**（`grep -rn updateQuantity src/ tests/` 零命中，`cart.ts` 只导出
+  add/remove/delete/getItemQuantity/getTotal/getItemCount），该指针会让下轮去找不存在的函数 ⇒ 真实清单见卷 54（15 处）。

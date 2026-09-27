@@ -29,12 +29,13 @@ export default function useCart() {
     persistAndSet(addToCart(cartRef.current, product, qty))
   }, [persistAndSet])
 
-  const remove = useCallback((productId: string) => {
-    persistAndSet(removeFromCart(cartRef.current, productId))
+  // spec 可选：传了就只作用在那一行（同商品不同口味是两行），不传＝该商品全部口味。
+  const remove = useCallback((productId: string, spec?: string | null) => {
+    persistAndSet(removeFromCart(cartRef.current, productId, spec))
   }, [persistAndSet])
 
-  const removeItem = useCallback((productId: string) => {
-    persistAndSet(deleteFromCart(cartRef.current, productId))
+  const removeItem = useCallback((productId: string, spec?: string | null) => {
+    persistAndSet(deleteFromCart(cartRef.current, productId, spec))
   }, [persistAndSet])
 
   const clear = useCallback(() => {

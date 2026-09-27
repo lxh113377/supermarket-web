@@ -38,8 +38,19 @@ export const PLATFORM_FACTS = {
 /** 六类"会砍东西"的数值形态 —— 判据的分母由这六个形状定义，不靠人记。
  *  拒绝型额外捕获比较符：光看值不足以判"这是不是一条上限"（>0 是空判定，>200 才是）。 */
 export const SHAPES = {
+  // 拒绝型：只认"数字字面量"的右值。第三十六轮实测：面内 `.length` 比较共 27 处走这条，
+  // 另有 **8 处右值是大写常量名**（SPEC_OPTION_LIMIT / MAX_REVIEW_IMAGES / BATCH_UPDATE_MAX /
+  // BATCH_DELETE_MAX / PAGE_SIZE / BATCH）——它们在这把尺上**完全隐形**，且不在 `CONST_RE`
+  // （不以 MAX|LIMIT|… 开头，`SPEC_` 不匹配）。⇒ 新增下面的「常量上限」形状把它们纳面，
+  // 而不是把 8 处改写成字面量（那等于为了让尺子好看去改被测量）。
   拒绝型: /\.length\s*(<|>)=?\s*(\d+)/g,
+  常量上限: /\.length\s*(<|>)=?\s*([A-Z][A-Z0-9_]{2,})\b/g,
   截断型: /\.slice\(\s*0\s*,\s*(\d+)\s*\)/g,
+  // 与上面「常量上限」同一族的另一半（第三十六轮同轮发现）：`.slice(0, SOME_CONST)` 在旧口径里
+  // 同样隐形。实测面内 3 处 / 2 个 (文件,常量) 组合：ProductInlineEditForm 的 FLAVOR_MAX_LEN
+  // 与 ReviewForm 的 MAX_REVIEW_IMAGES×2 —— 后者对侧正是服务端字面量 3，
+  // 即"前端常量、后端数字"这种两侧异名同值的写法，本来一点都扫不到。
+  截断上限: /\.slice\(\s*0\s*,\s*([A-Z][A-Z0-9_]{2,})\s*\)/g,
   体积型: /(\d+)\s*\*\s*1024/g,
   保留期: /'-(\d+) days'/g,
   分页: /\bLIMIT (\d+)/gi,
@@ -110,11 +121,12 @@ export function census(sources, onParseError = () => {}) {
       .map((l) => (/^\s*(--|\/\/)/.test(l) ? '' : l)).join(String.fromCharCode(10))
     for (const [shape, re] of Object.entries(SHAPES)) {
       for (const m of body.matchAll(re)) {
-        const value = Number(m[m.length - 1])
+        // 「常量上限」的右值是一个标识符（值在常量定义处），其余形状取数字
+        const value = NAME_VALUED_SHAPES.has(shape) ? m[m.length - 1] : Number(m[m.length - 1])
         if (shape === '拒绝型' && EMPTY_TEST.has(`${m[1]},${value}`)) continue
         const line = body.slice(0, m.index).split('\n').length
         const key = `${rel}#${shape}#${value}`
-        if (!hits.has(key)) hits.set(key, { key, file: rel, shape, value, line })
+        if (!hits.has(key)) hits.set(key, { key, file: rel, shape, value, name: NAME_VALUED_SHAPES.has(shape) ? value : undefined, line })
       }
     }
     const ast = parseFor(rel, code, onParseError)
@@ -142,6 +154,8 @@ export function parseRegistry(md) {
   }
   return rows
 }
+
+export const NAME_VALUED_SHAPES = new Set(['常量上限', '截断上限'])
 
 export const ALLOWED_KINDS = new Set(['platform', 'schema', 'product', 'perf', 'self'])
 

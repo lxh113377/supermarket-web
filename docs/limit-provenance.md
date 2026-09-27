@@ -66,6 +66,15 @@
 | src/components/admin/ProductInlineEditForm.tsx | 截断型 | 9 | product | 商品图册保存前只提交前 9 张：一屏约 3×3，再多没人翻到。**第三十五轮起服务端 createProduct/updateProduct 对 >9 直接拒（too_many_images）**，前端截断不再独自承担上限 |
 | functions/lib/actions/submissions.js | 拒绝型 | 5 | product | 第三十五轮补的服务端条数 cap，与 ServiceFormPage 的 ≤5 同值（此前只有前端有 cap，直接 POST 可塞任意多张）。不用 d1_statement_bytes 反推：线上实测单条提交 images 最大 442KB（本文件 :37 注释）仍写成功 ⇒ 100KB 只管语句文本、不含绑定参数，拿它当图片上限会得出错误结论 |
 | functions/lib/actions/products.js | 拒绝型 | 9 | product | 第三十五轮补：与 ProductInlineEditForm 的 slice(0,9) 同值。服务端从"只查 scheme"升到"也查条数"，两处出口（createProduct/updateProduct）同笔加，缺一侧就会被另一侧绕过 |
+| functions/lib/actions/orders.js | 常量上限 | BATCH | perf | 全表扫描的分页批大小（定义 :304 = 200）；`rows.length < BATCH` 只是"取到底了"的提前退出，不是用户可感上限 ⇒ 记 perf 不记 platform |
+| functions/lib/actions/products.js | 常量上限 | BATCH_UPDATE_MAX | platform | 定义 :153 = 40。更新链是 1+n 条语句（第十四轮实测斜率），n=40 ⇒ 41 条，压在 d1_queries_per_invocation_free（免费档 50 查询/调用）之内；与下面 200 不同值是有原因的，不是笔误 |
+| functions/lib/actions/products.js | 常量上限 | BATCH_DELETE_MAX | platform | 定义 :174 = 200。删除件语句数是常数（1 存在性 + 1 批量删），受的是 sqlite_bound_params（999 绑定参数/语句）⇒ 单语句 200 参数，余量充分 |
+| functions/lib/actions/products.js | 常量上限 | SPEC_OPTION_LIMIT | product | 定义 :88 = 20，一条商品的可选口味上限（后台一屏药丸按钮的可视容量 + 订单快照 spec 串长度一起定的）。第三十六轮才进普查面：右侧是常量名，旧「拒绝型」形状只认数字 ⇒ 这条以前结构性隐形 |
+| src/components/admin/ProductInlineEditForm.tsx | 常量上限 | SPEC_OPTION_LIMIT | product | 同一上限的前端侧（定义 :10 = 20）。两条构建链不能共享模块 ⇒ 常量必然双写，同值由 tests/limitCapParity.test.ts 钉住（改了任一侧另一侧不跟 ⇒ 契约红） |
+| src/components/product/ReviewForm.tsx | 常量上限 | MAX_REVIEW_IMAGES | product | 前端评价张数上限（定义 :14 = 3），必须等于服务端 reviews.js 的 `clean.images.length > 3`。第十八轮的教训：当时前端与文案都是 5、服务端退 3 ⇒ 顾客照屏上指示操作必然失败 |
+| src/db/orders.ts | 常量上限 | PAGE_SIZE | perf | 定义 :89 = 100，订单增量拉取的页大小；`rows.length < PAGE_SIZE` 是停止条件而非业务上限（与 OrdersTab 的 UI 分页 20 是两个不同的数，别混） |
+| src/components/admin/ProductInlineEditForm.tsx | 截断上限 | FLAVOR_MAX_LEN | product | 口味名输入截到 20 字（定义 :11，输入框 `maxLength` 同用这个常量）。对侧是服务端 `sanitizeSpecOptions` 的 `slice(0, 20)`（products.js:96）——**前端常量、后端字面量**，以前两侧都扫不到；同值由 tests/limitCapParity.test.ts 钉住 |
+| src/components/product/ReviewForm.tsx | 截断上限 | MAX_REVIEW_IMAGES | product | 批量压缩选图并入时按上限截断（:41 与 :42 两处，同一常量）。值必须等于服务端 reviews.js 的 `> 3`，否则"选了 4 张只留 3 张"与"整条被退"两种命运取决于哪侧先跑 ⇒ 契约见 tests/reviewImageCapContract.test.ts |
 | src/components/DashboardTab.tsx | 截断型 | 10 | product | 看板"日期"标签取 ISO 串前 10 位（YYYY-MM-DD）：日历日粒度，不是容量上限；与 src/localStore.ts 的 date 同源同形 |
 | src/components/OrdersTab.tsx | 截断型 | 10 | product | 导出 CSV 文件名里的日期戳截 10 位（YYYY-MM-DD）：命名粒度，不参与数据裁剪 |
 | src/components/product/ProductGallery.tsx | 拒绝型 | 1 | product | 不是容量上限，是"有没有第二张"的可用性阈值：>1 才渲染上一张/下一张箭头。登记它的唯一目的是让普查面不留洞 |
