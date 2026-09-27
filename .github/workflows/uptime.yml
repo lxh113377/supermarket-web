@@ -43,6 +43,18 @@ jobs:
       - name: Probe production endpoints
         run: node scripts/uptime-check.mjs
 
+      - name: Branch protection census (report only)
+        # 第三十三轮立的四态判据接进日巡检（第三十四轮）。为什么值得每天跑一次还放在这里：
+        # ① 它零成本（同 job，无额外 runner 启动）；② 这条呆账此前挂了 5 轮，全靠报告作者记得手动 `gh api`。
+        # 预期读数：**UNVERIFIED** —— GET /branches/{b}/protection 按 GitHub 文档要求 administration 权限，
+        # 而本 job 只有 contents:read + actions:read（最小权限，见上方 permissions 注释）。
+        # 这不是白跑：它把"我们看不见"从"我们忘了看"变成机器每天说一次。要拿真读数需要仓库 admin 级
+        # token —— 那是**用户侧决定**（本仓原则：不擅自新增/扩权 secret），故此处只用现有 GITHUB_TOKEN。
+        continue-on-error: true   # advisory：看守型判据不拦日巡检（红线是被探活的生产链路）
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/check-branch-protection.mjs
+
       - name: Catalog facts (seed vs live, report only)
         # 第十一轮接成报告型（先量误报率）；本轮已拿到两次逐项一致的样本
         # （本机 + Uptime run 36240825097：28/54、漂移 27+1+22、重复 3+3），

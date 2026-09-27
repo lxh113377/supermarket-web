@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-27T05:50:44.251Z",
+  "updatedAt": "2026-09-27T08:53:44.806Z",
   "peakStatements": {
     "P:getPublicCategories": 1,
     "P:getPublicProducts": 1,
@@ -7,6 +7,7 @@
     "A:getOrder": 1,
     "A:getOrders": 1,
     "A:updateOrderStatus": 4,
+    "amortized:audit-retention-purge": 3,
     "P:getOrderStatus": 1,
     "A:getOrderStatus": 1,
     "A:createProduct": 2,
@@ -40,6 +41,7 @@
     "A:getReviews": 1,
     "A:addPublicReview": 2,
     "A:createOrder": 4,
+    "P:aiChat": 3,
     "P:createSubmission": 3,
     "A:getSubmissionImages": 1
   },

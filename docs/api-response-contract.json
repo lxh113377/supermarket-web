@@ -52,6 +52,34 @@
         "retryable"
       ]
     },
+    "/pub aiChat": {
+      "side": "/pub",
+      "action": "aiChat",
+      "calls": 2,
+      "dataKinds": [
+        "object"
+      ],
+      "envelopeAlways": [
+        "code",
+        "data"
+      ],
+      "envelopeSeen": [
+        "code",
+        "data"
+      ],
+      "keysAlways": [
+        "content",
+        "conversationId",
+        "source"
+      ],
+      "keysSeen": [
+        "content",
+        "conversationId",
+        "source"
+      ],
+      "errEnvelopeAlways": [],
+      "errEnvelopeSeen": []
+    },
     "/pub createOrder": {
       "side": "/pub",
       "action": "createOrder",

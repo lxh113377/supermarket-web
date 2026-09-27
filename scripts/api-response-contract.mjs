@@ -34,7 +34,12 @@ export const SELF = 'api-response-contract.mjs'
  * 判据只能保证"没登记就红"，保证不了"登记的理由是真的" ⇒ 每轮补 payload 时顺手试一次旧理由。
  */
 export const RESPONSE_GAPS = {
-  '/pub aiChat': '需要 fetch stub：verify-backend 全程离线（不打网络是它的硬约束），而 aiChat 无 key 时走规则版返回体形状不同 ⇒ 由 tests/aiContract.test.js 的 stub 侧守，不由本契约守',
+  // 第三十四轮清零。最后一个具名缺口是 `/pub aiChat`，它的旧理由是"需要 fetch stub：verify-backend 全程
+  // 离线，而 aiChat 无 key 时走规则版返回体形状不同 ⇒ 由 aiContract 的 stub 侧守" —— 这句话被本轮自己证伪：
+  // 规则模式本来就不联网（线上现在正是 ai.configured=false），Dify 模式用一个按 `functions/lib/dify.js:107-109`
+  // 解析字段（answer / conversation_id）打的桩就能离线跑出成功形状，且桩记录出口 ⇒
+  // "分支没跑到"与"跑了但没出网"两种情况可分（见 verify-backend 的 aiChat 三条探针）。
+  // 本对象与 V3 的双向对账保留：下一轮起若缺口表再出现行，理由必须写成**可证伪的句子**（第三十一轮立的规矩）。
 }
 
 /**

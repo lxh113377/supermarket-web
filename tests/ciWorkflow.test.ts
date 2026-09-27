@@ -495,6 +495,19 @@ describe('备份链顺序：导出 → 恢复演练 → 上传（顺序错=白�
  * ① 读 run 历史的 step 必须有 GH_TOKEN 且 job 有 actions: read（否则 403 → 永久 BLOCKED）；
  * ② 备份链不允许"沉默跳过还报绿"——必须存在一个显式响亮失败的 step。
  */
+/** 取某个 step 的文本块：从它自己的 `- name:`/`- uses:` 行到下一个 step 行之前。 */
+function stepBlockOf(text: string, runPattern: RegExp): string {
+  const lines = text.split('\n')
+  const at = lines.findIndex((l) => runPattern.test(l))
+  if (at < 0) return ''
+  const isStepHead = (l: string) => /^[ \t]*-[ \t]+(name|uses):/.test(l)
+  let s = at
+  while (s > 0 && !isStepHead(lines[s])) s -= 1
+  let e = at + 1
+  while (e < lines.length && !isStepHead(lines[e])) e += 1
+  return lines.slice(s, e).join('\n')
+}
+
 function automationWiringProblems(texts: Record<string, string>): string[] {
   const problems: string[] = []
   const up = (texts['uptime.yml'] || '').replace(/\r\n/g, '\n')
@@ -512,7 +525,12 @@ function automationWiringProblems(texts: Record<string, string>): string[] {
   }
   if (!/- name: Cross-check the daily probe/.test(bk)) problems.push('d1-backup.yml 不再反查巡检链 ⇒ cron 被自动禁用时无人会红')
   if (!/LIVENESS_MODE: presence/.test(bk)) problems.push('d1-backup.yml 的互指步缺 presence 模式 ⇒ 会拿备份标准判巡检链，必然假红')
-  if (/^[ \t]*continue-on-error:[ \t]*true[ \t]*$/m.test(up) && /run: npm run report:catalog/.test(up)) {
+  // 按 step 定标，不按整文件：第三十四轮 uptime.yml 多出**另一个** advisory step（分支保护普查），
+  // 旧写法「全文件有 continue-on-error 且有 report:catalog ⇒ 红」会把无关步骤算到 catalog 头上；
+  // 而它的反向缺陷更糟——`true[ \t]*$` 让行尾一句注释就把这条判据看瞎（挂回 advisory 只要加个 # 就免检）。
+  const catalogStep = stepBlockOf(up, /run: npm run report:catalog/)
+  if (!catalogStep) problems.push('uptime.yml 里没有 catalog 步骤 ⇒ report:catalog 从日巡检消失了')
+  else if (/^[ \t]*continue-on-error:[ \t]*true\b/m.test(catalogStep)) {
     problems.push('uptime.yml 的 catalog 步骤又挂回 continue-on-error ⇒ 硬不变量违反会被吞（本轮已按两次一致样本接成阻断）')
   }
   return problems
@@ -528,14 +546,28 @@ describe('自动化链接线契约（活着 ≠ 绿色）', () => {
     // 会让"抽掉"变成空操作 ⇒ 反例假过（第九轮同族坑，这次抽的是我自己的夹具）。
     const norm = (t: string) => t.replace(/\r\n/g, '\n')
     const base: Record<string, string> = Object.fromEntries(allWorkflows.map(([f, t]) => [f, norm(t)]))
-    const noToken = { ...base, 'uptime.yml': base['uptime.yml'].replace(/ +GH_TOKEN:[^\n]*\n/, '') }
+    // 删除一律 **/g 全局**，并且先证明"抽干净了"：第三十四轮 uptime.yml 有了第二个 GH_TOKEN 步
+    // （分支保护普查），非全局 replace 只删第一处 ⇒ 判据看不见剩下的那个，反例静默失效。
+    const countMatches = (t: string, re: RegExp) => (t.match(new RegExp(re.source, 'gm')) || []).length
+    const dropAll = (t: string, re: RegExp, label: string) => {
+      expect(countMatches(t, re), `${label}：变异前一个都没匹配到 ⇒ 这条"抽掉"是空操作`).toBeGreaterThan(0)
+      const out = t.replace(new RegExp(re.source, 'gm'), '')
+      expect(countMatches(out, re), `${label}：抽完还剩，判据当然不红——是变异体没造出目标状态`).toBe(0)
+      return out
+    }
+    const noToken = { ...base, 'uptime.yml': dropAll(base['uptime.yml'], /^ +GH_TOKEN:[^\n]*\n/, 'GH_TOKEN') }
     expect(automationWiringProblems(noToken).join()).toContain('GH_TOKEN')
-    const noPerm = { ...base, 'uptime.yml': base['uptime.yml'].replace(/ +actions: read\n/, '') }
+    const noPerm = { ...base, 'uptime.yml': dropAll(base['uptime.yml'], /^ +actions: read\n/, 'actions: read') }
     expect(automationWiringProblems(noPerm).join()).toContain('actions: read')
     const silent = { ...base, 'd1-backup.yml': base['d1-backup.yml'].replace('Fail loudly', 'Do it quietly') }
     expect(automationWiringProblems(silent).join()).toContain('响亮失败')
     const reAdvisory = { ...base, 'uptime.yml': base['uptime.yml'].replace('run: npm run report:catalog', 'continue-on-error: true\n        run: npm run report:catalog') }
     expect(automationWiringProblems(reAdvisory).join()).toContain('continue-on-error')
+    // 同一件事换个写法（行尾带注释）不得免检——旧判据 `$` 锚点正是漏在这一层
+    const commented = { ...base, 'uptime.yml': base['uptime.yml'].replace('run: npm run report:catalog', 'continue-on-error: true   # 看起来很合理\n        run: npm run report:catalog') }
+    expect(automationWiringProblems(commented).join()).toContain('continue-on-error')
+    // 反向：advisory 挂在**别的** step 上（本轮的分支保护普查就是）不得算到 catalog 头上
+    expect(automationWiringProblems(base).join()).not.toContain('catalog 步骤又挂回')
   })
 })
 

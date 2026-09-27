@@ -517,6 +517,33 @@ const webRouteOrder = await handleAdmin(env, 'createOrder', 'test-key-123', {
 ok(webRouteOrder.code === 0 && webRouteOrder.data?.id, `/web 管理端下单成功 (${webRouteOrder.data?.id})`)
 await handleAdmin(env, 'deleteOrder', 'test-key-123', { orderId: webRouteOrder.data?.id })
 
+// /pub aiChat 的**两种成功形状**（第三十四轮，关掉响应契约最后一个具名缺口，它挂了 5 轮）。
+// 为什么要录两条：AI 未配置时走规则模式（线上当前就是这个状态，/_health 里 ai.configured=false），
+// 配置了才走 Dify —— 只录一条等于给另一个分支留了个没人看的洞。
+// 打桩的响应字段名不是编的，是按 functions/lib/dify.js:107-109 的解析代码来：
+// `data.answer` / `data.conversation_id` ⇒ 桩若和真实契约不一致，录到的就是假形状，比没录更糟。
+const aiRuleShape = await handlePublic(env, 'aiChat', { question: '契约探针：有什么水果推荐' })
+ok(aiRuleShape.code === 0 && aiRuleShape.data?.source === 'rule' && typeof aiRuleShape.data?.content === 'string',
+  `/pub aiChat 未配置 AI ⇒ 规则模式成功形状 (source=${aiRuleShape.data?.source})`)
+const aiEgress = []
+const realFetch = globalThis.fetch
+globalThis.fetch = async (url, init) => {
+  aiEgress.push({ url: String(url), mode: init?.method || 'GET' })
+  return { ok: true, status: 200, json: async () => ({ answer: '契约探针回答', conversation_id: 'conv-shape-1' }) }
+}
+try {
+  const aiDifyShape = await handlePublic(
+    { ...env, DIFY_BASE_URL: 'https://dify.invalid', DIFY_CHAT_APP_KEY: 'shape-probe-not-a-real-key' },
+    'aiChat', { question: '契约探针：走 Dify 分支', conversationId: 'conv-seed' })
+  ok(aiDifyShape.code === 0 && aiDifyShape.data?.source === 'dify' && aiDifyShape.data?.conversationId === 'conv-shape-1',
+    `/pub aiChat Dify 模式成功形状 (source=${aiDifyShape.data?.source}, conversationId=${aiDifyShape.data?.conversationId})`)
+  // 桩必须真的接住了：一次 `.invalid` 出口都没记录 ⇒ 说明这个分支根本没跑到，那条断言就是自证清白
+  ok(aiEgress.length === 1 && aiEgress[0].url.includes('dify.invalid') && aiEgress[0].mode === 'POST',
+    `/pub aiChat 的出口被桩接住（不发真网络）：${JSON.stringify(aiEgress)}`)
+} finally {
+  globalThis.fetch = realFetch
+}
+
 // 提交侧两条：一条补 /pub 的成功形状（图片是可选的，之前挂"要带图"其实挂错了），
 // 一条用刚建出来的提交去取 getSubmissionImages（它要求提交存在，不需要真带图）
 const pubSub = await handlePublic(env, 'createSubmission', { serviceId: 's9', serviceName: '打印服务', formData: { 份数: '3' } })

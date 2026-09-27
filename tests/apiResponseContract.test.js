@@ -107,10 +107,22 @@ describe('V1~V6 双向变异', () => {
     expect(v.detail).toContain('ghostAction')
   })
   it('V3 反例：漏登记缺口 ⇒ 红；把已覆盖的挂成缺口 ⇒ 幽灵登记同样红', () => {
-    const missing = row(ev({ gaps: {} }), 'V3')
+    // 「漏登记」这一腿必须**自己造出有缺口的前提**。第三十四轮前它写成 `ev({ gaps: {} })`，
+    // 靠的是 RESPONSE_GAPS 里真有一条 `/pub aiChat` —— 那轮把它清零后，`gaps: {}` 与真实态
+    // 逐字节相同，"反例"退化成正向，判据正确地不红：**假过的是夹具，不是判据**。
+    // 现在的前提由"抽掉一条已覆盖的录制"造出来（uncovered 里必然有它），与缺口表内容无关。
+    const covered = producingOf(committed)[0]
+    const lost = clone(committed)
+    delete lost[covered]
+    const missing = row(ev({ derived: lost, gaps: {} }), 'V3')
     expect(missing.ok).toBe(false)
     expect(missing.detail).toContain('未登记缺口')
-    const covered = producingOf(committed)[0]
+    expect(missing.detail).toContain(covered)
+    // 门禁必须收得下真话：给被抽掉那条补上理由 ⇒ V3 转绿（否则是在逼虚报"零缺口"）
+    expect(row(ev({ derived: lost, gaps: { ...gapsForAll(committed), [covered]: '夹具：本轮故意抽掉' } }), 'V3').ok).toBe(true)
+    // 前提自证：被抽掉那条必须**确实在册**，否则 uncovered 根本装不下它，这条反例会静默失去牙齿
+    expect(api).toContain(covered)
+    expect(producingOf(committed).length).toBeGreaterThan(0)
     const phantom = row(ev({ gaps: { ...gapsForAll(committed), [covered]: '这条其实已被实测覆盖，挂着就是幽灵行' } }), 'V3')
     expect(phantom.ok).toBe(false)
     expect(phantom.detail).toContain('幽灵登记')

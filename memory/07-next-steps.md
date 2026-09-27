@@ -9,19 +9,24 @@
 > 外层 `超市web/超市/memory/`（工作区）。两者内容**不同**（07 主卷 SHA256 不一致），
 > 属历史遗留的双份结构，尚未合并。**本轮的权威记录在外层**：`deliverables/前端深度优化方案-2026-09-23.md` §6。
 
-## 2026-09-27 — 对标第三十三轮（欠账不能只活在报告作者的记忆里）
+## 2026-09-27 — 对标第三十四轮（关掉缺口的同时，被自己的复验抓到两处假过夹具）
 
-> 报告：外层 `…报告-第三十三轮-2026-09-27.md`；锚 `8c3e6bf`（其 CI 五 job 全 success）；
-> 备份 `/c/_sm_backups/r33-start-8c3e6bf.bundle`（含载回演练）；分卷 47（R32=46，R31=45，R30=42~43）。
-> 本轮：新判据 `check-branch-protection.mjs`（四态 + 时刻，advisory 不阻断）读数为
-> **NOT_ENFORCED**（protection=404 + rulesets `[]`）；体量贴线 WARN 打出"9 本在 15% 内"⇒
-> 规则改为**新卷到 3.5KB 就开新卷号**；admitted 清单收成账本单一真相源。
-> 全链独占复验 89 文件 / **1173 条** rc=0，`cli-entrypoints 11/11`（分母 31、带风险 15）。
+> 报告：外层 `…报告-第三十四轮-2026-09-27.md`；轮初锚 `aef58fa`；备份
+> `/c/_sm_backups/r34-start-aef58fa.bundle`；上一轮块已逐字迁至 **卷 50**（1,240B，断言逐字在册）、本轮事实拆入 **卷 51**。
+> 本轮：`aiChat` 形状缺口 **1 → 0**（契约 42 条，`keysAlways=content/conversationId/source`）；
+> `reads-secrets` 扩类以**否证数字**关闭（40 面 / 11 命中 / 7 已覆盖 / 4 非凭据）；
+> 分支保护普查接进 `Uptime`（advisory，预期 UNVERIFIED——该 job 只有 contents+actions:read）。
+> **两处红是整链复验抓出来的**（首跑 `VERIFY_RC=1`）：V3 变异体 `gaps:{}` 在缺口清零后与真实态相同、
+> "抽掉 GH_TOKEN"非全局删除被第二个步骤救活 ⇒ 同族教训：**夹具的前提是人口，人口会变**。
+> 顺带修判据本体：catalog 的 `continue-on-error` 由整文件耦合改为**按 step 分块**（旧写法行尾一句注释即免检）。
+> 复验 `VERIFY_RC=0`、`89 文件 / 1173 条`，`cli-entrypoints 11/11`、`memory-volume 判 58 卷 超限 0`。
 
-> **P0（下一轮开工先做这条，可执行）**：把分支保护普查接到**定时链**（`uptime.yml`/`d1-backup.yml` 同型
-> cron），没人 push 也留痕，并验证 runner 上无 admin 的 token 确实打 UNVERIFIED；
-> 随后 `reads-secrets` 扩类（**先给候选命中的人口数字**再定词表）→ `aiChat` 形状（已挂 5 轮）。
-> 用户侧不变：**N3 部署高于一切技术项**（对外发布不在自动化授权内；动前加载 `chaoshi-web-deploy` skill）。
+> **P0（下一轮开工先做这条，可执行）**：**R35-H1** 给 SQL 基线补一条"键 ⇄ 代码路径"双向 diff 判据
+> （本轮浮出的 `amortized:audit-retention-purge` 是 R28 欠同步，靠人翻才发现；含 `amortized:*` 与
+> `P:*`/`W:*` 两类键的取数面）。随后 **R35-H2**：静态判据要求"缺口条目必须含可复跑命令或数字"
+> （防理由再次退化成借口）。用户侧不变：**N3 部署高于一切技术项**（对外发布不在自动化授权内；
+> 动前加载 `chaoshi-web-deploy` skill）；M3 服务端分支保护读数已在册（当前 **NOT_ENFORCED**）。
+
 
 ## 历史轮次与在途项
 
@@ -30,6 +35,6 @@
 
 ## 分卷目录
 
-- 在册卷号：1–49。文件名一律 `07-next-steps.part<N>.md`（N 取上列区间内整数，不可跳号命名）。
+- 在册卷号：1–51。文件名一律 `07-next-steps.part<N>.md`（N 取上列区间内整数，不可跳号命名）。
 - 本行由第十七轮体量收口压缩：原先逐行列举 33 行占主卷约 1.2KB，而 `handoff.py split` 自己就建议「人工精简分卷目录行」。
 - 新拆卷时 `split` 会往本节追加行；追加后请顺手并回上面的区间描述，别让主卷再涨回 4KB 以上。

@@ -33,6 +33,26 @@
 
 - 第三方依赖的通用漏洞：请直接向对应上游报告（本项目已开启 Dependabot 每周更新）
 
+## 服务端防护现状（机器在册，不靠记忆）
+
+单人直推 `main` 的项目，"仓库设置"这件事很容易被当成"我知道的事"而不是"该被记录的状态"。
+本仓把它做成一条可复跑的四态判据：`node scripts/check-branch-protection.mjs`（`npm run report:branch-protection`）。
+
+- **当前实测读数：`NOT_ENFORCED`** —— `GET /repos/…/branches/main/protection` = 404，
+  且 `GET /repos/…/rulesets` = `[]`（两条通道都可观测，才敢下这个结论）。
+  ⇒ **服务端不拦任何 push**：不要求 PR、不要求 review、不要求 CI 绿、不禁止 force-push 到 main。
+- **现在的实际补偿是本地链**（可信度低于服务端强制，这是事实不是宣传）：
+  `.githooks/pre-commit`（密钥扫描 + 记忆卷预算）与 `.githooks/pre-push`
+  （`ci-green-contract`：远端基点 CI 不绿就拦住推送；逃生门需要显式理由并留痕）。
+  二者都能被"绕过钩子的提交"跳过，且不作用于他人克隆（需 `git config core.hooksPath .githooks`）。
+- **为什么定时链上常常读到 `UNVERIFIED`**：读 protection 需要 administration 权限，
+  而 `Uptime` workflow 按最小权限只给 `contents: read` + `actions: read`。这是**有意不做扩权**：
+  新增/扩权 secret 属仓库管理员决定，Agent 侧不擅动（读数拿不到就写"未观测"，绝不按"已满足"计——
+  这点对标 `ossf/scorecard`，它在无 admin token 时按满足计分，我们是台账不是评分器）。
+- **要把它变成真强制**（用户侧一步）：Settings → Branches → Add branch protection rule for `main`，
+  勾选 *Require a pull request before merging* 与 *Require status checks to pass*（`build-and-test`、`deploy`）。
+  开完后本判据应转 `ENFORCED`，`docs/cli-entrypoints.md` 与轮次报告的挂账随之销账。
+
 ## 我们存了哪些个人数据（受 `npm run verify:pii` 对账）
 
 权威清单是 **`docs/pii-inventory.md`**，本节只给口径，具体到列的判定以那份登记册为准 ——

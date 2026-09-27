@@ -3,6 +3,53 @@
 本项目采用 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式。此前未维护本文件，历史条目按 git 提交记录补记（自 2026-09-23 起持续维护）。
 
 ## [未发布]
+### 2026-09-27 追加四十八（对标第三十四轮：把挂了 5 轮的 `aiChat` 形状做掉，且是用"证伪自己的旧理由"的方式）
+
+- 取号先列盘：在册最大「四十七」⇒ 本条「四十八」。回滚锚 `aef58fa`（其 CI 五 job 全 success 已确认），
+  备份 `/c/_sm_backups/r34-start-aef58fa.bundle`（bundle verify = complete history）。
+- **M1 `aiChat` 响应形状（挂 5 轮，本轮关闭）**：响应契约 **41 → 42 条，具名缺口 1 → 0**。
+  关键不是"补了个 stub"，而是**上一轮写在缺口表里的理由被本轮自己证伪**：那句"需要 fetch stub、
+  verify-backend 全程离线、无 key 时形状不同所以守不了"三处不成立 ——
+  规则模式本来就不联网（线上现在正是 `ai.configured:false`），Dify 模式离线打桩即可跑出成功形状。
+  桩的字段名不是编的：照 `functions/lib/dify.js:107-109` 的解析代码取 `answer` / `conversation_id`。
+  三条新探针（`scripts/verify-backend.mjs`）：规则模式形状、Dify 模式形状、**桩真的接住了**
+  （记录到 1 次 `POST https://dify.invalid/v1/chat-messages` ⇒ 能区分"分支没跑到"与"跑了但没出网"）。
+  两种模式的恒定字段一致：`keysAlways = [content, conversationId, source]`、`calls: 2`。
+- **SQL 基线按流程入册**：新调用路径 `P:aiChat` 先被 C1 判"基线缺 action（新增调用路径？确认后入册）"，
+  人工核过峰值 **3** 与同族写路径一致（`P:addPublicReview=3`、`P:createSubmission=3`；读路径 1）再入册；
+  入册后 diff 核对：键 41→43，**新增 = `P:aiChat` + `amortized:audit-retention-purge`，删除 0、值变化 0**。
+- **H2 `reads-secrets` 扩类：以"改判"关闭（不扩）**。按本仓规矩先出人口数字：
+  候选面 40 个 `.mjs`；`.dev.vars` 命中 **0**；`process.env.*` 命中 **11**，其中 **7** 条已被
+  `network-fetch`/`gh-cli`/`wrangler`/`d1-execute` 覆盖 ⇒ 新标签对它们零区分度；剩 **4** 条读的是
+  `CI`/`NODE_ENV`/输出路径类变量而非凭据。⇒ 加这个词等于给 27% 的面贴一个无信息标签，
+  还会把 4 个今天被 ②③ 真跑的干净入口挤成"必须先自述才能跑"。**不改判据、只把否证数字记下来。**
+- **H1 定时链接入（R34-P0-1）**：`Uptime` workflow 每日跑一次 `check-branch-protection.mjs`
+  （`continue-on-error: true`，advisory）。如实写明预期读数是 **UNVERIFIED**：读 protection 需 administration
+  权限，而该 job 按最小权限只有 `contents:read`+`actions:read`；这仍是有价值的产出——它把"我们看不见"
+  从"我们忘了看"变成机器每天说一次。扩权/新增 secret 属用户侧决定，不擅动。
+- **文档补齐**：`SECURITY.md` 新增「服务端防护现状（机器在册）」——此前全仓没有任何地方写着
+  "main 到底有没有保护"。现记录：实测 `NOT_ENFORCED`（404 + rulesets `[]` 双通道可观测）、
+  现有补偿是本地钩子（可信度低于服务端强制，写明是事实不是宣传）、为何定时链常读到 UNVERIFIED、
+  以及管理员要开成 `ENFORCED` 的具体一步。
+- **第一次独占整链复验是红的，且红在本轮自己脸上**（`npm run verify` ⇒ `VERIFY_RC=1`、
+  `Tests 2 failed | 1171 passed (1173)`）。两项都不是环境噪声，都是**夹具失去牙齿**：
+  ① `tests/apiResponseContract.test.js` V3 的"漏登记缺口 ⇒ 红"用的变异体是 `gaps: {}`，
+  它成立的前提是缺口表非空；本轮把 `RESPONSE_GAPS` 清零后，这个"反例"与真实态逐字节相同，
+  判据正确地不红 —— 假过的是夹具。改成**自造前提**：抽掉一条已覆盖的录制，让 uncovered 真有它，
+  并补两条对偶断言（前提自证 + 补上理由即转绿，门禁必须收得下真话）。
+  ② `tests/ciWorkflow.test.ts` 的"抽掉 GH_TOKEN"是非全局 `replace`，只删第一处，而本轮新增的
+  普查步骤带来第二个 `GH_TOKEN` ⇒ 抽完还剩、判据无话可说。改为全局删除，并在删除前后各加一条计数
+  断言（变异前 0 命中、抽完仍有剩余，两种"空操作变异体"都直接判红）。
+  修 ② 时另查出**判据本体**的第三个缺陷：catalog 的 `continue-on-error` 检查按整文件耦合，
+  既会把无关 advisory 步骤算到它头上，又会因正则 `[ \t]*$` 收尾而**被一句行尾注释看瞎** ⇒ 改为按 step 分块。
+- 复验：`node scripts/api-response-contract.mjs` ⇒ `实测 42 条在册形状｜检查 6/6`；
+  修完两处后的**整链独占复验**（无并发改动）⇒ `VERIFY_RC=0`、`Test Files 89 passed`、`Tests 1173 passed (1173)`；
+  链内 `node scripts/verify-backend.mjs` 三条新探针原文：
+  `PASS /pub aiChat 未配置 AI ⇒ 规则模式成功形状 (source=rule)`、
+  `PASS /pub aiChat Dify 模式成功形状 (source=dify, conversationId=conv-shape-1)`、
+  `PASS /pub aiChat 的出口被桩接住（不发真网络）：[{"url":"https://dify.invalid/v1/chat-messages","mode":"POST"}]`；
+  `cli-entrypoints 11/11`（分母 31 / 带风险 15）、`memory-volume 判 58 卷｜超限 0`。
+
 ### 2026-09-27 追加四十七（对标第三十三轮：把"每轮靠我记得去重跑"的欠账变成在册判据，并承认体量是被压到天花板的）
 
 - 取号先列盘：在册最大「四十六」⇒ 本条「四十七」。回滚锚 `8c3e6bf`，备份
