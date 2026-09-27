@@ -9,6 +9,7 @@
 > ② **列级穷举**：被覆盖的表里，schema 中每一个列都必须有行，漏一列判红。
 > ③ **取值合法 + 依据不得空话**：类别/可见性/出境/进导出四列走限定枚举；依据 <14 字或含 TODO 判红
 >    （本轮第一版有 **23 行**被这条打回，包括"状态机取值，不识别个人"这种看着像理由的空话）。
+> ⑤ **出境按数据流判，不按"有没有被 SELECT"判**（第二十四轮补）：一列标"是"必须给出**送进第三方请求体**的行号凭据；一列都不标"是"时，必须存在点名第三方调用（`pubAiChat`/`callDify*`）的零出境声明，否则"全标否"就能自动变绿（P8 双向）。另加 **P12**：出境链（aiAdvice）的 orders 投影每一列都必须被下游 `buildAdviceInput`/`ruleAdvice` 真引用，白读列当场判红 —— 这是"加一列微信号"那条路的闸（上一轮就是把"SELECT 带过"误记成"出境"，本轮连同误判一起修）。
 > ④ **与导出面判据对账**：「进导出」不由人手填，而是从 `tests/piiExportAllowlist.test.ts` 的 CSV 表头
 >    白名单反推（作用域锁 orders，否则 `时间→createdAt` 会误伤 reviews/submissions 的同名列）。
 >
@@ -26,8 +27,8 @@
 | items | 个人数据 | admin | 否 | 无自动清理 | 仅人工逐条删 | 是 | 消费明细可反推个人画像（常购品类、口味、时段），JSON 文本列整存整取 |
 | totalAmount | 运营 | admin | 否 | 无自动清理 | 仅人工逐条删 | 否 | 订单金额；与住址/时刻同批泄露才提升识别度，且 CSV 里出现的是逐行小计而非本列 |
 | status | 运营 | admin | 否 | 无自动清理 | 仅人工逐条删 | 是 | 履约状态机取值；单独不指向人，但会随订单整条导出，故如实标"是" |
-| wechat | 个人数据 | admin | **是** | 无自动清理 | 仅人工逐条删 | 否 | 微信标识可直接联系到人；出境凭据 `actions/ai.js:28`（aiAdvice 全量 SELECT 带 wechat 进 Dify 输入） |
-| remark | 个人数据 | admin | **是** | 无自动清理 | 仅人工逐条删 | 否 | 自由文本由顾客决定，可能出现电话/人名；出境凭据 `actions/ai.js:28` 同一处 SELECT 带 remark |
+| wechat | 个人数据 | admin | **否** | 无自动清理 | 仅人工逐条删 | 否 | 微信标识可直接联系到人。**第二十四轮更正上一轮的"出境=是"**：它曾出现在 aiAdvice 的 orders 投影（原 `actions/ai.js:28`），但 `buildAdviceInput` 只回传聚合量（days/revenue/orders/topProducts/avgRating/lowRatingCount/productCount），值从未进入发给 Dify 的请求体 ⇒ 属"白读列"而非出境。本轮起该列不再被任何代码读取，P12 互锁住"白读即红" |
+| remark | 个人数据 | admin | **否** | 无自动清理 | 仅人工逐条删 | 否 | 自由文本由顾客决定，可能出现电话/人名。同 wechat：曾在 aiAdvice 投影里被白读，从未进入 Dify 请求体；本轮起不再被读取，由 P12 钉住 |
 | paymentScreenshot | 凭证 | admin | 否 | 无自动清理 | 仅人工逐条删 | 否 | base64 入 D1，含转账交易号与收款方信息；交付完成后无业务用途，是第二十一轮 H2 的靶子 |
 | idempotencyKey | 派生 | internal | 否 | 随记录 | 仅人工逐条删 | 否 | 格式 `房间号@requestId#指纹`，**前缀就是住址**；别因为它是索引列就当它无害 |
 | createdAt | 个人数据 | admin | 否 | 无自动清理 | 仅人工逐条删 | 是 | 下单时刻与住址同批可绘作息画像；导出表头里的「时间」即本列 |
@@ -104,8 +105,16 @@
 | products | 商品目录 16 列均为商家自填；`image`/`images` 存的是本仓自产 webp 资产路径，不含人像 —— 若日后把顾客实拍接进此表，本行立刻失效，必须转覆盖表 |
 | schema_migrations | 迁移账本四列（`name/checksum/appliedAt/note`），由 `scripts/migrate.mjs` 自己写，内容全是文件名与校验和 |
 
+## 出境面（谁真的离开本系统）
+
+**本册实测出境列数 = 0**：没有任何一列的值会被写进发给第三方的请求体。唯一的真实出境路径不是列，
+而是 `functions/lib/actions/ai.js` 里 `pubAiChat` 造的第三方用户标识 `pub-<ip 前 40 位>`
+（IP 的派生值，来源是 `rate_limits.bucket` / 请求头，不是订单列），以及顾客自己键入的提问文本本身。
+P8 的判据是双向的：有列标"是"就必须给行号凭据；一列都没有，则本节的零出境声明必须点名 `pubAiChat`
+——否则"把出境列全标否"就能自动变绿。
+
 ## 已知缺口（本册自己承认的三笔账，不豁免掉）
 
-1. **两条出境路径未收口**：`actions/ai.js:28` 把 `wechat`/`remark` 带进 Dify 输入，`:77` 把 `pub-<ip 前 40 位>` 当第三方用户标识。第二十一轮 P0：aiAdvice 的 SELECT 去掉这两列（它做营收/评价分析用不到），并给出"为什么去掉之后分析结果不变"的对账。
+1. **只剩一条真出境路径**：`actions/ai.js` 的 `pubAiChat` 用 `pub-<ip 前 40 位>` 当第三方用户标识送进 Dify（顾客提问文本本身出境是产品目的，登记于此的是那个 IP 派生标识）。上一轮记在这里的第二条（"aiAdvice 把 wechat/remark 带进 Dify"）**已被本轮实测推翻并更正**：那几个值只存在于 aiAdvice 的 orders 投影里，`buildAdviceInput`/`ruleAdvice` 一个都没引用，请求体只带聚合量 ⇒ 不是出境，是**白读**。白读同样不该留着：它把个人数据多搬进一次冷启动 isolate 的内存/日志面，而且是"哪天有人顺手 `JSON.stringify(orders30)`"就真出境的引信。本轮把投影收到 3 列（items/totalAmount/createdAt），由 **P12** 双向互锁（多一列白读=红，引用了却没投影=红），并有夹具证明收敛前后两份分析输入**逐字节相同**（`tests/aiContract.test.js`「出境面收敛」）。
 2. **`rate_limits.bucket` 里的 IP 无清理通道**：正解是按 `resetAt` 删除窗口早已结束的桶，与 `security_events` 同型；但清理属会减少现存数据量的通道，须先登记分母再开。
 3. **`ai_calls` 全表无保留无删除**：只写不读，量级小；仍登记为待办而不是豁免，因为"以后会有人读它"是迟早的事。

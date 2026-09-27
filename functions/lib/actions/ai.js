@@ -24,8 +24,13 @@ export async function adminAiAdvice(env, DB) {
   const scene = 'aiAdvice'
   try {
     // 一次全量查询（getOrders 默认 50/100 条会截断近 30 天窗口；社区超市量级 LIMIT 2000 足够）
+    // ⚠️ 投影只准出现**下游真引用到的列**（P12 互锁：check-pii-inventory.mjs 拿本文件 + dify.js 的
+    // `o.<列>` 引用反推允许集，多一列即判红）。原投影带 `roomNumber / wechat / remark / _id / status /
+    // updatedAt`，六个字段 buildAdviceInput 与 ruleAdvice 一个都没用上 —— 白读六列不是"反正没出境"
+    // 就无害：它是把个人数据多搬进一次冷启动 isolate 的内存与日志面，也是"哪天有人顺手 JSON.stringify
+    // 这份快照"就出境的引信。对账夹具见 tests/aiContract.test.js「出境面收敛」。
     const orderRows = await qAll(DB,
-      `SELECT _id, roomNumber, items, totalAmount, status, createdAt, wechat, remark, updatedAt
+      `SELECT items, totalAmount, createdAt
        FROM orders ORDER BY createdAt DESC LIMIT 2000`)
     const orders = orderRows.map((r) => ({ ...r, items: jparse(r.items, []) }))
     const cutoff = Date.now() - 30 * 86400000

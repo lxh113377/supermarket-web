@@ -30,6 +30,18 @@
 - 顺带补的生效前提：`core.hooksPath` 此前**没有任何文档登记**（`.githooks/` 随仓库走，但这条是本机配置、
   不进 clone）⇒ README / CONTRIBUTING 补「新克隆必做」，并由 G5 钉住；CONTRIBUTING 里"串起 7 道检查
   / 168 用例"这类手抄数字改为"以 `scripts.verify` 与命令当场输出为准"。
+- **接第二十三轮清单的中优先级 H7（出境面收敛），并顺带推翻上一轮的一个判据前提**：
+  `functions/lib/actions/ai.js` 的 aiAdvice 投影原为 9 列（含 `wechat`/`remark`/`roomNumber`/`_id`/`status`/`updatedAt`），
+  收敛为 `items,totalAmount,createdAt` 三列 —— **实测登记册上一轮标的"出境=是"是误判**：那两列只被 SELECT 带过，
+  `buildAdviceInput` 只回传聚合量，值从未进入发给 Dify 的请求体。已在三处如实更正并留下对账：
+  ① 线级夹具（`tests/aiContract.test.js`，故意让假 DB 无视投影、把整行喂进 `adminAiAdvice`，断言请求体里
+  微信号/电话/房间号一个都没有、而 `revenue`/`乌龙茶` 必须在 —— 防空扫）；
+  ② 等价夹具（收敛前后的 prompt **逐字节相同** ⇒ "去掉之后分析结果不变"是可测的，不是嘴上说的）；
+  ③ 新判据 **P12**（出境链投影每列必须被下游真引用：多一列白读=红，引用了却没投影=红）与 **P8 补对偶**
+  （零出境时必须有点名 `pubAiChat` 的零出境声明，否则"把出境列全标否"就能自动变绿 —— 本轮改完 P8 一度
+  只剩"0 列均有凭据"这句空话，被自己的零输入规则逮住）。SECURITY.md 与 `docs/pii-inventory.md` 的旧断言同步撤回。
+  另一条清单项 **H5（getOrders 去掉 paymentScreenshot 投影）经实测不成立**：`getOrders` 从未投影该列，
+  只有 `getOrderById`（管理端单详，产品必需）与 `stalePendingReport`（只取 Boolean 存在性）碰它 ⇒ 撤单不修。
 - 本轮夹具自身被自己抓到三处（如实记）：① `offlineEnv` 先 spread 再 delete，把测试自己要设的
   `CI_GREEN_SKIP` 删了 ⇒ "逃生门缺理由仍拒"测的是没设逃生门（假绿）；② 变异体 M1 首版只改判断条件
   不改取值 ⇒ **空变异**；③ 新门禁 G6 首版定成"夹具引用不存在的脚本名即判红"，被合成夹具的植入名

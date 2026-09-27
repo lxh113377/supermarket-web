@@ -86,7 +86,36 @@ export function parseInventory(md) {
   return { rows, exempt }
 }
 
-export function evaluate({ tables, rows, exempt, exportCols, mdText }) {
+/**
+ * P12 的两块拼图：出境链（aiAdvice）的 orders 投影列 ⇄ 下游真引用集。
+ *
+ * 为什么按"引用"而不是按"类别"划界：登记册把 `items`/`createdAt` 也标为个人数据，
+ * 但分析确实要用它们 —— 按类别禁列会把这条闸做成"永远需要豁免"的死闸。
+ * 按引用划界才是硬约束：**没用到却带进内存/日志面的列，一律白读，一律判红**；
+ * 敏感列只要没被引用就同时被这条抓住（第二十四轮实测：原投影 9 列里 6 列没人用，
+ * 含 wechat、remark 两列个人数据 —— 它当时并未真的出境，"出境"是上一轮把"SELECT 带过"
+ * 误当成"送进 Dify"，本轮连同这条误判一起更正）。
+ */
+export function sliceFn(src, name) {
+  const i = src.indexOf(`function ${name}`)
+  if (i < 0) return ''
+  const next = src.slice(i).search(/\nexport /)
+  return next < 0 ? src.slice(i) : src.slice(i, i + next)
+}
+
+export function parseOrderProjection(aiSlice) {
+  const m = /\bSELECT\s+([\s\S]*?)\s+FROM\s+orders\b/i.exec(aiSlice)
+  if (!m) return null
+  return m[1].split(',').map((s) => s.trim().replace(/^o\./, '')).filter((c) => /^[A-Za-z_]\w*$/.test(c))
+}
+
+export function orderRefs(text) {
+  const out = new Set()
+  for (const m of String(text).matchAll(/\bo\.([A-Za-z_]\w*)/g)) out.add(m[1])
+  return out
+}
+
+export function evaluate({ tables, rows, exempt, exportCols, mdText, aiSlice, difySlice }) {
   const out = []
   const push = (id, ok, label, detail) => out.push({ id, ok, label, detail })
   const byKey = new Map(rows.map((r) => [`${r.table}.${r.column}`, r]))
@@ -151,10 +180,17 @@ export function evaluate({ tables, rows, exempt, exportCols, mdText }) {
       unmapped.length && `导出表头有未登记的列: ${unmapped.join(',')}`].filter(Boolean).join(' | ')
       || `标"是"的列 ⊆ 表头 ${actual.join(',')}；表头每列都有归属`)
 
-  const egressNoPointer = rows.filter((r) => r.egress === '是' && !/(\w+\.\w+):\d+/.test(r.basis))
-  push('P8', egressNoPointer.length === 0, 'P8 出境列必须点名代码落点（文件:行号）',
+  const egressYes = rows.filter((r) => r.egress === '是')
+  const egressNoPointer = egressYes.filter((r) => !/(\w+\.\w+):\d+/.test(r.basis))
+  // 零输入不得 PASS：第二十四轮把两列的"出境=是"更正为"否"之后，原判据只剩"0 列均有凭据"这句空话。
+  // 补上对偶侧 —— 一列都不出境时，必须存在**点名第三方调用**的零出境声明，否则"全标否"就能自动变绿。
+  const zeroDeclared = /出境列数\s*=\s*0/.test(mdText || '') && /pubAiChat|callDify/.test(mdText || '')
+  push('P8', egressNoPointer.length === 0 && (egressYes.length > 0 || zeroDeclared),
+    'P8 出境列必须点名代码落点；零出境时必须有点名第三方调用的零出境声明（双向，防"全标否"变绿）',
     egressNoPointer.length ? egressNoPointer.map((r) => `${r.table}.${r.column}`).join(',')
-      : `${rows.filter((r) => r.egress === '是').length} 列出境均有行号凭据`)
+      : egressYes.length ? `${egressYes.length} 列出境均有行号凭据`
+        : zeroDeclared ? '0 列出境，且「出境面」节点名了真实出境调用（pubAiChat/callDify）'
+          : '0 列出境，但登记册没有可核对的零出境声明 ⇒ 不接受"标否即清白"')
 
   const noChannel = rows.filter((r) => /无通道/.test(r.deletion))
   // 「无通道」的交代按**表**收口，不按行灌样板水：
@@ -186,6 +222,19 @@ export function evaluate({ tables, rows, exempt, exportCols, mdText }) {
     'P11 取数面不含判据自身与文档',
     `面 = db/**.sql 的 CREATE TABLE（${tables.size} 张），判据与登记册在面外`)
 
+  // P12 出境链投影 ⇄ 引用集 互锁（第二十四轮 H7 的守门人）
+  const proj = parseOrderProjection(aiSlice || '')
+  const refs = orderRefs(`${aiSlice || ''}\n${difySlice || ''}`)
+  const orderCols = tables.get('orders') || []
+  const whiteRead = (proj || []).filter((c) => !refs.has(c))
+  const notProjected = [...refs].filter((c) => orderCols.includes(c) && !(proj || []).includes(c))
+  push('P12', !!proj && proj.length > 0 && whiteRead.length === 0 && notProjected.length === 0,
+    'P12 aiAdvice 的 orders 投影每列必须被下游引用（白读列=把个人数据多搬进出境链的内存面）',
+    !proj ? '未解析到 aiAdvice 的 orders SELECT ⇒ 出境链改形，判据必须同步（不许悄悄失明）'
+      : [whiteRead.length && `白读列: ${whiteRead.join(',')}`,
+        notProjected.length && `引用了却没投影: ${notProjected.join(',')}`].filter(Boolean).join(' | ')
+        || `投影 ${proj.join(',')} 与引用集 ${[...refs].sort().join(',')} 完全互覆（零白读）`)
+
   return out
 }
 
@@ -195,7 +244,13 @@ export function loadAll() {
   const tables = parseSchemaTables(sqlTexts)
   const { rows, exempt } = parseInventory(readFileSync(join(root, REGISTRY), 'utf8'))
   const exportCols = parseExportAllowlist(readFileSync(join(root, EXPORT_JUDGE), 'utf8'))
-  return { tables, rows, exempt, exportCols, sources: sqlTexts, mdText: readFileSync(join(root, REGISTRY), "utf8") }
+  return {
+    tables, rows, exempt, exportCols, sources: sqlTexts,
+    mdText: readFileSync(join(root, REGISTRY), 'utf8'),
+    aiSlice: sliceFn(readFileSync(join(root, 'functions/lib/actions/ai.js'), 'utf8'), 'adminAiAdvice'),
+    difySlice: sliceFn(readFileSync(join(root, 'functions/lib/dify.js'), 'utf8'), 'buildAdviceInput')
+      + sliceFn(readFileSync(join(root, 'functions/lib/dify.js'), 'utf8'), 'ruleAdvice'),
+  }
 }
 
 export async function main() {

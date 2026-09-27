@@ -79,3 +79,51 @@ describe('AI 三态结构契约', () => {
     expect(res.code).toBe(-1)
   })
 })
+
+// ── 出境面收敛（第二十四轮 H7）────────────────────────────────────────
+// 上一轮登记册把 orders.wechat / orders.remark 标成"出境=是"，凭据是"aiAdvice 的 SELECT 带了这两列"。
+// 本轮按数据流重测：那两列只存在于**投影**里，`buildAdviceInput` 只回传聚合量 ⇒ 值从未进入请求体。
+// 下面两条把这件事从"我读了代码"变成"我打了真链路"：
+//  ① 线级：故意让假 DB 无视投影、把整行（含微信号/备注/房间号）都交给 adminAiAdvice，
+//     断言发给 Dify 的 body 里一个标记都找不到（且必须找得到聚合量，否则"没有"是空扫）；
+//  ② 等价：同一批订单，"全列行"与"收敛后的三列行"生成的 prompt **逐字节相同** ⇒ 收敛不改分析结果。
+// 之所以能被"无视投影"的假 DB 测出来，正因为边界在 buildAdviceInput 而不在 SQL —— 这条判据因此
+// 同时证明：即使有人把列加回 SELECT，只要他不改 buildAdviceInput，值仍然不出境；
+// 而"把列加回 SELECT"这一步由 check-pii-inventory.mjs 的 P12 当场判红。
+describe('出境面收敛：aiAdvice 的 Dify 请求体不含订单个人数据', () => {
+  const ordersFull = [
+    { _id: 'o1', roomNumber: 'B3-1201', items: [{ name: '乌龙茶', spec: '500ml', price: 6, quantity: 3 }], totalAmount: 18, status: 'paid', createdAt: new Date().toISOString(), wechat: 'wx_planted_secret_id', remark: '备注里有电话13800001111', updatedAt: new Date().toISOString() },
+    { _id: 'o2', roomNumber: 'A1-502', items: [{ name: '气泡水', spec: '', price: 5, quantity: 2 }], totalAmount: 10, status: 'paid', createdAt: new Date().toISOString(), wechat: 'wx_another_secret', remark: '', updatedAt: new Date().toISOString() },
+  ]
+  const PROJECTION = ['items', 'totalAmount', 'createdAt']
+  const env = { DIFY_BASE_URL: BASE, DIFY_ADVICE_APP_KEY: ADVICE_KEY }
+
+  const capturePrompt = async (orders) => {
+    const bodies = []
+    vi.stubGlobal('fetch', vi.fn(async (_url, init) => { bodies.push(String(init?.body || '')); return okFetch() }))
+    const res = await adminAiAdvice(env, fakeDb({ orders, reviews: [{ rating: 2 }, { rating: 5 }], products: [{ _id: 'p1' }] }))
+    expect(res.data.source).toBe('dify')
+    return bodies
+  }
+
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('线级：整行都递进来也不出境（正向对照=聚合量确实在 body 里）', async () => {
+    const bodies = await capturePrompt(ordersFull)
+    expect(bodies.length).toBe(1)
+    const body = bodies[0]
+    for (const marker of ['wx_planted_secret_id', 'wx_another_secret', '13800001111', 'B3-1201', 'A1-502', 'paid', 'o1']) {
+      expect(body, `个人数据标记「${marker}」出现在发给第三方的请求体里`).not.toContain(marker)
+    }
+    // 非空扫：分析确实算出了东西并随请求出去
+    expect(body).toContain('revenue')
+    expect(body).toContain('乌龙茶')
+  })
+
+  it('等价：收敛前（全列）与收敛后（三列）的 prompt 逐字节相同', async () => {
+    const before = await capturePrompt(ordersFull)
+    const after = await capturePrompt(ordersFull.map((o) => Object.fromEntries(PROJECTION.map((k) => [k, o[k]]))))
+    expect(after[0]).toBe(before[0])
+    expect(after[0].length).toBeGreaterThan(40)
+  })
+})
