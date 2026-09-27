@@ -301,6 +301,33 @@ ${riskRows}
     expect(row.pass).toBe(false)
     expect(row.detail).toContain('缺实测依据')
   })
+
+  it('G9 边界：登记面指向不存在的脚本 ⇒ 单列红因，且这道闸**满足得了**（补文件/改别名即可，不是要人挂非法标签）', () => {
+    const withGhost = baseRepo({
+      pkg: { 'verify:ghost': 'node scripts/ghost.mjs' },
+      registry: `- **覆盖地板**：1
+## 已知缺口
+
+| 脚本 | 理由 |
+| --- | --- |
+| other-gate.mjs | 不在 verify 链里，本轮先挂账待补夹具 |
+| ghost.mjs | 别名指向的文件还没写出来，本轮先挂账 |
+
+## 风险分类
+
+| 脚本 | 风险特征 | 实测依据 |
+| --- | --- | --- |
+`,
+    })
+    const ghost = withGhost.res.rows.find((r) => r.id === 'G9')
+    expect(ghost.pass).toBe(false)
+    expect(ghost.detail).toContain('不存在的脚本')
+    expect(ghost.detail).toContain('ghost.mjs')
+    // 对偶：把这条**靠补上脚本文件**修好 ⇒ G9 必须转绿（否则它是一道只能靠改判据才能过的死闸）
+    writeFileSync(join(withGhost.dir, 'scripts', 'ghost.mjs'), 'console.log("ok")\n')
+    const fixed = evaluate(collect(withGhost.dir)).rows.find((r) => r.id === 'G9')
+    expect(fixed.pass, fixed.detail).toBe(true)
+  })
 })
 
 /**

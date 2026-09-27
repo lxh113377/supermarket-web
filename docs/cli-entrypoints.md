@@ -105,5 +105,5 @@
 判据实现：`scripts/check-cli-entrypoints.mjs`（G1 分母非零 / G2 两表⇄实测双向对账 / G3 理由非空且不含 TODO /
 G4 棘轮地板 / G5 hook 目标在册 + 生效前提已登记 / G6 **本地钩子入口必须有夹具**（pre-push 那类 CI 不跑的） /
 G7 判据自身入面 / G8 门禁类必须真跑或具名豁免 / G9 **派生风险⇄风险分类表双向对账**）
-夹具：`tests/cliEntrypoints.test.js`（96 条 = 15 条判据路径真跑 + 25 条缺输入面 + 25 条零分母 + 合成仓
+夹具：`tests/cliEntrypoints.test.js`（97 条 = 15 条判据路径真跑 + 25 条缺输入面 + 25 条零分母 + 合成仓
 G1~G9 双向变异 + classifyRisk 三向（含"注释里的词不算、行尾注释仍算"这对对偶）+ preflight 出口件 + 真仓互洽）

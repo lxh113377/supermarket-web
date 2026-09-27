@@ -234,7 +234,13 @@ export function evaluate({ registered, covered, declared, floorOk, hookTargets, 
   // 为什么值得单独立一道：第二十九轮的探针分母只有门禁类，非门禁面的裸栈一直藏到本轮；
   // 而把分母直接扩到全登记面就会撞上"真会删线上审计日志"的脚本（本轮实测：`purge-security-events`
   // 在无 tty 下照样把 DELETE 打到远端 D1）。名单一旦手抄就会随重构过期，那道"不该跑"的闸也就形同虚设。
-  const risky = registered.filter((r) => (riskOf.get(r.script) || []).length > 0)
+  const risky = registered.filter((r) => {
+    const t = riskOf.get(r.script) || []
+    return t.length && !t.includes('missing-file')
+  })
+  // 登记面引用了不存在的脚本 = 另一件事，不能要求它去风险表里挂一行（那是一道**满足不了**的闸：
+  // 'missing-file' 不是合法标签，人只能改别名或补文件）⇒ 单列一条红因，措辞直说该做什么。
+  const dangling = registered.filter((r) => (riskOf.get(r.script) || []).includes('missing-file')).map((r) => r.script)
   const riskRowOf = new Map(declared.risk.map((r) => [r.script, r]))
   const riskMissing = risky.filter((r) => !riskRowOf.has(r.script)).map((r) => r.script)
   const riskPhantom = declared.risk.filter((r) => !(riskOf.get(r.script) || []).length).map((r) => r.script)
@@ -248,8 +254,9 @@ export function evaluate({ registered, covered, declared, floorOk, hookTargets, 
   }).map((r) => r.script)
   rows.push({
     id: 'G9',
-    pass: riskMissing.length === 0 && riskPhantom.length === 0 && riskMismatch.length === 0 && riskThin.length === 0,
+    pass: dangling.length === 0 && riskMissing.length === 0 && riskPhantom.length === 0 && riskMismatch.length === 0 && riskThin.length === 0,
     detail: `派生风险 ${risky.length} 条 ⇄ 登记 ${declared.risk.length} 条` +
+      (dangling.length ? `；登记面引用了不存在的脚本（改别名或补文件，别挂风险行）: ${dangling.join(', ')}` : '') +
       (riskMissing.length ? `；漏登（源码里有危险特征却没进表）: ${riskMissing.join(', ')}` : '') +
       (riskPhantom.length ? `；幽灵（表里挂着但源码已无该特征/脚本不存在）: ${riskPhantom.join(', ')}` : '') +
       (riskMismatch.length ? `；标签不符: ${riskMismatch.join(' , ')}` : '') +
