@@ -84,6 +84,21 @@ describe('db/orders 订单门面', () => {
     expect(fb.id.startsWith('o_')).toBe(true)
   })
 
+  // 第二十二轮：第十八轮把 !IS_CLOUD 也标成 localFallback，于是本地演示模式的成功页
+  // 显示「订单已暂存本机、商家还收不到」并打红 e2e 三条断言。两个语义必须分开：
+  // demo = 该构建形态本就没有后端；localFallback = 云端调用失败后暂住本机。
+  it('demo 与 localFallback 语义分离：本地模式只给 demo，云端失败才给 localFallback', async () => {
+    h.cloud = false
+    const demo = await createOrder({ roomNumber: '501', items: [] })
+    expect(demo.demo).toBe(true)
+    expect(demo.localFallback).toBeUndefined()
+    h.cloud = true
+    h.publicCall.mockRejectedValue(new Error('offline'))
+    const fb = await createOrder({ roomNumber: '502', items: [] })
+    expect(fb.localFallback).toBe(true)
+    expect(fb.demo).toBeUndefined()
+  })
+
   it('getOrderById：云端 code!=0 → null；本地查单', async () => {
     h.adminCall.mockResolvedValue({ code: -1 })
     expect(await getOrderById('o_x')).toBeNull()

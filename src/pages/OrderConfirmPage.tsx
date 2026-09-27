@@ -76,7 +76,7 @@ export default function OrderConfirmPage() {
         requestId: requestKey.current,
       })
       clearCart()
-      navigate('/order-success', { state: { building: building.trim(), room: room.trim(), orderId: result.id, localFallback: result.localFallback, totalAmount } })
+      navigate('/order-success', { state: { building: building.trim(), room: room.trim(), orderId: result.id, localFallback: result.localFallback, demo: result.demo, totalAmount } })
     } catch (err) {
       // 业务拒绝（服务端活着且明确不收这单）与传输故障的文案必须分开：
       // 前者的正确动作是"改数量/换商品/稍后再试"，后者才是"稍后重试"。

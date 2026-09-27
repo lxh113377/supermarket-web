@@ -16,11 +16,14 @@ function throwCloudReadError(where: string, detail: string): never {
 
 // 创建订单（走 API，服务端重算金额，防客户端篡改）
 // requestId：本次下单意图的幂等键，仅传输不入库（服务端折成 idempotencyKey 落列）
-export async function createOrder(order: Record<string, unknown>): Promise<{ id: string; localFallback?: boolean; deduplicated?: boolean }> {
+export async function createOrder(order: Record<string, unknown>): Promise<{ id: string; localFallback?: boolean; demo?: boolean; deduplicated?: boolean }> {
   const clean = pickOrderFields(order)
   const requestId = typeof order.requestId === 'string' ? order.requestId.slice(0, 64) : ''
   if (!IS_CLOUD) {
-    return { id: addLocalOrder(clean)._id, localFallback: true }
+    // 本地演示模式（无后端可用）：这不是云端失败后的暂存，而是该构建形态本身。
+    // 第十八轮曾把它也标成 localFallback，于是成功页在演示模式下显示「订单已暂存本机、商家还收不到」
+    // 并连带打红 e2e 三条 order-flow 断言 —— 语义混了：demo 是设计，fallback 是降级。
+    return { id: addLocalOrder(clean)._id, demo: true }
   }
   try {
     const result = await publicCall<{ id: string; deduplicated?: boolean }>('createOrder', requestId ? { ...clean, requestId } : clean)
