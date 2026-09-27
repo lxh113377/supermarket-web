@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @probe-safe: 缺 PARITY_AFTER_TS 起点时按设计 rc=2（②③ 两法每轮实跑均 rc≠0 且首行为诊断）
 /**
  * 双端发布一致性门禁（第九轮 R9-H2）
  *

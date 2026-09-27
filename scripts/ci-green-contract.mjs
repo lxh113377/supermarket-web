@@ -1,3 +1,4 @@
+// @probe-safe: 骨架里实测 rc=1 / 0s（读不到 .ci/contract.json 即 fail-closed），gh 调用在其后才发生
 // CI 全绿契约：把「CI 绿」从口头自觉变成推不动东西的硬闸。
 //
 // 立这条的实证代价（第二十一轮查到，不是假想风险）：`tests/d1RoundTrips.test.js` 缺

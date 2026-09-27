@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @probe-safe: 骨架实测 rc=2 / 0s（缺 node_modules/wrangler 即 bail），esbuild 冷编译实测 9.0s 在其后
 /**
  * 可部署产物契约检查（第八轮 H4，对标 microfeed 的 "Verify the Worker bundle"）
  *

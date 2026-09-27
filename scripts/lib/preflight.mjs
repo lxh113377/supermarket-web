@@ -74,6 +74,26 @@ export function classifyRisk(src) {
 /** 风险标签的"为什么不该自动跑"，给登记册与报错文案用。 */
 export const RISK_WHY = Object.fromEntries(RISK_PATTERNS.map(([, tag, why]) => [tag, why]))
 
+/**
+ * `@probe-safe` 声明（第三十二轮，借 `golang/go` 的 `-short` 口径：昂贵/危险测试由**被试对象自己**声明，
+ * 框架只做机械核对，不维护中心名单）。见 testflag.go:67 `"tell long-running tests to shorten their run time"`。
+ *
+ * 为什么需要它：第三十一轮实测出"哪些危险项其实会在门口就停住"（6 条里 5 条非门禁项 rc=1/2、0–1s、
+ * 不触碰外部世界），但这份判断若写死在判据或测试里，就又变成一份会过期的手抄名单。
+ * ⇒ 让脚本自己在源码里带上**实测依据**，判据只核对"声明 ⇄ 登记册的说法 ⇄ 源码确有危险特征"三者是否一致。
+ * 格式：`// @probe-safe: <一句话依据（必须含实测数字与日期）>`
+ */
+// 只认**独占一行**的行注释（第三十二轮实测：写在解释性文字里的 `@probe-safe: ...` 会被判据自己的
+// 注释命中，于是这个文件被记成"带声明但无危险特征"的无效声明 —— 与第三十轮 classifyRisk 命中自己注释
+// 是同一族，所以口径统一为"声明必须占一行"，正文里提它不算声明）。
+export const PROBE_SAFE_RE = /^\s*\/\/\s*@probe-safe:\s*(.+)$/m
+
+/** 返回声明依据文本；没有声明返回 null。 */
+export function probeSafeEvidence(src) {
+  const m = PROBE_SAFE_RE.exec(String(src))
+  return m ? m[1].trim() : null
+}
+
 
 /**
  * JSON 输入必须**解析得动**才算"输入面存在"。第二十六轮零分母普查实测：损坏/0 字节的 package.json

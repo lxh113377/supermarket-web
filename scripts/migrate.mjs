@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @probe-safe: 骨架里实测 rc=1 / 0s（"未找到本地 wrangler…先 npm ci" 即停），d1 execute --remote 在其后才走
 /**
  * D1 迁移账目与执行器（对标 Flyway / TypeORM migrations / Django migration recorder）
  *

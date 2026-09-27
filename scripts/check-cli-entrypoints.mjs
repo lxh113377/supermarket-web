@@ -17,7 +17,7 @@
 import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { requireInputs, requireJson, classifyRisk } from './lib/preflight.mjs'
+import { requireInputs, requireJson, classifyRisk, probeSafeEvidence } from './lib/preflight.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
@@ -232,20 +232,23 @@ export function isGateLike(sources) {
 }
 
 /**
- * 能不能被自动探针 spawn：门禁类全部可以（它们本来就必须在 CI/本地跑），
- * 非门禁类只有"源码推不出危险特征"的才可以。判据只写这一处，evaluate 与 probeDenominator 共用。
+ * 能不能被自动探针 spawn：门禁类全部可以（它们本来就必须在 CI/本地跑），非门禁类要满足
+ * "源码推不出危险特征" **或** 自带 `@probe-safe` 实测声明（第三十二轮，口径借 `golang/go` 的 `-short`
+ * ：昂贵/危险测试由被试对象自述、框架只机械核对，不维护中心名单）。判据只写这一处。
  */
-const isProbeable = (r, riskOf) => isGateLike(r.sources) || !(riskOf.get(r.script) || []).length
+const isProbeable = (r, riskOf, safeOf = new Map()) =>
+  isGateLike(r.sources) || !(riskOf.get(r.script) || []).length || safeOf.has(r.script)
 
 /**
- * **探针分母**（第三十轮）：门禁类全部 + 非门禁类里"源码推不出危险特征"的那部分。
+ * **探针分母**（第三十轮立，第三十二轮扩）：门禁类全部 + 非门禁类里"源码推不出危险特征"
+ * 或"自带 `@probe-safe` 实测声明"的那部分。
  * 为什么由判据导出而不是测试里各写一遍：同一把尺量两处，改口径时只会有一处需要改；
  * 测试若自己复制条件，判据和夹具会在两次重构后悄悄量不同的东西（第二十七轮踩过同型坑）。
- * 危险项（`classifyRisk` 非空）永不自动 spawn —— 本轮实测它们里有"无 tty 也照删远端审计日志"的脚本。
+ * 无声明的危险项仍永不自动 spawn —— 实测它们里有"无 tty 也照删远端审计日志"的脚本与"一起服务就挂死"的脚本。
  */
 export function probeDenominator(dir = root) {
-  const { registered, riskOf } = collect(dir)
-  return registered.filter((r) => isProbeable(r, riskOf))
+  const { registered, riskOf, safeOf } = collect(dir)
+  return registered.filter((r) => isProbeable(r, riskOf, safeOf))
 }
 
 /**
@@ -253,7 +256,7 @@ export function probeDenominator(dir = root) {
  * G6 本地钩子入口必须有夹具 / G7 判据自身入面 / G8 门禁类入口必须被真跑或具名豁免 /
  * G9 派生风险 ⇄ 登记册「风险分类」表双向对账。
  */
-export function evaluate({ registered, covered, declared, floorOk, hookTargets, scriptFiles, docsRegisterHooksPath, selfRegistered, riskOf = new Map() }) {
+export function evaluate({ registered, covered, declared, floorOk, hookTargets, scriptFiles, docsRegisterHooksPath, selfRegistered, riskOf = new Map(), safeOf = new Map() }) {
   const rows = []
   const uncovered = registered.filter((r) => !covered.has(r.script))
   // 登记面 = 缺口表 ∪ 豁免表（两张表都参与对账，但一行只准挂一处）：
@@ -378,18 +381,44 @@ export function evaluate({ registered, covered, declared, floorOk, hookTargets, 
   // G10 分母自身要是有棘轮，否则"把尺子缩短"这件事没有任何后果：有人把某个 npm 别名从 `verify:` 改名成
   // `report:`（而脚本里正好有 fetch）⇒ 该项**静默离开探针分母**，覆盖数、缺口数一起变好看，CI 照样全绿。
   // 缺「分母地板」这行同样判红：不给"没有基准"留成空子（同 G4 的口径）。
-  const denom = registered.filter((r) => isProbeable(r, riskOf))
+  const denom = registered.filter((r) => isProbeable(r, riskOf, safeOf))
   rows.push({
     id: 'G10',
     pass: declared.denomFloor !== null && denom.length >= declared.denomFloor,
     detail: declared.denomFloor === null
       ? '登记册缺「分母地板」行 ⇒ 探针分母无基准（分母=可被自动 spawn 的入口数）'
-      : `探针分母 ${denom.length} ${denom.length >= declared.denomFloor ? `>= 地板 ${declared.denomFloor}` : `< 地板 ${declared.denomFloor}（**分母被缩短 ${declared.denomFloor - denom.length} 项**：改别名或加危险特征都会走到这里）`}`,
+      : `探针分母 ${denom.length} ${denom.length >= declared.denomFloor ? `>= 地板 ${declared.denomFloor}（headroom +${denom.length - declared.denomFloor}；其中靠 @probe-safe 声明进来的非门禁危险项 ${denom.filter((r) => !isGateLike(r.sources) && (riskOf.get(r.script) || []).length).length} 个）` : `< 地板 ${declared.denomFloor}（**分母被缩短 ${declared.denomFloor - denom.length} 项**：改别名或加危险特征都会走到这里）`}`,
+  })
+
+  // G11（第三十二轮）：`@probe-safe` 是**脚本自己**说"我会在触碰外部世界之前停住"，所以三件事必须同时对得上：
+  //   a) 声明必须落在真有危险特征的脚本上（没特征还声明 = 无效声明，只会把口径搞浑）；
+  //   b) 声明必须带实测数字（"应该没问题"不算依据；`golang/go` 的 `-short` 也是测试自己给条件）；
+  //   c) 登记册风险表的"停在门口"说法 ⇄ 声明集合必须相等（表说了源码没说 = 幽灵；源码说了表没说 = 漏登）。
+  // 真正的安全证明由测试腿执行：被解禁的项会进 ②③ 两法（缺输入面 + 零分母骨架），跑不出 fail-closed 就红。
+  const markerNames = [...safeOf.keys()]
+  const bogusMarker = markerNames.filter((s) => !(riskOf.get(s) || []).length || (riskOf.get(s) || []).includes('missing-file'))
+  const thinMarker = markerNames.filter((s) => !/\d/.test(String(safeOf.get(s))))
+  const claimedStopped = declared.risk.filter((row) => /已证明停在门口/.test(row.note)).map((row) => row.script)
+  const claimNoMarker = claimedStopped.filter((s) => !markerNames.includes(s))
+  // 非门禁项一旦被声明解禁，风险表就必须写"停在门口"（它是靠这句话进的分母，不能只存在于源码注释里）；
+  // 门禁类本来就在 CI/本地必跑，声明只是给风险表背书 ⇒ 只作信息打印，不强判红。
+  const srcOf = (s) => (registered.find((r) => r.script === s) || {}).sources || []
+  const markerNoClaim = markerNames.filter((s) => !claimedStopped.includes(s) && !isGateLike(srcOf(s)))
+  rows.push({
+    id: 'G11',
+    pass: bogusMarker.length === 0 && thinMarker.length === 0 && claimNoMarker.length === 0 && markerNoClaim.length === 0,
+    detail: `@probe-safe 声明 ${markerNames.length} 条 ⇄ 风险表"停在门口" ${claimedStopped.length} 条` +
+      (bogusMarker.length ? `；无效声明（源码其实没有危险特征，或脚本不存在）: ${bogusMarker.join(', ')}` : '') +
+      (thinMarker.length ? `；声明没有实测数字（依据必须是量出来的）: ${thinMarker.length ? thinMarker.join(', ') : ''}` : '') +
+      (claimNoMarker.length ? `；表里说停在门口但源码没声明: ${claimNoMarker.join(', ')}` : '') +
+      (markerNoClaim.length ? `；已声明解禁但风险表未标"停在门口"（进了分母就必须在册可查）: ${markerNoClaim.join(', ')}` : '') +
+      (markerNames.filter((s) => !claimedStopped.includes(s) && isGateLike(srcOf(s))).length
+        ? `；[信息] 门禁类已声明、表未标（CI 必跑，不强制）: ${markerNames.filter((s) => !claimedStopped.includes(s) && isGateLike(srcOf(s))).join(', ')}` : ''),
   })
 
   const bad = rows.filter((r) => !r.pass).length
   const probeable = registered.filter((r) => !(riskOf.get(r.script) || []).length)
-  return { rows, summary: { matched: rows.length - bad, mismatched: bad, declared: rows.length, covered: coveredCount, uncovered: uncovered.length, risky: risky.length, probeable: probeable.length } }
+  return { rows, summary: { matched: rows.length - bad, mismatched: bad, declared: rows.length, covered: coveredCount, uncovered: uncovered.length, risky: risky.length, probeable: probeable.length, denom: denom.length } }
 }
 
 export function collect(dir = root) {
@@ -407,17 +436,24 @@ export function collect(dir = root) {
     .some((f) => existsSync(join(dir, f)) && readFileSync(join(dir, f), 'utf8').includes('core.hooksPath'))
   const selfName = SELF.split('/').pop()
   // 风险由**源码特征**推导（见 preflight 的 classifyRisk）：命中 wrangler / d1 execute / DELETE FROM /
-  // 起服务 / 改写受控产物 / 直连线上 的脚本，自动探针**永不 spawn**它们。
+  // 起服务 / 改写受控产物 / 直连线上 的脚本，默认**不自动 spawn**。
   // 第三十轮的动因：上一轮探针分母只有门禁类，于是非门禁面的两个真缺陷（catalog-facts、
   // list-uncovered 缺输入时甩裸栈）藏到本轮才被同一个手法抓到；把分母扩到全登记面又必然
   // 撞上"根本不该自动跑"的脚本 ⇒ 那份名单不能手抄，只能从每个脚本自己的源码里读。
+  // 第三十二轮再加一格：脚本可以**自述**"我会在门口就停住"（`@probe-safe: <实测依据>`），
+  // 由 G11 核对声明 ⇄ 风险表说法 ⇄ 源码确有危险特征三者一致 —— 名单仍然不是人抄的。
   const riskOf = new Map()
+  const safeOf = new Map()
   for (const r of registered) {
     const abs = join(dir, 'scripts', r.script)
-    riskOf.set(r.script, existsSync(abs) ? classifyRisk(readFileSync(abs, 'utf8')) : ['missing-file'])
+    if (!existsSync(abs)) { riskOf.set(r.script, ['missing-file']); continue }
+    const src = readFileSync(abs, 'utf8')
+    riskOf.set(r.script, classifyRisk(src))
+    const ev = probeSafeEvidence(src)
+    if (ev) safeOf.set(r.script, ev)
   }
   return {
-    registered, covered, declared, riskOf,
+    registered, covered, declared, riskOf, safeOf,
     floorOk: /覆盖地板/.test(md),
     hookTargets, scriptFiles: listFiles(join(dir, 'scripts')), docsRegisterHooksPath,
     selfRegistered: registered.some((r) => r.script === selfName),
@@ -451,7 +487,7 @@ export function main() {
   const s = res.summary
   // 门面行必须带 matched/mismatched/声明数三者（"判据回状态词 ≠ 覆盖过了"）
   const ok = s.mismatched === 0 && s.matched + s.mismatched === s.declared
-  console.log(`${ok ? 'GATE-PASS' : 'GATE-FAIL'} cli-entrypoints :: 入口 ${s.covered + s.uncovered} 个（子进程跑过 ${s.covered} / 缺口 ${s.uncovered}；可探针 ${s.probeable} / 带风险 ${s.risky}）｜检查 ${s.matched}/${s.declared} 通过，${s.mismatched} 失败`)
+  console.log(`${ok ? 'GATE-PASS' : 'GATE-FAIL'} cli-entrypoints :: 入口 ${s.covered + s.uncovered} 个（子进程跑过 ${s.covered} / 缺口 ${s.uncovered}；探针分母 ${s.denom} / 无风险 ${s.probeable} / 带风险 ${s.risky}）｜检查 ${s.matched}/${s.declared} 通过，${s.mismatched} 失败`)
   return ok ? 0 : 1
 }
 

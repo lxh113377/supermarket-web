@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @probe-safe: 缺输入面骨架里实测 rc=2 / 1s（先撞 requireInputs 停在 db/seed.sql），fetch 线上目录的分支在其后才走
 /**
  * 目录事实对账（第十一轮 R11-H3）——把「D1 ↔ seed」这条挂了十几轮的口头账变成机器输出。
  *

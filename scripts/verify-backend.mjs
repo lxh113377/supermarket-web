@@ -1,3 +1,4 @@
+// @probe-safe: 骨架实测 rc=2 / 0s（缺 db/schema.sql 即 bail），夹具链里的 DELETE 分支走不到
 // 本地后端契约验证：用 node:sqlite 模拟 D1 绑定，直接跑 functions/lib/backend.js 全部 action。
 // 不需要 Cloudflare 账号 / wrangler / 网络。D1 即 SQLite，SQL 语法与运行时完全一致。
 import { DatabaseSync } from 'node:sqlite'

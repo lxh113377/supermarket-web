@@ -35,9 +35,9 @@
 - 判据自身（`check-cli-entrypoints.mjs`）**不入豁免面**：它必须同时出现在登记面和覆盖面（G7）。
 - **四类覆盖，别混为一谈**（第二十五、二十六、三十轮补齐）：
   ① **判据路径真跑**（上表口径，`PROBED` 16 条）= 在真仓上跑一次、断言 rc=0 且有结论 —— 证明"门禁会判"；
-  ② **缺输入面真跑**（把 `scripts/` 拷进只有它的空目录）= 26 个可探针入口（第三十一轮起含 `scan-secrets`、
-     `list-uncovered`、`check-memory-volume`），断言 rc≠0 且首行是自家诊断而非裸栈 —— 证明"没输入时不会装绿"；
-  ③ **零分母真跑**（第二十六轮：镜像整棵目录树、除 `scripts/` 外**每个文件写 0 字节**）= 同上 26 条，
+  ② **缺输入面真跑**（把 `scripts/` 拷进只有它的空目录）= 31 个可探针入口（第三十一轮起含 `scan-secrets`、
+     `list-uncovered`、`check-memory-volume`，第三十二轮再起 **+5 个自述"停在门口"的危险项**），断言 rc≠0 且首行是自家诊断而非裸栈 —— 证明"没输入时不会装绿"；
+  ③ **零分母真跑**（第二十六轮：镜像整棵目录树、除 `scripts/` 外**每个文件写 0 字节**）= 同上 31 条，
      断言 rc≠0 且不崩栈 —— 证明"输入在、对象为空时也不装绿"。② 拦不住 ③ 那一类：
      `requireInputs` 只看存在性，空 `db/migrate-*.sql` 照样过关。
   ④ **非门禁面换分母**（第三十轮）= ②③ 两法原样施加到"非门禁类 ∩ `classifyRisk` 为空"的入口上。
@@ -64,8 +64,11 @@
   另两个（`check-error-semantics`/`verify-backend`）因空 `package.json` 让 Node 先崩在 `package_json_reader`。
   现在 ②③ 各 23/23 均为 rc≠0 且首行为诊断。
 - **覆盖地板**：23
-- **分母地板**：25（第三十一轮 G10：分母＝"允许被自动探针 spawn 的入口数"，由 npm 别名命名 + 源码风险特征
-  共同推导 ⇒ 有人把 `verify:x` 改名成 `report:x`（而脚本里正好有 fetch）就会让分母**静默缩短**，
+- **分母地板**：25（第三十一轮立 G10）。第三十二轮分母实测涨到 31（放进 5 个"已证明停在门口"的非门禁危险项），
+  但**地板不动** ⇒ headroom +6 显式化：按本仓铁律，把地板抬到刚好等于当前值＝冻结增长，
+  而且解禁那 5 项若哪天被悄悄改回面外，地板也抓不到（抓它的是 G11 与测试里点名的 admitted 清单）。
+  分母＝"允许被自动探针 spawn 的入口数"，由 npm 别名命名 + 源码风险特征
+  共同推导（`@probe-safe` 声明可让危险项回面）⇒ 有人把 `verify:x` 改名成 `report:x`（而脚本里正好有 fetch）就会让分母**静默缩短**，
   覆盖数与缺口数一起变好看而 CI 照样绿。所以地板要钉在分母上；缺这一行＝判红，不给"没基准"留空子。）
 
 ## 已知缺口
@@ -89,25 +92,30 @@
 | check-functions-build.mjs | esbuild 冷编译实测 9.0s（本地 9044ms），塞进 `npm test` 会把单测拖成分钟级；且它经 wrangler 起编译。已在 `npm run verify` 与 CI（ci.yml:165）以真命令跑过 |
 | verify-release-parity.mjs | 缺 `PARITY_AFTER_TS` 起点时**按设计 rc=2**（fail-closed，"没有起点就不判'看起来一样'"），探针的 rc=0 断言对它不成立；且比对要拉两端线上产物（网络）。`release-parity.yml:71` 以真命令跑 |
 
-## 风险分类（自动探针不得 spawn；标签由 classifyRisk 从源码推导，第四列必须是实测）
+## 风险分类（默认不自动 spawn；标签由 `classifyRisk` 从源码推导；带 `@probe-safe` 声明且本表写"已证明停在门口"的才回到分母）
 
-| 脚本 | 风险特征 | 为什么不能自动 spawn + 本轮实测依据 |
+第三十二轮把这层判断交给**被试对象自述**（口径借 `golang/go` 的 `-short`：`testflag.go:67`
+"tell long-running tests to shorten their run time" —— 条件写在测试里，框架只做机械核对）。
+所以：✅ 的行必须能在脚本源码里找到独占一行的 `// @probe-safe: <实测依据>`；
+两边不一致（源码有声明表没写、表写了源码没声明、声明里没有实测数字）都由 **G11** 判红。
+G11 认的是"已证明停在门口"这个整词，不是子串 —— 否则 ❌ 行的"未停在门口"会被误判成声明。
+
+| 脚本 | 风险特征 | 实测依据 + 是否回到探针分母 |
 | --- | --- | --- |
-| check-backup-liveness.mjs | gh-cli | `gh api` 线上只读；骨架实测 rc=2（0s，缺 GITHUB_REPOSITORY/BACKUP_WORKFLOW_ID）⇒ 停在门口，不发请求 |
-| check-catalog-facts.mjs | network-fetch | `--live` 分支才 `fetch` 线上 `/pub`；本轮补 `requireInputs`，骨架实测 rc=2（1s，缺 `db/seed.sql`），修前是裸栈 |
-| check-functions-build.mjs | wrangler | 经 wrangler/esbuild 编译，冷启动实测 9.0s；骨架 rc=2（0s，缺 node_modules/wrangler） |
-| check-pr-has-tests.mjs | gh-cli | `gh pr list` 要鉴权且真打 API；看守型按设计 rc=0 ⇒ 探针无法用退出码断言它 |
-| ci-green-contract.mjs | gh-cli | 要 gh 查 run 结论；骨架 rc=1（0s，"读不到合法的 .ci/contract.json"）。入口由 `tests/ciGreenContract.test.js` 的 12 条子进程夹具覆盖（喂假 ref 行，不打网络） |
-| ci-status.mjs | network-fetch | 实测 9s 且打印真 run 数据（curl 直连 api.github.com）⇒ 探针跑它等于测网络 |
-| gen-api-doc.mjs | writes-artifacts | 运行即改写 `docs/API.md`；本轮实测骨架里 rc=2 且不产出 `docs/` |
-| local-api-stub.mjs | http-server | 实测真监听 :5182，需 `timeout 30` 才终止（rc=124）⇒ spawn 必挂到超时 |
-| migrate.mjs | wrangler | `d1 execute --remote` 会写线上库；骨架 rc=1（0s）停在"未找到本地 wrangler" |
-| purge-security-events.mjs | sql-delete, wrangler | **本轮实测到的真缺陷**：修前无 tty 也照样把 `DELETE FROM security_events` 打到远端 D1（删的是审计日志）。现需显式 `--yes`，骨架实测 rc=2 |
-| smoke-deploy.mjs | network-fetch | 实测 2s 打通线上站点（首行即 `PASS 静态站 …`） |
-| uptime-check.mjs | network-fetch | 实测 13s 打线上 `/_health` 并回 `{"status":"ok","db":"ok",…}` |
-| verify-backend.mjs | sql-delete | 夹具链里确有 DELETE（清测试数据）；骨架实测 rc=2（0s，缺 `db/schema.sql`）⇒ 探针跑不到删数据那段。它同时是 PROBED 第 11 条 |
-| verify-release-parity.mjs | network-fetch | 要拉两端线上产物比对；缺起点按设计 rc=2。另见「不可子进程豁免」 |
-
+| check-backup-liveness.mjs | gh-cli | ✅ 已证明停在门口：骨架实测 rc=2 / 0s（缺 GITHUB_REPOSITORY 即 bail），`gh api` 在其后 ⇒ 回到分母 |
+| check-catalog-facts.mjs | network-fetch | ✅ 已证明停在门口：rc=2 / 1s（缺 `db/seed.sql`）；`--live` 才走 fetch ⇒ 回到分母 |
+| check-functions-build.mjs | wrangler | ✅ 已证明停在门口：rc=2 / 0s（缺 `node_modules/wrangler`）；esbuild 冷编译实测 9.0s 在其后。门禁类，CI 必跑 |
+| check-pr-has-tests.mjs | gh-cli | ❌ 未停在门口：无开放 PR 时按设计 rc=0（看守型）⇒ 探针的 rc≠0 断言对它不成立，永不进自动面；每轮 push main 在 `dispatch.yml:44` 真跑 |
+| ci-green-contract.mjs | gh-cli | ✅ 已证明停在门口：rc=1 / 0s（读不到 `.ci/contract.json` 即 fail-closed），gh 调用在其后 ⇒ 回到分母 |
+| ci-status.mjs | network-fetch | ❌ 未停在门口：实测 9s 真打 api.github.com（通道是 curl —— 本机 node fetch 不走系统代理） |
+| gen-api-doc.mjs | writes-artifacts | ✅ 已证明停在门口：rc=2 / 0s（`requireJson` 拦在渲染之前），实测骨架里不产出 `docs/` ⇒ 不弄脏工作树，回到分母 |
+| local-api-stub.mjs | http-server | ❌ 未停在门口：实测真监听 `:5182`，要 `timeout 30` 才终止（rc=124）⇒ spawn 必挂 |
+| migrate.mjs | wrangler | ✅ 已证明停在门口：rc=1 / 0s（"未找到本地 wrangler…先 npm ci"），`d1 execute --remote` 在其后 ⇒ 回到分母 |
+| purge-security-events.mjs | sql-delete, wrangler | ✅ 已证明停在门口：无 `--yes` 时 rc=2 / 0s 直接 bail —— 修前实测 1s 内就把 DELETE 打到远端 D1（删审计日志）⇒ 回到分母 |
+| smoke-deploy.mjs | network-fetch | ❌ 未停在门口：实测 2s 先打线上（首行 `PASS 静态站 …`）再失败 |
+| uptime-check.mjs | network-fetch | ❌ 未停在门口：实测 13s 真打线上 `/_health`（回 `{"status":"ok","db":"ok",…}`） |
+| verify-backend.mjs | sql-delete | ✅ 已证明停在门口：rc=2 / 0s（缺 `db/schema.sql`）⇒ 夹具链里的 DELETE 分支走不到。它同时是 PROBED 第 11 条 |
+| verify-release-parity.mjs | network-fetch | ✅ 已证明停在门口：缺 `PARITY_AFTER_TS` 起点时按设计 rc=2 / 0s（"没有起点就不判看起来一样"）。另见「不可子进程豁免」 |
 ## 为什么"CI 里真跑过"算减轻因素、但不抵消缺口
 
 被豁免/挂账的入口大多确实在 CI 或部署流程里以 `node scripts/X.mjs` 真跑过 —— 入口崩了 CI 就红，
@@ -119,9 +127,9 @@
 
 判据实现：`scripts/check-cli-entrypoints.mjs`（G1 分母非零 / G2 两表⇄实测双向对账 / G3 理由非空且不含 TODO /
 G4 棘轮地板 / G5 hook 目标在册 + 生效前提已登记 / G6 **本地钩子入口必须有夹具**（pre-push 那类 CI 不跑的） /
-G7 判据自身入面 / G8 门禁类必须真跑或具名豁免 / G9 **派生风险⇄风险分类表双向对账** /
+G7 判据自身入面 / G8 门禁类必须真跑或具名豁免 / G9 **派生风险⇄风险分类表双向对账** / G10 **分母地板** / G11 **@probe-safe 声明⇄风险表⇄源码特征三方对账** /
 G10 **探针分母地板**（改别名或加危险特征都会让分母静默缩短 ⇒ 当场红））
-夹具：`tests/cliEntrypoints.test.js`（106 条 = 16 条判据路径真跑 + 26 条缺输入面 + 26 条零分母 + 合成仓
+夹具：`tests/cliEntrypoints.test.js`（122 条 = 16 条判据路径真跑 + 31 条缺输入面 + 31 条零分母 + 合成仓
 G1~G10 双向变异 + 覆盖面口径三向（真跑记账 / 死数组与仅提到不记账）+ classifyRisk 三向 + scan-secrets 三种
 分母形状 + preflight 出口件 + 真仓互洽）；新闸自身：`tests/memoryVolume.test.js`（12 条，含"超限却判绿"的
 变异体与"加指针后仍 ≤4KB"的守恒断言）

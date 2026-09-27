@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @probe-safe: 无 --yes 时实测 rc=2 / 0s 直接 bail（第三十一轮立的授权门），远端 DELETE 不可能被探针走到
 // 手动清理 security_events 90 天前记录（保留策略补充；backend.js 已有写时 5% 采样裁剪兜底）
 // 用法：node scripts/purge-security-events.mjs --yes
 // 注意：本机 wrangler 走 node 直调（bin shim 在 Git Bash 坏）；需代理时先 export https_proxy=http://127.0.0.1:7897

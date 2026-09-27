@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @probe-safe: 骨架实测 rc=2 / 0s（缺 GITHUB_REPOSITORY 即在门口 bail），gh api 在其后才走
 /**
  * 备份链存活判据（第十二轮 R12-H1）——治的是"绿色说谎"。
  *

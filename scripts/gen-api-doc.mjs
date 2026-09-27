@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @probe-safe: 骨架里实测 rc=2 / 0s（requireJson 拦在渲染之前），且实测不产出 docs/ —— 不会弄脏工作树
 /**
  * 从 docs/api-contract.json 生成人读版 docs/API.md（对标 Saleor 的 SDL 自描述 / litemall 的 doc/api.md）
  *

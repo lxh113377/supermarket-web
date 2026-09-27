@@ -17,7 +17,7 @@ import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { evaluate, collect, collectRegistered, collectCovered, isGateLike, parseRegistry, probeDenominator, REGISTRY } from '../scripts/check-cli-entrypoints.mjs'
-import { classifyRisk } from '../scripts/lib/preflight.mjs'
+import { classifyRisk, probeSafeEvidence } from '../scripts/lib/preflight.mjs'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SCRIPTS = join(REPO, 'scripts')
@@ -129,7 +129,7 @@ describe('判据 G1~G9：合成仓双向变异', () => {
     const bad = res.rows.filter((r) => !r.pass)
     expect(bad.map((r) => `${r.id}:${r.detail}`), JSON.stringify(res.rows, null, 1)).toEqual([])
     expect(res.summary.matched).toBe(res.summary.declared)
-    expect(res.summary.declared).toBe(10)
+    expect(res.summary.declared).toBe(11)
   })
 
   it('G1 反例：登记面枚举为空 ⇒ 判红（零输入不得 PASS）', () => {
@@ -307,8 +307,7 @@ ${riskRows}
     expect(row.detail).toContain('缺实测依据')
   })
 
-  it('G9 边界：登记面指向不存在的脚本 ⇒ 单列红因，且这道闸**满足得了**（补文件/改别名即可，不是要人挂非法标签）', () => {
-    const withGhost = baseRepo({
+  it('G9 边界：登记面指向不存在的脚本 ⇒ 单列红因，且这道闸**满足得了**（补文件/改别名即可，不是要人挂非法标签）', () => {    const withGhost = baseRepo({
       pkg: { 'verify:ghost': 'node scripts/ghost.mjs' },
       registry: `- **覆盖地板**：1
 - **分母地板**：2
@@ -333,6 +332,48 @@ ${riskRows}
     writeFileSync(join(withGhost.dir, 'scripts', 'ghost.mjs'), 'console.log("ok")\n')
     const fixed = evaluate(collect(withGhost.dir)).rows.find((r) => r.id === 'G9')
     expect(fixed.pass, fixed.detail).toBe(true)
+  })
+
+  /**
+   * G11（第三十二轮）：`@probe-safe` 让"危险的项"可以自述"我会在门口就停住"并回到探针分母，
+   * 口径借 golang/go 的 `-short`（条件写在被试对象里，框架只做机械核对）。
+   * 于是必须双向核对三件事：声明要有真危险特征可宣、要有实测数字、且与风险表的"已证明停在门口"一一对应。
+   */
+  const MARK = '// @probe-safe: 骨架实测 rc=2 / 0s（缺输入即 bail）\n'
+  const RISK_NET = "console.log(await fetch('https://example.invalid'))\n"
+  const RISK_ROW_OK = '## 风险分类\n\n| 脚本 | 风险特征 | 实测依据 |\n| --- | --- | --- |\n| danger.mjs | network-fetch | ✅ 已证明停在门口：rc=2 / 0s（缺输入先撞 requireInputs） |'
+  const riskRepo = (dangerSrc, riskRow) => dangerRepo(riskRow, dangerSrc)
+
+  it('G11 正向：源码声明 + 风险表"已证明停在门口" + 确有危险特征 ⇒ 三条全对得上', () => {
+    const res = riskRepo(MARK + RISK_NET, RISK_ROW_OK)
+    const row = res.rows.find((r) => r.id === 'G11')
+    expect(row.pass, row.detail).toBe(true)
+    expect(row.detail).toContain('声明 1 条 ⇄ 风险表"停在门口" 1 条')
+  })
+
+  it('G11 反例：表里写了"已证明停在门口"但源码没有声明 ⇒ 判红（口径不能只活在文档里）', () => {
+    const row = riskRepo(RISK_NET, RISK_ROW_OK).rows.find((r) => r.id === 'G11')
+    expect(row.pass).toBe(false)
+    expect(row.detail).toContain('表里说停在门口但源码没声明')
+  })
+
+  it('G11 反例：源码有声明但风险表未标（非门禁项已进分母却查无实据）⇒ 判红', () => {
+    const row = riskRepo(MARK + RISK_NET,
+      '## 风险分类\n\n| 脚本 | 风险特征 | 实测依据 |\n| --- | --- | --- |\n| danger.mjs | network-fetch | 骨架里实测 2s 打到外网 |').rows.find((r) => r.id === 'G11')
+    expect(row.pass).toBe(false)
+    expect(row.detail).toContain('已声明解禁但风险表未标')
+  })
+
+  it('G11 反例：声明落在其实没有危险特征的脚本上 ⇒ 判红（无效声明只会把口径搞浑）', () => {
+    const row = riskRepo(MARK + 'console.log("我谁也不碰")\n', RISK_ROW_OK).rows.find((r) => r.id === 'G11')
+    expect(row.pass).toBe(false)
+    expect(row.detail).toContain('无效声明')
+  })
+
+  it('G11 反例：声明只写"应该会停住"没有实测数字 ⇒ 判红（自述也必须有数）', () => {
+    const row = riskRepo('// @probe-safe: 应该会先停住吧\n' + RISK_NET, RISK_ROW_OK).rows.find((r) => r.id === 'G11')
+    expect(row.pass).toBe(false)
+    expect(row.detail).toContain('声明没有实测数字')
   })
 })
 
@@ -363,6 +404,13 @@ describe('classifyRisk：风险从代码读，不从散文读', () => {
   it('保守方向：行尾注释里的词仍然算（只删整行注释，不做词法分析 ⇒ 宁可多报不可漏报）', () => {
     expect(classifyRisk("spawnSync('gh', a) // gh 只是举例")).toEqual(['gh-cli'])
     expect(classifyRisk('doWork(x) // 这里其实有 DELETE FROM 也没关系')).toEqual(['sql-delete'])
+  })
+  it('@probe-safe 只认**独占一行**的声明：正文里引用这个词不算声明（本轮真实踩到）', () => {
+    // 反例来源：判据在注释里解释这套机制时写了 "`@probe-safe: <依据>`"，于是解释者自己被记成
+    // "带声明但无危险特征" ⇒ 又一次自指（第三十轮 classifyRisk 命中自己注释的同型事）。口径=行首独占。
+    expect(probeSafeEvidence('// 脚本可以自述（`@probe-safe: <依据>`）之类的话都不算')).toBeNull()
+    expect(probeSafeEvidence('const x = 1\n// @probe-safe: 骨架实测 rc=2 / 0s\nconst y = 2')).toBe('骨架实测 rc=2 / 0s')
+    expect(probeSafeEvidence('/* @probe-safe: 块注释里写的也不算 */')).toBeNull()
   })
 })
 
@@ -419,18 +467,26 @@ describe('缺输入面探针：探针分母（门禁类 + 非门禁可安全 spa
   cpSync(join(REPO, 'scripts'), join(dir, 'scripts'), { recursive: true })
   const denom = probeDenominator()
 
-  it('分母非零：由 package.json 结构枚举（不手抄），且第三十轮起含"非门禁但可安全 spawn"的项', () => {
+  it('分母非零 + 不变式：非门禁项进这一腿，只能"无危险特征"或"自带 @probe-safe 实测声明"', () => {
     expect(denom.filter((r) => isGateLike(r.sources)).length).toBeGreaterThanOrEqual(20)
-    expect(denom.filter((r) => !isGateLike(r.sources)).map((r) => r.script).sort())
-      .toEqual(['list-uncovered.mjs', 'scan-secrets.mjs'])
-    // 不变式（写成普适形式，不点名某个脚本）：**非门禁项一旦带危险特征就必须退出这一腿**。
-    // 本轮实测到原因：`purge-security-events` 在无 tty 下照样把 DELETE 打到远端 D1（删审计日志）。
-    // 另记一条口径粗糙处：覆盖面把"测试文件里出现过该脚本文件名字面量"当作跑过，所以这里若点名
-    // 它，就会被判成"已有夹具"⇒ 它的缺口行变幽灵。这个假覆盖风险已进 07-next-steps。
+    // 第三十二轮的口径（借 golang/go 的 -short：条件由被试对象自述，框架只机械核对）。
+    // 实测依据：这 5 项在**两种骨架**里都 rc=1/2、0–1s、首行为自家诊断 ⇒ "停在门口"为真；
+    // 而 check-pr-has-tests（按设计 rc=0）、ci-status（9s 真打网络）、local-api-stub（挂死 30s）、
+    // smoke-deploy / uptime-check（先打线上）没有声明 ⇒ 仍在面外。名字点在这里是有意的：
+    // 它们是"分母扩容"的全部来源，少一个就意味着有条声明被静默摘掉。
+    const admitted = []
     for (const r of denom.filter((x) => !isGateLike(x.sources))) {
-      const abs = join(SCRIPTS, r.script)
-      expect(classifyRisk(readFileSync(abs, 'utf8')), `${r.script} 带危险特征，不该被自动 spawn`).toEqual([])
+      const src = readFileSync(join(SCRIPTS, r.script), 'utf8')
+      const tags = classifyRisk(src)
+      if (!tags.length) continue
+      const ev = probeSafeEvidence(src)
+      expect(ev, `${r.script} 带危险特征 ${tags.join('+')} 却无 @probe-safe 声明 ⇒ 不该被自动 spawn`).not.toBeNull()
+      expect(String(ev), `${r.script} 的声明必须带实测数字`).toMatch(/\d/)
+      admitted.push(r.script)
     }
+    expect(admitted.sort()).toEqual([
+      'check-catalog-facts.mjs', 'ci-green-contract.mjs', 'gen-api-doc.mjs', 'migrate.mjs', 'purge-security-events.mjs',
+    ])
   })
 
   for (const r of denom) {
