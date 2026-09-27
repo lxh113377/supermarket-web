@@ -12,10 +12,10 @@
 // @vitest-environment node
 import { describe, it, expect, afterAll } from 'vitest'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, cpSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, cpSync, readdirSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { evaluate, collect, collectRegistered, collectCovered, isGateLike, parseRegistry, REGISTRY } from '../scripts/check-cli-entrypoints.mjs'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -301,6 +301,117 @@ describe('缺输入面探针：门禁类入口必须 fail-closed 且不崩栈', 
     const back = spawnSync(process.execPath, [target], { cwd: dir, encoding: 'utf8', timeout: 60_000 })
     expect(back.status, '还原后必须重新 fail-closed（证明上面那个 0 是变异造成的，不是环境噪声）').not.toBe(0)
   }, 90_000)
+})
+
+/**
+ * 零分母探针（第二十六轮）：上一轮测的是"输入面**不存在**"，这一轮测更难也更要紧的一种 ——
+ * **输入面全在、内容全为空**。区别很实在：`requireInputs` 这类存在性检查在这里全部过关，
+ * 于是判据要么"扫到 0 个对象"后照常报绿，要么在解析空文件时甩裸栈。
+ * 基线（修之前实测）：22 个门禁类入口里 **2 个返回 rc=0**
+ * （`check-schema-drift` 打印「==== 结果: 0 通过 / 0 失败 ====」；`check-import-cycles` 在 0 字节源文件上
+ * 报"扫描模块: 84 个 / 未检测到循环依赖"）**+ 2 个裸栈**（空 package.json 让 Node 崩在模块解析前）。
+ * 现在 22/22 均 rc≠0 且首行是诊断。
+ */
+describe('零分母探针：输入面齐、内容全 0 字节时不得返回 0', () => {
+  const SKIP = new Set(['node_modules', '.git', 'dist', 'dist-stub', '.wrangler', 'coverage', 'test-results'])
+  const skeleton = mkdtempSync(join(tmpdir(), 'smzero-'))
+  tmpDirs.push(skeleton)
+  ;(function mirror(rel) {
+    for (const e of readdirSync(join(REPO, rel), { withFileTypes: true })) {
+      if (SKIP.has(e.name)) continue
+      const r = rel ? `${rel}/${e.name}` : e.name
+      if (e.isDirectory()) { mkdirSync(join(skeleton, r), { recursive: true }); mirror(r) }
+      else {
+        mkdirSync(dirname(join(skeleton, r)), { recursive: true })
+        // scripts/ 要真内容（跑的就是这批判据），其余一律 0 字节：判据的"输入"因此存在但为空
+        writeFileSync(join(skeleton, r), r.startsWith('scripts/') ? readFileSync(join(REPO, r)) : '')
+      }
+    }
+  })('')
+
+  const gateClass = collectRegistered().filter((r) => isGateLike(r.sources))
+  const runIn = (script) => spawnSync(process.execPath, [join(skeleton, 'scripts', script)],
+    { cwd: skeleton, encoding: 'utf8', timeout: 60_000 })
+
+  it('骨架仓真的建起来了（有 src/functions/docs，且它们全是 0 字节）', () => {
+    // 不证这一条，下面的"22 条全红"可能只是因为骨架是空的目录、判据在测不存在面（上一轮已测过）
+    expect(readFileSync(join(skeleton, 'src', 'main.tsx'), 'utf8') ?? '').toBe('')
+    expect(readdirSync(join(skeleton, 'db')).length).toBeGreaterThan(0)
+    expect(statSync(join(skeleton, 'package.json')).size).toBe(0)
+    // 两把尺必须同形：上一版拿"骨架 scripts/ 的全部条目数"去比"真仓的 .mjs 数"，
+    // 一边含 lib/、.py、.sh、archive/，一边只数 .mjs ⇒ 39 vs 34 的假失败。
+    const mjsNames = (d) => readdirSync(d).filter((f) => f.endsWith('.mjs')).sort()
+    expect(mjsNames(join(skeleton, 'scripts'))).toEqual(mjsNames(SCRIPTS))
+  })
+
+  for (const r of gateClass) {
+    it(`${r.script} 面对"文件在、内容为空"的输入 ⇒ 非 0 退出且不崩栈`, () => {
+      const res = runIn(r.script)
+      const out = `${res.stdout || ''}${res.stderr || ''}`
+      const first = out.trim().split(/\r?\n/)[0] || '(无输出)'
+      expect(res.status, `${r.script} 在零分母输入上返回 0（把"扫到 0 个对象"读成"扫过且清白"）：${first}`).not.toBe(0)
+      expect(first).not.toMatch(/^\s*(node:|file:\/\/|\s+at\s|SyntaxError|ReferenceError|TypeError|Error \[|MODULE_NOT_FOUND|ENOENT|<anonymous_script>)/)
+    }, 90_000)
+  }
+
+  it('变异体：摘掉 check-schema-drift 的零对象守卫 ⇒ 同一探针必须把它读成"装绿"', () => {
+    const target = join(skeleton, 'scripts', 'check-schema-drift.mjs')
+    const src = readFileSync(target, 'utf8')
+    const mutated = src.replace('if (checks === 0 && !failures.length) {', 'if (false) {')
+    expect(mutated, '变异锚点已失效（判据改形，夹具必须同步）').not.toBe(src)
+    writeFileSync(target, mutated)
+    try {
+      expect(runIn('check-schema-drift.mjs').status, '摘掉守卫后探针仍判非 0 ⇒ 探针没在看这件事').toBe(0)
+    } finally {
+      writeFileSync(target, src)
+    }
+    expect(runIn('check-schema-drift.mjs').status, '还原后必须重新非 0（证明那个 0 是变异造成的）').not.toBe(0)
+  }, 90_000)
+})
+
+/**
+ * preflight 自身的夹具（R25-M4 收尾）：它现在承担 15 个门禁的"缺输入"出口，
+ * 却只靠调用方间接覆盖 —— 一旦它自己写坏（比如 label 没进 stderr、退出码变了），
+ * 所有门禁会一起变成"人话不成立"而探针只看到 rc≠0，照样绿。所以直接打它。
+ */
+describe('preflight 出口件：bail / requireInputs / requireParams / requireJson', () => {
+  const dir = tmpRepo({})
+  const driver = join(dir, 'driver.mjs')
+  writeFileSync(driver, [
+    "import { bail, requireInputs, requireParams, requireJson } from '" + pathToFileURL(join(SCRIPTS, 'lib', 'preflight.mjs')).href + "'",
+    "const [what, ...rest] = process.argv.slice(2)",
+    "if (what === 'bail') bail('probe', rest.join(' '))",
+    "if (what === 'inputs') requireInputs('probe', rest)",
+    "if (what === 'params') requireParams('probe', rest)",
+    "if (what === 'json') requireJson('probe', rest)",
+    "console.log('PASSED-THROUGH')",
+  ].join('\n'))
+  const go = (...args) => spawnSync(process.execPath, [driver, ...args], { encoding: 'utf8', timeout: 20_000 })
+
+  for (const [what, badArg, goodArg] of [['bail', '就是少了它', null], ['inputs', join(dir, 'nope.sql'), join(dir, 'driver.mjs')], ['params', 'NO_SUCH_ENV_AT_ALL', 'PATH']]) {
+    it(`${what}：缺 ⇒ 首行是 [probe] 环境不满足 且 rc=2${goodArg ? '；齐 ⇒ 放行' : '（bail 没有"齐"这一侧）'}`, () => {
+      const bad = go(what, badArg)
+      expect(bad.status).toBe(2)
+      expect(bad.stderr).toContain('[probe] 环境不满足')
+      expect(bad.stderr).toContain('rc=2')
+      if (!goodArg) return
+      const good = spawnSync(process.execPath, [driver, what, goodArg], { encoding: 'utf8', timeout: 20_000 })
+      expect(good.stdout).toContain('PASSED-THROUGH')
+      expect(good.status).toBe(0)
+    })
+  }
+
+  it('requireJson：0 字节 / 坏 JSON / 不存在 三种都拦，合法放行（空 package.json 曾让 Node 先崩栈）', () => {
+    writeFileSync(join(dir, 'empty.json'), '')
+    writeFileSync(join(dir, 'bad.json'), '{')
+    writeFileSync(join(dir, 'ok.json'), '{"a":1}')
+    for (const f of ['empty.json', 'bad.json', 'missing.json']) {
+      const r = go('json', join(dir, f))
+      expect(r.status, `${f} 没被拦住`).toBe(2)
+      expect(r.stderr).toContain('JSON 输入不可解析')
+    }
+    expect(go('json', join(dir, 'ok.json')).stdout).toContain('PASSED-THROUGH')
+  })
 })
 
 describe('真仓登记册与实测互洽（防文档自说自话）', () => {

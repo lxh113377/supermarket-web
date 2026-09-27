@@ -95,9 +95,7 @@ export function evaluateParity({ a, b, afterTsSec, skewLimitMs, pubCount }) {
 
 async function main() {
   if (!AFTER_TS) {
-    console.error('[parity] 环境参数缺失：PARITY_AFTER_TS（本次发布起点 epoch 秒）未给 —— '
-      + '没有起点就无法判"两端是否都被这次发布刷新型"，拒绝以"看起来一样"放行')
-    process.exit(2)
+    bail('parity', 'PARITY_AFTER_TS（本次发布起点 epoch 秒）未给 ⇒ 没有起点就无法判"两端是否都被这次发布刷新"，拒绝以"看起来一样"放行')
   }
   const startTs = Date.now()
   let a = null
@@ -151,6 +149,7 @@ async function main() {
 
 import { fileURLToPath } from 'node:url'
 import { resolve } from 'node:path'
+import { bail } from './lib/preflight.mjs'
 
 // 被单测 import 时只暴露纯函数，不触发网络与 process.exit
 const invokedDirectly = !!process.argv[1]

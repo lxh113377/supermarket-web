@@ -18,6 +18,7 @@
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, sep } from 'node:path'
+import { bail } from './lib/preflight.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -40,8 +41,7 @@ try {
   tracked = splitZ(t.stdout || '')
   untracked = splitZ(u.stdout || '')
 } catch (e) {
-  console.error(`[case-collision] 环境不满足：${e.message}`)
-  process.exit(2)
+  bail('case-collision', `git 不可用或仓库根异常：${e.message}`)
 }
 
 const byLower = new Map()

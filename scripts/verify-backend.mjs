@@ -5,11 +5,12 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 import { createMeteredD1 } from './lib/metered-d1.mjs'
-import { requireInputs } from './lib/preflight.mjs'
+import { requireInputs, requireJson } from './lib/preflight.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
 requireInputs('verify-backend', [join(root, 'db', 'schema.sql'), join(root, 'db', 'seed.sql'), join(root, 'functions', 'lib', 'backend.js')])
+requireJson('verify-backend', [join(root, 'package.json')])
 
 const db = new DatabaseSync(':memory:')
 db.exec(readFileSync(join(root, 'db', 'schema.sql'), 'utf8'))

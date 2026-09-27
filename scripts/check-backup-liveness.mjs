@@ -23,6 +23,7 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { bail } from './lib/preflight.mjs'
 
 const DAY_MS = 86400_000
 
@@ -114,8 +115,7 @@ function main() {
   const wfId = process.env.BACKUP_WORKFLOW_ID || process.env.LIVENESS_WORKFLOW_ID || 'd1-backup.yml'
   const fixture = process.env.LIVENESS_FIXTURE || ''
   if (!fixture && (!repo || !wfId)) {
-    console.error('[liveness] 参数缺失：需要 GITHUB_REPOSITORY + BACKUP_WORKFLOW_ID（或测试用 LIVENESS_FIXTURE）')
-    process.exit(2)
+    bail('liveness', '需要 GITHUB_REPOSITORY + BACKUP_WORKFLOW_ID（或测试用 LIVENESS_FIXTURE）')
   }
   const mode = process.env.LIVENESS_MODE === 'presence' ? 'presence' : 'backup'
   const lookbackDays = Number(process.env.LIVENESS_LOOKBACK_DAYS || 4)

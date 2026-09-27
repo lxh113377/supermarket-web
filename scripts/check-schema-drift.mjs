@@ -95,6 +95,14 @@ for (const file of MIGRATIONS) {
 }
 
 console.log(`\n==== 结果: ${checks - failures.length} 通过 / ${failures.length} 失败 ====`)
+// 零对象不许判绿（第二十六轮零分母普查实测）：把本仓拷进"文件都在、内容全 0 字节"的骨架仓，
+// 原来打印「==== 结果: 0 通过 / 0 失败 ====」并 exit 0 —— 上面那条"没有迁移文件"的守卫拦不住它，
+// 因为**文件在、解析出的对象为空**。"一条都没比对上"不是"全部对上"，那是判据失去对象。
+if (checks === 0 && !failures.length) {
+  console.log(`FAIL  ${MIGRATIONS.length} 个迁移文件里一个 DDL 对象都没解析出来 ⇒ 判据没有可比对的对象，`
+    + '不记绿（要么解析规则过期，要么迁移文件是空的）')
+  process.exit(1)
+}
 if (failures.length) {
   console.log('存在 schema 漂移：迁移引入的对象未回写 db/schema.sql，测试库与线上库不一致。')
   process.exit(1)

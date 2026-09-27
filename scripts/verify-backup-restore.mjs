@@ -28,6 +28,7 @@ import { readFileSync, existsSync, statSync, appendFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { bail } from './lib/preflight.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 /** 业务上"绝不能空"的表：目录空 = 顾客端白屏；其余表可为 0（如刚清过的 rate_limits）。 */
@@ -129,8 +130,7 @@ export function sha256Of(buf) {
 function main() {
   const target = process.env.BACKUP_SQL || process.argv[2] || ''
   if (!target) {
-    console.error('[restore] 参数缺失：BACKUP_SQL（要演练的 dump 路径）未给 —— 没有对象就判"通过"是没意义的')
-    process.exit(2)
+    bail('restore', 'BACKUP_SQL（要演练的 dump 路径）未给 —— 没有对象就判"通过"是没意义的')
   }
   if (!existsSync(target) || statSync(target).size === 0) {
     console.error(`[restore] 备份文件不存在或为空：${target} —— 绝不静默记绿（frankensqlite 那类 exit 0 是本仓反例）`)

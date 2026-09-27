@@ -21,6 +21,7 @@ import { spawnSync } from 'node:child_process'
 import { readFileSync, rmSync, existsSync, statSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { bail, requireInputs } from './lib/preflight.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const OUTDIR = 'dist-functions' // .gitignore 的 dist-* 已覆盖
@@ -37,10 +38,7 @@ const fail = (msg) => { console.error(`[functions-build] FAIL ${msg}`); process.
 rmSync(join(ROOT, OUTDIR), { recursive: true, force: true })
 
 const wrangler = join(ROOT, 'node_modules', 'wrangler', 'bin', 'wrangler.js')
-if (!existsSync(wrangler)) {
-  console.error('[functions-build] 环境不满足：node_modules/wrangler 不存在，先 npm ci')
-  process.exit(2)
-}
+requireInputs('functions-build', [wrangler])
 
 const run = spawnSync(process.execPath, [wrangler, 'pages', 'functions', 'build', '--outdir', OUTDIR], {
   cwd: ROOT,
@@ -49,8 +47,7 @@ const run = spawnSync(process.execPath, [wrangler, 'pages', 'functions', 'build'
 })
 
 if (run.error) {
-  console.error(`[functions-build] 环境不满足：${run.error.message}`)
-  process.exit(2)
+  bail('functions-build', `wrangler 执行失败：${run.error.message}`)
 }
 
 const out = `${run.stdout || ''}${run.stderr || ''}`

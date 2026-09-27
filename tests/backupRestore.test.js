@@ -148,7 +148,10 @@ describe('CLI 退出码：零输入绝不记绿', () => {
   it('缺参数 ⇒ exit 2（不是 0）', () => {
     const r = run([])
     expect(r.rc).toBe(2)
-    expect(r.out).toContain('参数缺失')
+    // 第二十六轮 R25-M4：缺输入的统一出口是 `[label] 环境不满足：…`（原先各处自带"参数缺失/环境不满足"两套文案）。
+    // 这条断言因此改指**统一后的形状**，同时钉住 label —— 文案改了却没改这里，会当场红。
+    expect(r.out).toContain('环境不满足')
+    expect(r.out).toContain('restore')
   })
   it('文件不存在 ⇒ exit 2 且明说绝不静默记绿', () => {
     const r = run([join(DIR, 'nope.sql')])

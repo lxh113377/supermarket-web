@@ -13,7 +13,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join, relative } from 'node:path'
 import { createRequire } from 'node:module'
 import { openSqlite, createMeteredD1 } from './lib/metered-d1.mjs'
-import { requireInputs } from './lib/preflight.mjs'
+import { requireInputs, requireJson } from './lib/preflight.mjs'
 
 // 两处仓库内依赖改成「先收环境、再取模块」（第二十五轮实测：在只拷 scripts/ 的空目录里跑，
 // 原来第一行输出是 MODULE_NOT_FOUND/package_json_reader 的裸栈，人话文案根本印不出来）：
@@ -21,6 +21,9 @@ import { requireInputs } from './lib/preflight.mjs'
 //   ② tests/helpers/fakeDb.js 静态 import ⇒ 缺 tests/ 时同样崩（本判据与测试共用一份 D1 假件是有意的，
 //      但"取不到"必须是环境不满足，而不是栈）。
 requireInputs('d1-roundtrip', [join(dirname(fileURLToPath(import.meta.url)), '..', 'node_modules/@babel/parser')])
+// 动态 import 仓库内模块之前，package.json 必须是合法 JSON：否则 Node 先崩在 package_json_reader，
+// 判据的人话文案根本没机会印（第二十六轮零分母普查实测）。此处还不能用 `root`——它在下面才初始化。
+requireJson('d1-roundtrip', [join(dirname(fileURLToPath(import.meta.url)), '..', 'package.json')])
 const { parse } = createRequire(import.meta.url)('@babel/parser')
 
 const __dirname = dirname(fileURLToPath(import.meta.url))

@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url'
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const SRC = path.join(ROOT, 'src')
 requireInputs('import-cycles', [SRC, path.join(ROOT, 'functions')])
-import { requireInputs } from './lib/preflight.mjs'
+import { bail, requireInputs } from './lib/preflight.mjs'
 // ⚠️ 2026-09-23 第三轮优化修复：TS 迁移（41 文件）后 EXTS 仍只含 JS 系，walk 永远 0 命中、
 // 门禁恒报"0 个模块/无环"= 静默假通过（R236 同族）。必须覆盖全部源码扩展名。
 const EXTS = ['.js', '.jsx', '.mjs', '.cjs', '.ts', '.tsx', '.mts', '.cts']
@@ -115,6 +115,14 @@ const rel = (p) => path.relative(ROOT, p).replace(/\\/g, '/')
 const out = (line) => process.stdout.write(line + '\n')
 
 out(`扫描模块: ${files.length} 个`)
+// 零文件不许判绿（第二十六轮）：`requireInputs` 只保证 src/ functions/ **存在**，
+// 空目录同样让它过关 ⇒ "0 个模块、无环"又是一次把"没扫到"读成"扫过且清白"。
+if (files.length === 0) bail('import-cycles', '扫描到 0 个模块（src/ 与 functions/ 存在但取不到任何源文件）')
+// 光"文件数非零"还不够（第二十六轮零分母普查实测：把每个源文件都清成 0 字节，本判据仍报
+// "扫描模块: 84 个 / 未检测到循环依赖"并 rc=0 —— 0 条边的图上"无环"是真的，但它什么也没证明）。
+// 阈值取实测的低四倍以下留足余量：2026-09-27 实跑本仓 src/ 单侧就有 275 条 import 边。
+const edgeCount = [...graph.values()].reduce((a, v) => a + v.length, 0)
+if (edgeCount < 10) bail('import-cycles', `只解析到 ${edgeCount} 条 import 边（阈值 10）⇒ 判据失去对象，"无环"不可信`)
 
 if (cycles.length === 0) {
   out('✅ 未检测到循环依赖')

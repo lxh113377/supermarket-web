@@ -14,9 +14,10 @@
  */
 import { describe, it, expect, afterAll } from 'vitest'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { copyGateScripts } from './helpers/copyGateScripts.mjs'
 
 const REPO = join(__dirname, '..')
 const SCAN = join(REPO, 'scripts', 'scan-secrets.mjs')
@@ -63,10 +64,11 @@ function commitIn(dir: string, files: Record<string, string>, msg: string) {
  * ⇒ 必须把脚本复制进夹具仓的 scripts/ 再跑，判据才真的作用在夹具上。
  */
 function runGate(script: string, cwd: string) {
-  const local = join(cwd, 'scripts')
-  mkdirSync(local, { recursive: true })
-  const target = join(local, script.split(/[\\/]/).pop()!)
-  writeFileSync(target, readFileSync(script, 'utf8'))
+  // 共用件（scripts/lib/**）随脚本一起拷；解析规则收在 tests/helpers/copyGateScripts.mjs，
+  // 因为这段逻辑一旦有两份，就会有一份随重构过期（第二十六轮加 preflight 时打断过两处这种夹具）。
+  const name = script.split(/[\\/]/).pop()!
+  const local = copyGateScripts(REPO, cwd, name)
+  const target = join(local, name)
   const r = spawnSync(process.execPath, [target], {
     cwd, encoding: 'utf8', env: { ...process.env, GITHUB_BASE_REF: '', GITHUB_EVENT_BEFORE: '' },
   })

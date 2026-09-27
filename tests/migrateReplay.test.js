@@ -8,7 +8,7 @@
  */
 import { describe, it, expect } from 'vitest'
 import { DatabaseSync } from 'node:sqlite'
-import { readFileSync, writeFileSync, mkdirSync, copyFileSync, rmSync, readdirSync, cpSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, copyFileSync, rmSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { execFileSync } from 'node:child_process'
@@ -16,21 +16,17 @@ import {
   judge, normalizeSchema, shapeDiff, applySql, BASELINE_ERA, NON_MIGRATION_SQL,
   structuralRollbackTrip, dataRollbackTrip,
 } from '../scripts/verify-migrate-replay.mjs'
+import { copyGateScripts } from './helpers/copyGateScripts.mjs'
 
 const SCHEMA = readFileSync(join(process.cwd(), 'db/schema.sql'), 'utf8')
 
 /**
  * 把门禁脚本拷进夹具仓（夹具靠"脚本按自身位置的上一层锚仓根"来隔离真仓）。
- * 第二十五轮起必须连 `scripts/lib/` 一起拷：门禁开始共用 `scripts/lib/preflight.mjs`
- * （缺输入面 fail-closed 收口件），只拷单文件会让被拷脚本以 ERR_MODULE_NOT_FOUND 崩掉，
- * 于是夹具测到的是"我的复制清单不全"，而不是判据行为。
+ * 共用件（`scripts/lib/**`）的解析收在 `tests/helpers/copyGateScripts.mjs` —— 两处夹具各写一份正则
+ * 就会有一份随重构过期（第二十五轮加 preflight 时打断过两处这种夹具）。
  */
 function copyGates(tmp, ...names) {
-  mkdirSync(join(tmp, 'scripts'), { recursive: true })
-  for (const n of names) copyFileSync(join('scripts', n), join(tmp, 'scripts', n))
-  if (readdirSync('scripts').includes('lib')) {
-    cpSync(join('scripts', 'lib'), join(tmp, 'scripts', 'lib'), { recursive: true })
-  }
+  copyGateScripts(process.cwd(), tmp, ...names)
 }
 const REAL = ['migrate-ai-calls.sql', 'migrate-fix.sql', 'migrate-idempotency.sql',
   'migrate-optimize-indexes.sql', 'migrate-security.sql', 'migrate-spec-options.sql',

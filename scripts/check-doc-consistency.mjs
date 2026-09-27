@@ -20,6 +20,7 @@
 import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, relative } from 'node:path'
+import { bail, requireJson } from './lib/preflight.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const read = (p) => readFileSync(join(ROOT, p), 'utf8')
@@ -49,10 +50,7 @@ function expectEq(label, doc, file, declared, actual) {
 }
 
 // ── 真相源 1：API 契约生成物（action 数量） ─────────────────────────────
-if (!existsSync(join(ROOT, 'docs/api-contract.json'))) {
-  console.error('[doc-consistency] 环境不满足：docs/api-contract.json 不存在，先跑 npm run gen:api-contract')
-  process.exit(2)
-}
+requireJson('doc-consistency', [join(ROOT, 'docs/api-contract.json')])
 const contract = JSON.parse(read('docs/api-contract.json'))
 const actionCount = (endpoint) => {
   const actions = contract.endpoints?.[endpoint]?.actions
@@ -62,8 +60,7 @@ const actionCount = (endpoint) => {
 const webActions = actionCount('/web')
 const pubActions = actionCount('/pub')
 if (webActions === null || pubActions === null) {
-  console.error('[doc-consistency] 环境不满足：契约里读不到 /web 或 /pub 的 actions 集合')
-  process.exit(2)
+  bail('doc-consistency', '契约里读不到 /web 或 /pub 的 actions 集合')
 }
 
 // ── 真相源 2：vitest 覆盖率棘轮（阈值） ────────────────────────────────
