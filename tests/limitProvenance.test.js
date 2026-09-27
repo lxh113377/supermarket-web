@@ -124,6 +124,30 @@ describe('C6/C7 与枚举器边界', () => {
     expect(vals).not.toContain(12345)
   })
 
+  it('块注释（JSDoc）里的数字也不算上限 —— 第三十七轮一手反例：我在 shared.js 的 JSDoc 里写对比说明，被普查当成第 8 个上限', () => {
+    const code = [
+      '/**',
+      ' * 改前全仓有 5 处各说各话：submissions `2 * 1024 * 1024`、orders `800 * 1024`。',
+      ' * 这些是散文里的数字，不是会砍东西的数。',
+      ' */',
+      'export const MAX_STATEMENT_PAYLOAD_CHARS = 90_000',
+      "export async function f(DB, xs) { if (xs.length > 5) return null; return xs }",
+    ].join(String.fromCharCode(10))
+    const items = census([{ rel: 'functions/lib/prose.js', code }])
+    const vals = items.map((i) => i.value)
+    expect(vals, '散文里的 2/800 被当成了上限 ⇒ 取数面把注释当数据').not.toContain(2)
+    expect(vals).not.toContain(800)
+    expect(vals).toContain(90000)
+    expect(vals).toContain(5)
+    // 剥注释必须**保行号**：否则登记册/告警指到的行是错的。期望值由同一份原文自己数出来，
+    // 不靠手数（手数是第 ㉑ 形态：期望集被实测扩大/缩小后照样打 HIT）。
+    const rawLines = code.split('\n')
+    const want = rawLines.findIndex((l) => l.includes('xs.length > 5')) + 1
+    const five = items.find((i) => i.value === 5)
+    expect(want, '夹具自身的行号事实').toBe(6)
+    expect(five.line, `块注释被剥掉后行号漂移（期望 ${want}）`).toBe(want)
+  })
+
   it('六类形态各自能被枚举到（漏一类就是一整族上限隐身）', () => {
     const code = [
       'export const MAX_THING = 42',

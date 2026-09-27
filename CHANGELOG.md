@@ -3,6 +3,62 @@
 本项目采用 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式。此前未维护本文件，历史条目按 git 提交记录补记（自 2026-09-23 起持续维护）。
 
 ## [未发布]
+## [未发布]
+### 2026-09-27 追加五十二（对标第三十七轮：把"各说各话的尺"和"看起来存在的产品"两类假绿一次收掉）
+
+- 取号先列盘：在册最大「五十一」⇒ 本条「五十二」。轮初锚 `f96cdf9`（R36 再收尾，其 CI run
+  `36320807456` = `conclusion=success`，读自 `gh run view --json`）。Step 0 台账：07 系 **59 文件 /
+  164,543B / 未勾 70 条**；`TODO.md`/`TASKS.md`/`ROADMAP.md` 两仓仍全部不存在；双份记忆按文件名交集
+  **为空**（内层 `memory/` 跟踪 71 件 ⇄ 外层 `超市/memory` 14 件，`comm -12` 实测 ⇒ 不是同一份两跟踪，
+  是两份不同内容 —— 与 R272 那种 junction 双跟踪不同形态，别归错因）。
+  旧阻塞重跑：**M4 本机 workerd 已自愈**（`node_modules/@cloudflare/workerd-windows-64/bin/workerd.exe` 实存、
+  `wrangler --version` = 4.137.0 ⇒ 挂自第十六轮的那条判"已完成"）；**M3 分支保护仍 `NOT_ENFORCED`**
+  （`protection=404` + `rulesets=200 无生效规则` @2026-09-27T13:16:35Z）。
+- **H1 备份第三条出路真的做出来了**（用户只需配一个 secret）：新 `scripts/backup-crypto.mjs`
+  （AES-256-GCM + scrypt `N=2^15,r=8,p=1`，定长头 `SMBK|v|salt|iv|tag|ct`；**口令只走 env**，
+  未知 flag 直接 rc=2 —— argv 传口令会进 `ps` 与日志）。工作流改成**三态**判定：private→明文放行 /
+  非 private 且有口令→加密放行 / 非 private 无口令→**红**（不退化成明文上传）；守卫仍排在导出之前。
+  一手分母（先取数再动手）：本机 `schema.sql + seed.sql` = **9 表 / 56 行 / JSON 15,400B**，最大单表
+  INSERT 体 16,864B ≪ `d1_statement_bytes = 100000` ⇒ 备份体积不是瓶颈；**现网行数记 UNAVAILABLE**
+  （缺 CF 凭据且 `d1 execute` 须先过部署 skill ⇒ 不拿本机种子上冒充实测）。
+  关键一条：**产物存在 ≠ 备份可用** ⇒ 上传前跑 `--verify`（解回来与原文逐字节相等），
+  并把明文从上传面摘掉；存活判据新增"产物名字必须像备份"（`d1-backup(-enc)?-<run>`，
+  名字 ⇄ 工作流两条上传步骤 ⇄ 明文步骤的互斥 if 三向对账，`tests/backupArtifactName.test.ts` 4 条）。
+  对标原文：`actions/upload-artifact` README:123「**Users must be logged-in in order for this URL to work**」
+  = public 仓产物对任意登录用户可下载；`FiloSottile/age` README:174/182/256（口令模式、解密时自动识别格式）。
+- **H2 五处各说各话的体积上限收敛成一把尺**：`functions/lib/shared.js` 的
+  `MAX_STATEMENT_PAYLOAD_CHARS = 90_000`（= 平台事实 ×(1−10%)）。改前三条尺全在**平台预算之外**：
+  orders/reviews 各 `800 * 1024` 字符、submissions `2 * 1024 * 1024`、前端 ReviewForm `2MB` ——
+  而本仓 `public/` 现有 **115 张图实测** base64 后 p50≈29,677 / **p90≈103,298** / max≈204,538 字符
+  ⇒ p90 就已越过 100,000B 单语句上限：旧校验形同虚设，真实后果是应用层放行、平台层报错。
+  顺带把第十七轮 M5 那句"须先统一量纲再谈等值"**结案**：base64 是 ASCII ⇒ 1 字符 = 1 byte，同尺可比。
+  两把新守卫：整行 payload 预算（订单/评价/服务申请各一处）+ 把 orders.js 里"图太大"与"格式无效"
+  共用 `invalid_image` 拆开（原文案会把用户支使去改图片格式，而问题其实是体积）。错误码登记 33→**35**。
+- **H3 单行数量上界 = 99**：`orders.js` 原先只判 `Number.isInteger(qty) && qty > 0` ⇒ 数量无界，
+  叠加 `stock = -1` 不限售项跳过扣减 ⇒ 10⁹ 件的订单在服务端合法。取值**继承本项目在册的产品决定**
+  （详情页 `qty >= 99` 硬顶，本轮两处字面量改引用常量），不擅自改成对标值：`saleor/saleor`
+  `DEFAULT_LIMIT_QUANTITY_PER_CHECKOUT: Final[int] = 50` 是站点可配默认值、`medusajs/medusa` 根本不设
+  数量上界只校库存 ⇒ 两家共同点恰是"这个数必须是产品决定"。新码 `quantity_exceeds_limit`，
+  两侧等号进 `tests/limitCapParity.test.ts`（该文件 8→14 条），`verify:backend` 新增 10 条真跑探针（142→152）。
+- 判据自身两处洞（都是本轮自己踩出来的）：① 普查把 **JSDoc 里的散文数字**当成第 8 个上限
+  （我在 `shared.js` 写对比说明时提到旧的 `2 * 1024 * 1024`）⇒ 改判据不改措辞：`census()` 现剥块注释
+  且**保行号**，配双向夹具（散文不算 / 代码必算 / 行号不漂）；已知未覆盖面：行尾注释仍会计入，写进册子。
+  ② 登记册抬头"六类形态"是第三十六轮留下的**过期断言**（实测七种正则形状 + 一种 AST 形状）⇒ 按
+  `Object.keys(SHAPES).length` 更正。
+- 自失六条（都由自家门禁/当场回读抓出，不是运气）：**探针被我追加到汇总打印之后**（打印 FAIL
+  却不影响退出码 = 假绿形态，搬回之前）；**脚本越界**：给"常量上限"行补平台事实名时把 7 条
+  perf/product 行一起改了 —— 那等于让登记册说谎，当场回退并加计数断言；新测试文件又带 **2 个未用
+  import**（lint 抓，同形第三次）；README 链路叙述被我插进一条不属于链路的描述（它是测试不是 CI step），
+  撤回；`image_too_large` 的探针期望是我臆测的（真返回 `invalid_image`）⇒ 先归因再改，最终改的是**代码**
+  而不是断言；`block 注释剥除后行号`期望值我手数是 7、实测 6 ⇒ 改成让夹具自己数。
+- 用户侧不变：**N3 部署**（对外发布不在自动化授权内，动前必须加载 `chaoshi-web-deploy`）；
+  **M3 分支保护** `NOT_ENFORCED @13:16:35Z`；备份要真跑起来还差两个 secret ——
+  `CF_D1_BACKUP_TOKEN`（导出权限）与 **本轮新增的 `BACKUP_PASSPHRASE`**（非 private 仓的加密出路）。
+  本轮**没有**设 `BACKUP_SKIP_OK`，也没代配任何 secret。
+- 复验收据：`npm run verify` 独占 `VERIFY_RC=0`，**95 文件 / 1283 条**；链内
+  `limit-provenance 10/10（74 项全覆盖，死行 0）`、`error-semantics 35 码双向`、`memory-volume 检查 4/5（V4 未验证照实印）`、
+  `pointers 已核对 2/2`、`verify:backend 152/0`。
+
 ### 2026-09-27 追加五十一（第三十六轮收尾：本轮 HEAD 的 CI 其实是红的，而回执看起来是绿的）
 
 - 取号先列盘：在册最大「五十」⇒ 本条「五十一」。触发事实：`git push` 时 `[ci-green]` 打印

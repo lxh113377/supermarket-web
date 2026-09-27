@@ -3,6 +3,7 @@
 import { qAll, qFirst, qRun, qBatch, jparse, nowISO, genId, insert } from '../db.js'
 import { isSafeImageUrl } from '../security.js'
 import { fail } from '../errors.js'
+import { MAX_STATEMENT_PAYLOAD_CHARS } from '../shared.js'
 
 // ── 下单幂等（2026-09-24 对标第二轮 A1）──
 // 对标：Medusa HTTP 层 `Idempotency-Key` + 表内 UNIQUE(index, key)；litemall cart_checkout 唯一索引
@@ -13,6 +14,19 @@ import { fail } from '../errors.js'
 //      以及直接 POST /pub 的集成方）：90s 内容指纹兜底，只对**完全相同**的载荷去重。
 // 有 requestId 时**不**走 ②：换了 key 就是有意下新单，指纹会把合法的第二单吞掉。
 export const DEDUPE_WINDOW_MS = 90 * 1000
+
+/**
+ * 单行数量上界（第三十七轮 R37-H3）。
+ * 一手事实：改前这里只判 `Number.isInteger(qty) && qty > 0` ⇒ **数量无界**；
+ * 且 `stock === -1`（不限售项）连库存守卫都不过 ⇒ 前端虽有 `qty >= 99` 硬顶
+ * （`src/pages/ProductDetailPage.tsx:432`），一个直接 POST /pub 的调用方可以下 10⁹ 件的单。
+ * 取值 = **继承本项目在册的产品决定 99**，不新拍一个数：
+ * `saleor/saleor` 的 `DEFAULT_LIMIT_QUANTITY_PER_CHECKOUT: Final[int] = 50`（`saleor/site/models.py:23`）
+ * 是"站点可配默认值"而不是行业常数，`medusajs/medusa` 则根本不设数量上界、只校库存
+ * （`INSUFFICIENT_INVENTORY` + zod `quantity.gt(0)`）⇒ 两家都支持"上界必须是产品决定"这一点。
+ * 两侧同值由 `tests/limitCapParity.test.ts` 钉（前端 `MAX_QTY_PER_LINE` ⇄ 本常量）。
+ */
+export const MAX_QUANTITY_PER_LINE = 99
 
 function fnv1a(str) {
   let h = 0x811c9dc5
@@ -93,8 +107,12 @@ export async function createOrder(DB, payload) {
   if (!roomNumber || !Array.isArray(items) || !items.length) return fail('invalid_order_payload', '订单数据不完整')
   // 付款截图 scheme 白名单：拒绝非 data:image / https 的注入向量
   if (typeof paymentScreenshot === 'string' && paymentScreenshot) {
-    if (paymentScreenshot.length > 800 * 1024 || !isSafeImageUrl(paymentScreenshot))
-      return fail('invalid_image', '付款截图格式无效，请重新上传')
+    // 两个原因分开报错（第三十七轮）：原先 size 与 scheme 共用 `invalid_image`，
+    // 用户图太大时看到的是"格式无效"——那是把用户往错方向支使（改图格式并不会变小）。
+    if (paymentScreenshot.length > MAX_STATEMENT_PAYLOAD_CHARS) {
+      return fail('image_too_large', `付款截图过大（${paymentScreenshot.length} 字符 > 单语句预算 ${MAX_STATEMENT_PAYLOAD_CHARS}），请先裁剪或降低清晰度`)
+    }
+    if (!isSafeImageUrl(paymentScreenshot)) return fail('invalid_image', '付款截图格式无效，请重新上传')
   }
   const ids = items.map((it) => it.productId)
   const rows = await qAll(DB,
@@ -110,6 +128,9 @@ export async function createOrder(DB, payload) {
     // 数量必须为正整数：拦截负数/小数/缺失，防订单负金额或异常金额
     const qty = Number(item.quantity)
     if (!Number.isInteger(qty) || qty <= 0) return fail('invalid_quantity', `商品数量无效: ${p.name}`)
+    if (qty > MAX_QUANTITY_PER_LINE) {
+      return fail('quantity_exceeds_limit', `单品数量不能超过 ${MAX_QUANTITY_PER_LINE} 件: ${p.name}`)
+    }
     verified.push({
       productId: p._id, name: p.name, spec: resolveOrderSpec(p, item.spec),
       price: Number(p.price) || 0, quantity: qty, subcategories: jparse(p.subcategories, []),
@@ -123,6 +144,13 @@ export async function createOrder(DB, payload) {
   const wechatNorm = String(wechat || '').slice(0, 50)
   const remarkNorm = String(remark || '').slice(0, 200)
   const shot = typeof paymentScreenshot === 'string' ? paymentScreenshot : ''
+  // 单语句体积守卫（第三十七轮 R37-H2）：整条记录序列化后必须落在 D1 语句预算内。
+  // 这条**取代**原先"每图 800 * 1024 字符"的假上限 —— 实测本仓现有图 base64 的 p90≈103,298 字符
+  // 就已越过平台预算，旧值形同虚设：放行后失败发生在平台层，用户只看到"下单失败"。
+  const payloadChars = JSON.stringify({ room, wechat: wechatNorm, remark: remarkNorm, items: verified, shot }).length
+  if (payloadChars > MAX_STATEMENT_PAYLOAD_CHARS) {
+    return fail('payload_too_large', `订单数据过大（序列化 ${payloadChars} 字符 > 预算 ${MAX_STATEMENT_PAYLOAD_CHARS}）：请压小付款截图`)
+  }
   const totalRounded = Math.round(total * 100) / 100
   const fingerprint = orderFingerprint({
     roomNumber: room, wechat: wechatNorm, remark: remarkNorm,

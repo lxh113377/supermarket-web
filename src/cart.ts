@@ -55,6 +55,14 @@ export function getItemQuantity(cart: Cart, productId: string): number {
 }
 
 /**
+ * 单行数量上界 —— 与 `functions/lib/actions/orders.js` 的 `MAX_QUANTITY_PER_LINE` 同值
+ * （同值由 `tests/limitCapParity.test.ts` 钉；取值出处见那侧注释：继承详情页在册的 99 硬顶）。
+ * 这里选"封顶"而不是"拒绝加购"：购物车是本地状态，把用户的点击静默丢掉比封顶更难解释；
+ * 真正的拒绝在服务端（`quantity_exceeds_limit`），前端封顶只是不让本地出现一个必被拒的状态。
+ */
+export const MAX_QTY_PER_LINE = 99
+
+/**
  * 加入购物车。qty 支持一次加多件 —— 详情页的「数量」步进器需要它。
  * 不能靠调用方循环 add()：useCart 的 cartRef 在 effect 里才同步，
  * 同一批同步调用会读到同一个旧 cart，第二件覆盖第一件，最终只加 1 件。
@@ -67,13 +75,13 @@ export function addToCart(cart: Cart, product: Product, qty = 1): Cart {
   // 等于把调用方手里那份旧 cart 就地改了（Vue 响应式与 cartRef 都拿到被污染的"上一个状态"）。
   const exists = cart.items.some(hit)
   const items: CartItem[] = exists
-    ? cart.items.map(item => (hit(item) ? { ...item, quantity: item.quantity + n } : item))
+    ? cart.items.map(item => (hit(item) ? { ...item, quantity: Math.min(MAX_QTY_PER_LINE, item.quantity + n) } : item))
     : [...cart.items, {
       productId: product._id,
       name: product.name,
       spec: product.spec,
       price: product.price,
-      quantity: n,
+      quantity: Math.min(n, MAX_QTY_PER_LINE),
       subcategories: product.subcategories,
     }]
   return { ...cart, items }

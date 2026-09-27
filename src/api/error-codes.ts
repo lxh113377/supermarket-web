@@ -31,6 +31,8 @@ export const SERVER_ERROR_KIND: Record<string, ErrorKind> = {
   invalid_image: 'input',
   too_many_images: 'input',
   image_too_large: 'input',
+  payload_too_large: 'input',
+  quantity_exceeds_limit: 'input',
   batch_too_large: 'input',
   invalid_action: 'input',
   product_not_found: 'state',

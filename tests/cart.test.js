@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, vi } from 'vitest'
-import { getCart, saveCart, addToCart, removeFromCart, deleteFromCart, getTotalAmount, getTotalCount, getItemQuantity } from '../src/cart'
+import { getCart, saveCart, addToCart, removeFromCart, deleteFromCart, getTotalAmount, getTotalCount, getItemQuantity, MAX_QTY_PER_LINE } from '../src/cart'
 
 beforeAll(() => {
   const store = {}
@@ -183,5 +183,24 @@ describe('行身份 = (productId, spec)（第三十六轮修 A-19）', () => {
     cart = addToCart(cart, p1b, 1)
     expect(getTotalCount(cart)).toBe(3)
     expect(getTotalAmount(cart)).toBeCloseTo(9, 2)
+  })
+})
+
+describe('数量封顶（第三十七轮 R37-H3）', () => {
+  // 选封顶而不是报错：本地不该出现一个"下单必被服务端拒"的形状；两侧等号由 limitCapParity 钉
+  it('封顶不是截断到 0：正常加购不受影响', () => {
+    const c = addToCart({ items: [] }, { _id: 'pc1', name: '水', spec: '550ml', price: 1 }, 3)
+    expect(c.items[0].quantity).toBe(3)
+  })
+  it('累加过界停在 99，不会加出第 100 件（本地不该出现必被服务端拒的形状）', () => {
+    let c = addToCart({ items: [] }, { _id: 'pc2', name: '面', spec: '', price: 1 }, 98)
+    c = addToCart(c, { _id: 'pc2', name: '面', spec: '', price: 1 }, 5)
+    expect(c.items).toHaveLength(1)
+    expect(c.items[0].quantity).toBe(MAX_QTY_PER_LINE)
+  })
+  it('一次加 500 件的新行也被封顶（不是"只约束累加"）', () => {
+    const c = addToCart({ items: [] }, { _id: 'pc3', name: '纸巾', spec: '抽纸', price: 1 }, 500)
+    expect(c.items[0].quantity).toBe(MAX_QTY_PER_LINE)
+    expect(getItemQuantity(c, 'pc3')).toBe(MAX_QTY_PER_LINE)
   })
 })

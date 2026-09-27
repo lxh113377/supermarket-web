@@ -117,7 +117,13 @@ export function census(sources, onParseError = () => {}) {
   for (const { rel, code } of sources) {
     // 先剥掉整行注释：登记册统计的是「代码里真的会砍东西的数」，注释与文档里的数字不算
     // （不剥的话，像「远低于 SQLite 999 参数上限」这种解释性注释会被当成上限，噪声到没人肯修）。
-    const body = code.split(String.fromCharCode(10))
+    // 第三十七轮补剥**块注释**（`/* … *\/`）：一手反例是本轮自己在 `shared.js` 的 JSDoc 里写了
+    // "submissions 那处 2 * 1024 * 1024" 作对比说明 ⇒ 普查把散文里的数字当成第 8 个上限，
+    // 逼出的处置不是改判据就是改措辞（后者等于"为了绿而闭嘴"，不可接受）。
+    // 已知未覆盖面：**行尾**注释（`code // 800 * 1024`）仍会被计入 —— 含 `//` 的字符串（URL）
+    // 让朴素剥行有风险，故本轮不顺手做，登记在 limit-provenance 册的「取数面边界」节。
+    const noBlock = code.replace(/\/\*[\s\S]*?\*\//g, (m) => '\n'.repeat(m.split('\n').length - 1))
+    const body = noBlock.split(String.fromCharCode(10))
       .map((l) => (/^\s*(--|\/\/)/.test(l) ? '' : l)).join(String.fromCharCode(10))
     for (const [shape, re] of Object.entries(SHAPES)) {
       for (const m of body.matchAll(re)) {

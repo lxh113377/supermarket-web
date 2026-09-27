@@ -68,9 +68,15 @@
   ② 本仓 **2026-09-25 起为 public**（`gh api repos/…` 实测 `visibility=public private=false`），
   而工作流里有一道**排在导出之前**的守卫：非私有仓即使配了 token 也**拒绝**把全库明文导出物放进 artifact
   （依据：未鉴权下载被拒，但**任意已登录 GitHub 用户**可下载 ⇒ 可见面已不是"仅协作者"）。
-- **两条出路（原文见 `.github/workflows/d1-backup.yml` 顶部注释，二者选一）**：
-  ① 仓库转回 private；② 上传前用 `age`/`openssl` 加密并另配一个只放解密口令的 secret。
-  红线写在册上：**绝不允许"明文导出 + 公开仓"同时成立**。
+- **三条出路（第三十七轮把第 ② 条做成了真路径，原文见 `.github/workflows/d1-backup.yml` 顶部注释）**：
+  ① 仓库转回 private；② **配一个 `BACKUP_PASSPHRASE` secret** ⇒ 工作流自动"导出 → 恢复演练 → 加密 →
+  只上传密文产物 `d1-backup-enc-<run>`"，实现见 `scripts/backup-crypto.mjs`（AES-256-GCM + scrypt，
+  参数与取舍写在文件头）；③ 换私有存储位置。
+  红线写在册上：**绝不允许"明文导出 + 公开仓"同时成立** —— 加密路径上线后守卫顺序没动，
+  只是多了一条**可通过**的路；非私有仓且没配口令时工作流仍然判红而不是退化成明文上传。
+- **备份只有在"被载回并比对过"之后才算备份**：工作流在上传前跑 `--verify`（解回来与原文逐字节相等），
+  人工恢复用 `BACKUP_PASSPHRASE=… npm run backup:decrypt -- <产物> <输出.sql>`（口令只走环境变量，
+  命令行传口令会进 `ps` 与日志，故 CLI 拒绝未知 flag）。
 - **Agent 侧不擅动的部分**：新增 secret、改仓库可见性、以及**设 `BACKUP_SKIP_OK=true`** ——
   最后这项会把 FAIL 降成 WARN，属于"承认暂时不备份"的显式决定，只能由仓库管理员做；
   本轮明确**不设**，让这条红继续每天响（沉默的零备份比红色的无备份危险得多，这是第十二轮的一手教训）。

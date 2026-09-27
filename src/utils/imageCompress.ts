@@ -10,6 +10,15 @@ export interface CompressedImage {
   blob: Blob
 }
 
+/**
+ * 前端图片 dataUrl 的字节预算（第三十七轮 R37-H2）—— 与 `functions/lib/shared.js` 的
+ * `MAX_STATEMENT_PAYLOAD_CHARS` **同值**（同值由 `tests/limitCapParity.test.ts` 钉死）。
+ * 出处不是拍的：D1 平台事实 `d1_statement_bytes = 100000 bytes/语句`，留 10% 给 SQL 关键字与转义。
+ * 改前这里写着 `2 * 1024 * 1024`（约预算的 21 倍）：过滤形同虚设，图过了前端也过不了平台，
+ * 用户看到的是"提交失败"而不是"图太大"。
+ */
+export const MAX_IMAGE_DATAURL_CHARS = 90_000
+
 /** 按最大边等比缩到 maxSize 以内（只缩不放），JPEG 质量 quality（0~1） */
 export function compressImageFile(
   file: File,

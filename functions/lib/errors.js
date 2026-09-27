@@ -43,6 +43,8 @@ export const ERRORS = {
   invalid_image: { kind: 'input', status: 400, retryable: false },
   too_many_images: { kind: 'input', status: 400, retryable: false },
   image_too_large: { kind: 'input', status: 413, retryable: false },
+  payload_too_large: { kind: 'input', status: 413, retryable: false },
+  quantity_exceeds_limit: { kind: 'input', status: 400, retryable: false },
   batch_too_large: { kind: 'input', status: 400, retryable: false },
   invalid_action: { kind: 'input', status: 400, retryable: false },
 

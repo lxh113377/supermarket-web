@@ -31,6 +31,16 @@ const DAY_MS = 86400_000
  *  留上限是为了"窗口被 LIVENESS_LOOKBACK_DAYS 拉大时不打爆 API"，超出的部分**必须**在输出里
  *  标明"未取"，不得与"取到了但没有步骤"同形。 */
 export const STEP_DETAIL_CAP = 12
+/**
+ * 备份产物名的**唯一形状**（R37-H1 加密出路上线后有两种）：
+ * `d1-backup-<run>`（private 仓·明文）与 `d1-backup-enc-<run>`（非 private·已加密）。
+ * 三条口径必须同值（由 `tests/backupArtifactName.test.ts` 钉死）：
+ * 本判据认的名字 ⇄ 工作流两条上传步骤的 `name:` ⇄ 明文步骤的互斥 `if` 条件。
+ * 名字与上传面漂移的后果是"备份链绿了但判据其实没在认它的产物"（同第十二轮"有守卫≠守卫会跑"）。
+ */
+export const BACKUP_ARTIFACT_NAME = /^d1-backup(-enc)?-\d+$/
+export const BACKUP_UPLOAD_RULE = /name:\s*d1-backup(?:-enc)?-\$\{\{\s*github\.run_number\s*\}\}/
+export const PLAIN_UPLOAD_GUARD = /if:[^\n]*mode == 'plaintext'/
 
 /**
  * runs: [{ id, createdAt, conclusion, event, artifactCount, steps? }]
@@ -57,7 +67,18 @@ export function judgeLiveness({ runs, nowMs, maxAgeDays = 2, exempt = false, mod
   const stepsOk = (r) => !stepPattern || !hasStepDetail(r)
     || r.steps.some((x) => stepPattern.test(x.name || '') && x.conclusion === 'success')
   const artifactOk = (r) => mode === 'presence' || (typeof r.artifactCount === 'number' && r.artifactCount > 0)
-  const isGood = (r) => r.conclusion === 'success' && stepsOk(r) && artifactOk(r)
+  // 产物名字：null = 没取到（失明，单独摊出来）；false = 取了但没有一个像备份产物 ⇒ 这次跑**没产出备份**。
+  const nameVerdict = (r) => (mode !== 'backup' || !Array.isArray(r.artifactNames) ? null
+    : r.artifactNames.some((n) => BACKUP_ARTIFACT_NAME.test(n)))
+  const isGood = (r) => r.conclusion === 'success' && stepsOk(r) && artifactOk(r) && nameVerdict(r) !== false
+  if (mode === 'backup') {
+    const wrong = runs.filter((r) => r.conclusion === 'success' && (r.artifactCount || 0) > 0 && nameVerdict(r) === false)
+    for (const r of wrong) {
+      problems.push(`run ${r.id} 有 ${r.artifactCount} 件产物但没有一件像备份（应匹配 ${BACKUP_ARTIFACT_NAME}）：实际 = ${r.artifactNames.slice(0, 4).join(', ')} ⇒ "产物数 ≥1"被非备份产物满足过就等于没备份`)
+    }
+    const blindNames = runs.filter((r) => r.conclusion === 'success' && (r.artifactCount || 0) > 0 && nameVerdict(r) === null).length
+    if (blindNames) warnings.push(`${blindNames} 次 success run 有产物但**名字未取到** ⇒ 只由计数定性（这是未核，不是已核）`)
+  }
   const good = runs.find(isGood) || null
   // 步骤明细的**覆盖度**要印成分子/分母，且"取数失败"与"没去取"不得同形（第三十六轮：
   // 旧版把两者混成一条 blind 计数，看起来像 API 不稳，其实是自己 slice(0,3) 少取了）。
@@ -145,16 +166,23 @@ function main() {
       : ghApi(`repos/${repo}/actions/workflows/${wfId}/runs?per_page=30&created=>=${since}`).workflow_runs
     runs = raw.map((r) => ({
       id: r.id, createdAt: r.created_at || r.run_started_at, conclusion: r.conclusion, event: r.event,
-      artifacts: r.artifacts_count, steps: (r.steps || []),
+      artifacts: r.artifacts_count, steps: (r.steps || []), artifactNames: r.artifactNames,
     }))
   } catch (e) {
     console.error(`[liveness] BLOCKED 取不到 run 历史：${e instanceof Error ? e.message.split('\n')[0] : e} ⇒ 取不到不等于没问题`)
     process.exit(2)
   }
-  // artifacts_count 在 list 接口里就有；缺失时逐个补（少一次"看不见就当 0"的假设）
+  // artifacts_count 在 list 接口里就有；缺失时逐个补（少一次"看不见就当 0"的假设）。
+  // 第三十七轮再加一层：**有产物 ≠ 有备份**。加密出路上线后产物名分两种
+  // （`d1-backup-<run>` 明文·私有仓 / `d1-backup-enc-<run>` 密文·非私有仓），
+  // 名字不像备份产物的 run 不能算"备份过"（否则任何一次跑都会因附带 coverage 而变绿）。
   for (const r of runs) {
     if (typeof r.artifacts !== 'number' && !fixture) {
-      try { r.artifacts = ghApi(`repos/${repo}/actions/runs/${r.id}/artifacts`).total_count } catch { r.artifacts = -1 }
+      try {
+        const a = ghApi(`repos/${repo}/actions/runs/${r.id}/artifacts`)
+        r.artifacts = a.total_count
+        if (Number.isFinite(r.artifacts) && r.artifacts > 0) r.artifactNames = (a.artifacts || []).map((x) => x.name)
+      } catch { r.artifacts = -1 }
     }
     r.artifactCount = r.artifacts ?? -1
   }

@@ -4,6 +4,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import ReviewForm from '../src/components/product/ReviewForm'
+import { MAX_IMAGE_DATAURL_CHARS } from '../src/utils/imageCompress'
 
 const m = vi.hoisted(() => ({
   addReview: vi.fn(),
@@ -106,12 +107,23 @@ describe('晒图三道闸', () => {
     expect(screen.getByAltText('待发布图片 1')).toBeTruthy()
   })
 
-  it('压缩后仍超 2MB 的图被丢弃并提示（防 D1 体积膨胀）', async () => {
-    m.compressImage.mockResolvedValue({ dataUrl: bigDataUrl.padEnd(2 * 1024 * 1024 + 10, 'B'), blob: new Blob(['x']) })
+  // 第三十七轮：预算从"2MB"收到与 D1 单语句同尺的 MAX_IMAGE_DATAURL_CHARS（90,000 字符）。
+  // 夹具的边界值**由常量算出来**，不写死数字 —— 写死就会在下次改值时悄悄不再测边界。
+  it('压缩后仍超单条数据预算的图被丢弃，且提示里印着是哪个预算（防"只说过大不说多大"）', async () => {
+    m.compressImage.mockResolvedValue({ dataUrl: bigDataUrl.padEnd(MAX_IMAGE_DATAURL_CHARS + 10, 'B'), blob: new Blob(['x']) })
     render(<ReviewForm productOrder={1} onPublished={m.onPublished} />)
     pickFiles([imgFile()])
-    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('部分图片过大，已自动跳过'))
+    const status = await waitFor(() => screen.getByRole('status'))
+    expect(status.textContent).toContain(String(MAX_IMAGE_DATAURL_CHARS))
+    expect(status.textContent).toContain('已自动跳过')
     expect(screen.queryByAltText('待发布图片 1')).toBeNull()
+  })
+  it('预算内一张图被保留（正向腿：上界不是"一律丢"）', async () => {
+    m.compressImage.mockResolvedValue({ dataUrl: bigDataUrl.padEnd(MAX_IMAGE_DATAURL_CHARS - 20, 'B'), blob: new Blob(['x']) })
+    render(<ReviewForm productOrder={1} onPublished={m.onPublished} />)
+    pickFiles([imgFile()])
+    await waitFor(() => expect(screen.getByAltText('待发布图片 1')).toBeTruthy())
+    expect(screen.queryByRole('status')?.textContent || '').not.toContain('已自动跳过')
   })
 
   // 第十八轮：上限由 5 收敛成 3（服务端 reviews.js 一直是 `images.length > 3`，

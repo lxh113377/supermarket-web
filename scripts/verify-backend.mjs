@@ -664,6 +664,42 @@ if (SHAPE_OUT) {
   console.log(`[response-shapes] 录制 ${Object.keys(out.actions).length} 个 (side,action) → ${SHAPE_OUT}`)
 }
 
+// ---------- R37-H2/H3：体积与数量两把新尺的真跑探针（第三十七轮，每条带前提自证与边界正向腿） ----------
+const bigImg = (chars) => 'data:image/jpeg;base64,' + 'A'.repeat(chars)
+const shot200k = await handlePublic(env, 'createOrder', {
+  roomNumber: '305', items: [{ productId: 'p001', quantity: 1 }], paymentScreenshot: bigImg(200_000),
+}, imgReq('10.90.0.21'))
+ok(shot200k.errorCode !== 'rate_limited', '超大截图探针未撞限流桶（前提自证）')
+ok(shot200k.code === -1 && shot200k.errorCode === 'image_too_large',
+  `200k 字符截图被应用层拒（改前 800 * 1024 会一路放行到平台层；实得 errorCode=${shot200k.errorCode}）`)
+
+const qty100 = await handlePublic(env, 'createOrder', { roomNumber: '305', items: [{ productId: 'p001', quantity: 100 }] }, imgReq('10.90.0.22'))
+ok(qty100.errorCode !== 'rate_limited', '数量 100 探针未撞限流桶（前提自证）')
+ok(qty100.code === -1 && qty100.errorCode === 'quantity_exceeds_limit',
+  `第 100 件被拒（改前只判 >0 ⇒ 10⁹ 件合法；实得 errorCode=${qty100.errorCode}）`)
+const qty99 = await handlePublic(env, 'createOrder', { roomNumber: '305', items: [{ productId: 'p001', quantity: 99 }] }, imgReq('10.90.0.23'))
+ok(qty99.errorCode !== 'rate_limited', '数量 99 探针未撞限流桶（前提自证）')
+ok(qty99.errorCode !== 'quantity_exceeds_limit',
+  `99 件是边界内（正向腿）；实得 errorCode=${qty99.errorCode} —— 若是 stock_insufficient 属另一条守卫，不是本上界`)
+if (qty99.data?.id) await handleAdmin(env, 'deleteOrder', 'test-key-123', { orderId: qty99.data.id }, imgReq('10.90.0.23'))
+
+const revPair = await handlePublic(env, 'addPublicReview', {
+  productOrder: 1, user: '体积探针', rating: 5, text: '两张各 60k 字符合计超单语句预算',
+  images: [bigImg(60_000), bigImg(60_000)],
+}, imgReq('10.90.0.24'))
+ok(revPair.errorCode !== 'rate_limited', '双图体积探针未撞限流桶（前提自证）')
+ok(revPair.code === -1 && revPair.errorCode === 'payload_too_large',
+  `单张各 60k 都合规、合计 120k ⇒ 必须按整行预算拒（实得 errorCode=${revPair.errorCode}）`)
+const revOne = await handlePublic(env, 'addPublicReview', {
+  productOrder: 1, user: '体积探针', rating: 5, text: '单张 60k 在预算内', images: [bigImg(60_000)],
+}, imgReq('10.90.0.25'))
+ok(revOne.errorCode !== 'rate_limited', '单图体积探针未撞限流桶（前提自证）')
+ok(revOne.code === 0, `单张 60k 通过（正向腿，证明上界不是"一律拒"；实得 code=${revOne.code} errorCode=${revOne.errorCode}）`)
+if (revOne.data?.id || revOne.data?._id) {
+  await handleAdmin(env, 'deleteReview', 'test-key-123', { reviewId: revOne.data.id || revOne.data._id }, imgReq('10.90.0.25'))
+}
+
 console.log(`\n==== 结果: ${pass} 通过 / ${fail} 失败 ====`)
 if (fail) { console.log('失败项:'); fails.forEach((f) => console.log('  - ' + f)); process.exit(1) }
 console.log('全部通过 ✅')
+

@@ -2,7 +2,7 @@
 
 import { qAll, qRun, jparse, nowISO, genId, pick, insert } from '../db.js'
 import { validateImages, checkPublicText } from '../security.js'
-import { SUBMISSION_FIELDS } from '../shared.js'
+import { SUBMISSION_FIELDS, MAX_STATEMENT_PAYLOAD_CHARS } from '../shared.js'
 import { fail } from '../errors.js'
 
 export async function createSubmission(DB, payload) {
@@ -15,7 +15,15 @@ export async function createSubmission(DB, payload) {
   const cleanImages = validateImages(clean.images)
   if (cleanImages === null) return fail('invalid_image', '图片格式无效')
   for (const img of cleanImages) {
-    if (img.length > 2 * 1024 * 1024) return fail('image_too_large', '图片过大或格式无效')
+    // 改前是 `2 * 1024 * 1024`（约平台单语句预算的 21 倍）⇒ 这条校验形同虚设，
+    // 真实失败发生在平台层（用户看到的是提交失败而不是"图太大"）。R37-H2 统一到同一把尺。
+    if (img.length > MAX_STATEMENT_PAYLOAD_CHARS) {
+      return fail('image_too_large', `单张图片过大（${img.length} 字符 > 预算 ${MAX_STATEMENT_PAYLOAD_CHARS}）`)
+    }
+  }
+  const imageChars = cleanImages.reduce((s, img) => s + img.length, 0)
+  if (imageChars > MAX_STATEMENT_PAYLOAD_CHARS) {
+    return fail('payload_too_large', `图片合计 ${imageChars} 字符 > 单语句预算 ${MAX_STATEMENT_PAYLOAD_CHARS}：请减少张数或压小图片`)
   }
   const safeForm = {}
   if (clean.formData && typeof clean.formData === 'object') {

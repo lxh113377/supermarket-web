@@ -470,6 +470,24 @@ function backupOrderProblems(text: string): string[] {
   if (drillAt < 0) return problems.concat(['备份链缺恢复演练步骤（npm run verify:restore）⇒ dump 从未被验证可恢复'])
   if (exportAt >= 0 && drillAt < exportAt) problems.push('恢复演练排在导出之前 ⇒ 验的是上一轮的旧文件，等于没验')
   if (uploadAt >= 0 && drillAt > uploadAt) problems.push('恢复演练排在上传之后 ⇒ 判据不阻断，坏 dump 已被当备份存下')
+  // 第三十七轮加密出路加入后的**新三件**：顺序、双向互斥、可用性自证。
+  const encAt = at('backup-crypto.mjs --encrypt')
+  const verAt = at('backup-crypto.mjs --verify')
+  const encUploadAt = at('name: d1-backup-enc-')
+  if (encAt >= 0) {
+    if (verAt < 0) problems.push('有加密步骤却没有 --verify 往返自证 ⇒ 口令配错也能产出"看起来存在"的备份产物')
+    if (drillAt > encAt) problems.push('加密排在恢复演练之前 ⇒ 演练验的是密文而非 dump，等于没演')
+    if (encUploadAt < 0) problems.push('有加密步骤却没有加密产物的上传步骤（产物被加密后没人上传 = 备份仍不存在）')
+    if (encUploadAt >= 0 && encAt > encUploadAt) problems.push('加密步骤排在上传之后 ⇒ 上传的是明文')
+  }
+  if (encUploadAt >= 0) {
+    // 两条上传必须互斥：非私有仓只走 -enc，私有仓只走明文。任一缺 if 条件 = 明文可能顺路带上公开仓
+    const plainUpload = /- name: Upload backup artifact \(plaintext[\s\S]*?(?=\n      - (?:name|uses):|\n     $)/.exec(t)?.[0] || ''
+    const encUpload = /- name: Upload backup artifact \(encrypted[\s\S]*?(?=\n      - (?:name|uses):|\n     $)/.exec(t)?.[0] || ''
+    if (!/if:.*mode == 'plaintext'/.test(plainUpload)) problems.push('明文上传步骤缺 mode==plaintext 条件 ⇒ 非私有仓也可能落明文产物')
+    if (!/if:.*mode == 'encrypted'/.test(encUpload)) problems.push('加密上传步骤缺 mode==encrypted 条件')
+    if (!/path:\s*d1-backup\.sql\.smbk/.test(encUpload)) problems.push('加密上传步骤的 path 不是密文容器（上传了明文？）')
+  }
   return problems
 }
 
@@ -486,6 +504,25 @@ describe('备份链顺序：导出 → 恢复演练 → 上传（顺序错=白�
       + drill.replace('npm run verify:restore', 'npm run verify:restore')
     expect(backupOrderProblems(moved).join()).toContain('上传之后')
     expect(backupOrderProblems(late.replace(drill as string, '')).join()).toContain('缺恢复演练步骤')
+  })
+  it('反例三条（第三十七轮加密出路）：删往返自证 / 加密排到上传后 / 明文上传摘掉 if —— 每条都必须红', () => {
+    const raw = readWorkflow('d1-backup.yml').replace(/\r\n/g, '\n')
+    expect(backupOrderProblems(raw), '真面必须先合格，否则下面三条红的不是我要测的东西').toEqual([])
+    // ① 摘掉 --verify 那一行（连带它的注释）⇒ 必须点名"没有往返自证"
+    const noVerify = raw.replace(/^\s*# 自证 2[\s\S]*?backup-crypto\.mjs --verify[^\n]*\n/m, '')
+    expect(noVerify, '变异体没造出来（文本形状变了）').not.toBe(raw)
+    expect(backupOrderProblems(noVerify).join()).toContain('--verify 往返自证')
+    // ② 把加密步骤整块挪到上传之后 ⇒ 必须点名"上传的是明文"
+    const encBlock = /      - name: Encrypt dump before it leaves the runner[\s\S]*?(?=\n      - name: Upload backup artifact \(plaintext)/.exec(raw)
+    expect(encBlock, '夹具依赖：加密步骤的文本形状已变').toBeTruthy()
+    const movedLate = raw.replace(encBlock?.[0] || '', '')
+      .replace(/(\n      - name: Post-check)/, `${encBlock?.[0] || ''}$1`)
+    expect(movedLate).not.toBe(raw)
+    expect(backupOrderProblems(movedLate).join()).toContain('上传的是明文')
+    // ③ 明文上传的 if 摘成无条件 ⇒ 必须点名"非私有仓也可能落明文"
+    const loose = raw.replace(/if: steps\.tok\.outputs\.found == 'true' && steps\.disp\.outputs\.mode == 'plaintext'/, "if: steps.tok.outputs.found == 'true'")
+    expect(loose, '变异体没造出来').not.toBe(raw)
+    expect(backupOrderProblems(loose).join()).toContain('mode==plaintext')
   })
 })
 

@@ -36,6 +36,8 @@
     "verify:env": "node scripts/check-env-docs.mjs",
     "verify:csp": "node scripts/check-csp-static.mjs",
     "verify:restore": "node scripts/verify-backup-restore.mjs",
+    "backup:decrypt": "node scripts/backup-crypto.mjs --decrypt",
+    "backup:verify": "node scripts/backup-crypto.mjs --verify",
     "report:pr-tests": "node scripts/check-pr-has-tests.mjs",
     "report:catalog": "node scripts/check-catalog-facts.mjs",
     "check:backup-liveness": "node scripts/check-backup-liveness.mjs",

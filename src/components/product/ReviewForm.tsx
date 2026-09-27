@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { addReview } from '../../db'
 import { compressImage, uploadReviewImages } from '../../utils/reviewImages'
+import { MAX_IMAGE_DATAURL_CHARS } from '../../utils/imageCompress'
 
 // 写评价表单子组件（M6 拆分自 ProductDetailPage，2026-09-05）
 // 图片压缩/上传/表单状态全部内聚，提交后通过 onPublished 通知父刷新。
@@ -37,10 +38,12 @@ export default function ReviewForm({ productOrder, onPublished }: { productOrder
       .filter((f) => f.type.startsWith('image/') && f.size <= 10 * 1024 * 1024)
     try {
       const compressed = (await Promise.all(valid.map((f) => compressImage(f))))
-        .filter((d) => d.dataUrl.length <= 2 * 1024 * 1024)
+        .filter((d) => d.dataUrl.length <= MAX_IMAGE_DATAURL_CHARS)
       setImages((prev) => [...prev, ...compressed.map((d) => d.dataUrl)].slice(0, MAX_REVIEW_IMAGES))
       setBlobs((prev) => [...prev, ...compressed.map((d) => d.blob)].slice(0, MAX_REVIEW_IMAGES))
-      if (compressed.length < valid.length) setMsg('部分图片过大，已自动跳过')
+      if (compressed.length < valid.length) {
+        setMsg(`部分图片超过单条数据预算 ${MAX_IMAGE_DATAURL_CHARS} 字符，已自动跳过（请在图片更大时先裁剪）`)
+      }
     } catch {
       setMsg('图片处理失败，请重试')
     }

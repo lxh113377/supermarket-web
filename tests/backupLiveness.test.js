@@ -141,3 +141,27 @@ describe('CLI：三档退出码都可反证', () => {
     expect(run({ LIVENESS_FIXTURE: f }).rc).toBe(0)
   })
 })
+
+describe('第三十七轮：有产物 ≠ 有备份（产物名字必须像备份产物）', () => {
+  const goodSteps = [step('Export remote D1', 'success'), step('Upload backup artifact (encrypted · non-private repo)', 'success')]
+  it('加密产物名被认 ⇒ 这次跑算一次真备份', () => {
+    const r = judge([realRun({ artifactCount: 1, artifactNames: ['d1-backup-enc-123'], steps: goodSteps })])
+    expect(r.problems, r.problems.join(' / ')).toEqual([])
+    expect(r.good).toBeTruthy()
+  })
+  it('同一次跑只产出 coverage 之类产物 ⇒ 不认，且点名实际名字（防"产物数 ≥1"被别的产物满足）', () => {
+    const r = judge([realRun({ artifactCount: 2, artifactNames: ['coverage-report', 'junit'], steps: goodSteps })])
+    expect(r.good).toBe(null)
+    expect(r.problems.join()).toContain('没有一件像备份')
+    expect(r.problems.join()).toContain('coverage-report')
+  })
+  it('名字没取到 ⇒ 不否证，但必须摊成"未核"警告（失明不许与已核同形）', () => {
+    const r = judge([realRun({ artifactCount: 1, steps: goodSteps })])
+    expect(r.good).toBeTruthy()
+    expect(r.warnings.join()).toContain('名字未取到')
+  })
+  it('明文产物名同样被认（private 仓那条路没被改名改丢）', () => {
+    const r = judge([realRun({ artifactCount: 1, artifactNames: ['d1-backup-77'], steps: goodSteps })])
+    expect(r.good).toBeTruthy()
+  })
+})

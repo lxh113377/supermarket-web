@@ -89,3 +89,59 @@ describe('可选口味条数两侧契约（≤20，SPEC_OPTION_LIMIT 双写）',
     expect(cliFile).not.toMatch(/specOptions\.length >= \d+/)
   })
 })
+
+describe('单行数量上界两侧契约（≤99，第三十七轮 R37-H3）', () => {
+  const srvFile = read('functions/lib/actions/orders.js')
+  const cliFile = read('src/cart.ts')
+  const pageFile = read('src/pages/ProductDetailPage.tsx')
+  const srv = num(/export const MAX_QUANTITY_PER_LINE = (\d+)/, srvFile, '服务端 MAX_QUANTITY_PER_LINE')
+  const cli = num(/export const MAX_QTY_PER_LINE = (\d+)/, cliFile, '前端 MAX_QTY_PER_LINE')
+
+  it('两侧同值且 == 99（继承本项目详情页在册硬顶，不新拍一个数）', () => {
+    expect(cli).toBe(srv)
+    expect(srv).toBe(99)
+  })
+  it('详情页已改为引用常量，两处字面量都不许回来（字面量 = 第二真相源）', () => {
+    expect(pageFile).toMatch(/Math\.min\(MAX_QTY_PER_LINE, n \+ 1\)/)
+    expect(pageFile).toMatch(/qty >= MAX_QTY_PER_LINE/)
+    expect(pageFile).not.toMatch(/Math\.min\(\d+, n \+ 1\)/)
+    expect(pageFile).not.toMatch(/qty >= \d+/)
+  })
+  it('登记册两行在册（C2 只保证有行，这里保证钉的是这两行）', () => {
+    const reg = read('docs/limit-provenance.md')
+    expect(reg).toContain('functions/lib/actions/orders.js | 常量 | MAX_QUANTITY_PER_LINE=99')
+    expect(reg).toContain('src/cart.ts | 常量 | MAX_QTY_PER_LINE=99')
+  })
+})
+
+describe('图片 dataUrl 预算 ⇄ D1 单语句预算（第三十七轮 R37-H2）', () => {
+  // 源码写的是 `90_000`（数字分隔符），Number('90_000') 是 NaN ⇒ 这里必须先去下划线再判，
+  // 否则契约自己制造假红（第 ㉙ 形态的反面：解析器读不懂被审对象的合法写法）。
+  const under = (re: RegExp, src: string, what: string) => {
+    const m = re.exec(src)
+    expect(m, `没解析到 ${what} ⇒ 本契约已随改名/换写法失效，必须修契约而不是放宽`).toBeTruthy()
+    return Number(m![1].replace(/_/g, ''))
+  }
+  const srvFile = read('functions/lib/shared.js')
+  const cliFile = read('src/utils/imageCompress.ts')
+  const srv = under(/export const MAX_STATEMENT_PAYLOAD_CHARS = ([\d_]+)/, srvFile, '服务端单语句体积预算')
+  const cli = under(/export const MAX_IMAGE_DATAURL_CHARS = ([\d_]+)/, cliFile, '前端图片 dataUrl 预算')
+
+  it('前端 == 服务端（两条构建链物理上共享不了模块，靠这条钉住）', () => {
+    expect(cli).toBe(srv)
+  })
+  it('预算必须严格小于平台事实且等于其 90%（有人把上限抬过平台 = 当场红；抬到预算内但未对账 = 也红）', () => {
+    const { PLATFORM_FACTS } = require('../scripts/check-limit-provenance.mjs') as typeof import('../scripts/check-limit-provenance.mjs')
+    const budget = PLATFORM_FACTS.d1_statement_bytes.max
+    expect(srv).toBeLessThan(budget)
+    expect(srv).toBe(Math.floor(budget * 0.9))
+  })
+  it('三个服务端出口都引用常量而不是字面量（800 * 1024 / 2 * 1024 * 1024 不许回来）', () => {
+    for (const f of ['functions/lib/actions/orders.js', 'functions/lib/actions/reviews.js', 'functions/lib/actions/submissions.js']) {
+      const src = read(f)
+      expect(src, `${f} 未引用预算`).toContain('MAX_STATEMENT_PAYLOAD_CHARS')
+      expect(src).not.toMatch(/length > \d+ \* 1024/)
+    }
+    expect(read('src/components/product/ReviewForm.tsx')).not.toMatch(/dataUrl\.length <= \d+ \* 1024/)
+  })
+})

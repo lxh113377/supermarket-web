@@ -1,8 +1,11 @@
 # 数值上限登记册（唯一真相源，受 `npm run verify:limits` 双向对账）
 
-> 本表由 `scripts/check-limit-provenance.mjs` 校验：**代码里每个「会砍东西」的数值上限**（六类形态：
-> 拒绝型 `x.length > N` / 截断型 `.slice(0, N)` / 体积型 `N * 1024` / 保留期 `-N days` / 分页 `LIMIT N` /
-> 命名常量 `MAX_*`·`BATCH`·`_MS`）必须有行、有行必须对得上现状、类别必须合法、依据不得是 TODO。
+> 本表由 `scripts/check-limit-provenance.mjs` 校验：**代码里每个「会砍东西」的数值上限**（八类形态 =
+> 七种正则形状：拒绝型 `x.length > N` / 截断型 `.slice(0, N)` / 体积型 `N * 1024` / 保留期 `-N days` /
+> 分页 `LIMIT N` / 常量上限 `x.length >= SOME_NAME` / 截断上限 `.slice(0, SOME_NAME)`；再加 AST 形状：
+> 命名常量 `MAX_*`·`BATCH`·`_MS` 的字面量定义）必须有行、有行必须对得上现状、类别必须合法、依据不得是 TODO。
+> ⚠️ 本行原写"六类形态"：第三十六轮补进"常量右值"两半后**没并回来**（又一处只有措辞在守的账，
+> 第三十七轮按 `Object.keys(SHAPES).length` 实测 7 更正为八类，含 AST 那一种）。
 > **取数面 = `functions/**.js` + `src/**.ts|.tsx`**（第十八轮 M6 起含前端；单点定义在判据的
 > `SURFACE_PREFIXES`，C7 会把「面内文件是否都落在声明前缀里 + src/ 是否真在里面」当正向对照跑）。
 > 扩面当轮即暴露两处度量器自身的缺陷，都已修机制而非调阈值：
@@ -31,8 +34,6 @@
 | functions/lib/actions/orders.js | 截断型 | 40 | schema | roomNumber 截 40：幂等键格式「房间号@reqId#指纹」，40 保证键长可控且容得下「楼-单元-房号」最长写法 |
 | functions/lib/actions/orders.js | 截断型 | 50 | schema | wechat 截 50：微信号官方上限 5~20 字符，50 给备注型长串留余量，防粘贴整段文本入库 |
 | functions/lib/actions/orders.js | 截断型 | 64 | schema | requestId 清洗后截 64：客户端给的是 uuid 形态，64 足够；同处已剔除非 [\w:.-] 字符，防用户输入直接进索引列 |
-| functions/lib/actions/orders.js | 拒绝型 | 800 | platform | 付款截图 base64 长度上限 800 * 1024 字符（约 600 KB 原图）。登记时核出的真问题：D1 单语句上限 d1_statement_bytes = 100000 bytes，600 KB 的参数会先撞平台预算再撞这条应用层校验 => 该值形同虚设，已登记第十七轮 M5 待修 |
-| functions/lib/actions/orders.js | 体积型 | 800 | platform | 800 * 1024 字符，对照 d1_statement_bytes：本行如实记「应用层体积与平台单语句 100 KB 未对齐」，不当已论证处理 |
 | functions/lib/actions/products.js | 分页 | 1000 | perf | 全量取商品 1000 行：店内 SKU 量级（实测 54）20 倍余量，1000 行窄字段远低于 100 KB/语句 |
 | functions/lib/actions/products.js | 分页 | 200 | perf | 分类下商品预览 200：后台单分类可见上界，超出即应搜索而非继续翻 |
 | functions/lib/actions/products.js | 截断型 | 20 | product | 口味 label 截 20 字：SPEC_OPTION_LIMIT=20 管个数、20 字管单条宽度，两者合起来让后台口味 chips 不换行 |
@@ -42,8 +43,6 @@
 | functions/lib/actions/reviews.js | 截断型 | 20 | schema | 评价用户名截 20：微信昵称常见长度上限 |
 | functions/lib/actions/reviews.js | 截断型 | 500 | schema | 评价正文截 500 字：UGC 入库长度上界，防长文撑爆列表（TEXT 无列宽约束，同 orders.remark） |
 | functions/lib/actions/reviews.js | 拒绝型 | 3 | product | 每条评价最多 3 张图：产品决定（顾客实拍场景），不是技术约束 |
-| functions/lib/actions/reviews.js | 拒绝型 | 800 | platform | 评价图 base64 上限 800 * 1024 字符，同 orders.js 付款截图：同样落在 d1_statement_bytes（100000）之外，见第十七轮 M5 |
-| functions/lib/actions/reviews.js | 体积型 | 800 | platform | 对照 d1_statement_bytes：与平台单语句预算未对齐，记为待修而非已论证 |
 | functions/lib/actions/stats.js | 分页 | 1000 | perf | 看板聚合取数上界 1000 行/查询：与商品导出同族 |
 | functions/lib/actions/stats.js | 分页 | 5000 | perf | 订单趋势聚合 5000：看板一次算完 30 日曲线不做分片，5000 是当前量级乘百倍余量，超出即须改为 SQL 侧聚合 |
 | functions/lib/actions/stats.js | 截断型 | 10 | product | Top10 榜单截 10：看板卡片高度决定的展示上界 |
@@ -51,8 +50,6 @@
 | functions/lib/actions/submissions.js | 分页 | 500 | product | 服务申请列表展示 500：后台一屏可滚上限，超出需筛选 |
 | functions/lib/actions/submissions.js | 截断型 | 200 | schema | 表单备注类字段截 200：与 orders.remark 同族（TEXT 无列宽约束） |
 | functions/lib/actions/submissions.js | 截断型 | 50 | schema | 联系方式/姓名等短字段截 50：与 orders.wechat 同族 |
-| functions/lib/actions/submissions.js | 拒绝型 | 2 | product | 每条服务申请最多 2 张图：产品决定 |
-| functions/lib/actions/submissions.js | 体积型 | 2 | platform | 2 * 1024（KB 口径）图体量上限：对照 d1_statement_bytes 须先统一量纲（KB→bytes→base64 膨胀 4/3），本轮如实登记为待核而非已论证 |
 | functions/lib/actions/products.js | 常量 | BATCH_DELETE_MAX=200 | platform | 删除件语句数是常数（1 存在性 + 1 批量删），受的是 sqlite_bound_params（999 绑定参数/语句）：N=200 => 单语句 200 参数，余量充分。与上面 40 不同值是有原因的，不是笔误 |
 | functions/lib/dify.js | 截断型 | 3 | product | 给 Dify 的规则问答取前 3 条命中：提示词实测够用的最小值 |
 | functions/lib/dify.js | 截断型 | 5 | product | 给 Dify 的商品候选取前 5 条：导购一轮推荐的产品上界 |
@@ -80,9 +77,7 @@
 | src/components/product/ProductGallery.tsx | 拒绝型 | 1 | product | 不是容量上限，是"有没有第二张"的可用性阈值：>1 才渲染上一张/下一张箭头。登记它的唯一目的是让普查面不留洞 |
 | src/components/product/ProductGallery.tsx | 拒绝型 | 2 | product | 同上阈值的反向写法（<2 时禁用滑动切换）。两张图以下退化成单图展示 |
 | src/components/product/ReviewForm.tsx | 常量 | MAX_REVIEW_IMAGES=3 | product | 评价配图张数上界，必须等于服务端 reviews.js 的 >3；第十八轮把 src/ 纳入普查面时才发现前端写 5、文案也印"最多 5 张" ⇒ 顾客按提示选到第 4 张整条被退回。等值由 tests/reviewImageCapContract.test.ts 钉住 |
-| src/components/product/ReviewForm.tsx | 拒绝型 | 2 | product | 与下面「体积型 2」同源：`dataUrl.length <= 2 * 1024 * 1024` 被拒绝型形状按第一个数字切中，不是独立上限。记在这里是为了让形状重叠这件事本身可见，而不是悄悄调正则把它藏掉 |
 | src/components/product/ReviewForm.tsx | 体积型 | 10 | product | 原图文件大小门槛 10MB：超过就不进压缩队列（再压也压不进 base64 上传），前端侧决定，服务端不重复查原图体积 |
-| src/components/product/ReviewForm.tsx | 体积型 | 2 | product | 压缩后 dataUrl ≤2MB 才保留：与服务端 submissions 侧 2 * 1024 * 1024 同值同因（Reviews 侧服务端是 800*1024 字符，见第十七轮 M5 未对齐项） |
 | src/components/product/ReviewList.tsx | 截断型 | 10 | product | 评价日期展示 YYYY-MM-DD：与 DashboardTab 同形同因 |
 | src/components/product/ReviewList.tsx | 截断型 | 5 | product | 评价列表每张卡最多渲染 5 张缩略图。**注意**：提交侧上限是 3，展示侧留 5 是给历史数据（早期前端允许 5）留可视面，不是新的写入许可 |
 | src/components/ProductsTab.tsx | 截断型 | 2 | product | 行内分类标签最多显示 2 个（"饮品 · 低糖"这种），多了把行撑爆；数据侧不裁剪，仅展示 |
@@ -96,6 +91,14 @@
 | src/pages/OrderConfirmPage.tsx | 体积型 | 5 | product | 付款截图原图 ≤5MB 才进压缩：下单必附凭证的场景实拍常见 2~4MB，5MB 是"明显误传大文件"的分界 |
 | src/pages/ServiceFormPage.tsx | 拒绝型 | 5 | product | 服务提交图片总数 ≤5 张：产品决定。**第三十五轮起服务端 createSubmission 同值拒绝（too_many_images）**，这一行不再是全链唯一 cap ⇒ 两侧同值的契约已成立 |
 | src/pages/ServiceFormPage.tsx | 体积型 | 10 | product | 单张原图 ≤10MB 门槛：与 ReviewForm 的 10MB 同因（压不动就别上传） |
+| functions/lib/shared.js | 常量 | MAX_STATEMENT_PAYLOAD_CHARS=90000 | platform | 第三十七轮 R37-H2 的唯一一把尺：90,000 = 平台事实 `d1_statement_bytes = 100000 bytes/语句` × (1 − 10% 余量)，余量给 SQL 关键字、items JSON 与转义膨胀。一手实测把改前的三条旧尺全判成虚设 —— 本仓 `public/` 现有 115 张图 base64 后 p50≈29,677 / p90≈103,298 / max≈204,538 字符，**p90 就已越过平台预算**，故 `800 * 1024` 与 `2 * 1024 * 1024` 放行后必然在平台层失败（用户看到"下单失败"而不是"图太大"）。量纲结案：base64 是 ASCII ⇒ 1 字符 = 1 byte，"字符数"与"语句字节数"同尺可比，第十七轮 M5 那句"须先统一量纲再谈等值"到此关闭 |
+| functions/lib/actions/orders.js | 常量上限 | MAX_STATEMENT_PAYLOAD_CHARS | platform | 付款截图单张长度守卫，引用 shared.js 那把尺（不另拍数字）：一条订单 = 一行 INSERT = 一份语句预算；出处 = 平台事实 `d1_statement_bytes = 100000 bytes/语句`（经 `MAX_STATEMENT_PAYLOAD_CHARS` 派生，见 shared.js 那行） |
+| functions/lib/actions/orders.js | 常量 | MAX_QUANTITY_PER_LINE=99 | product | 第三十七轮 R37-H3 补的服务端数量上界。取值＝**继承本项目在册的产品决定**：详情页步进器硬顶 99（`src/pages/ProductDetailPage.tsx`，本轮起改为 import 本常量族的前端镜像，不再写字面量）。改前 `orders.js` 只判 `Number.isInteger(qty) && qty > 0` ⇒ 数量无界，且 `stock = -1` 不限售项跳过库存扣减 ⇒ 10⁹ 件的订单在服务端合法。对标：`saleor/saleor` `saleor/site/models.py:23 DEFAULT_LIMIT_QUANTITY_PER_CHECKOUT: Final[int] = 50`（站点可配默认值，非行业常数；超限抛 `QUANTITY_GREATER_THAN_LIMIT`）、`medusajs/medusa` 不设数量上界只校库存（`INSUFFICIENT_INVENTORY` + zod `quantity.gt(0)`）⇒ 两家的共同点是"这个数必须是产品决定"，故本轮不擅自改成 50 |
+| functions/lib/actions/reviews.js | 常量上限 | MAX_STATEMENT_PAYLOAD_CHARS | platform | 评价单张图守卫（改前 `800 * 1024` 落在平台预算之外，形同虚设）；出处 = 平台事实 `d1_statement_bytes = 100000 bytes/语句`（经 `MAX_STATEMENT_PAYLOAD_CHARS` 派生，见 shared.js 那行） |
+| functions/lib/actions/submissions.js | 常量上限 | MAX_STATEMENT_PAYLOAD_CHARS | platform | 服务提交单张图守卫（改前 `2 * 1024 * 1024` ≈ 平台预算的 21 倍）；出处 = 平台事实 `d1_statement_bytes = 100000 bytes/语句`（经 `MAX_STATEMENT_PAYLOAD_CHARS` 派生，见 shared.js 那行） |
+| src/cart.ts | 常量 | MAX_QTY_PER_LINE=99 | product | 前端加购封顶，与 `orders.js` 的 `MAX_QUANTITY_PER_LINE` 同值（等号由 `tests/limitCapParity.test.ts` 钉）；选封顶而非"拒绝加购"：本地状态出现一个下单必被拒的形状更难解释 |
+| src/utils/imageCompress.ts | 常量 | MAX_IMAGE_DATAURL_CHARS=90000 | platform | 前端图片 dataUrl 预算，与 shared.js 那把尺同值（两条构建链物理上共享不了模块 ⇒ 由契约测试钉等号，先例见 `src/auth.ts` 的 BATCH_UPDATE_CHUNK）；出处 = 平台事实 `d1_statement_bytes = 100000 bytes/语句`（与 shared.js 那行同值） |
+| src/components/product/ReviewForm.tsx | 常量上限 | MAX_IMAGE_DATAURL_CHARS | platform | 压缩后按同一预算过滤，并把"跳过"提示改成带数字的可核对文案（改前文案只说"部分图片过大"，没说多大）；出处 = 平台事实 `d1_statement_bytes = 100000 bytes/语句`（经 `MAX_STATEMENT_PAYLOAD_CHARS` 派生，见 shared.js 那行） |
 ## 平台档位假设（C6 读取本节）
 
 - 当前档位登记：**Free** ⇒ D1「每调用查询数」预算取 `d1_queries_per_invocation_free = 50`。

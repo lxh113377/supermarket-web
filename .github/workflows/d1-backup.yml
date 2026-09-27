@@ -10,8 +10,9 @@ on:
 #    （实测：未鉴权下载仍被拒 —— REST `/actions/artifacts/{id}/zip` 返回 401、
 #     web UI download 路径返回 404；但带任意用户 token 或网页登录后即可取）。
 #    生产库全量导出物不能放到这里 ⇒ 下面 visibility 守卫在非私有仓时**响亮失败**。
-#    两条出路（择一后再解守卫）：① 仓库转回 private；② 上传前用 age/openssl 加密，
-#    并另配一个只用于解密口令的 secret —— 绝不允许"明文导出 + 公开仓"同时成立。
+#    三条出路：① 仓库转回 private；② **先加密再上传**（第三十七轮已实现：配 `BACKUP_PASSPHRASE`
+#    secret 即可，产物名带 -enc 后缀，见 scripts/backup-crypto.mjs 的文件头口径）；③ 换存储位置（用户侧）。
+#    无论如何，**"明文导出 + 公开仓"仍不允许同时成立** —— 守卫顺序没动，只是多了一条可通过的路径。
 permissions:
   contents: read
 
@@ -45,24 +46,41 @@ jobs:
             echo "found=true" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Detect decrypt passphrase secret
+        id: pw
+        # 只输出**存在性**：口令本身一旦 echo 就进 CI 日志 = 泄露（判据一律走 env，禁命令行传参）。
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          if [ -z "$BACKUP_PASSPHRASE" ]; then echo "found=false" >> "$GITHUB_OUTPUT"; else echo "found=true" >> "$GITHUB_OUTPUT"; fi
+
       # 守卫必须排在导出**之前**：一旦 public 仓配了备份 token，宁可红也不要落下可被任意读者取走的全库明文。
       # 判据取 API 实答而非 github.event 上下文：schedule 触发的 payload 里 repository 字段形态不稳，
       # 按"取不到数据就失败"处理（禁把上下文缺失误判成"通过"）。
-      - name: Refuse plaintext backup artifact on a non-private repo
+      # 第三十七轮起这是**三态**判定而不是二态拦死：private→明文放行；非 private 且有口令→加密放行；
+      # 非 private 且无口令→红（绝不静默改成"那就明文吧"）。
+      - name: Decide artifact disposition (private / encrypted / refuse)
+        id: disp
         if: steps.tok.outputs.found == 'true'
         shell: bash
         env:
           GH_API: https://api.github.com/repos/${{ github.repository }}
+          PW_FOUND: ${{ steps.pw.outputs.found }}
         run: |
           set -euo pipefail
           body=$(curl -fsS -H "Authorization: Bearer $GITHUB_TOKEN" -H 'Accept: application/vnd.github+json' "$GH_API") \
             || { echo "::error::读不到仓库可见性（API 失败）——fail-closed，不放行备份"; exit 1; }
           priv=$(printf '%s' "$body" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const j=JSON.parse(s);console.log(typeof j.private==='boolean'?String(j.private):'unknown')})")
-          if [ "$priv" != "true" ]; then
-            echo "::error title=备份已拦下·仓库非私有(private=$priv)::CF_D1_BACKUP_TOKEN 已配置，但本仓不是 private ⇒ 全库明文导出物进 artifact 后任意已登录 GitHub 用户都能下载。处置见本文件顶部注释的两条出路（转回 private / 先加密再上传）。"
+          if [ "$priv" = "true" ]; then
+            echo "mode=plaintext" >> "$GITHUB_OUTPUT"
+            echo "仓库 private ⇒ 允许明文产物落 artifact"
+          elif [ "$PW_FOUND" = "true" ]; then
+            echo "mode=encrypted" >> "$GITHUB_OUTPUT"
+            echo "仓库非 private(private=$priv) 且已配 BACKUP_PASSPHRASE ⇒ 走加密出路，产物落 d1-backup.sql.smbk"
+          else
+            echo "::error title=备份已拦下·非私有仓且没有解密口令(private=$priv)::CF_D1_BACKUP_TOKEN 已配置，但本仓不是 private 且缺 BACKUP_PASSPHRASE secret ⇒ 全库明文导出物进 artifact 后任意已登录 GitHub 用户都能下载（见 actions/upload-artifact README:123）。三条出路：① 仓库转回 private；② 配 BACKUP_PASSPHRASE（本仓 scripts/backup-crypto.mjs 会自动加密，恢复用 npm run backup:decrypt）；③ 换私有存储。绝不允许「明文导出 + 公开仓」同时成立。"
             exit 1
           fi
-          echo "仓库为 private，允许落 artifact"
 
       - name: Cross-check the daily probe is still running
         # 第十二轮：三条 cron 两两互指。GitHub 官方行为——public 仓 60 天无仓库活动会
@@ -105,11 +123,56 @@ jobs:
           BACKUP_SQL: d1-backup.sql
         run: npm run verify:restore
 
-      - name: Upload backup artifact
-        if: steps.tok.outputs.found == 'true'
+      - name: Encrypt dump before it leaves the runner
+        id: enc
+        if: steps.disp.outputs.mode == 'encrypted'
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          node scripts/backup-crypto.mjs --encrypt d1-backup.sql d1-backup.sql.smbk
+          # 自证 1：产物确实成了密文（inspect 只读头，不涉口令）
+          node scripts/backup-crypto.mjs --inspect d1-backup.sql.smbk
+          # 自证 2（关键）：解回来与原文逐字节比对 —— **产物存在不等于备份可用**，
+          # 口令配错/容器损坏若留到真要恢复那天才发现，就等于没有备份。
+          node scripts/backup-crypto.mjs --verify d1-backup.sql d1-backup.sql.smbk
+          # 上传面只留密文：明文从工作区摘掉，防将来有人把 upload 的 path 改成通配就顺手带走明文
+          rm -f d1-backup.sql
+          test ! -e d1-backup.sql || { echo "::error::明文导出物没摘干净 ⇒ 拒继续"; exit 1; }
+
+      - name: Upload backup artifact (plaintext · private repo)
+        id: upPlain
+        if: steps.tok.outputs.found == 'true' && steps.disp.outputs.mode == 'plaintext'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: d1-backup-${{ github.run_number }}
           path: d1-backup.sql
           retention-days: 30
           if-no-files-found: error
+
+      - name: Upload backup artifact (encrypted · non-private repo)
+        id: upEnc
+        if: steps.disp.outputs.mode == 'encrypted'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: d1-backup-enc-${{ github.run_number }}
+          path: d1-backup.sql.smbk
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Post-check — 非私有仓只允许加密产物落地
+        # 两半互斥 if 保证"加密模式下明文那步不可能被上传"；本步再把**结果**核一遍，
+        # 防的是将来有人给上传步骤加第三个 fallback 而把这条链拆掉（守卫在，但没人验证它跑过）。
+        if: always() && steps.disp.outputs.mode == 'encrypted'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.upEnc.outcome }}" != "success" ]; then
+            echo "::error title=加密产物没落地::mode=encrypted 但加密上传未成功（outcome=${{ steps.upEnc.outcome }}）⇒ 备份链不能算工作，别把它记成已备份"
+            exit 1
+          fi
+          if [ -n "${{ steps.upPlain.outcome }}" ] && [ "${{ steps.upPlain.outcome }}" != "skipped" ]; then
+            echo "::error title=明文产物出现在非私有仓::明文上传步骤 outcome=${{ steps.upPlain.outcome }}（应为 skipped）"
+            exit 1
+          fi
+          echo "OK 非私有仓下只产出了加密产物 d1-backup-enc-${{ github.run_number }}"

@@ -40,7 +40,9 @@
 | invalid_text | input | 400 | false | UGC 文本过空/超长/含非法字符 | 改内容 |
 | invalid_image | input | 400 | false | 图片 scheme 不在白名单（非 data:image/https） | 换图重传 |
 | too_many_images | input | 400 | false | 评价图片多于 3 张 | 删到 3 张内 |
-| image_too_large | input | 413 | false | 图片体积超应用层上限（见上限册 M5 未对齐项） | 压图重传 |
+| image_too_large | input | 413 | false | 单张图片超 D1 单语句体积预算（`MAX_STATEMENT_PAYLOAD_CHARS` = 90,000 字符；第三十七轮按实测把 800KB/2MB 的假上限收敛成这一把尺） | 压小图片或减少张数 |
+| payload_too_large | input | 413 | false | 整条记录（含全部图片）序列化后超单语句预算——一条 INSERT = 一行 = 一份预算 | 减少张数或压小图片 |
+| quantity_exceeds_limit | input | 400 | false | 单行数量超产品上界 99（继承详情页在册硬顶；对标 `saleor/saleor` 站点默认 50、`medusajs/medusa` 只校库存） | 减少数量或拆成多单 |
 | batch_too_large | input | 400 | false | 批量条目数超该批预算（更新 40 / 删除 200，两者不同因） | 按上限分片 |
 | invalid_action | input | 400 | false | action 名不存在 | 修调用方；这是契约错不是运行错 |
 | product_not_found | state | 404 | false | 商品行不存在（下单引用了已删商品，或更新命中空集） | 刷新商品列表后重下 |

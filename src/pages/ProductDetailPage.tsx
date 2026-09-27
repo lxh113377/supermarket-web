@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { getProducts, getCategories, getLocalProductReviews, getCloudReviews } from '../db'
 import { reviews as seedReviews } from '../data/reviews-seed'
 import useCart from '../hooks/useCart'
+import { MAX_QTY_PER_LINE } from '../cart'
 import ProductGallery, { type GalleryItem } from '../components/product/ProductGallery'
 import VariantPicker from '../components/product/VariantPicker'
 import DemoOrderSummary from '../components/product/DemoOrderSummary'
@@ -428,8 +429,8 @@ export default function ProductDetailPage() {
                   >{qty}</span>
                   <button
                     type="button"
-                    onClick={() => setQty((n) => Math.min(99, n + 1))}
-                    disabled={qty >= 99}
+                    onClick={() => setQty((n) => Math.min(MAX_QTY_PER_LINE, n + 1))}
+                    disabled={qty >= MAX_QTY_PER_LINE}
                     aria-label="增加购买数量"
                     className="tap-44 w-9 h-9 rounded-lg text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
                   >

@@ -2,7 +2,7 @@
 
 import { qAll, qFirst, qRun, qBatch, jparse, nowISO, genId, pick, insert, insertStatement } from '../db.js'
 import { validateImages, checkPublicText } from '../security.js'
-import { REVIEW_FIELDS } from '../shared.js'
+import { REVIEW_FIELDS, MAX_STATEMENT_PAYLOAD_CHARS } from '../shared.js'
 import { fail } from '../errors.js'
 
 export async function getReviews(DB, payload) {
@@ -23,7 +23,15 @@ export async function addReview(DB, payload) {
   const cleanImages = validateImages(clean.images)
   if (cleanImages === null) return fail('invalid_image', '图片格式无效')
   for (const img of cleanImages) {
-    if (img.length > 800 * 1024) return fail('image_too_large', '图片过大或格式无效')
+    if (img.length > MAX_STATEMENT_PAYLOAD_CHARS) {
+      return fail('image_too_large', `单张图片过大（${img.length} 字符 > 预算 ${MAX_STATEMENT_PAYLOAD_CHARS}）`)
+    }
+  }
+  // 一条评价 = 一行 INSERT ⇒ 最多 3 张图**共享同一份**单语句预算（R37-H2：改前只查单张，
+  // 3 张各 800KB 也放行，合计 2.4MB 必然撞平台 d1_statement_bytes=100000）。
+  const imageChars = cleanImages.reduce((s, img) => s + img.length, 0)
+  if (imageChars > MAX_STATEMENT_PAYLOAD_CHARS) {
+    return fail('payload_too_large', `评价图片合计 ${imageChars} 字符 > 单语句预算 ${MAX_STATEMENT_PAYLOAD_CHARS}：请减少张数或压小图片`)
   }
   // UGC 内容校验：长度上限 + 基础黑名单拦截（纵深防御的一种；最终 HTML 注入防线依赖渲染端 React 转义）
   if (!checkPublicText(clean.text, 500)) return fail('invalid_text', '评价内容无效')
