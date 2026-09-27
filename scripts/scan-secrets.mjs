@@ -15,6 +15,7 @@
  */
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
+import { bail } from './lib/preflight.mjs'
 
 const STAGED = process.argv.includes('--staged')
 
@@ -38,11 +39,21 @@ const PATTERNS = [
 ]
 
 function listFiles() {
-  if (STAGED) {
-    return execFileSync('git', ['diff', '--cached', '--name-only', '--diff-filter=ACM'], { encoding: 'utf8' })
-      .split('\n').filter(Boolean)
+  // 第三十轮（非门禁面换分母普查抓到的第 4 个缺陷）：这里原先既不拦"git 取不到清单"，
+  // 也不拦"清单为空"。实测在一个没有 .git 的目录里跑它，git 的 stderr 先漏出来当第一行，
+  // 紧跟着 execFileSync 抛未捕获异常甩裸栈；而在一个**零跟踪文件**的仓库里跑它，它打印
+  // 「✅ 全仓密钥扫描通过，未发现问题。」并 exit 0 —— 与真扫过 42 个文件的输出逐字相同。
+  // 那正是第二十五轮 check-licenses、第二十六轮 check-schema-drift 的同一个病，只是这条入口
+  // 从来不在探针分母里（非门禁类），所以藏了 29 轮。
+  const args = STAGED ? ['diff', '--cached', '--name-only', '--diff-filter=ACM'] : ['ls-files']
+  let out = ''
+  try {
+    out = execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+  } catch (e) {
+    const why = e instanceof Error ? String(e.stderr || e.message).split(/\r?\n/)[0] : String(e)
+    bail('scan-secrets', `git ${args[0]} 取不到文件清单（${why}）⇒ 一个文件都没看到，不能判"未发现密钥"`)
   }
-  return execFileSync('git', ['ls-files'], { encoding: 'utf8' }).split('\n').filter(Boolean)
+  return out.split('\n').filter(Boolean)
 }
 
 function isBinary(buf) {
@@ -51,10 +62,12 @@ function isBinary(buf) {
 }
 
 const findings = []
+let scanned = 0
 for (const file of listFiles()) {
   let content
   try {
     const buf = readFileSync(file)
+    scanned++                       // "读到了"才算看过；二进制是**看过且判定跳过**，不是没看到
     if (isBinary(buf)) continue
     content = buf.toString('utf8')
   } catch {
@@ -73,14 +86,26 @@ for (const file of listFiles()) {
 }
 
 if (findings.length) {
-  console.error(`\n🚨 密钥扫描发现 ${findings.length} 处疑似泄露，已阻断${STAGED ? '提交' : '仓库检查'}：\n`)
+  console.error(`\n🚨 密钥扫描发现 ${findings.length} 处疑似泄露，已阻断${STAGED ? '提交' : '仓库检查'}（共读过 ${scanned} 个文件）：\n`)
   for (const f of findings) {
     console.error(`  [${f.pattern}] ${f.file}:${f.line}`)
     console.error(`    ${f.snippet}`)
   }
-  console.error('\n若确认非密钥（误报），可临时绕过：git commit --no-verify；但请先确认后再推。')
+  console.error('\n若确认是误报：先复核该特征为何命中（把结论记进 docs/），**不要用跳过钩子的开关提交**——绕过去的那一次不留任何痕迹。')
   process.exit(1)
 }
 
-console.log(STAGED ? '✅ 暂存区密钥扫描通过，未发现问题。' : '✅ 全仓密钥扫描通过，未发现问题。')
+// 分母为零时"通过"和"没得扫"必须长得不一样（本轮实测：零跟踪文件的仓库曾打印与干净扫描
+// 逐字相同的「✅ …密钥扫描通过，未发现问题。」并 exit 0）。
+if (scanned === 0) {
+  if (STAGED) {
+    console.log('ℹ️ 暂存区没有文件 ⇒ 无可扫对象（这是"跳过"，不是"通过"）')
+    process.exit(0)
+  }
+  bail('scan-secrets', `git 清单里 0 个文件可读 ⇒ 一个对象都没扫到，不能判"未发现密钥"`)
+}
+
+console.log(STAGED
+  ? `✅ 暂存区密钥扫描通过：已读 ${scanned} 个文件，未发现问题。`
+  : `✅ 全仓密钥扫描通过：已读 ${scanned} 个文件，未发现问题。`)
 process.exit(0)

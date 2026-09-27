@@ -34,6 +34,48 @@ export function requireParams(label, names) {
 }
 
 /**
+ * 脚本"能不能被自动探针跑"由**源码特征**判，不由人记（第三十轮）。
+ *
+ * 为什么要这么切：第二十五轮的探针分母只有门禁类（`verify:*`/`check:*`），
+ * 于是非门禁面的两个真缺陷藏到现在才被抓到（`check-catalog-facts`、`list-uncovered` 在缺输入时甩裸栈）。
+ * 把分母扩到全部登记面就会撞上一堆"根本不该自动跑"的脚本（会写库 / 起服务 / 打线上），
+ * 而那份"不该跑"的名单一旦手抄，就会随重构过期 —— 所以改成从每个脚本自己的源码里读风险特征。
+ * 命中任一特征即**永不 spawn**；判据 G9 再核对"登记册里写的风险"与"这段源码推出来的风险"是否一致。
+ */
+export const RISK_PATTERNS = [
+  [/\bwrangler\b/, 'wrangler', '要 Cloudflare 凭据并会操作远端 D1/Pages'],
+  [/d1 execute/, 'd1-execute', '会直接改线上数据库'],
+  [/\bDELETE FROM\b/, 'sql-delete', '语句里含删除动作，探针跑到就是真删'],
+  [/createServer\s*\(|\.listen\s*\(/, 'http-server', '常驻 HTTP 服务，spawn 会挂到超时'],
+  [/writeFileSync\([^)]*(?:docs|dist|api-contract|API\.md)/, 'writes-artifacts', '运行即改写受版本控制的产物'],
+  [/\bfetch\s*\(|['"]curl['"]\s*,/, 'network-fetch', '直连线上端点（fetch 或 curl），本地探针只会测网络'],
+  [/['"]gh['"]\s*[,.]/, 'gh-cli', '要 gh 鉴权与远端 API，探针跑它等于测 GitHub 可用性'],
+]
+
+/**
+ * 只删**整行注释**（行首为双斜线、或注释块的首尾记号/星号，且该行无代码）。
+ * 为什么必须删：本仓的门禁会在注释里解释这套风险词表，于是 `check-cli-entrypoints.mjs`
+ * 自己的注释命中了 wrangler / d1 execute / DELETE FROM ⇒ 被推成"永不自动跑"。风险是**代码的属性**，
+ * 不是散文的属性。为什么只删整行、不删行尾注释：后者要靠真正的词法分析才不会把
+ * `execFileSync('gh', ...)` 截掉（那会把危险读成安全 = 错方向）。宁可多报，不可漏报。
+ */
+function stripWholeLineComments(src) {
+  return String(src).split(/\r?\n/).filter((l) => !/^\s*(?:\/\/|\/\*|\*\/|\*)/.test(l)).join('\n')
+}
+
+/** 返回命中的风险标签（去重、排序）；空数组=该脚本可以被探针真跑。 */
+export function classifyRisk(src) {
+  const code = stripWholeLineComments(src)
+  const out = []
+  for (const [re, tag] of RISK_PATTERNS) if (re.test(code)) out.push(tag)
+  return [...new Set(out)].sort()
+}
+
+/** 风险标签的"为什么不该自动跑"，给登记册与报错文案用。 */
+export const RISK_WHY = Object.fromEntries(RISK_PATTERNS.map(([, tag, why]) => [tag, why]))
+
+
+/**
  * JSON 输入必须**解析得动**才算"输入面存在"。第二十六轮零分母普查实测：损坏/0 字节的 package.json
  * 会让 Node 在解析任何仓库内模块前先崩在 `package_json_reader`（裸栈），判据的 fail-closed 文案根本没机会印；
  * 而"0 通过 / 0 失败"这类结论又是另一条路把空集读成绿。两种都要在门口拦住。

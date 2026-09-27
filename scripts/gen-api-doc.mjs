@@ -9,9 +9,16 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { requireJson, bail } from './lib/preflight.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
+// 第三十轮：非门禁面（`report:*`/运维脚本）换分母重测时抓到的裸栈之一 —— 契约不在/是 0 字节时
+// 直接 `node:fs:441` 崩在解析前，CI 里读不出该补什么；合法 JSON 但缺 endpoints 时又会崩在
+// `contract.endpoints['/web']`（TypeError）。两种都在门口拦。
+requireJson('gen-api-doc', [join(root, 'docs', 'api-contract.json')])
 const contract = JSON.parse(readFileSync(join(root, 'docs', 'api-contract.json'), 'utf8'))
+const missingSide = ['/web', '/pub'].filter((p) => !contract.endpoints?.[p]?.actions)
+if (missingSide.length) bail('gen-api-doc', `契约里缺 ${missingSide.join(' , ')} 的 actions ⇒ 渲染不出任何一表，不判"文档已生成"`)
 
 const NOTE = {
   createOrder: '幂等：带 `requestId` 走 `房间号@requestId#载荷指纹` 唯一索引；不带则 90s 内容指纹兜底。命中返回 `deduplicated: true` 且不动库存',

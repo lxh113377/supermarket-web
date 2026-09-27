@@ -16,6 +16,7 @@
  * 退出码：0=硬不变量通过（漂移可为非零条数）/ 1=硬不变量违反 / 2=拿不到数据
  */
 import { readFileSync } from 'node:fs'
+import { requireInputs } from './lib/preflight.mjs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { splitStatements } from './verify-backup-restore.mjs'
@@ -129,6 +130,7 @@ async function fetchLiveCatalog() {
 }
 
 function main() {
+  requireInputs('catalog-facts', [join(ROOT, 'db', 'seed.sql'), join(ROOT, 'package.json')])
   const seed = parseSeedProducts(readFileSync(join(ROOT, 'db', 'seed.sql'), 'utf8'))
   if (!seed.length) {
     console.error('[catalog] db/seed.sql 里解不出任何 products 行 ⇒ 解析器与真相源已脱节，不记绿')

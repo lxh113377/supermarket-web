@@ -3,6 +3,44 @@
 本项目采用 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式。此前未维护本文件，历史条目按 git 提交记录补记（自 2026-09-23 起持续维护）。
 
 ## [未发布]
+### 2026-09-27 追加四十四（对标第三十轮：把同一把尺换到没人量的那一半，当场抓到密钥扫描"没扫也报干净"）
+
+- 取号先列盘：在册最大「四十三」⇒ 本条「四十四」。
+- **R29-M1 落地（它已挂三轮）**：探针分母原先只有门禁类（`verify:*`/`check:*` 22→23 项），本轮换成
+  **全部登记入口 ∖ 危险特征** ⇒ `probeDenominator()` 25 项（23 门禁 + `list-uncovered` + `scan-secrets`），
+  缺输入面与零分母两法原样施加到新分母（腿④）。**换分母这件事本身就是本轮的方法**，收益当场兑现四条真缺陷。
+- **缺陷①（最重，`scan-secrets`）**：在一个零跟踪文件的仓库里跑它，它打印
+  「✅ 全仓密钥扫描通过，未发现问题。」并 exit 0 —— 与真扫过 632 个文件的输出**逐字相同**。
+  这就是第二十五轮 `check-licenses`、第二十六轮 `check-schema-drift` 的同一个病，藏了 29 轮的唯一原因是
+  它不是 `verify:*`、从来不在探针分母里。现在：成功行印"已读 N 个文件"，N=0 时 rc=2 fail-closed，
+  `--staged` 空暂存另给一种形状（"跳过"不是"通过"，rc=0）；植入真私钥复验仍 rc=1 抓到 ⇒ 收口没把扫描器削钝。
+- **缺陷②（`purge-security-events`）**：实测它在**无 tty** 下 1s 内直接进入 `wrangler d1 execute --remote`
+  执行 `DELETE FROM security_events ...`，删的是"谁在什么时候动过数据"的唯一证据。现按本仓
+  `migrate.mjs:confirmRemote` 的既有口径要求显式 `--yes`（用法改为 `npm run maintain:purge-events -- --yes`）。
+- **缺陷③④（裸栈）**：`gen-api-doc` 缺 `docs/api-contract.json` 时崩在 `node:fs:441`（补 `requireJson` +
+  endpoints 结构校验，骨架里 rc=2 且实测不产出 `docs/`）；`check-catalog-facts` 缺 `db/seed.sql` 时同样裸栈
+  （补 `requireInputs`，实测 rc=2/1s）。另修 `check-pr-has-tests`：`execFileSync` 默认透传子进程 stderr，
+  导致它的第一行是 `failed to run git: fatal: ...` 而不是自家结论 ⇒ `stdio` 改 pipe。
+- **新判据 G9**：「自动探针绝不能 spawn 哪些入口」这份名单**不手抄**，由 `classifyRisk()` 从每个脚本
+  自己的源码推导（wrangler / d1 execute / DELETE FROM / 起服务 / 改写受控产物 / fetch·curl / `gh`），
+  再与登记册新增的「风险分类」表双向对账：漏登、幽灵、标签不符、依据过薄都判红。实测 35 个入口里
+  **14 条带风险、21 条可探针**。风险表与缺口表正交（`verify-backend` 既带 DELETE 又有夹具 ⇒ 两表都在）。
+- **本轮最有意思的一条自错**：`classifyRisk` 第一版把 `check-cli-entrypoints.mjs` 自己判成
+  "d1-execute + sql-delete + wrangler" —— 因为它在**注释里解释这套风险词表**。风险是代码的属性，
+  不是散文的属性 ⇒ 改为只删整行注释；行尾注释仍算命中（不做词法分析，宁可多报不可漏报）。
+  三个方向都补了夹具钉住，含"注释里这些词一律不算"与"行尾注释里仍算"这对对偶。
+- **自己的测量反过来咬自己一口**：新写的"危险项不许混进分母"断言里点了 `purge-security-events.mjs`
+  的字面量，于是覆盖面（"文件里有 spawn + 出现过文件名"）把它读成"已有夹具"⇒ 它的缺口行变幽灵、G2 判红。
+  改成普适不变式，并把这条**假覆盖风险**记进 07-next-steps：覆盖面分不清"跑过它"和"提到过它"。
+- **台账体检（每轮证伪几条登记理由，本轮 3 条不实 + 1 处重复实现）**：`ci-status` 理由写着 `gh run list`，
+  实测通道是 **curl**（node fetch 不走系统代理）；`check-pr-has-tests` 写着"CI 的 PR job 跑过"，
+  实测在 `dispatch.yml:44`（push main 时）；`check-bundle-size` 写的 CI 行号 139/146 实测为 151/158。
+  另外实测出：CI 的部署后冒烟是 `ci.yml` 里的**内联 curl**，与 `smoke-deploy.mjs` 是两份实现 ⇒ 判定会漂移，已进清单。
+- 夹具：`tests/cliEntrypoints.test.js` 81 → 96 条（新增腿④ 4 条 + G9 五向 + classifyRisk 三向 + 三表解析）。
+- `docs/cli-entrypoints.md` 按实测重写：口径 35/23/12/24、四类覆盖、三张表（缺口 8 / 豁免 3 / 风险 14）。
+- 全链复验（数字取当场输出，不手抄）：`npm run verify` rc=0；vitest **87 文件 / 1128 条**全绿；
+  `GATE-PASS cli-entrypoints :: 入口 35 个（子进程跑过 24 / 缺口 11；可探针 21 / 带风险 14）｜检查 9/9 通过`。
+
 ### 2026-09-27 追加四十三（对标第二十九轮：响应契约缺口 8→1，以及"缺口理由"本身被实测证伪）
 
 - 取号先列盘：在册最大「四十二」⇒ 本条「四十三」。

@@ -31,7 +31,10 @@ export function evaluatePrTests(changedFiles) {
 }
 
 function run(cmd, args) {
-  return execFileSync(cmd, args, { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }).trim()
+  // 第三十轮实测：`execFileSync` 默认把子进程 **stderr 直接透传到父进程**，于是在没有 git 仓库的目录里
+  // 这个看守的第一行输出是 `failed to run git: fatal: not a git repository`，自家的 SKIPPED 行被挤到第二行
+  // —— 看守的输出形状必须是"首行即自己的结论"，否则日志里分不清谁在说话。
+  return execFileSync(cmd, args, { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] }).trim()
 }
 
 function main() {

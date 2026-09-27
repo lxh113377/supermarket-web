@@ -2,10 +2,12 @@
 // 目的：让 scripts/ 下"既不跑也不删"的脚本盲区可见，杜绝"看起来门禁很全、实际无人执行"。
 // 不阻断（退出码恒为 0）——只做暴露，处置由人决定。
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
+import { requireJson } from './lib/preflight.mjs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
+requireJson('list-uncovered', [join(root, 'package.json')])
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
 const blob = Object.values(pkg.scripts).join(' ')
 

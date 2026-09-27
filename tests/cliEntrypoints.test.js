@@ -16,7 +16,8 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, cpSync, re
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { evaluate, collect, collectRegistered, collectCovered, isGateLike, parseRegistry, REGISTRY } from '../scripts/check-cli-entrypoints.mjs'
+import { evaluate, collect, collectRegistered, collectCovered, isGateLike, parseRegistry, probeDenominator, REGISTRY } from '../scripts/check-cli-entrypoints.mjs'
+import { classifyRisk } from '../scripts/lib/preflight.mjs'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SCRIPTS = join(REPO, 'scripts')
@@ -83,7 +84,7 @@ describe('入口探针：每条门禁的 CLI 路径必须真跑得通', () => {
   }, 30_000)
 })
 
-describe('判据 G1~G8：合成仓双向变异', () => {
+describe('判据 G1~G9：合成仓双向变异', () => {
   /**
    * 一个"应当全绿"的最小合成仓：demo-gate 有夹具、other-gate 具名挂账、
    * 判据自身（check-cli-entrypoints.mjs）也在登记面且有夹具 —— 正向腿必须八条全过，
@@ -121,12 +122,12 @@ describe('判据 G1~G8：合成仓双向变异', () => {
     return { dir, res: evaluate(collect(dir)) }
   }
 
-  it('正向：干净合成仓 ⇒ 八条全过（G7 也过，因为判据自己在登记面+有夹具）', () => {
+  it('正向：干净合成仓 ⇒ 九条全过（G7 也过，因为判据自己在登记面+有夹具）', () => {
     const { res } = baseRepo()
     const bad = res.rows.filter((r) => !r.pass)
     expect(bad.map((r) => `${r.id}:${r.detail}`), JSON.stringify(res.rows, null, 1)).toEqual([])
     expect(res.summary.matched).toBe(res.summary.declared)
-    expect(res.summary.declared).toBe(8)
+    expect(res.summary.declared).toBe(9)
   })
 
   it('G1 反例：登记面枚举为空 ⇒ 判红（零输入不得 PASS）', () => {
@@ -238,6 +239,98 @@ describe('判据 G1~G8：合成仓双向变异', () => {
     expect(row.pass).toBe(false)
     expect(row.detail).toContain('幽灵豁免')
   })
+
+  /**
+   * G9（第三十轮）：「自动探针不得 spawn」这份名单由**源码特征**推导，登记册只是它的账。
+   * 所以反例要同时打两侧：账上没有 / 账上有但源码已改干净 / 标签少写 / 依据空着。
+   */
+  const dangerRepo = (riskRows, dangerSrc = 'const r = await fetch("https://example.invalid")\nconsole.log(r)\n') => {
+    const r = baseRepo({
+      pkg: { 'report:danger': 'node scripts/danger.mjs' },
+      registry: `- **覆盖地板**：1
+## 已知缺口
+
+| 脚本 | 理由 |
+| --- | --- |
+| other-gate.mjs | 不在 verify 链里，本轮先挂账待补夹具 |
+| danger.mjs | 源码里有网络出口，本轮先挂账：等接 preflight 后再进探针分母 |
+
+${riskRows}
+`,
+    })
+    writeFileSync(join(r.dir, 'scripts', 'danger.mjs'), dangerSrc)
+    return evaluate(collect(r.dir))
+  }
+  const RISK_OK = `## 风险分类
+
+| 脚本 | 风险特征 | 实测依据 |
+| --- | --- | --- |
+| danger.mjs | network-fetch | 骨架里实测 2s 打到外网，探针跑它等于测网络 |`
+
+  it('G9 正向：源码有危险特征 + 账上有对应行且带实测依据 ⇒ 过（否则后面几条反例可能只是仓建坏了）', () => {
+    const res = dangerRepo(RISK_OK)
+    expect(res.rows.filter((x) => !x.pass).map((x) => `${x.id}:${x.detail}`)).toEqual([])
+  })
+
+  it('G9 反例：源码里有 fetch/DELETE 却没进风险表 ⇒ 判红（漏登）', () => {
+    const res = dangerRepo('## 风险分类\n\n| 脚本 | 风险特征 | 实测依据 |\n| --- | --- | --- |')
+    const row = res.rows.find((r) => r.id === 'G9')
+    expect(row.pass).toBe(false)
+    expect(row.detail).toContain('漏登')
+    expect(row.detail).toContain('danger.mjs')
+  })
+
+  it('G9 反例：账上挂着一个源码里其实没危险的脚本 ⇒ 判红（幽灵风险行）', () => {
+    const res = dangerRepo(`${RISK_OK}\n| demo-gate.mjs | wrangler | 这脚本源码里根本没有 wrangler，挂着就是幽灵行 |`)
+    expect(res.rows.find((r) => r.id === 'G9').detail).toContain('幽灵')
+  })
+
+  it('G9 反例：源码同时有 gh 与 fetch，账上只写一个标签 ⇒ 判红且两侧数值都印出来', () => {
+    const res = dangerRepo(RISK_OK,
+      "import { execFileSync } from 'node:child_process'\nconsole.log(await fetch('https://example.invalid'), execFileSync('gh', ['api']))\n")
+    const row = res.rows.find((r) => r.id === 'G9')
+    expect(row.pass).toBe(false)
+    expect(row.detail).toContain('标签不符')
+    expect(row.detail).toContain('派生 gh-cli+network-fetch')   // 派生侧：两标签按字典序
+    expect(row.detail).toContain('登记 network-fetch')          // 登记侧：少写的那个必须看得见
+  })
+
+  it('G9 反例：风险表的实测依据留空/写 TODO ⇒ 判红（光有标签不等于有理由）', () => {
+    const res = dangerRepo(`## 风险分类\n\n| 脚本 | 风险特征 | 实测依据 |\n| --- | --- | --- |\n| danger.mjs | network-fetch | TODO |`)
+    const row = res.rows.find((r) => r.id === 'G9')
+    expect(row.pass).toBe(false)
+    expect(row.detail).toContain('缺实测依据')
+  })
+})
+
+/**
+ * classifyRisk 自身的夹具（第三十轮）。它现在决定"哪些入口永不被自动 spawn"，
+ * 所以两个方向都要钉住：散文里提到危险词**不算**（否则解释这套词表的判据自己会被标成危险，
+ * 本轮就真的发生在这条闸上），而代码里真有的东西**必须算**（哪怕它写在行尾注释旁边 —— 只删整行注释，
+ * 不做词法分析，宁可多报也不能把危险读成安全）。
+ */
+describe('classifyRisk：风险从代码读，不从散文读', () => {
+  it('正向：真代码里的网络/删除/起服务/产物写入都被标出', () => {
+    expect(classifyRisk('const r = await fetch(url)')).toEqual(['network-fetch'])
+    expect(classifyRisk('const q = `DELETE FROM security_events WHERE ts < 1`')).toEqual(['sql-delete'])
+    expect(classifyRisk("http.createServer(fn).listen(3000)")).toEqual(['http-server'])
+    expect(classifyRisk("writeFileSync(join(root, 'docs', 'API.md'), md)")).toEqual(['writes-artifacts'])
+    // curl 与 gh 走 exec 家族，靠"命令名字面量 + 逗号"识别：cmd 是变量时也命中（调用处必然出现 'gh',）
+    expect(classifyRisk("execFileSync('curl', args)")).toEqual(['network-fetch'])
+    expect(classifyRisk("run('gh', ['pr', 'list'])")).toEqual(['gh-cli'])
+  })
+  it('反向：整行注释里的这些词一律不算（本轮真实踩到：判据注释解释词表 ⇒ 自己被判成不可跑）', () => {
+    for (const line of [
+      '// 命中 wrangler / d1 execute / DELETE FROM / 起服务 的脚本永不 spawn',
+      '/* fetch(url) 与 execFileSync(\'gh\', ...) 都不该自动跑 */',
+      ' * purge 会打 DELETE FROM 到远端',
+    ]) expect(classifyRisk(line), line).toEqual([])
+    expect(classifyRisk('console.log("我什么都没干")')).toEqual([])
+  })
+  it('保守方向：行尾注释里的词仍然算（只删整行注释，不做词法分析 ⇒ 宁可多报不可漏报）', () => {
+    expect(classifyRisk("spawnSync('gh', a) // gh 只是举例")).toEqual(['gh-cli'])
+    expect(classifyRisk('doWork(x) // 这里其实有 DELETE FROM 也没关系')).toEqual(['sql-delete'])
+  })
 })
 
 /**
@@ -249,18 +342,28 @@ describe('判据 G1~G8：合成仓双向变异', () => {
  * 修之前的基线（本轮实测）：22 个门禁类入口里 8 个甩裸栈、1 个静默放行
  * —— check-licenses 在没有 package.json 时打印「0 个生产依赖（含传递）全部 … 白名单 ✅」并 exit 0。
  */
-describe('缺输入面探针：门禁类入口必须 fail-closed 且不崩栈', () => {
+describe('缺输入面探针：探针分母（门禁类 + 非门禁可安全 spawn）必须 fail-closed 且不崩栈', () => {
   const SHELL_RE = /^\s*(node:|file:\/\/|\s+at\s|SyntaxError|ReferenceError|TypeError|Error \[|MODULE_NOT_FOUND|ENOENT)/
   const dir = mkdtempSync(join(tmpdir(), 'smnoinput-'))
   tmpDirs.push(dir)
   cpSync(join(REPO, 'scripts'), join(dir, 'scripts'), { recursive: true })
-  const gateClass = collectRegistered().filter((r) => isGateLike(r.sources))
+  const denom = probeDenominator()
 
-  it('分母非零：门禁类入口由 package.json 结构枚举得出（不手抄）', () => {
-    expect(gateClass.length).toBeGreaterThanOrEqual(20)
+  it('分母非零：由 package.json 结构枚举（不手抄），且第三十轮起含"非门禁但可安全 spawn"的项', () => {
+    expect(denom.filter((r) => isGateLike(r.sources)).length).toBeGreaterThanOrEqual(20)
+    expect(denom.filter((r) => !isGateLike(r.sources)).map((r) => r.script).sort())
+      .toEqual(['list-uncovered.mjs', 'scan-secrets.mjs'])
+    // 不变式（写成普适形式，不点名某个脚本）：**非门禁项一旦带危险特征就必须退出这一腿**。
+    // 本轮实测到原因：`purge-security-events` 在无 tty 下照样把 DELETE 打到远端 D1（删审计日志）。
+    // 另记一条口径粗糙处：覆盖面把"测试文件里出现过该脚本文件名字面量"当作跑过，所以这里若点名
+    // 它，就会被判成"已有夹具"⇒ 它的缺口行变幽灵。这个假覆盖风险已进 07-next-steps。
+    for (const r of denom.filter((x) => !isGateLike(x.sources))) {
+      const abs = join(SCRIPTS, r.script)
+      expect(classifyRisk(readFileSync(abs, 'utf8')), `${r.script} 带危险特征，不该被自动 spawn`).toEqual([])
+    }
   })
 
-  for (const r of gateClass) {
+  for (const r of denom) {
     it(`${r.script} 在没有输入面的目录里：非 0 退出 + 首行是人话诊断`, () => {
       const res = spawnSync(process.execPath, [join(dir, 'scripts', r.script)], { cwd: dir, encoding: 'utf8', timeout: 60_000 })
       const out = `${res.stdout || ''}${res.stderr || ''}`
@@ -312,7 +415,7 @@ describe('缺输入面探针：门禁类入口必须 fail-closed 且不崩栈', 
  * 报"扫描模块: 84 个 / 未检测到循环依赖"）**+ 2 个裸栈**（空 package.json 让 Node 崩在模块解析前）。
  * 现在 22/22 均 rc≠0 且首行是诊断。
  */
-describe('零分母探针：输入面齐、内容全 0 字节时不得返回 0', () => {
+describe('零分母探针：输入面齐、内容全 0 字节时，同一分母不得返回 0', () => {
   const SKIP = new Set(['node_modules', '.git', 'dist', 'dist-stub', '.wrangler', 'coverage', 'test-results'])
   const skeleton = mkdtempSync(join(tmpdir(), 'smzero-'))
   tmpDirs.push(skeleton)
@@ -329,7 +432,7 @@ describe('零分母探针：输入面齐、内容全 0 字节时不得返回 0',
     }
   })('')
 
-  const gateClass = collectRegistered().filter((r) => isGateLike(r.sources))
+  const denom = probeDenominator()
   const runIn = (script) => spawnSync(process.execPath, [join(skeleton, 'scripts', script)],
     { cwd: skeleton, encoding: 'utf8', timeout: 60_000 })
 
@@ -344,7 +447,7 @@ describe('零分母探针：输入面齐、内容全 0 字节时不得返回 0',
     expect(mjsNames(join(skeleton, 'scripts'))).toEqual(mjsNames(SCRIPTS))
   })
 
-  for (const r of gateClass) {
+  for (const r of denom) {
     it(`${r.script} 面对"文件在、内容为空"的输入 ⇒ 非 0 退出且不崩栈`, () => {
       const res = runIn(r.script)
       const out = `${res.stdout || ''}${res.stderr || ''}`
@@ -415,12 +518,16 @@ describe('preflight 出口件：bail / requireInputs / requireParams / requireJs
 })
 
 describe('真仓登记册与实测互洽（防文档自说自话）', () => {
-  it('parseRegistry 读得到真登记册的两张表', () => {
+  it('parseRegistry 读得到真登记册的三张表（缺口 / 豁免 / 风险分类）', () => {
     const md = readFileSync(join(REPO, REGISTRY), 'utf8')
     const d = parseRegistry(md)
     expect(d.floor).toBeGreaterThanOrEqual(PROBED.length)
     expect(d.gaps.length).toBeGreaterThan(0)
     expect(d.exemptions.length).toBeGreaterThan(0)
+    // 风险表的标签必须是纯逗号分隔的词（写进自然语言就说明解析口径漂了）
+    const known = new Set(['wrangler', 'd1-execute', 'sql-delete', 'http-server', 'writes-artifacts', 'network-fetch', 'gh-cli'])
+    expect(d.risk.length).toBeGreaterThanOrEqual(14)
+    for (const r of d.risk) expect(r.tags.every((t) => known.has(t)), `${r.script} 标签越界: ${r.tags.join('+')}`).toBe(true)
   })
   it('真仓 GATE-PASS：判据跑在自己的仓库上必须是绿的', () => {
     const { rc, out } = probe('check-cli-entrypoints.mjs')
