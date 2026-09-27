@@ -3,6 +3,25 @@
 本项目采用 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式。此前未维护本文件，历史条目按 git 提交记录补记（自 2026-09-23 起持续维护）。
 
 ## [未发布]
+### 2026-09-27 追加四十三（对标第二十九轮：响应契约缺口 8→1，以及"缺口理由"本身被实测证伪）
+
+- 取号先列盘：在册最大「四十二」⇒ 本条「四十三」。
+- **R28-M1 结案**：补 7 条调用路径的真实成功形状（`/web` 管理端回退路径的 getPublicProducts / getPublicCategories /
+  getReviews / addPublicReview / createOrder，加 `/pub createSubmission` 与 `/web getSubmissionImages`）
+  ⇒ 响应契约覆盖 **31/39 → 38/39**、具名缺口 **8 → 1**（只剩 `/pub aiChat`，它真需要 fetch stub）。
+  形状按 (side, action) 立约是有意义的：同一段 handler，**路由、鉴权与信封是另一回事**。
+- **一条方法论修正（本轮最重要的自错）**：登记册里有两条缺口理由是**编的**——
+  "要带 base64 图片才能走通校验链"、"需要提交带图片才有对象可取"，实测 `images` 在 createSubmission 里是可选的，
+  一条 payload 就把两条缺口关掉。判据能保证"没登记就红"，保证不了"登记的理由是真的"
+  ⇒ 规则改成：**理由要写成可证伪的句子，且每轮补 payload 时顺手试一次旧理由**（已写进 RESPONSE_GAPS 头注）。
+- **R28-M3 以成本结案（不做）**：verify:backend 单跑 100ms、verify:response 172ms（内含再 spawn 一次全链），
+  复用一次输出只省 ≈72ms，代价是"录制可能来自另一时刻的代码"⇒ 判据可信度换 72 毫秒不值。
+  `record()` 每次都新跑，注释里写明这是特性不是浪费。
+- 顺带把断言总数核对了一遍（不是靠眼看）：静态 `ok()` 数 127 → 134（正好 +7），实跑 130 通过 / 0 失败，
+  与"走 --update-sql-baseline 分支时少 1 条比较断言"的差值对得上 ⇒ 没有段落被静默跳过。
+- 新路径仍先被 C1 判"基线缺 action（新增调用路径？确认后入册）"，人工核过 7 条峰值合理
+  （读 1 条、addPublicReview 2、A:createOrder 4、P:createSubmission 3、getSubmissionImages 1）后才写基线。
+- 全链 `npm run verify` VERIFY_RC=0（87 文件 / 1116 例，去 ANSI 后从 vitest 汇总行实读）；契约产物 41 条、基线 41 键、samples=1。
 ### 2026-09-27 追加四十二（对标第二十八轮：把上一轮"未归因"的那句还成"已归因"，并补 4 条成功形状）
 
 - 取号先列盘：在册最大「四十一」⇒ 本条「四十二」。

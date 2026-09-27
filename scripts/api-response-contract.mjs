@@ -25,16 +25,16 @@ export const CONTRACT = 'docs/api-response-contract.json'
 export const API_CONTRACT = 'docs/api-contract.json'
 export const SELF = 'api-response-contract.mjs'
 
-/** 未录到"成功形状"的在册 action ⇒ 必须逐条具名理由（缺一条判红，幽灵理由同样判红）。 */
+/**
+ * 未录到"成功形状"的在册 action ⇒ 必须逐条具名理由（缺一条判红，幽灵理由同样判红）。
+ *
+ * 理由要写成**可证伪**的句子，不要写成猜测的借口。第二十九轮的实证：这里原有两条理由
+ * （"要带 base64 图片才能走通校验链"、"需要提交带图片才有对象可取"）被实测证伪 ——
+ * 图片在 `createSubmission` 里是**可选**的，一条 payload 就把两条缺口关掉了。
+ * 判据只能保证"没登记就红"，保证不了"登记的理由是真的" ⇒ 每轮补 payload 时顺手试一次旧理由。
+ */
 export const RESPONSE_GAPS = {
-  '/web createOrder': '管理端下单与 /pub createOrder 同一 handler，本轮只在 /pub 侧录到 ⇒ 若管理端 payload 有特殊分支需单独录',
-  '/web getPublicProducts': '顾客端形状已在 /pub 侧录到；/web 回退路径同 handler 同代码，未重复录',
-  '/web getPublicCategories': '同上：/pub 侧已录，回退路径共用一个 handler',
-  '/web getReviews': '同上：/pub 侧已录，回退路径共用一个 handler',
-  '/web addPublicReview': '同上：/pub 侧已录（PUBLIC_ACTIONS 免鉴权那条）',
-  '/web getSubmissionImages': '需要提交带图片才有对象可取，本轮 seed 里没有带图提交 ⇒ 待补',
-  '/pub createSubmission': '要带 base64 图片才能走通校验链（图片上限判据在 limits 册里），本轮未录 ⇒ 待补',
-  '/pub aiChat': '需要 fetch stub（在 tests/aiContract.test.js 里），verify-backend 不联网 ⇒ 信封形状由那侧单测承担',
+  '/pub aiChat': '需要 fetch stub：verify-backend 全程离线（不打网络是它的硬约束），而 aiChat 无 key 时走规则版返回体形状不同 ⇒ 由 tests/aiContract.test.js 的 stub 侧守，不由本契约守',
 }
 
 /**

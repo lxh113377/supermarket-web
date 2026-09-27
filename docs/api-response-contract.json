@@ -91,6 +91,30 @@
         "retryable"
       ]
     },
+    "/pub createSubmission": {
+      "side": "/pub",
+      "action": "createSubmission",
+      "calls": 1,
+      "dataKinds": [
+        "object"
+      ],
+      "envelopeAlways": [
+        "code",
+        "data"
+      ],
+      "envelopeSeen": [
+        "code",
+        "data"
+      ],
+      "keysAlways": [
+        "id"
+      ],
+      "keysSeen": [
+        "id"
+      ],
+      "errEnvelopeAlways": [],
+      "errEnvelopeSeen": []
+    },
     "/pub getOrderStatus": {
       "side": "/pub",
       "action": "getOrderStatus",
@@ -297,6 +321,44 @@
         "retryable"
       ]
     },
+    "/web addPublicReview": {
+      "side": "/web",
+      "action": "addPublicReview",
+      "calls": 1,
+      "dataKinds": [
+        "object"
+      ],
+      "envelopeAlways": [
+        "code",
+        "data"
+      ],
+      "envelopeSeen": [
+        "code",
+        "data"
+      ],
+      "keysAlways": [
+        "_id",
+        "createdAt",
+        "id",
+        "images",
+        "productOrder",
+        "rating",
+        "text",
+        "user"
+      ],
+      "keysSeen": [
+        "_id",
+        "createdAt",
+        "id",
+        "images",
+        "productOrder",
+        "rating",
+        "text",
+        "user"
+      ],
+      "errEnvelopeAlways": [],
+      "errEnvelopeSeen": []
+    },
     "/web addReview": {
       "side": "/web",
       "action": "addReview",
@@ -455,6 +517,32 @@
         "retryable"
       ]
     },
+    "/web createOrder": {
+      "side": "/web",
+      "action": "createOrder",
+      "calls": 1,
+      "dataKinds": [
+        "object"
+      ],
+      "envelopeAlways": [
+        "code",
+        "data"
+      ],
+      "envelopeSeen": [
+        "code",
+        "data"
+      ],
+      "keysAlways": [
+        "id",
+        "totalAmount"
+      ],
+      "keysSeen": [
+        "id",
+        "totalAmount"
+      ],
+      "errEnvelopeAlways": [],
+      "errEnvelopeSeen": []
+    },
     "/web createProduct": {
       "side": "/web",
       "action": "createProduct",
@@ -519,7 +607,7 @@
     "/web deleteOrder": {
       "side": "/web",
       "action": "deleteOrder",
-      "calls": 8,
+      "calls": 9,
       "dataKinds": [
         "absent"
       ],
@@ -555,7 +643,7 @@
     "/web deleteReview": {
       "side": "/web",
       "action": "deleteReview",
-      "calls": 1,
+      "calls": 2,
       "dataKinds": [
         "absent"
       ],
@@ -573,7 +661,7 @@
     "/web deleteSubmission": {
       "side": "/web",
       "action": "deleteSubmission",
-      "calls": 1,
+      "calls": 2,
       "dataKinds": [
         "absent"
       ],
@@ -843,6 +931,148 @@
         "message",
         "retryable"
       ]
+    },
+    "/web getPublicCategories": {
+      "side": "/web",
+      "action": "getPublicCategories",
+      "calls": 1,
+      "dataKinds": [
+        "array"
+      ],
+      "envelopeAlways": [
+        "code",
+        "data"
+      ],
+      "envelopeSeen": [
+        "code",
+        "data"
+      ],
+      "keysAlways": [
+        "_id",
+        "name",
+        "order",
+        "subcategories",
+        "type"
+      ],
+      "keysSeen": [
+        "_id",
+        "name",
+        "order",
+        "subcategories",
+        "type"
+      ],
+      "errEnvelopeAlways": [],
+      "errEnvelopeSeen": []
+    },
+    "/web getPublicProducts": {
+      "side": "/web",
+      "action": "getPublicProducts",
+      "calls": 1,
+      "dataKinds": [
+        "array"
+      ],
+      "envelopeAlways": [
+        "code",
+        "data"
+      ],
+      "envelopeSeen": [
+        "code",
+        "data"
+      ],
+      "keysAlways": [
+        "_id",
+        "costPrice",
+        "description",
+        "enabled",
+        "image",
+        "images",
+        "name",
+        "order",
+        "price",
+        "reviews",
+        "spec",
+        "specOptions",
+        "stock",
+        "subcategories"
+      ],
+      "keysSeen": [
+        "_id",
+        "costPrice",
+        "description",
+        "enabled",
+        "image",
+        "images",
+        "name",
+        "order",
+        "price",
+        "reviews",
+        "spec",
+        "specOptions",
+        "stock",
+        "subcategories"
+      ],
+      "errEnvelopeAlways": [],
+      "errEnvelopeSeen": []
+    },
+    "/web getReviews": {
+      "side": "/web",
+      "action": "getReviews",
+      "calls": 1,
+      "dataKinds": [
+        "array"
+      ],
+      "envelopeAlways": [
+        "code",
+        "data"
+      ],
+      "envelopeSeen": [
+        "code",
+        "data"
+      ],
+      "keysAlways": [
+        "_id",
+        "createdAt",
+        "images",
+        "productOrder",
+        "rating",
+        "text",
+        "user"
+      ],
+      "keysSeen": [
+        "_id",
+        "createdAt",
+        "images",
+        "productOrder",
+        "rating",
+        "text",
+        "user"
+      ],
+      "errEnvelopeAlways": [],
+      "errEnvelopeSeen": []
+    },
+    "/web getSubmissionImages": {
+      "side": "/web",
+      "action": "getSubmissionImages",
+      "calls": 1,
+      "dataKinds": [
+        "object"
+      ],
+      "envelopeAlways": [
+        "code",
+        "data"
+      ],
+      "envelopeSeen": [
+        "code",
+        "data"
+      ],
+      "keysAlways": [
+        "images"
+      ],
+      "keysSeen": [
+        "images"
+      ],
+      "errEnvelopeAlways": [],
+      "errEnvelopeSeen": []
     },
     "/web getSubmissions": {
       "side": "/web",

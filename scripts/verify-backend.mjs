@@ -496,6 +496,34 @@ const dashShapeProbe = await handleAdmin(env, 'getDashboardStats', 'test-key-123
 ok(dashShapeProbe.code === 0 && dashShapeProbe.data?.rangeData && Array.isArray(dashShapeProbe.data.rangeData.labels),
   `getDashboardStats 成功返回看板聚合 (${dashShapeProbe.data?.rangeData?.labels?.length} 天)`)
 
+// ---------- 补齐第二批成功形状（第二十九轮，R28-M1）----------
+// 这 6 条和上一批不同：它们**不缺环境，只缺"从另一条路由再调一次"**。
+// `/web getPublicProducts|getPublicCategories|getReviews|addPublicReview|createOrder` 走的是顾客端 handler
+// 的管理端回退路径（client.ts 没配 /pub 时就是这么用的）：同一段代码，但**路由、鉴权与响应信封是两回事**——
+// 形状按 (side, action) 立约，所以"另一侧录过"不等于"这一侧被守"。
+const webRouteProds = await handleAdmin(env, 'getPublicProducts', 'test-key-123', {})
+ok(webRouteProds.code === 0 && Array.isArray(webRouteProds.data), `/web 回退路径 getPublicProducts 返回数组 (${webRouteProds.data?.length} 条)`)
+const webRouteCats = await handleAdmin(env, 'getPublicCategories', 'test-key-123', {})
+ok(webRouteCats.code === 0 && Array.isArray(webRouteCats.data), '/web 回退路径 getPublicCategories 返回数组')
+const webRouteReviews = await handleAdmin(env, 'getReviews', 'test-key-123', { productOrder: 1 })
+ok(webRouteReviews.code === 0 && Array.isArray(webRouteReviews.data), '/web 回退路径 getReviews 返回数组')
+const webRouteAddRev = await handleAdmin(env, 'addPublicReview', 'test-key-123', { productOrder: 9002, rating: 3, text: '回退路径契约探针', user: 'web-route-probe' })
+ok(webRouteAddRev.code === 0 && webRouteAddRev.data?._id, '/web 回退路径 addPublicReview 成功')
+await handleAdmin(env, 'deleteReview', 'test-key-123', { reviewId: webRouteAddRev.data?._id })
+const webRouteOrder = await handleAdmin(env, 'createOrder', 'test-key-123', {
+  roomNumber: '305', items: [{ productId: 'p001', name: '测试可乐', price: 3, quantity: 1, subcategories: ['soda'] }],
+})
+ok(webRouteOrder.code === 0 && webRouteOrder.data?.id, `/web 管理端下单成功 (${webRouteOrder.data?.id})`)
+await handleAdmin(env, 'deleteOrder', 'test-key-123', { orderId: webRouteOrder.data?.id })
+
+// 提交侧两条：一条补 /pub 的成功形状（图片是可选的，之前挂"要带图"其实挂错了），
+// 一条用刚建出来的提交去取 getSubmissionImages（它要求提交存在，不需要真带图）
+const pubSub = await handlePublic(env, 'createSubmission', { serviceId: 's9', serviceName: '打印服务', formData: { 份数: '3' } })
+ok(pubSub.code === 0 && (pubSub.data?.id || pubSub.data?._id), `/pub createSubmission 成功 (${JSON.stringify(pubSub.data)})`)
+const imgsViaWeb = await handleAdmin(env, 'getSubmissionImages', 'test-key-123', { submissionId: pubSub.data?.id || pubSub.data?._id })
+ok(imgsViaWeb.code === 0 && Array.isArray(imgsViaWeb.data?.images), `getSubmissionImages 返回 images 数组 (${JSON.stringify(imgsViaWeb.data?.images)})`)
+await handleAdmin(env, 'deleteSubmission', 'test-key-123', { submissionId: pubSub.data?.id || pubSub.data?._id })
+
 // ---------- C1：单次调用 SQL 语句数基线（只降不升）----------
 const SQL_BASELINE_PATH = join(root, 'docs', 'sql-baseline.json')
 const UPDATE_BASELINE = process.argv.includes('--update-sql-baseline')
