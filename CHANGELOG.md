@@ -8,6 +8,11 @@
 - 取号先列盘（当日最大「三十六」⇒ 本条「三十七」）。
 - 起因（实证）：d1RoundTrips 缺 @vitest-environment node 让 CI 连红 7 个 commit、deploy 被 needs 掐住，期间三份报告都写着 CI 全绿。本地绿与 CI 绿可同时不成立（Node 小版本、npm test vs vitest run --coverage），唯一凭据必须是远端回执。
 - 落地：.ci/contract.json（requiredJobs 含 deploy —— 只盯测试 job 会漏掉绿了但没发出去）+ scripts/ci-green-contract.mjs 四态 GREEN/RED/BLOCKED/UNKNOWN + .githooks/pre-push 硬闸。UNKNOWN 与 BLOCKED 一律拒：查不到 run、gh 不可用、run 在跑、必需 job 缺席，都不读成通过（裸静音判红）。逃生门 CI_GREEN_SKIP=1 必须同时给 CI_GREEN_REASON，否则照样拒。
+- **接线当场把自己拦下过一次，据此改了语义**：首版 pre-push 拿**本次 HEAD** 当判据，于是 git push 被拒
+  （新提交天生还没有 CI run）—— 这条闸会让任何首次推送都不可能通过。正解是核**远端当前基点**
+  （pre-push stdin 第 4 字段 remote_sha，缺省回读 git ls-remote），语义为「别在红基座上继续叠加」，
+  恰是第十四~二十一轮那 7 个 commit 的真实形态。顺带两处接线细节：ref 行走 stdin 而非 argv；
+  修掉一处被吞掉的换行转义。**待补**：新语义目前只有人工 trial 凭据，缺一条会红的对偶夹具 ⇒ 第二十四轮 P1。
 - 夹具 12 条双向变异（tests/ciGreenContract.test.js）：RED 对偶（run success 但 deploy=skipped 仍判红）、BLOCKED 复刻真实形态（deploy job 缺席）、UNKNOWN（sha 查不到 / runs 空数组）、契约缺失或 JSON 坏掉、hook 指向性反例。夹具自身也红过一次 —— 反例用 String.replace(字符串) 只换第一处而 hook 有两处调用 ⇒ 夹具同样要跑红→绿一遍才算数。
 - 现网内容级校验（补第二十二轮未闭环项）：线上 assets/OrderSuccessPage-p0D2URk5.js 实测含 暂存本机=1、下单成功=1、localFallback=1，OrderConfirmPage-CZh57BdZ.js 含 demo=2 ⇒ 第十八/二十二轮改动确在现网包体里。
 - 回归：ciGreenContract 12/12、全量 84 files / 991 tests、lint 0/0、typecheck 干净、verify:docs OK（单测文件数 83⇒84 由它要求）。

@@ -49,7 +49,7 @@ function ghJson(args) {
   return JSON.parse(out || '[]')
 }
 
-export function main({ pushRef = null } = {}) {
+export function main({ pushRef = null, remoteSha = null } = {}) {
   const contract = loadContract()
   if (!contract || contract === 'PARSE_ERROR') {
     console.error(`[ci-green] FAIL-CLOSED 读不到合法的 ${CONTRACT_FILE}`)
@@ -69,7 +69,17 @@ export function main({ pushRef = null } = {}) {
     sha = pushRef.split(/\s+/)[1] || null
   }
   const branch = refName || contract.branch
-  if (!sha) sha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+  // 判据基点 = **远端当前 SHA**，不是本次 HEAD。新提交天生还没有 run，拿 HEAD 当判据
+  // 会让任何首次推送都不可通过（第二十三轮接线时，这条闸真的把我自己的推送拦下过一次）。
+  // 契约语义是"别在红基座上继续叠加"—— 第十四~二十一轮那 7 个 commit 正是红基座上叠出来的。
+  let base = remoteSha && /^[0-9a-f]{40}$/.test(remoteSha) ? remoteSha : null
+  if (!base || /^0+$/.test(base)) {
+    try {
+      base = (execFileSync('git', ['ls-remote', 'origin', `refs/heads/${branch}`], { encoding: 'utf8' }).trim().split(/\s+/)[0] || null)
+    } catch { base = null }
+  }
+  if (!base) { console.error(`[ci-green] FAIL-CLOSED 取不到远端 ${branch} 当前 SHA ⇒ 基线无法判定，不放行`); return 1 }
+  sha = base
   let runs
   try {
     const listed = ghJson(['run', 'list', '--workflow', contract.workflow, '--limit', '15',
@@ -97,4 +107,12 @@ export function main({ pushRef = null } = {}) {
 }
 
 const isCli = !!process.argv[1] && resolve(process.argv[1]).toLowerCase() === fileURLToPath(import.meta.url).toLowerCase()
-if (isCli) process.exit(main({ pushRef: process.argv[2] || process.argv[3] || null }))
+if (isCli) {
+  // pre-push 的 ref 行走 **stdin**（local_ref local_sha remote_ref remote_sha），
+  // argv 只有 remote 名与 URL —— 上一版从 argv 取 SHA 是取不到的。
+  let line = ''
+  if (!process.stdin.isTTY) {
+    try { line = fs.readFileSync(0, 'utf8').split(/\r?\n/).find((l) => l.trim()) || '' } catch { line = '' }
+  }
+  process.exit(main({ pushRef: line || null, remoteSha: process.env.CI_GREEN_BASE || null }))
+}
