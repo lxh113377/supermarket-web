@@ -58,6 +58,7 @@
 - 复验收据：`npm run verify` 独占 `VERIFY_RC=0`，**95 文件 / 1283 条**；链内
   `limit-provenance 10/10（74 项全覆盖，死行 0）`、`error-semantics 35 码双向`、`memory-volume 检查 4/5（V4 未验证照实印）`、
   `pointers 已核对 2/2`、`verify:backend 152/0`。
+- 远端回执：内层 `3aa741e` 的 CI `run 36324712488` = `conclusion=success`（五必需 job 全 success，读自 `gh run view --json conclusion,jobs`；`gh run watch --exit-status` rc=0）⇒ 本轮新增的 crypto / 产物名三向对账 / 工作流顺序变异夹具在 ubuntu 上同样判得动（R36 那条"夹具读本机状态"未复发）。`D1 Daily Backup` 显示 `active` 只证明三态 YAML 的**语法**被 GitHub 收下表，"无口令⇒判红"的**语义**仍未观测 ⇒ 记未验证，不记已验证。
 
 ### 2026-09-27 追加五十一（第三十六轮收尾：本轮 HEAD 的 CI 其实是红的，而回执看起来是绿的）
 
