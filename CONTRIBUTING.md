@@ -15,14 +15,26 @@ npm run dev              # http://localhost:5173
 
 ## 2. 提交前必须通过本地门禁
 
+**先装钩子（新克隆必做，否则下面的两道闸根本不存在）**：
+
+```bash
+git config core.hooksPath .githooks
+```
+
+`.githooks/` 随仓库走，但 `core.hooksPath` 是**本机配置、不进 clone** —— 没执行上面这条的人，
+pre-commit 密钥扫描与 pre-push 的「CI 全绿契约」都是静默缺席（这正是第二十四轮登记它的原因）。
+
 ```bash
 npm run verify
 ```
 
-该命令串起 7 道检查：密钥扫描 → oxlint → 循环依赖 → typecheck（双配置）→ vitest（168 用例）→ 后端契约（54 断言）→ 未覆盖清单。
-**任何一项红，不要提交。** `git commit` 时 pre-commit 还会再扫一次暂存区密钥。
+该链的**唯一清单是 `package.json` 里的 `scripts.verify`**（二十余道：密钥扫描、oxlint、各登记册对账、
+typecheck、vitest、后端契约、Functions 编译、未覆盖清单……）。**道数与用例数一律以命令当场输出为准，
+本文不写死**——写死即第二真相源，必然漂移。**任何一项红，不要提交。**
+`git commit` 时 pre-commit 还会再扫一次暂存区密钥。
 
-常用单项命令：`npm run lint` / `npm test` / `npm run typecheck` / `npm run check:cycles`。
+常用单项命令：`npm run lint` / `npm test` / `npm run typecheck` / `npm run check:cycles` /
+`npm run verify:entrypoints`（入口真跑对账，见 `docs/cli-entrypoints.md`）。
 
 ## 3. 提交规范
 

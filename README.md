@@ -69,7 +69,7 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN` 触发 `l
 
 ## CI
 
-`.github/workflows/ci.yml` 的 Test job 依序跑：**依赖漏洞审计**（`npm audit`，见下）→ 密钥扫描 → oxlint → **文件名大小写冲突自查** → **环境变量登记册对账** → **静态 CSP 自洽** → vitest（**84 文件**，带 v8 覆盖率并卡棘轮阈值 79/72/74/80；用例条数以 `npm test` 当场输出为准，本文件不写死——写死即第二真相源）→ typecheck（前后端双配置）→ 循环依赖检查 → API 契约漂移 → **文档事实一致性** → **schema 漂移** → **迁移重放与基线重建对账** → **D1 往返复杂度对账**（语句数与网络往返数是两把尺）→ **函数级授权覆盖对账**（只读禁用清单 ⇄ 代码实际业务写双向相等）→ **数值上限溯源对账**（每个上限须追到平台事实/列定义/产品决定；取数面 `functions/` + `src/`）→ **个人数据登记册对账**（每列都要有家：覆盖或带理由豁免；与导出面白名单互锁）→ **错误语义登记册对账**（每个失败出口须带机器可读 `errorCode`+`kind`，语义 HTTP 状态单点映射，下单链路禁把业务拒绝兜底成本地单）→ **license 白名单** → **CHANGELOG 门禁** → build（注入线上端点）→ 体积预算 → **Pages Functions 可部署产物检查**（编译 functions/，零部署）→ 后端契约验证（`scripts/verify-backend.mjs`，node:sqlite 模拟 D1）。
+`.github/workflows/ci.yml` 的 Test job 依序跑：**依赖漏洞审计**（`npm audit`，见下）→ 密钥扫描 → oxlint → **文件名大小写冲突自查** → **环境变量登记册对账** → **静态 CSP 自洽** → vitest（**85 文件**，带 v8 覆盖率并卡棘轮阈值 79/72/74/80；用例条数以 `npm test` 当场输出为准，本文件不写死——写死即第二真相源）→ typecheck（前后端双配置）→ 循环依赖检查 → API 契约漂移 → **文档事实一致性** → **schema 漂移** → **迁移重放与基线重建对账** → **D1 往返复杂度对账**（语句数与网络往返数是两把尺）→ **函数级授权覆盖对账**（只读禁用清单 ⇄ 代码实际业务写双向相等）→ **数值上限溯源对账**（每个上限须追到平台事实/列定义/产品决定；取数面 `functions/` + `src/`）→ **个人数据登记册对账**（每列都要有家：覆盖或带理由豁免；与导出面白名单互锁）→ **错误语义登记册对账**（每个失败出口须带机器可读 `errorCode`+`kind`，语义 HTTP 状态单点映射，下单链路禁把业务拒绝兜底成本地单）→ **CLI 入口真跑对账**（门禁脚本光被 import 纯函数不算被测：入口通道——读 stdin、解析 git 的 ref 行、退出码——必须至少有一次被当子进程真跑过，登记册 `docs/cli-entrypoints.md`）→ **license 白名单** → **CHANGELOG 门禁** → build（注入线上端点）→ 体积预算 → **Pages Functions 可部署产物检查**（编译 functions/，零部署）→ 后端契约验证（`scripts/verify-backend.mjs`，node:sqlite 模拟 D1）。
 
 依赖审计固定走官方源（`npm run audit:deps`）：本机/镜像源 npmmirror **未实现 audit 端点**（实测 `NOT_IMPLEMENTED`），不指 registry 会让审计静默拿不到数据；端点故障时 npm audit 非 0 退出，不会假绿。
 
@@ -86,6 +86,10 @@ CI 另外两道卡口：**体积预算**（`scripts/check-bundle-size.mjs`，按
 三者自第八轮起都列入 `deploy.needs`（此前只有 `build-and-test`，即"红了也照常部署"——见 CHANGELOG 追加十八）。
 
 本地等价门禁一条命令跑完：`npm run verify`（密钥扫描 → lint → 大小写冲突 → **环境变量登记册** → **CSP 静态自洽** → 循环依赖 → 契约漂移 → **文档事实一致性** → schema 漂移 → license → CHANGELOG → typecheck → 测试 → 后端契约 → **Pages Functions 编译** → 未覆盖清单；另两道独立跑：`verify:restore`（备份恢复演练，由 d1-backup 调用）与 `report:catalog`（线上目录事实，由 Uptime 调用，只报告））。
+
+链的**唯一清单是 `package.json` 里的 `scripts.verify`**，上句只是给人看的摘要（摘要漂移无人管，"入口有没有被真跑过"由 `verify:entrypoints` 管，登记册 `docs/cli-entrypoints.md`）。
+
+**新克隆必做**：`git config core.hooksPath .githooks`。`.githooks/pre-commit`（暂存区密钥扫描）与 `.githooks/pre-push`（CI 全绿契约：远端不为绿就不让推）依赖这条本机配置，而它是 git 的本地设置、**不进 clone** —— 没执行的人，这两道闸等于根本不存在（第二十四轮实测：闸本身曾因入口通道静默失效而审错了分支，见 `docs/cli-entrypoints.md` 头部）。
 
 ## 备份与恢复（唯一权威：`docs/ci-triage-runbook.md` §8）
 

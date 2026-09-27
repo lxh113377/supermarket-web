@@ -3,6 +3,39 @@
 本项目采用 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式。此前未维护本文件，历史条目按 git 提交记录补记（自 2026-09-23 起持续维护）。
 
 ## [未发布]
+### 2026-09-27 追加三十八（对标第二十四轮：门禁的**入口通道**有没有被真跑过 —— 只 import 纯函数等于没测）
+
+- 取号先列盘：当日在册最大为「三十七」⇒ 本条「三十八」。
+- 起因（实测，非假想）：`scripts/ci-green-contract.mjs` 的 15 条夹具**全部 import 纯函数 `verdictOf`**，
+  CLI 那段（读 stdin → 解析 git 的 ref 行 → 判据 → exit code）一次都没被跑过。于是
+  `fs.readFileSync(0)` 抛的 `ReferenceError`（模块里没有 `fs` 这个标识符）被 `catch { line = '' }`
+  吞成"git 没给 ref 行"，**整条输入通道静默失效**：推 `feature-x` 时闸门打印 `branch=main`，
+  审的是不相干分支；而 `npm test` 全绿。第二个缺陷紧挨着它：分支名正则 `(.+)# 更新日志
+
+本项目采用 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式。此前未维护本文件，历史条目按 git 提交记录补记（自 2026-09-23 起持续维护）。
+
+ 贪婪吞掉**整行**
+  （含两个 SHA）⇒ 只修第一个会让闸门 100% 判红。两者互相掩盖，全靠"入口没人跑"才藏得住。
+- 修法（`scripts/ci-green-contract.mjs`）：新增 `parseRefLines()` 纯函数按 git 官方四字段解析；
+  基点取 stdin 第 4 字段（远端当前 SHA），多 ref 同推逐条审；删除分支 / 新建分支具名 SKIP；
+  stdin 读取失败**必须留痕**（不再静默）；诊断行带上 `branch=` 与 `base=`，让"闸核算的是谁"可被断言。
+- 入口夹具（`tests/ciGreenContract.test.js` 27 条）：子进程真跑 CLI，断言核的是远端基点而非本次 HEAD
+  （对偶两条）+ 三条变异体（改错字段 / 退回静默吞 / 只审第一行 ⇒ 各自必须翻红）。
+- 类级修法（新门禁 `npm run verify:entrypoints`，`scripts/check-cli-entrypoints.mjs` G1~G8 +
+  `tests/cliEntrypoints.test.js` 28 条）：登记面按结构枚举（package.json + .githooks + workflows = **34** 个入口），
+  覆盖 = 测试里真 spawn 过；子进程覆盖 **10 → 23**，未覆盖 **23 → 11**（8 条具名缺口 + 3 条不可 spawn 豁免，
+  理由带实测依据：esbuild 冷编译 9.0s、缺起点时按设计 rc=2、要 dist 产物、要网络、会写库）。
+  门禁类入口（npm 别名 `verify:*`/`check:*`）共 22 个，19 个已真跑、3 个具名豁免 ⇒ 以后加一道门禁
+  却没夹具，G8 当场判红。
+- 顺带补的生效前提：`core.hooksPath` 此前**没有任何文档登记**（`.githooks/` 随仓库走，但这条是本机配置、
+  不进 clone）⇒ README / CONTRIBUTING 补「新克隆必做」，并由 G5 钉住；CONTRIBUTING 里"串起 7 道检查
+  / 168 用例"这类手抄数字改为"以 `scripts.verify` 与命令当场输出为准"。
+- 本轮夹具自身被自己抓到三处（如实记）：① `offlineEnv` 先 spread 再 delete，把测试自己要设的
+  `CI_GREEN_SKIP` 删了 ⇒ "逃生门缺理由仍拒"测的是没设逃生门（假绿）；② 变异体 M1 首版只改判断条件
+  不改取值 ⇒ **空变异**；③ 新门禁 G6 首版定成"夹具引用不存在的脚本名即判红"，被合成夹具的植入名
+  当场误报（那些名字不参与任何计数）⇒ 改判为"本地钩子入口必须有夹具"（pre-push 那类 CI 根本不跑的，
+  才是本轮教训的正主）。
+
 ### 2026-09-27 追加三十七（对标第二十三轮：CI 全绿契约接线）
 
 - 取号先列盘（当日最大「三十六」⇒ 本条「三十七」）。

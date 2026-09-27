@@ -49,6 +49,47 @@ function ghJson(args) {
   return JSON.parse(out || '[]')
 }
 
+/**
+ * pre-push 的 ref 行：`<local_ref> <local_sha> <remote_ref> <remote_sha>`（git 官方格式，可能多行）。
+ * 单独成纯函数是必须的：上一版用 `^(?:refs\/(?:heads|tags)\/)?(.+)$` 取分支名，
+ * `(.+)` 贪婪吃掉**整行**（含两个 SHA），于是分支名是个带空格的怪物 ⇒ ls-remote 必然取不到 ⇒
+ * 每次推送都判红。而这一层从来没有夹具跑过（单测 import 的只有 verdictOf），所以两个缺陷互相掩盖：
+ * 修掉 stdin 的 ReferenceError 之后，闸门会从"永远读不到 ref 行"变成"永远判红"。
+ */
+export function parseRefLines(text) {
+  const out = []
+  for (const line of String(text || '').split(/\r?\n/)) {
+    const f = line.trim().split(/\s+/)
+    if (f.length < 4 || !f[0]) continue
+    out.push({ localRef: f[0], localSha: f[1], remoteRef: f[2], remoteSha: f[3] })
+  }
+  return out
+}
+
+const SHA40 = /^[0-9a-f]{40}$/
+const ZEROS = /^0+$/
+const branchOf = (ref) => String(ref || '').replace(/^refs\/(?:heads|tags)\//, '')
+
+/** 取某个基点 SHA 的 workflow run + job 明细；取不到一律返回 {error}，由调用方判红。 */
+function fetchRun(contract, sha) {
+  let listed
+  try {
+    listed = ghJson(['run', 'list', '--workflow', contract.workflow, '--limit', '15',
+      '--json', 'databaseId,headSha,conclusion,status,name'])
+  } catch (e) {
+    return { error: `gh 不可用/未鉴权/网络失败：${String(e.message).split('\n')[0]}` }
+  }
+  const hit = (listed || []).filter((r) => r.headSha === sha).sort((a, b) => (b.databaseId || 0) - (a.databaseId || 0))[0]
+  if (!hit) return { error: `远端查不到 sha=${sha.slice(0, 7)} 的 ${contract.workflow} run` }
+  try {
+    return { run: { ...hit, jobs: ghJson(['run', 'view', String(hit.databaseId), '--json', 'jobs']).jobs || [] } }
+  } catch (e) {
+    // 拿不到 job 明细 ⇒ 交给 verdictOf 的 BLOCKED（缺必需 job 就是不放行）；
+    // 但根因要留在打印行里，否则"缺 job"会被误读成"CI 真少了一个 job"。
+    return { run: { ...hit, jobs: [] }, jobsError: String(e.message).split('\n')[0] }
+  }
+}
+
 export function main({ pushRef = null, remoteSha = null } = {}) {
   const contract = loadContract()
   if (!contract || contract === 'PARSE_ERROR') {
@@ -62,57 +103,69 @@ export function main({ pushRef = null, remoteSha = null } = {}) {
     console.error(`[ci-green] !! 绕过契约 !! 理由="${reason}" —— 这笔账会留在 CI 与台账里，请自行确保远端为绿`)
     return 0
   }
-  let sha, refName
-  if (pushRef) {
-    const m = /^(?:refs\/(?:heads|tags)\/)?(.+)$/.exec(pushRef.trim())
-    refName = m[1]
-    sha = pushRef.split(/\s+/)[1] || null
-  }
-  const branch = refName || contract.branch
-  // 判据基点 = **远端当前 SHA**，不是本次 HEAD。新提交天生还没有 run，拿 HEAD 当判据
-  // 会让任何首次推送都不可通过（第二十三轮接线时，这条闸真的把我自己的推送拦下过一次）。
-  // 契约语义是"别在红基座上继续叠加"—— 第十四~二十一轮那 7 个 commit 正是红基座上叠出来的。
-  let base = remoteSha && /^[0-9a-f]{40}$/.test(remoteSha) ? remoteSha : null
-  if (!base || /^0+$/.test(base)) {
-    try {
-      base = (execFileSync('git', ['ls-remote', 'origin', `refs/heads/${branch}`], { encoding: 'utf8' }).trim().split(/\s+/)[0] || null)
-    } catch { base = null }
-  }
-  if (!base) { console.error(`[ci-green] FAIL-CLOSED 取不到远端 ${branch} 当前 SHA ⇒ 基线无法判定，不放行`); return 1 }
-  sha = base
-  let runs
-  try {
-    const listed = ghJson(['run', 'list', '--workflow', contract.workflow, '--limit', '15',
-      '--json', 'databaseId,headSha,conclusion,status,name'])
-    const bySha = [...new Set(listed.map((r) => r.headSha))]
-    runs = []
-    for (const s of bySha) {
-      const hit = listed.filter((r) => r.headSha === s)
-      runs.push({ headSha: s, databaseId: hit[0].databaseId, conclusion: hit[0].conclusion, status: hit[0].status, jobs: [] })
+  // 无 ref 行（手工执行）时退回契约分支 + CI_GREEN_BASE，保持"人也能直接跑这一条"的用法
+  const refs = parseRefLines(pushRef)
+  if (!refs.length) refs.push({ localRef: null, localSha: null, remoteRef: `refs/heads/${contract.branch}`, remoteSha: remoteSha || null })
+
+  let rc = 0
+  const seen = new Map()
+  for (const r of refs) {
+    const branch = branchOf(r.remoteRef) || contract.branch
+    const tag = `[ci-green] branch=${branch}`
+    if (ZEROS.test(String(r.localSha || ''))) {
+      console.log(`${tag} SKIP :: 删除分支（local_sha 全 0）⇒ 不往任何基座上叠加，无需回执`)
+      continue
     }
-  } catch (e) {
-    console.error(`[ci-green] FAIL-CLOSED gh 不可用/未鉴权/网络失败：${String(e.message).split('\n')[0]}`)
-    console.error('  ⇒ 取不到远端回执不等于没事。要么修 gh，要么显式 CI_GREEN_SKIP=1 CI_GREEN_REASON="..." 并自行担责。')
-    return 1
+    // 判据基点 = **远端当前 SHA**，不是本次 HEAD。新提交天生还没有 run，拿 HEAD 当判据
+    // 会让任何首次推送都不可通过（第二十三轮接线时，这条闸真的把我自己的推送拦下过一次）。
+    // 契约语义是"别在红基座上继续叠加"—— 第十四~二十一轮那 7 个 commit 正是红基座上叠出来的。
+    let base = SHA40.test(String(r.remoteSha || '')) ? r.remoteSha : null
+    if (base && ZEROS.test(base)) {
+      console.log(`${tag} SKIP :: 新建分支（remote_sha 全 0）⇒ 远端还没有基线可保护`)
+      continue
+    }
+    if (!base) {
+      try {
+        base = (execFileSync('git', ['ls-remote', 'origin', `refs/heads/${branch}`], { encoding: 'utf8' }).trim().split(/\s+/)[0] || null)
+      } catch { base = null }
+    }
+    if (!base || !SHA40.test(base) || ZEROS.test(base)) {
+      console.error(`${tag} FAIL-CLOSED base=- :: 取不到远端 ${branch} 当前 SHA ⇒ 基线无法判定，不放行`)
+      rc = 1
+      continue
+    }
+    if (!seen.has(base)) seen.set(base, fetchRun(contract, base))
+    const got = seen.get(base)
+    if (got.error) {
+      console.error(`${tag} FAIL-CLOSED base=${base.slice(0, 7)} :: ${got.error} ⇒ 取不到远端回执不等于没事。` +
+        `要么修 gh，要么显式 ${contract.escapeHatch}=1 CI_GREEN_REASON="..." 并自行担责。`)
+      rc = 1
+      continue
+    }
+    const v = verdictOf({ sha: base, runs: [got.run], contract })
+    const line = `${tag} ${v.state} base=${base.slice(0, 7)} local=${(r.localSha || '-').slice(0, 7)} :: ${v.reason}` +
+      (got.jobsError ? `（job 明细拉取失败：${got.jobsError}）` : '')
+    if (v.state === 'GREEN') { console.log(line); continue }
+    console.error(line)
+    rc = 1
   }
-  const run = runs.find((r) => r.headSha === sha)
-  if (!run) { console.error(`[ci-green] FAIL-CLOSED 远端查不到 HEAD(${sha.slice(0, 7)}) 的 ${contract.workflow} run ⇒ 不判通过`); return 1 }
-  let jobs = []
-  try { jobs = ghJson(['run', 'view', String(run.databaseId), '--json', 'jobs']).jobs || [] } catch { /* 交给下面的 BLOCKED：拿不到 job 就当缺 */ }
-  const v = verdictOf({ sha, runs: [{ ...run, jobs }], contract })
-  const line = `[ci-green] ${v.state} branch=${branch} sha=${sha.slice(0, 7)} :: ${v.reason}`
-  if (v.state === 'GREEN') { console.log(line); return 0 }
-  console.error(line)
-  return 1
+  return rc
 }
 
 const isCli = !!process.argv[1] && resolve(process.argv[1]).toLowerCase() === fileURLToPath(import.meta.url).toLowerCase()
 if (isCli) {
   // pre-push 的 ref 行走 **stdin**（local_ref local_sha remote_ref remote_sha），
   // argv 只有 remote 名与 URL —— 上一版从 argv 取 SHA 是取不到的。
+  // 读取失败/为空**必须留痕**：这里曾因为写成 `fs.readFileSync`（模块里根本没有 `fs` 这个标识符，
+  // ReferenceError 被空 catch 吞成 line=''）而让整条 stdin 通道静默失效，且单测碰不到这一段。
   let line = ''
   if (!process.stdin.isTTY) {
-    try { line = fs.readFileSync(0, 'utf8').split(/\r?\n/).find((l) => l.trim()) || '' } catch { line = '' }
+    try {
+      line = readFileSync(0, 'utf8')
+    } catch (e) {
+      console.error(`[ci-green] !! stdin 读不到（${String(e.message).split('\n')[0]}）⇒ 退回契约分支 + ls-remote 基点，不再静默`)
+      line = ''
+    }
   }
   process.exit(main({ pushRef: line || null, remoteSha: process.env.CI_GREEN_BASE || null }))
 }

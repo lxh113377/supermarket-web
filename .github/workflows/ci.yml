@@ -113,6 +113,13 @@ jobs:
       - name: PII inventory gate
         run: npm run verify:pii
 
+      # 对标第二十四轮：CLI 入口真跑对账 —— 门禁脚本只被 import 纯函数不算被测，
+      # 入口通道（读 stdin / 解析 git ref 行 / 退出码）必须至少有一次被当子进程真跑过。
+      # 立它的原因：ci-green-contract 的 stdin 读取抛 ReferenceError 被空 catch 吞掉，
+      # 15 条夹具全绿，闸门却把每一次推送都审成 contract 默认分支。
+      - name: CLI entrypoint real-run gate
+        run: npm run verify:entrypoints
+
       # 对标第三轮 C2：生产依赖（含传递）license 白名单，拦 GPL/AGPL 类传染（本项目 MIT 发布）
       - name: Production license gate
         run: npm run verify:licenses
