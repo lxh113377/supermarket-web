@@ -76,6 +76,13 @@ jobs:
       - name: Product image assets gate (npm run verify:images)
         run: npm run verify:images
 
+      - name: Line-ending purity gate (npm run verify:eol)
+        # 第五十一轮 R51-H6。.gitattributes 是**配置位**，光"文件在册"不等于生效 —— 这一步是它的
+        # 行为回执：问 git `check-attr` 怎么答、逐字节扫 index 侧 blob 有没有 CRLF，并拿
+        # `git ls-files --eol` 当第二条通道对账（两条不一致 ⇒ 判红，不许任何一侧宣布"干净"）。
+        # 判的是 blob 侧（git 决定的量）⇒ 与 runner 的 core.autocrlf 无关，换机器可复算。
+        run: npm run verify:eol
+
       - name: Test (vitest, with v8 coverage)
         # 一次跑测兼产出覆盖率（避免全量套件跑两遍）；失败仍然阻断
         run: npx vitest run --coverage
