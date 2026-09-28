@@ -131,9 +131,18 @@ describe('CLI：三档退出码都可反证', () => {
     expect(r.out).toContain('环境不满足')
     expect(r.out).toContain('liveness')
   })
+  /**
+   * ⚠️ 这两条夹具**必须用真实时钟**生成日期（第四十七轮修的一枚定时炸弹）：
+   * `judge()` 那批用例把 `nowMs: NOW` 注进去，所以 `dayAgo(...)` 冻在 2026-09-26 也永远成立；
+   * 但 CLI 腿是 `execFileSync` 起**真子进程**，`main()` 里 `nowMs = Date.now()`（读的是墙钟）。
+   * 用冻结日期 ⇒ "0.2 天前"其实是"距 2026-09-26 0.2 天"，真实时间一旦爬过
+   * `NOW + 2 天 − 0.2 天`（= 2026-09-28T07:12Z 前后），夹具自身就变成"2.0 天前 ⇒ 链已停摆"，
+   * 一条本来测"有产物应 exit 0"的用例会在某个早晨毫无关联地红掉（本轮 CI 实测：07:0x 的 run 绿、07:14 的 run 红）。
+   */
+  const dayAgoLive = (d) => new Date(Date.now() - d * 86400_000).toISOString()
   it('fixture 全 skipped ⇒ exit 1 且摊出步骤形态', () => {
     const f = join(DIR, 'vacuous.json')
-    writeFileSync(f, JSON.stringify([{ id: 1, created_at: dayAgo(0.5), event: 'schedule', conclusion: 'success', artifacts_count: 0,
+    writeFileSync(f, JSON.stringify([{ id: 1, created_at: dayAgoLive(0.5), event: 'schedule', conclusion: 'success', artifacts_count: 0,
       steps: [{ name: 'Export remote D1', conclusion: 'skipped' }] }]), 'utf8')
     const r = run({ LIVENESS_FIXTURE: f })
     expect(r.rc).toBe(1)
@@ -141,7 +150,7 @@ describe('CLI：三档退出码都可反证', () => {
   })
   it('fixture 真有产物 ⇒ exit 0', () => {
     const f = join(DIR, 'good.json')
-    writeFileSync(f, JSON.stringify([{ id: 7, created_at: dayAgo(0.2), event: 'schedule', conclusion: 'success', artifacts_count: 1,
+    writeFileSync(f, JSON.stringify([{ id: 7, created_at: dayAgoLive(0.2), event: 'schedule', conclusion: 'success', artifacts_count: 1,
       steps: [{ name: 'Export remote D1', conclusion: 'success' }] }]), 'utf8')
     expect(run({ LIVENESS_FIXTURE: f }).rc).toBe(0)
   })
