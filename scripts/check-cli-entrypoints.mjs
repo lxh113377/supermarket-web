@@ -637,17 +637,36 @@ function emit() {
   }
 }
 
+/**
+ * 退出码分相（第四十七轮，与 `check-judge-side-effects.mjs` 的 S4/S6 同一户内口径）：
+ * 0 = 全绿；1 = 判出违规；2 = **证据失效**（有 UNVERIFIED 行）。
+ * 形状借 `pytest-dev/pytest`：它在收集后先问 `session.testscollected == 0` 并返回**专属**退出码
+ * `ExitCode.NO_TESTS_COLLECTED`（`src/_pytest/main.py:392`，@2026-09-28 取回原文核对），
+ * 而不是让"什么都没收到"顺着 `return None` 掉进"通过"。分档的意义是让调用方能区分
+ * "这扇门说有东西坏了"与"这扇门今天根本没看"——两者都得拦，但台账上不许是同一种红。
+ */
+export function verdictOf(rows) {
+  // 零输入不得记 GREEN：`rows` 为空只可能是判据集合本身失踪（正常路径无条件 push 14 行），
+  // 那种"没有可判对象"和"全绿"是两回事（本仓 V3/G1 同一族）。
+  if (!rows.length) return { verdict: 'RED', rc: 1 }
+  const bad = rows.filter((r) => !r.pass)
+  if (!bad.length) return { verdict: 'GREEN', rc: 0 }
+  const unver = bad.some((r) => r.status === 'UNVERIFIED')
+  return { verdict: unver ? 'UNVERIFIED' : 'RED', rc: unver ? 2 : 1 }
+}
+
 export function main() {
   if (process.argv.includes('--emit')) { emit(); return 0 }
   const res = evaluate(collect())
-  // 「证据失效」不印成「判出违规」：UNVERIFIED 行照样计入 mismatched ⇒ 退出码非 0、照样拦，
-  // 但台账上不许把"探针没读到对象"抄成"入口有缺陷"（与 check-judge-side-effects 的 S4/S6 同一口径）。
+  // 「证据失效」不印成「判出违规」：UNVERIFIED 行照样计入 mismatched ⇒ 退出码非 0、照样拦。
   for (const r of res.rows) console.log(`${r.status === 'UNVERIFIED' ? 'UNVERIFIED' : (r.pass ? 'PASS' : 'FAIL')} ${r.id} :: ${r.detail}`)
   const s = res.summary
   // 门面行必须带 matched/mismatched/声明数三者（"判据回状态词 ≠ 覆盖过了"）
   const ok = s.mismatched === 0 && s.matched + s.mismatched === s.declared
-  console.log(`${ok ? 'GATE-PASS' : 'GATE-FAIL'} cli-entrypoints :: 入口 ${s.covered + s.uncovered} 个（子进程跑过 ${s.covered} / 缺口 ${s.uncovered}；探针分母 ${s.denom} / 无风险 ${s.probeable} / 带风险 ${s.risky}；别名里的非 node 入口 ${s.nonNode}）｜检查 ${s.matched}/${s.declared} 通过，${s.mismatched} 失败`)
-  return ok ? 0 : 1
+  const v = verdictOf(res.rows)
+  const unver = res.rows.filter((r) => !r.pass && r.status === 'UNVERIFIED').map((r) => r.id)
+  console.log(`${ok ? 'GATE-PASS' : 'GATE-FAIL'} cli-entrypoints :: 入口 ${s.covered + s.uncovered} 个（子进程跑过 ${s.covered} / 缺口 ${s.uncovered}；探针分母 ${s.denom} / 无风险 ${s.probeable} / 带风险 ${s.risky}；别名里的非 node 入口 ${s.nonNode}）｜检查 ${s.matched}/${s.declared} 通过，${s.mismatched} 失败${unver.length ? `｜证据失效 ${unver.join(',')}` : ''}｜rc=${v.rc}`)
+  return v.rc
 }
 
 const isCli = !!process.argv[1] && resolve(process.argv[1]).toLowerCase() === fileURLToPath(import.meta.url).toLowerCase()

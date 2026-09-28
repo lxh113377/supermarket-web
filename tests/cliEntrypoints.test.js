@@ -16,7 +16,7 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, cpSync, re
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { evaluate, collect, collectRegistered, collectCovered, isGateLike, parseRegistry, probeDenominator, testFace, REGISTRY } from '../scripts/check-cli-entrypoints.mjs'
+import { evaluate, collect, collectRegistered, collectCovered, isGateLike, parseRegistry, probeDenominator, testFace, verdictOf, REGISTRY } from '../scripts/check-cli-entrypoints.mjs'
 import { classifyRisk, probeSafeEvidence } from '../scripts/lib/preflight.mjs'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -488,6 +488,32 @@ ${riskRows}
     const face = testFace(r.dir)
     expect(face.outside).toContain('.txt×1')
     expect(face.files).toBe(2)
+  })
+
+  /**
+   * 退出码分相（第四十七轮）：0 全绿 / 1 判出违规 / 2 证据失效。
+   * 形状取自 `pytest-dev/pytest`：`src/_pytest/main.py:392` 在收集后先问 `session.testscollected == 0`
+   * 并返回专属的 `ExitCode.NO_TESTS_COLLECTED`，而不是让它顺着 `return None` 掉进"通过"。
+   * 户内同源件是 `check-judge-side-effects.mjs` 的 S4/S6（同样 rc=2）。
+   */
+  describe('verdictOf 退出码分相', () => {
+    it('三态：全绿 0 / 只有违规 1 / 含证据失效 2，且 2 优先于 1（混合时不得读成"判出违规"）', () => {
+      expect(verdictOf([{ id: 'G1', pass: true }])).toEqual({ verdict: 'GREEN', rc: 0 })
+      expect(verdictOf([{ id: 'G2', pass: false }])).toEqual({ verdict: 'RED', rc: 1 })
+      expect(verdictOf([{ id: 'G9', pass: false }, { id: 'G14', pass: false, status: 'UNVERIFIED' }]))
+        .toEqual({ verdict: 'UNVERIFIED', rc: 2 })
+    })
+
+    it('边界两则：pass=true 却带 UNVERIFIED 不得抬成 rc=2；rows 为空（判据集合失踪）不得记 GREEN', () => {
+      expect(verdictOf([{ id: 'G1', pass: true, status: 'UNVERIFIED' }])).toEqual({ verdict: 'GREEN', rc: 0 })
+      expect(verdictOf([]), '没有可判对象 ≠ 全部通过（与 V3/G1 的零分母同一族）').toEqual({ verdict: 'RED', rc: 1 })
+    })
+
+    it('真入口回执：本仓当场跑 `check-cli-entrypoints.mjs` ⇒ rc=0 且门面行自报 rc=（调用方能不解析文案就分档）', () => {
+      const r = spawnSync(process.execPath, ['scripts/check-cli-entrypoints.mjs'], { cwd: REPO, encoding: 'utf8', timeout: 60_000 })
+      expect(r.status, `真面应当全绿，实测 rc=${r.status}：${String(r.stdout).split(/\r?\n/).slice(-1)}`).toBe(0)
+      expect(r.stdout).toMatch(/GATE-PASS cli-entrypoints :: .*｜rc=0$/m)
+    })
   })
 
   /**

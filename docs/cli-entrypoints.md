@@ -164,7 +164,11 @@ G14 **采集目录本身要有正向读数**（再往下一格：G1~G13 判"登�
 一手形状 = `collectCovered()` 第一行 `if (!existsSync(dir/tests)) return covered`：目录被改名/移出 ⇒ 覆盖面**静默空集**，
 而 G4 地板拦到 23（现 35）⇒ 最多可悄悄少掉 12 个入口的"跑没跑过"而账面全绿。`testFace()` 印出 `tests/` 的文件数与
 其中真起子进程的个数；三种"读不动"（调用方没喂 face / 目录不存在 / 目录空）一律记 **UNVERIFIED**，
-**不得**印成"结论为否"——把"没量到"写成"量到了零"是给后人留假证据。UNVERIFIED 行照样计入 mismatched ⇒ 退出码非 0、照样拦）
+**不得**印成"结论为否"——把"没量到"写成"量到了零"是给后人留假证据。
+退出码分相 `verdictOf()`：**0 全绿 / 1 判出违规 / 2 证据失效**（与 `check-judge-side-effects` 的 S4/S6 户内同口径；
+形状借 `pytest-dev/pytest` 的 `ExitCode.NO_TESTS_COLLECTED` —— 它在收集后先问 `session.testscollected == 0`，
+不让"什么都没收到"顺着 `return None` 掉进"通过"，@2026-09-28 取回 `src/_pytest/main.py:392` 核对）。
+2 与 1 都得拦，但调用方要能分辨"这扇门说有东西坏了"和"这扇门今天根本没看"；门面行自报 `rc=N`，零输入（rows 为空）记 1 不记 0）
 夹具：`tests/cliEntrypoints.test.js`（条数**不在此写死**——写死即第二真相源，以 `npx vitest run tests/cliEntrypoints.test.js`
 当场输出为准；构成 = 判据路径真跑（PROBED 名册）+ 缺输入面 + 零分母 + 合成仓 G1~G14 双向变异 + 覆盖面口径三向
 （真跑记账 / 死数组与仅提到不记账）+ classifyRisk 三向 + scan-secrets 三种分母形状 + preflight 出口件 + 真仓互洽）。
