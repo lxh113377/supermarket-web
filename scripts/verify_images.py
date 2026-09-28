@@ -34,16 +34,25 @@ SEED_FILE = PROJECT_ROOT / 'src' / 'data' / 'products-seed.ts'
 def load_expected_orders():
     """从商品数据源提取应有的 order 集合。
 
-    返回 (orders, err)：**读不到 / 零命中都返回 err**，不再退回 1–49 ——
+    返回 (orders, err)：**读不到 / 零命中 / 段锚点丢失都返回 err**，不再退回 1–49 ——
     旧兜底的形状是"数据源坏了也照样能判"，而那正是把"没量到"当"量到了"的写法（第四十七轮 ④-b 同族）。
+
+    第四十九轮再修一处更隐蔽的：`order:` 这个键名在本文件里**有两个语义** —— `categories` 用它排分类顺序
+    （实测 11 处），`products` 用它当图片文件名（实测 54 处）。整文件扫描今天靠"去重后仍是 54"侥幸不错
+    （两拨号段重叠），但只要有人给分类加一个超出商品最大号的 `order`，判据就会报出一条从未发生过的"缺图"。
+    ⇒ 取数面必须**按数据流划**（只扫 products 段），不按字段名划。
     """
     try:
         text = SEED_FILE.read_text(encoding='utf-8')
     except OSError as exc:
         return None, f'商品数据源读不到：{SEED_FILE}（{type(exc).__name__}: {exc}）'
-    orders = {int(m) for m in re.findall(r'\border:\s*(\d+)', text)}
+    at = text.find('export const products')
+    if at == -1:
+        return None, (f'分面锚点丢失：{SEED_FILE} 里找不到 `export const products`'
+                      ' ⇒ 拒绝退回整文件扫描（那会把 categories 的 order 也算成商品）')
+    orders = {int(m) for m in re.findall(r'\border:\s*(\d+)', text[at:])}
     if not orders:
-        return None, f'商品数据源里 `order:` 零命中（{SEED_FILE}）⇒ 应有图片集为空，没有对象可判'
+        return None, f'products 段里 `order:` 零命中（{SEED_FILE}）⇒ 应有图片集为空，没有对象可判'
     return orders, None
 
 
@@ -147,6 +156,17 @@ def main() -> int:
     else:
         print('  (无缺失)')
 
+    # 反向半边（第四十九轮）：图有、seed 里没有 —— 旧判据只查"seed 要的有没有图"，
+    # 从不问"图都是谁要的"，于是资产只会越堆越多而账面永远 100%。
+    # **只点名不判红**：seed 是初始数据，线上商品可以多于它 ⇒ 判红等于逼后来人删一张可能真在用的图，
+    # 而"删哪张"是归属决定，不是判据能替人做的（判据开的处方未经实测就不许写成可复制动作）。
+    orphans = sorted(set(found_files) - EXPECTED_ORDERS)
+    print(f'\n⚠️  无主图片 ({len(orphans)}):')
+    for order in orphans:
+        print(f'  order {order:2d}: {found_files[order][0].name:20s}（seed 里没有这个商品 ⇒ 请确认是谁在用，或改名进 seed）')
+    if not orphans:
+        print('  (无孤儿图)')
+
     print('\n' + '=' * 70)
     real_photo_count = len(valid)
     pct = real_photo_count * 100 // total
@@ -159,7 +179,8 @@ def main() -> int:
     if problems:
         print(f'[verify-images] FAIL 缺失 {len(missing)} / 无效 {len(invalid)} / 应有 {total} ⇒ 合计 {problems} 件不可交付')
         return 1
-    print(f'[verify-images] OK {len(valid)}/{total} 全部为有效图片')
+    print(f'[verify-images] OK {len(valid)}/{total} 全部为有效图片'
+          + (f'（另有 {len(orphans)} 张无主图，见上：不拦，但请有人认领）' if orphans else ''))
     return 0
 
 

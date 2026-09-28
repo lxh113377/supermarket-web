@@ -10,7 +10,7 @@ import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { evaluate, extractCommands, collectDocs, readAliases, renderGateTable, syncGateTable } from '../scripts/check-doc-commands.mjs'
+import { evaluate, extractCommands, collectDocs, readAliases, renderGateTable, syncGateTable, registryBody } from '../scripts/check-doc-commands.mjs'
 
 const ROOT = resolve(fileURLToPath(import.meta.url), '../..')
 const SCRIPT = join('scripts', 'check-doc-commands.mjs')
@@ -168,3 +168,76 @@ describe('入口通道真跑（只 import 纯函数不算跑过入口）', () =>
     expect(out).toContain('INJECTED.md')
   })
 })
+
+/**
+ * 第四十九轮 R49-H2：生成件里的 `counts` 到底是"现值"还是"快照"。
+ * 一手事实（@2026-09-28 本机）：`docs/doc-commands.json` 记 mentions=196，而当场跑判据印 202 ——
+ * 漂了 6 条却没有任何一条判据报错，因为**没有任何判据读 counts**。上一轮我据此否证了"加一条 D7 逼 --update 同步"，
+ * 本轮把那个判断变成**会红的证据**：第 1 条钉措辞、第 2 条证"无消费者"、第 3 条防它 vacuous。
+ */
+describe('registry 的 counts 是快照不是现值（R49-H2）', () => {
+  const face = [{ path: 'docs/old.md', exempt_until: '2099-01-01T00:00:00Z' }]
+  const docsA = [doc('README.md', renderGateTable(AL) + '\n`npm run verify:ok`'), doc('docs/old.md', '死命令 `npm run predeploy` 只在归档面里')]
+  const regWith = (over) => ({ archive_faces: face, observed_utc: '2026-09-28T00:00:00Z', ...over })
+  const verdictOf = (res) => res.rows.map((r) => `${r.id}|${r.ok}|${r.detail}`).sort()
+
+  it('registryBody 的 note 必须写明"as-of 快照 + 禁止当现值引用"，observed_utc 透传（防 --update 重写时丢字）', () => {
+    const body = registryBody({ mentions: 1, claim: 1, broken: 0 }, face, '2026-09-28T00:00:00Z')
+    expect(body.schema).toBe('chaoshi-doc-commands-v1')
+    expect(body.note).toContain('as-of 快照')
+    expect(body.note).toContain('禁止当现值用')
+    expect(body.observed_utc).toBe('2026-09-28T00:00:00Z')
+    expect(body.archive_faces).toEqual(face)
+  })
+
+  it('无消费者证明：把 counts 换成垃圾值 ⇒ 六条判定的 id/ok/detail 必须逐项不变（这才叫"零消费者"）', () => {
+    const base = verdictOf(run(docsA, { registry: regWith({}) })).sort()
+    const junk = verdictOf(run(docsA, {
+      registry: regWith({ counts: { docs: 0, aliases: 0, mentions: 99999, claim: -1, template: 'x', archive: null, broken: 42 } }),
+    })).sort()
+    expect(junk).toEqual(base)
+  })
+
+  it('对偶（防上一条空转）：同一 registry 只改 observed_utc 让归档面到期 ⇒ 判定必须变（registry 确实被读，只是 counts 不被读）', () => {
+    const live = run(docsA, { registry: regWith({}) })
+    const expired = run(docsA, { registry: regWith({ observed_utc: '2099-02-01T00:00:00Z' }) })
+    expect(verdictOf(live)).not.toEqual(verdictOf(expired))
+    expect(state(expired.rows, 'D2').ok).not.toBe(true)
+    expect(state(expired.rows, 'D2').detail).toContain('不成立 1 条')
+    expect(state(expired.rows, 'D4').detail).toContain('已过期仍挂着')
+  })
+})
+
+/**
+ * 第四十九轮 R49-H2 的第二条：`--update` 生成的 README 块**必须幂等**。
+ * 一手测量（@2026-09-28 本机）：连跑三次 `--update` ⇒ README 三个不同 sha，
+ * `<!-- gate-table:end -->` 与 `## 功能一览` 之间的空行从 4 涨到 7。根因在字符串层：
+ * `renderGateTable()` 返回值自带尾换行，而写回又加一个 `'\n'`、正则只吃一个 ⇒ 每次净增一行。
+ * D6 判的是**内容**（缺行/幽灵行），空行漂移它看不见 ⇒ 幂等性必须由本夹具钉住。
+ */
+describe('README 生成块幂等（R49-H2）', () => {
+  const table = renderGateTable(AL)
+  const src = `# t\n\n<!-- gate-table:begin -->\n旧块\n<!-- gate-table:end -->\n\n\n## 功能一览\n\n正文\n`
+  const gaps = (s) => /\n*/.exec(s.slice(s.indexOf('<!-- gate-table:end -->') + '<!-- gate-table:end -->'.length))[0].length
+
+  it('正向：连写两次必须逐字节相同，且块后的空行数一格不多不少', () => {
+    const once = syncGateTable(src, table).src
+    const twice = syncGateTable(once, table).src
+    expect(twice).toBe(once)
+    expect(gaps(once)).toBe(gaps(twice))
+    expect(gaps(once), '尾换行归一后应恰好留一个换行再接原空行').toBeLessThanOrEqual(3)
+  })
+
+  it('反向自证（夹具自己要有牙齿）：按缺陷写法 table + 换行 再跑一次 ⇒ 必须真的多出一行', () => {
+    const buggy = (s) => s.replace(/<!-- gate-table:begin -->[\s\S]*?<!-- gate-table:end -->\n?/, table + '\n' + '\n')
+    const one = buggy(src)
+    expect(gaps(one)).toBeGreaterThan(gaps(src))
+    expect(gaps(buggy(one))).toBeGreaterThan(gaps(one))
+    expect(gaps(twiceOf(syncGateTable)(src, table))).toBe(gaps(src))
+  })
+})
+
+/** 用被测函数本身做一次幂等复跑，给上一条反向自证当对照组。 */
+function twiceOf(fn) {
+  return (s, t) => fn(fn(s, t).src, t).src
+}

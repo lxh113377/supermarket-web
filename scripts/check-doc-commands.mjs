@@ -175,13 +175,42 @@ export function renderGateTable(aliases) {
     '| 命令 | 它跑的是 |', '| --- | --- |', ...rows, '<!-- gate-table:end -->', ''].join('\n')
 }
 
+/**
+ * 把生成块写回 README（第四十九轮修的一枚**非幂等**缺陷）。
+ * 一手测量（@2026-09-28 本机）：连跑三次 `--update` ⇒ README 三个不同 sha、`end -->` 与 `## 功能一览`
+ * 之间从 4 个空行涨到 7 个。根因是纯字符串层的：`renderGateTable()` 的数组以 `''` 结尾 ⇒ 它的返回值
+ * **自带一个尾换行**，而 `replaced` 分支又写 `table + '\n'`、正则只吃掉一个 `\n` ⇒ 每跑一次净增一行。
+ * 正解＝先把尾部换行归一成一个，再写回；"生成物不许漂"这条 D6 判的是**内容**，漂不出多出来的空行，
+ * 所以幂等性必须由下面的夹具钉，而不是指望 D6。
+ */
 export function syncGateTable(readmeSrc, table) {
+  const norm = table.replace(/\n+$/, '\n')
   if (/<!-- gate-table:begin -->[\s\S]*?<!-- gate-table:end -->/.test(readmeSrc)) {
-    return { src: readmeSrc.replace(/<!-- gate-table:begin -->[\s\S]*?<!-- gate-table:end -->\n?/, table + '\n'), action: 'replaced' }
+    return { src: readmeSrc.replace(/<!-- gate-table:begin -->[\s\S]*?<!-- gate-table:end -->\n?/, norm), action: 'replaced' }
   }
   const at = readmeSrc.indexOf('## 功能一览')
   if (at === -1) return { src: null, action: 'no-anchor' }
-  return { src: readmeSrc.slice(0, at) + table + '\n\n' + readmeSrc.slice(at), action: 'inserted' }
+  return { src: readmeSrc.slice(0, at) + norm + '\n' + readmeSrc.slice(at), action: 'inserted' }
+}
+
+/**
+ * 生成件 `docs/doc-commands.json` 的正文（第四十九轮 R49-H2：把它从"看起来像现值"改成"明说是快照"）。
+ * 一手事实：`counts` 记着 196 而当场跑判据印 202 —— 漂了 6 条却没有任何判据报错，因为**没有任何判据读它**
+ * （这正是上一轮我否证"再加一条 D7 逼 --update 同步"的依据：零消费者的闸只会逼人做无意义的生成件提交）。
+ * 所以正解不是加闸，而是**在字段自己的 note 里写明它是 as-of 快照、禁止当现值引用**，
+ * 并让夹具钉住这句措辞（`--update` 重写时丢字 ⇒ 必红）。
+ */
+export function registryBody(counts, archiveFaces, observedUtc) {
+  return {
+    schema: 'chaoshi-doc-commands-v1',
+    note: '由 `node scripts/check-doc-commands.mjs --update` 生成。⚠️ counts 是**本次观测的 as-of 快照**（配套字段 observed_utc），不是现值：'
+      + '没有任何判据读它，引用时**禁止当现值用**，要现值请当场跑 `node scripts/check-doc-commands.mjs` 读它的输出行。'
+      + 'archive_faces 是人填的"历史归档面"声明，--update 保留已填值；每条必须带 exempt_until（到期即重新按现行主张判，历史不是永久豁免）。'
+      + 'D2 拿它与真实别名/文件面对账，改文档不改册不会红，改册不改文档会红。',
+    observed_utc: observedUtc || new Date().toISOString(),
+    counts,
+    archive_faces: archiveFaces || [],
+  }
 }
 
 function main() {
@@ -204,12 +233,7 @@ function main() {
     registry = existsSync(regPath) ? JSON.parse(readFileSync(regPath, 'utf8')) : { archive_faces: [] }
     if (update) {
       const { rows, counts } = evaluate({ docs, aliases, fileExists, registry })
-      const body = {
-        schema: 'chaoshi-doc-commands-v1',
-        note: '由 `node scripts/check-doc-commands.mjs --update` 生成；archive_faces 是人填的"历史归档面"声明，--update 保留已填值。每条必须带 exempt_until（到期即重新按现行主张判，历史不是永久豁免）。D2 拿它与真实别名/文件面对账，改文档不改册不会红，改册不改文档会红。',
-        observed_utc: new Date().toISOString(), counts,
-        archive_faces: registry.archive_faces || [],
-      }
+      const body = registryBody(counts, registry.archive_faces)
       void rows
       writeFileSync(join(ROOT, REGISTRY), JSON.stringify(body, null, 2) + '\n', 'utf8')
       console.log(`[doc-commands] 已重写 ${REGISTRY}（提及 ${counts.mentions} 条 / 不成立 ${counts.broken} 条）`)

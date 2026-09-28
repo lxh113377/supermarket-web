@@ -29,15 +29,19 @@ const webp = () => Buffer.concat([Buffer.from('RIFF'), Buffer.from([0, 0, 0, 0])
 /**
  * 造一个最小合成仓（脚本按自身位置推导根目录，所以必须把 .py 复制进 <dir>/scripts/）。
  * `images` 的值是字节：Buffer 写盘、`null` 表示"这张图不存在"、`'nodir'` 表示整个图片面失踪。
+ * `catOrders` 用来放**分类**段里的 `order:` —— 那个键名在真文件里有两个语义（分类排序 vs 图片文件名），
+ * 分面必须按数据流划，所以这些号**不许**进应有集（第四十九轮的修法）。
  */
-function face({ orders = [1, 2, 3], images = { 1: webp(), 2: webp(), 3: webp() } } = {}) {
+function face({ orders = [1, 2, 3], images = { 1: webp(), 2: webp(), 3: webp() }, catOrders = [], anchorless = false } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'vi48-'))
   dirs.push(dir)
   mkdirSync(join(dir, 'scripts'), { recursive: true })
   mkdirSync(join(dir, 'src', 'data'), { recursive: true })
   cpSync(SCRIPT, join(dir, 'scripts', 'verify_images.py'))
-  writeFileSync(join(dir, 'src', 'data', 'products-seed.ts'),
-    `export const seed = [${orders.map((o) => `{ order: ${o} }`).join(', ')}];\n`, 'utf8')
+  const cats = catOrders.length ? `export const categories = [${catOrders.map((o) => `{ order: ${o} }`).join(', ')}]\n` : ''
+  const prods = anchorless ? `export const seed = [${orders.map((o) => `{ order: ${o} }`).join(', ')}]\n`
+    : `export const products = [${orders.map((o) => `{ order: ${o} }`).join(', ')}]\n`
+  writeFileSync(join(dir, 'src', 'data', 'products-seed.ts'), cats + prods, 'utf8')
   if (images !== 'nodir') {
     mkdirSync(join(dir, 'public', 'images'), { recursive: true })
     for (const [order, bytes] of Object.entries(images)) {
@@ -89,14 +93,43 @@ describe('verify:images 的四档退出码（判据自己必须会红）', () =>
     expect(r.stdout).toContain('零命中')
   })
 
-  it('真入口回执：对真仓当场跑一次 ⇒ rc=0 且结论行里的分母来自 seed（不是写死的 49）', () => {
+  it('真入口回执：对真仓当场跑一次 ⇒ rc=0 且结论行的分母来自 seed 的 products 段（不是写死的 49）', () => {
     const r = run(REPO)
     expect(r.status, `真面应当全绿，实测 rc=${r.status}：${r.stdout.split('\n').slice(-1)}`).toBe(0)
-    const total = Number(/全部为有效图片/.test(r.stdout) ? /\[verify-images\] OK (\d+)\/(\d+)/.exec(r.stdout)[2] : 0)
-    const seedOrders = new Set([...readFileSync(join(REPO, 'src', 'data', 'products-seed.ts'), 'utf8')
-      .matchAll(/\border:\s*(\d+)/g)].map((m) => Number(m[1])))
-    expect(total, '分母必须由 seed 现算').toBe(seedOrders.size)
-    expect(total).toBeGreaterThan(40)
+    const m = /\[verify-images\] OK (\d+)\/(\d+)/.exec(r.stdout)
+    expect(m, `结论行缺两个数：${r.stdout.split('\n').slice(-1)}`).toBeTruthy()
+    const seed = readFileSync(join(REPO, 'src', 'data', 'products-seed.ts'), 'utf8')
+    const at = seed.indexOf('export const products')
+    expect(at, '真 seed 里没有 products 锚点 ⇒ 判据会记 UNVERIFIED，这条腿就成了空转').toBeGreaterThan(-1)
+    const productsOnly = new Set([...seed.slice(at).matchAll(/\border:\s*(\d+)/g)].map((x) => Number(x[1])))
+    const wholeFile = new Set([...seed.matchAll(/\border:\s*(\d+)/g)].map((x) => Number(x[1])))
+    expect(Number(m[2]), '分母必须由 products 段现算').toBe(productsOnly.size)
+    // 两把尺今天在真面上**恰好相等**（分类号段被商品号覆盖），所以这条不许当"面已分开"的证据；
+    // 真正咬住分面的是下一条 categories 超号用例。
+    expect(wholeFile.size).toBe(productsOnly.size)
+  })
+
+  it('R49 分面：categories 段的 order 超号**不得**进应有集（整文件扫描会凭空造出一条假"缺图"）', () => {
+    const dir = face({ orders: [1, 2, 3], catOrders: [7777, 7778], images: { 1: webp(), 2: webp(), 3: webp() } })
+    const r = run(dir)
+    expect(r.status, `分类排序号被当成商品 ⇒ 假红：${r.stdout.split('\n').slice(-1)}`).toBe(0)
+    expect(r.stdout).toMatch(/\[verify-images\] OK 3\/3/)
+    // 反向半边：同一份 seed 换成"没有 products 锚点"的形态 ⇒ 必须 fail-closed 记 UNVERIFIED，
+    // 而不是静默退回整文件扫描（那正是本轮要修的侥幸）。
+    const back = run(face({ orders: [1, 2, 3], catOrders: [7777], anchorless: true }))
+    expect(back.status, '锚点丢失必须 UNVERIFIED，不许退回整文件扫描').toBe(2)
+    expect(back.stdout).toContain('分面锚点丢失')
+    expect(back.stdout).not.toContain('应有 5')
+  })
+
+  it('R49 反向半边：有图无主 ⇒ 点名并计数，但**不判红**（seed 只是初始数据，删图是归属决定，不是判据处方）', () => {
+    const r = run(face({ orders: [1, 2], images: { 1: webp(), 2: webp(), 3: webp() } }))
+    expect(r.status, `孤儿图不该把门禁判红：${r.stdout.split('\n').slice(-1)}`).toBe(0)
+    expect(r.stdout).toContain('无主图片 (1)')
+    expect(r.stdout).toContain('order  3')
+    expect(r.stdout).toContain('另有 1 张无主图')
+    // 对照：真缺一张图时仍是 rc=1 ⇒ 证明上面那个 0 不是"什么都不判"
+    expect(run(face({ orders: [1, 2, 3], images: { 1: webp(), 2: webp(), 3: null } })).status).toBe(1)
   })
 
   it('变异体：把临时副本里的 `return 1` 改成 `return 0` ⇒ 同一缺图面必须被读成"通过"（证明红因是那段代码）', () => {

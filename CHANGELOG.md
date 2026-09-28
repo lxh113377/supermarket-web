@@ -4,6 +4,55 @@
 
 ## [未发布]
 
+### 2026-09-28 追加六十三（对标第四十九轮：把门禁验到"它真会拦"，而不是"它跑过了"）
+
+- **R49-H1 演习落地，两侧都有回执**。一次性分支 `drill/r49-image-gate` 的提交全程用 plumbing 造
+  （`git cat-file blob origin/main:src/data/products-seed.ts` → 插入一行带 `DRILL-R49` 注释的哨兵
+  `{ order: 9001 }` 而不给图片 → 临时 `GIT_INDEX_FILE` 做 `read-tree`/`update-index`/`write-tree`/`commit-tree`）
+  ⇒ **工作树与共享索引零改动**（并行会话在同一棵树上，不许把我的实验写成它的在途改动）。
+  push 后 `workflow_dispatch` 该 ref ⇒ run `36398941915` = `completed/failure`，
+  且**唯一**非 success 的步骤是 `Product image assets gate (npm run verify:images)`，日志原文：
+  `[verify-images] FAIL 缺失 1 / 无效 0 / 应有 55 ⇒ 合计 1 件不可交付`（55 = 真实 54 + 哨兵 1）。
+  ⇒ 这次拿到的是"会拦"和"只红该红的"两条读侧，而不只是"CI 里有这一步"。
+  形状借 `golang/go :: src/cmd/go/testdata/script/embed.txt`（4,716B / blob `dcd250549b`）：
+  它把失败当断言写（`! go build -x` + `stderr '^x.go:5:12: pattern ...$'`）。
+- **同一条门禁里又挖出两个缺陷，都修了**（`scripts/verify_images.py`）：
+  ① **取数面没按数据流划**：`order:` 这个键在本仓有**两个语义** —— `categories` 用它排分类顺序（实测 11 处）、
+  `products` 用它当图片文件名（实测 54 处）。旧 `load_expected_orders()` 扫整文件，今天靠"号段重叠 + 去重"侥幸还得 54；
+  但只要有人给分类加一个超出商品最大号的 `order`，判据就会报出一条从未发生过的"缺图"。
+  现在只扫 `export const products` 之后那段，**锚点丢失即 rc=2 并点名，禁止退回整文件扫描**（退回就是把侥幸写成规则）。
+  ② **反向半边没人量**：旧判据只问"seed 要的图在不在"，从不问"这些图是谁要的" ⇒ 真面实测有 1 张无主图
+  `55.webp`。查现网 `getPublicProducts`：order 最大值正是 **55** ⇒ 它是**线上真在用的资产**，seed 只是种子。
+  所以新增的是"⚠️ 无主图片 (1)"点名 + 结论行 `另有 1 张无主图…不拦，但请有人认领`，**不判红**：
+  判红等于逼后来人删一张真图，而"删哪张"是归属决定（判据未经实测开的处方不许写成可复制动作）。
+  夹具 `npx vitest run tests/verifyImages.test.js` 8 → **10 条**：categories 超号不得进分母（含锚点丢失的 fail-closed 半边）、
+  孤儿点名但 rc 仍 0（对照腿：真缺一张仍必须 1）。真面复跑 `[verify-images] OK 54/54 全部为有效图片（另有 1 张无主图…）` rc=0。
+- **计划外第五条：README 生成块非幂等**。`node scripts/check-doc-commands.mjs --update` 连跑三次 ⇒
+  README 三个不同 sha（`c0653f55…` 起步），`gate-table:end` 与 `## 功能一览` 之间空行从 4 涨到 7。
+  根因在字符串层：`renderGateTable()` 的数组以 `''` 结尾 ⇒ 返回值自带尾换行，而 `syncGateTable` 写回又加一个 `'\n'`、
+  正则只吃掉一个换行 ⇒ 每次净增一行。修法＝尾换行归一；README 用内容通道修回 HEAD 字节
+  （先断言 `git diff --numstat` == `3 0` 才动手，确认只多了空行、没吞别人的话）；
+  修后三跑 sha 全等且 `git diff` 为空。夹具 `npx vitest run tests/docCommands.test.js` 15 → **17 条**，
+  其中一条是**反向自证**：按缺陷写法跑一次必须真多出一行，否则幂等夹具自己就是空转。
+  同行形状：`eslint/eslint :: package.json`（7,789B / blob `88e63439cea2`）有 `fmt:check = prettier --check .`
+  ⇒ 生成物应当有"不等即红"的读侧（列 R50-H3，本轮不建，因为幂等夹具已兜住同一条缺陷）。
+- **R49-H2 快照措辞 + 无消费者证明**：`docs/doc-commands.json` 的 `counts` 记 196 而当场 203 ⇒ 漂了 7 条却无人报错，
+  因为没有任何判据读它。本轮把 `note` 改成明说"as-of 快照、禁止当现值引用"，并加三条夹具：
+  措辞必须在（防 `--update` 丢字）、把 `counts` 换成垃圾值 ⇒ 六条判定逐项不变（这才叫零消费者）、
+  对偶腿只改 `observed_utc` 让归档面到期 ⇒ 判定必须变（防上一条是"我传的东西整体没被读"的空转）。
+- **R49-H3 覆盖率当场读数**：`npx vitest run --coverage` ⇒ 107 文件全绿，
+  Statements 80.50 / Branches 73.52 / Functions 76.19 / Lines 82.26，对地板 79/72/74/80 ⇒ headroom 1.50~2.26pp
+  （比第九轮的 ~2.1pp 收窄，原因是分母涨到 2,893 条语句而非覆盖率下降）。**本轮不动地板**并把读数写进
+  `vite.config.js` 注释——并行会话在同一棵树提交，抬地板会把别人的合法改动拦成红。
+- **本轮我自己的三条留痕（失败面同条登记）**：
+  ① 主卷被我自己压到 **4,096B 整（零余量）** 才通过断言 —— 那正是卷 78 台账明令禁止的"压措辞续命"，
+  已把整段轮次摘要下移到卷 81/82，并把这件事写回主卷头部；`check-memory-volume` 的 V3 现在只 WARN 不拦零余量，
+  列为 R50 缺口（"贴线"与"贴死"必须可分）。
+  ② 两次纯手滑都被工具当场拦住、未落错地方：`Edit` 的 `file_path` 少写一层目录（`File does not exist`）；
+  python 内联里用 `b'...'` 包中文 ⇒ `SyntaxError: bytes can only contain ASCII literal characters`。
+  ③ 又一次踩 MSYS `/tmp` 对 Windows python 不可见：`curl -o /tmp/prod.json` 后 python 读不到，
+  改写到 `C:/Users/.../Temp/` 才拿到现网读数 —— 同族第五次，规则在案仍复发。
+
 ### 2026-09-28 追加六十二（对标第四十八轮：一条门禁"能红"与"有人看"是两件事）
 
 - **R48-H1 `verify:images` 的判据自己一直是永绿的 ⇒ 改三档退出码并接进阻断链。**
