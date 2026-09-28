@@ -8,8 +8,8 @@
 // —— 证明退出码真由那段代码产生，不是环境巧合。
 // @vitest-environment node
 import { describe, it, expect, afterAll } from 'vitest'
-import { spawnSync } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync, cpSync, readFileSync } from 'node:fs'
+import { spawnSync, spawn } from 'node:child_process'
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync, cpSync, readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -51,8 +51,16 @@ function face({ orders = [1, 2, 3], images = { 1: webp(), 2: webp(), 3: webp() }
   return dir
 }
 
-const run = (dir, script = 'scripts/verify_images.py') =>
-  spawnSync(pythonBin, [script], { cwd: dir, encoding: 'utf8', timeout: 60_000 })
+/**
+ * 起子进程跑探针面。默认 `VERIFY_IMAGES_LIVE=off` —— 这些夹具判的是 **seed 面**，
+ * 让它们去连生产 URL 会把"这一刻 pages.dev 通不通"混进结论（时序型时间炸弹，第四十九轮同族）。
+ * 现网面由下面 `describe('R50-H1 现网面')` 用本地桩服务器单独驱动（env 传 `VERIFY_IMAGES_LIVE_URL`）。
+ */
+const run = (dir, env = {}) =>
+  spawnSync(pythonBin, ['scripts/verify_images.py'], {
+    cwd: dir, encoding: 'utf8', timeout: 60_000,
+    env: { ...process.env, VERIFY_IMAGES_LIVE: 'off', ...env },
+  })
 
 describe('verify:images 的四档退出码（判据自己必须会红）', () => {
   it('前置自证：本机有可用的 python3 系解释器（这条门禁已接进 verify 链与 CI，缺解释器就是红，不许静默跳过）', () => {
@@ -109,6 +117,22 @@ describe('verify:images 的四档退出码（判据自己必须会红）', () =>
     expect(wholeFile.size).toBe(productsOnly.size)
   })
 
+  it('R50 真入口（默认开现网面）：无论通不通，结论行**必须声明现网面的状态**，不得沉默', () => {
+    // 这条不要求网络可达 —— 它判的是"盲区有没有被说出来"：可达 ⇒ 印并集；不可达 ⇒ 印 UNVERIFIED。
+    // 上一轮的真面输出两种情况长得一模一样（只有裸分母 54），这正是"没量到"被读成"量过了"。
+    const r = run(REPO, { VERIFY_IMAGES_LIVE: 'on', VERIFY_IMAGES_LIVE_TIMEOUT: '20' })
+    expect(r.status, `真面 rc=${r.status}：${r.stdout.split('\n').slice(-1)}`).toBe(0)
+    const declared = /现网在售依赖本地件 (\d+ 号|UNVERIFIED)/.test(r.stdout)
+    expect(declared, `覆盖面行没声明现网面状态：${r.stdout.split('\n').filter((l) => l.includes('覆盖面'))}`).toBe(true)
+    expect(r.stdout, '现网面取不到时结论行必须说"只判了 seed"').toMatch(
+      /(面=seed \d+ ∪ 现网在售 \d+|现网 UNVERIFIED ⇒ 本轮只判了 seed)/)
+    // 真面上的实测口径（@2026-09-28）：现网在售 25 条的 image **全为空** ⇒ 并集应为 55（seed 54 + 55 号）
+    if (/∪ 现网在售 (\d+)/.test(r.stdout)) {
+      expect(Number(/∪ 现网在售 (\d+)/.exec(r.stdout)[1]), '现网在售数由 /pub 现读，写死的期望会自判红').toBeGreaterThan(0)
+      expect(r.stdout).toContain('盲区（不得当成已判）')
+    }
+  })
+
   it('R49 分面：categories 段的 order 超号**不得**进应有集（整文件扫描会凭空造出一条假"缺图"）', () => {
     const dir = face({ orders: [1, 2, 3], catOrders: [7777, 7778], images: { 1: webp(), 2: webp(), 3: webp() } })
     const r = run(dir)
@@ -152,5 +176,122 @@ describe('verify:images 的四档退出码（判据自己必须会红）', () =>
   })
 })
 
+/**
+ * R50-H1：现网面。夹具**必须**打在被告分支上（②-b）——所以这里起一个真的 HTTP 桩，
+ * 让脚本走 `urllib` 那条真取数路径，而不是给它塞一个假读数。
+ * 一手动因：真仓实测 seed=1..54、现网在售含 55、`public/images/55.webp` 存在 ⇒
+ * 旧分母"seed 的 order"天生残缺，线上商品缺图这条门禁永远看不见，还把 55 号假归因成"无主图"。
+ *
+ * ⚠️ 桩**必须是独立进程**：本文件的 `run()` 用 `spawnSync`，它会把 node 事件循环整个阻塞住，
+ * 于是同进程里的 `createServer` 根本来不及 accept —— 实测表现为每条腿恰好卡满 8s（默认超时）后
+ * 走"现网不可达"出口，看着像代码坏了，其实是夹具与环境在互相饿死（第一轮就踩在这上面）。
+ */
+const stubs = []
+const STUB_SRC = `
+const { createServer } = require('node:http')
+const fs = require('node:fs')
+const payload = process.env.STUB_PAYLOAD || '{}'
+const srv = createServer((req, res) => {
+  let b = ''
+  req.on('data', (c) => { b += c })
+  req.on('end', () => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(payload) })
+})
+srv.listen(0, '127.0.0.1', () => fs.writeFileSync(process.env.STUB_PORT_FILE, String(srv.address().port)))
+`
+const stubLive = async (payload) => {
+  const portFile = join(mkdtempSync(join(tmpdir(), 'vi50p-')), 'port')
+  // 端口经**环境变量**回传：`node -e` 下 argv 语义与跑脚本不同（argv[1] 才是第一个用户参数），
+  // 上一版按 argv[2] 取值 ⇒ 子进程写盘即抛、桩永远不起（那条腿当时正确报了"夹具坏了"而不是假绿）。
+  const child = spawn('node', ['-e', STUB_SRC], {
+    env: { ...process.env, STUB_PAYLOAD: JSON.stringify(payload), STUB_PORT_FILE: portFile },
+    stdio: 'ignore',
+  })
+  stubs.push(child)
+  child.on('error', (e) => { throw e })
+  const deadline = Date.now() + 8000
+  let port = 0
+  while (Date.now() < deadline) {
+    if (existsSync(portFile)) {
+      const raw = readFileSync(portFile, 'utf8').trim()
+      if (/^\d+$/.test(raw)) { port = Number(raw); break }
+    }
+    if (child.exitCode !== null) break
+    await new Promise((r) => setTimeout(r, 40))
+  }
+  expect(port, '桩子进程没吐出端口 ⇒ 现网面的腿无法驱动（不是判据红，是夹具坏了）').toBeGreaterThan(0)
+  return `http://127.0.0.1:${port}/pub`
+}
+
+
+describe('verify:images 的现网面（分母 = seed ∪ 现网在售，取不到只声明盲区）', () => {
+  it('新牙齿：现网在售而 seed 没有的号**缺图** ⇒ rc=1（旧分母永远看不见这一面）', async () => {
+    const url = await stubLive({ code: 0, data: [{ _id: 'p_x', order: 4, image: '' }] })
+    const r = run(face({ orders: [1, 2, 3] }), { VERIFY_IMAGES_LIVE: 'on', VERIFY_IMAGES_LIVE_URL: url })
+    expect(r.status, `线上在售的 4 号没图必须拦：${r.stdout.split('\n').slice(-2)}`).toBe(1)
+    expect(r.stdout).toMatch(/\[verify-images\] FAIL 缺失 1 \/ 无效 0 \/ 应有 4/)
+    expect(r.stdout).toContain('面=seed 3 ∪ 现网在售 1')
+    expect(r.stdout).toContain('seed 落后于现网：[4]')
+  })
+
+  it('同一号图齐 ⇒ rc=0，且归因写"seed 落后于现网"而**不得**叫"无主图"（上一轮的假归因）', async () => {
+    const url = await stubLive({ code: 0, data: [{ _id: 'p_x', order: 4, image: '' }] })
+    const r = run(face({ orders: [1, 2, 3], images: { 1: webp(), 2: webp(), 3: webp(), 4: webp() } }),
+      { VERIFY_IMAGES_LIVE: 'on', VERIFY_IMAGES_LIVE_URL: url })
+    expect(r.status, r.stdout + r.stderr).toBe(0)
+    expect(r.stdout).toMatch(/\[verify-images\] OK 4\/4/)
+    expect(r.stdout).toContain('无主图片 (0)')
+    expect(r.stdout).not.toContain('另有 1 张无主图')
+  })
+
+  it('带自定义 image 字段的在售条目不入分母（前端 `product.image || productImageUrl(order)` 根本不碰本地件）', async () => {
+    const url = await stubLive({ code: 0, data: [{ _id: 'p_a', order: 9, image: 'https://cdn.example/a.png' }] })
+    const r = run(face({ orders: [1, 2, 3] }), { VERIFY_IMAGES_LIVE: 'on', VERIFY_IMAGES_LIVE_URL: url })
+    expect(r.status, r.stdout + r.stderr).toBe(0)
+    expect(r.stdout).toMatch(/\[verify-images\] OK 3\/3/)
+    expect(r.stdout).toContain('另 1 条带自定义 image 字段')
+  })
+
+  it('现网不可达 ⇒ seed 面照判（rc 不变），但必须印 UNVERIFIED 且**不得**断言孤儿图"无主"', () => {
+    // 端口 1 是保留端口，连不上且立刻失败（不靠网络超时，避免 CI 慢腿）
+    const r = run(face({ orders: [1, 2], images: { 1: webp(), 2: webp(), 3: webp() } }),
+      { VERIFY_IMAGES_LIVE: 'on', VERIFY_IMAGES_LIVE_URL: 'http://127.0.0.1:1/pub', VERIFY_IMAGES_LIVE_TIMEOUT: '3' })
+    expect(r.status, `现网通不通不该改变 seed 面结论：${r.stdout.split('\n').slice(-1)}`).toBe(0)
+    expect(r.stdout).toContain('UNVERIFIED')
+    expect(r.stdout).toContain('现网 UNVERIFIED ⇒ 本轮只判了 seed')
+    expect(r.stdout).toContain('不足证无主')
+  })
+
+  it('现网响应形状不对（code≠0）⇒ 同 UNVERIFIED，禁止读成"线上没货"（④-b 读不动≠结论为否）', async () => {
+    const url = await stubLive({ code: -1, msg: 'boom' })
+    const r = run(face({ orders: [1, 2, 3] }), { VERIFY_IMAGES_LIVE: 'on', VERIFY_IMAGES_LIVE_URL: url })
+    expect(r.status).toBe(0)
+    expect(r.stdout).toContain('现网响应形状不对')
+    expect(r.stdout).not.toContain('∪ 现网在售 0')
+  })
+
+  it('变异体：摘掉"并上现网面"那一行 ⇒ 自相矛盾守卫必须接管（rc=2 而不是继续判绿）', async () => {
+    const url = await stubLive({ code: 0, data: [{ _id: 'p_x', order: 4, image: '' }] })
+    const dir = face({ orders: [1, 2, 3] })
+    const target = join(dir, 'scripts', 'verify_images.py')
+    const src = readFileSync(target, 'utf8')
+    const mutated = src.replace(/^    expected = seed_orders \| \(live_orders or set\(\)\)$/m, '    expected = set(seed_orders)')
+    expect(mutated, '变异锚点已失效（脚本改形，夹具必须同步）').not.toBe(src)
+    writeFileSync(target, mutated, 'utf8')
+    try {
+      const r = run(dir, { VERIFY_IMAGES_LIVE: 'on', VERIFY_IMAGES_LIVE_URL: url })
+      expect(r.status, '摘掉并集后仍判 0/1 ⇒ 守卫没接管，覆盖面那行是装饰').toBe(2)
+      expect(r.stdout).toContain('覆盖面自相矛盾')
+    } finally {
+      cpSync(SCRIPT, target)
+      const back = run(dir, { VERIFY_IMAGES_LIVE: 'on', VERIFY_IMAGES_LIVE_URL: url })
+      expect(back.status, '还原后必须回到"判出缺图"的 1').toBe(1)
+      expect(back.stdout).toContain('缺失图片 (1/4)')
+    }
+  })
+})
+
 // 合成面是临时件：必须挂在 afterAll 上（写成模块尾部的裸循环会在**测试跑之前**就把目录删光）。
-afterAll(() => { for (const d of dirs) rmSync(d, { recursive: true, force: true }) })
+afterAll(() => {
+  for (const d of dirs) rmSync(d, { recursive: true, force: true })
+  for (const child of stubs) child.kill()
+})

@@ -116,11 +116,14 @@ describe('活体腿：采集层必须把真仓里的真文件读对一次（正�
 
   it('一手事故文件 tests/docCommands.test.js：spawnSync 的配对原文现在取得回来（修前是 0）', () => {
     const src = real('tests/docCommands.test.js')
-    expect((src.match(/spawnSync\(/g) || []).length).toBe(1)
+    // 变化探测器按**它自己写的程序**更新（"再增一处 spawnSync 就会红，届时按新形状改断言，不是放宽成 ≥1"）：
+    // 第五十轮 R50-H3 在该文件加了 `--check` 的真入口腿 ⇒ 调用点 1 → 2，同时含两词的配对原文 2 → 5
+    // （新腿把 `cli` 助手定义在 `it(...)` 回调里 ⇒ 外层 `it(` 的那一对也同时含 `process.execPath` 与 `SCRIPT`）。
+    // 数值仍然写死而不改成 ≥：这条腿的全部价值就是"形状变了必须有人来看一眼"。
+    expect((src.match(/spawnSync\(/g) || []).length).toBe(2)
     const texts = scanBrackets(src).parens.map(([a, b]) => src.slice(a, b + 1))
-    // 实测 2：`spawnSync(` 那一整对，以及它内部那个 options 对象的配对，原文里都同时含这两个词。
-    // 这条是变化探测器：文件里再增一处 spawnSync 就会红，届时按新形状改断言（不是放宽成 ≥1）。
-    expect(texts.filter((t) => t.includes('process.execPath') && t.includes('SCRIPT')).length).toBe(2)
+    expect(texts.filter((t) => t.includes('process.execPath') && t.includes('SCRIPT')).length).toBe(5)
+    expect(texts.some((t) => t.includes('--check')), '新腿的 CLI 调用必须也在采集面里（否则采集又漏了一次）').toBe(true)
   })
 
   it('判据自己的源码能读对：main() 里每个左括号都有配对右括号（无残留 ⇒ 状态机没被中文/引号骗走）', () => {

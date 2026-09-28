@@ -136,6 +136,28 @@ export function diffHashes(before, after) {
   return { changed, touched }
 }
 
+/**
+ * 幂等比较的两个工具。
+ * `snapFiles` 只取"第一趟确实碰过"的那些文件（全树快照会把这些候选的耗时推高一个量级）。
+ * `stableText` 把 **ISO 时刻**折成哨兵再比 —— 观测字段天生每次都不同，不归一就是一条永红假漂移
+ * （`lessons.part214.md` L-2 一手：按整文件字节比幂等，两次 sync 必然不等）。
+ * 归一面只归一"时刻"，**不**归一空行/缩进/顺序 —— 那些正是上一轮 README 的真实缺陷形态。
+ */
+export const TS_SENTINEL = '<OBSERVED_TS>'
+export function stableText(buf) {
+  if (buf === null || buf === undefined) return '(缺席)'
+  return buf.toString('utf8').replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?/g, TS_SENTINEL)
+}
+
+export function snapFiles(dir, paths) {
+  const out = {}
+  for (const p of paths) {
+    const full = join(dir, p)
+    try { out[p] = readFileSync(full) } catch { out[p] = null }
+  }
+  return out
+}
+
 export function evaluate({ candidates, results, registry, injected = null, entryMd = '', now = Date.now(), maxAgeDays = 14 }) {
   const rows = []
   const push = (id, ok, label, detail) => rows.push({ id, ok, label, detail })
@@ -241,15 +263,41 @@ export function evaluate({ candidates, results, registry, injected = null, entry
       : `读数距今 ${ageDays.toFixed(1)} 天（observed_utc=${stamp}，阈值 ${MAX_AGE_DAYS} 天）`
       + (ageDays <= MAX_AGE_DAYS ? ' ⇒ 在期限内' : ' ⇒ **证据已过期**：静态标签与实测行为可能已分叉，重跑全量面 --update；`--blind-only` 不刷册（缩面不得冒充全量）'))
 
+  // S7（第五十轮 R50-H2①）：**幂等性**从信仰变成判据。
+  // 一手缺口：上一轮 `check-doc-commands.mjs --update` 连跑三次得到三个不同 sha（README 的表格生成块
+  // 每次多一个空行）—— 那是本轮人肉翻输出才发现的。本件此前只比"默认 args vs 写盘 args"两侧，
+  // 从没问过"同一个写开关跑两遍，产物还是不是同一份字节"。
+  // 形状取自上游"写侧配读侧"这一族（`django/django` 的 `makemigrations --check` 隐含 `--dry-run`、
+  // `sqlalchemy/alembic` 干脆把 `check` 做成独立命令）：能写的东西必须能被"只判不写"地验一遍。
+  // 比较面**先归一掉 ISO 观测时刻**再比（`lessons.part214.md` L-2：拿裸字节比幂等 = 自造一条永不消失的假漂移）。
+  const idem = res.filter((r) => r.writeRun && r.writeRun.idempotency)
+  const drifted = idem.filter((r) => r.writeRun.idempotency.drift.length)
+  const untouchedWrite = res.filter((r) => r.writeRun && !r.writeRun.idempotency)
+  rows.push({
+    id: 'S7',
+    ok: idem.length > 0 && drifted.length === 0,
+    unverified: idem.length === 0,
+    label: 'S7 同一写开关连跑两趟 ⇒ 产物字节必须收敛（幂等生成器现在是判据，不是信仰）',
+    detail: idem.length === 0
+      ? `本轮 ${res.length} 件回执里没有一件"写通道确实碰过产物" ⇒ 双跑**没有对象**（记未验证，不记通过）。`
+        + '全量面重跑：`node scripts/check-judge-side-effects.mjs`'
+      : `双跑 ${idem.length} 件（同一 flag 各 2 趟）`
+        + (drifted.length
+          ? `；**归一掉观测时刻后仍不收敛**: ${drifted.map((d) => `${d.file} → ${d.writeRun.idempotency.drift.join(', ')}`).join(' ｜ ')}`
+            + ' ⇒ 第二趟会继续改产物，等于每次运行都在攒漂移'
+          : '；全部收敛（含只写观测字段的：那类已归一，不算漂移）')
+        + `；另 ${untouchedWrite.length} 件写通道没碰任何产物 ⇒ 不双跑（既不计已证也不计违规）`,
+  })
+
   return { rows, counts: { candidates: candidates.length, blind: blind.length, receipts: byFile.size, observedWrites: allObserved.size } }
 }
 
 export function verdictOf(rows) {
   const failed = rows.filter((r) => r.ok === false)
   if (!failed.length) return { verdict: 'GREEN', rc: 0 }
-  // S4（取不到读数）与 S6（读数过期）都是**证据失效**，不是"判出违规" ⇒ 记 UNVERIFIED / rc=2；
-  // 两者照样拦 CI（非零），但台账上不许把"证据旧了"抄成"标签错了"，也不许抄成"通过"。
-  return failed.some((r) => r.id === 'S4' || r.id === 'S6') ? { verdict: 'UNVERIFIED', rc: 2 } : { verdict: 'RED', rc: 1 }
+  // S4（取不到读数）与 S6（读数过期）、S7（双跑没有对象）都是**证据失效**，不是"判出违规" ⇒ 记 UNVERIFIED / rc=2；
+  // 三者照样拦 CI（非零），但台账上不许把"证据旧了"抄成"标签错了"，也不许抄成"通过"。
+  return failed.some((r) => r.unverified || r.id === 'S4' || r.id === 'S6') ? { verdict: 'UNVERIFIED', rc: 2 } : { verdict: 'RED', rc: 1 }
 }
 
 function extractTo(dest) {
@@ -299,7 +347,21 @@ function probe(file, writeFlags) {
         const w = runOne(dest2, file, [writeFlags[0]])
         if (w.ran) {
           const dw = diffHashes(base2, treeHashes(dest2))
-          writeRun = { rc: w.rc, flag: writeFlags[0], changed: dw.changed, touched: dw.touched }
+          // R50-H2①：同一写开关**连跑两次**，第二趟之后第一次改动过的那些文件必须还是那些字节。
+          // 一手缺口：上一轮 `check-doc-commands --update` 三跑得到三个不同 sha（README 生成块每次多一个空行），
+          // 是本轮机翻日志发现的，而本件当时只比"默认 vs 写盘"两侧 —— 幂等性完全没人判。
+          // 比较面**先归一再比**：产物里的观测字段（observed_utc 这类 ISO 时刻）本来就该每次不同，
+          // 拿裸字节比会自造一条永不消失的假漂移（教训 L-2 同族），所以漂移只认"归一后仍不等"。
+          let second = null
+          if (dw.touched.length) {
+            const mid = snapFiles(dest2, dw.touched.map((t) => t.path))
+            const w2 = runOne(dest2, file, [writeFlags[0]])
+            const after = snapFiles(dest2, dw.touched.map((t) => t.path))
+            const drift = dw.touched.map((t) => t.path)
+              .filter((p) => stableText(mid[p]) !== stableText(after[p]))
+            second = { rc: w2.rc, drift, comparable: dw.touched.length }
+          }
+          writeRun = { rc: w.rc, flag: writeFlags[0], changed: dw.changed, touched: dw.touched, idempotency: second }
         }
       }
       rmSync(dest2, { recursive: true, force: true })
@@ -366,7 +428,8 @@ function main() {
     now: Date.now(),
     maxAgeDays,
   })
-  for (const r of rows) console.log(`${r.ok === true ? 'PASS' : 'FAIL'} ${r.id} ${r.label} (${r.detail})`)
+  // 未验证态既不印 PASS 也不印 FAIL：FAIL 会把「证据没取到」说成「判出违规」（同 S6 的口径）。
+  for (const r of rows) console.log(`${r.ok === true ? 'PASS' : (r.unverified ? 'UNVERIFIED' : 'FAIL')} ${r.id} ${r.label} (${r.detail})`)
   if (!update) {
     for (const r of results) console.log(`  - ${r.file} blind=${(candidates.find((c) => c.file === r.file) || {}).blind}`
       + ` 读数面 ${r.faceFiles ?? '-'} 文件｜默认args: rc=${r.defaultRun ? r.defaultRun.rc : '未跑'} 内容变 ${r.defaultRun ? r.defaultRun.changed.length : '-'} / 碰过 ${r.defaultRun ? r.defaultRun.touched.length : '-'} 个`
@@ -391,6 +454,8 @@ function main() {
           writes: r.writeRun ? r.writeRun.touched.map((x) => x.path) : [],
           writes_identical: r.writeRun ? r.writeRun.touched.filter((x) => x.identical).map((x) => x.path) : [],
           unverified: r.unverified || null, face_files: r.faceFiles ?? null,
+          double_ran: !!(r.writeRun && r.writeRun.idempotency),
+          idempotent_drift: r.writeRun && r.writeRun.idempotency ? r.writeRun.idempotency.drift : null,
         }
       }),
       generators: registry.generators || [], unprobeable: registry.unprobeable || [],

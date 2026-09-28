@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { copyGateScripts } from './helpers/copyGateScripts.mjs'
-import { evaluate, classify } from '../scripts/check-memory-volume.mjs'
+import { evaluate, classify, V3_MIN_HEADROOM } from '../scripts/check-memory-volume.mjs'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SELF = join(REPO, 'scripts', 'check-memory-volume.mjs')
@@ -191,7 +191,9 @@ describe('V4：新卷必须带着余量出生（第三十五轮，把上一轮�
 
   it('summary 对账：未验证行不得计入 matched（否则"检查 4/4"是假的）', () => {
     const res = evaluate({ files: [f('07-next-steps.part80.md', 3900)], max: 4096, all: true, added: null })
-    expect(res.summary.declared).toBe(res.summary.matched + res.summary.mismatched + 1)
+    const unv = res.rows.filter((r) => r.status === 'UNVERIFIED').length
+    expect(unv, '这张面没有入口卷 ⇒ V3/V4 都该记未验证，不得记通过').toBeGreaterThanOrEqual(1)
+    expect(res.summary.declared).toBe(res.summary.matched + res.summary.mismatched + unv)
     expect(res.summary.matched).toBeLessThan(res.summary.declared)
   })
 
@@ -310,5 +312,75 @@ describe('V2 二次确认（撕裂读不得冒充违规，也不得冒充通过�
     expect(rc, out.slice(-400)).toBe(1)
     expect(out).toMatch(/FAIL V2/)
     expect(out).toMatch(/V2b/)
+  })
+})
+
+describe('V3 三态（第五十轮 R50-H2②）：够写 / 贴死 / 没量到 —— 旧判据 `pass: files.length===0 || !!biggest` 恒真', () => {
+  const v3 = (over) => evaluate({ files: [], max: 4096, all: true, ...over }).rows.find((r) => r.id === 'V3')
+  const f = (name, size) => ({ name, size })
+
+  it('贴死：入口卷余量 < 256B ⇒ 判红，且处方是"迁新卷"而不是"写短点"', () => {
+    const r = v3({ files: [f('07-next-steps.md', 4096 - 90)] })
+    expect(r.pass, '余 90B 与余 900B 同形就是上一轮"压措辞续命"的成因').toBe(false)
+    expect(r.detail).toContain('贴死')
+    expect(r.detail).toContain('迁去新卷号')
+    expect(r.detail).toContain('禁止')
+    expect(r.detail).toContain('余 90B')
+  })
+
+  it('贴线：余量在 [256, 15%) 之间 ⇒ 仍判过，但读数里要说"还能写一条，先腾地方"', () => {
+    const r = v3({ files: [f('07-next-steps.md', 4096 - 300)] })
+    expect(r.pass).toBe(true)
+    expect(r.detail).toContain('贴线')
+    expect(r.detail).not.toContain('贴死')
+  })
+
+  it('对偶：主卷余量充足 ⇒ 干净通过，既不贴线也不贴死（证明上面两条不是"逢卷必警"）', () => {
+    const r = v3({ files: [f('07-next-steps.md', 3000)] })
+    expect(r.pass).toBe(true)
+    expect(r.detail).not.toContain('贴线')
+    expect(r.detail).not.toContain('贴死')
+  })
+
+  it('不连坐：历史分卷贴死而入口卷有余量 ⇒ V3 仍判过，最大卷只作为读数出现（拿存量卷拦人＝逼删事实）', () => {
+    const r = v3({ files: [f('07-next-steps.md', 3000), f('07-next-steps.part77.md', 4090)] })
+    expect(r.pass).toBe(true)
+    expect(r.detail).toContain('07-next-steps.part77.md 4090B')
+    expect(r.detail).toContain('终态卷，不判')
+  })
+
+  it('没量到：作用面里没有入口卷 ⇒ UNVERIFIED（不得读成"余量够"），空作用面另说', () => {
+    const absent = v3({ files: [f('07-next-steps.part9.md', 100)] })
+    expect(absent.status).toBe('UNVERIFIED')
+    expect(absent.detail).toContain('本条未验证')
+    const empty = v3({ files: [] })
+    expect(empty.detail).toContain('无对象')
+  })
+
+  it('下限可复算：256B 来自本仓自己的历史步长（正增量中位数≈255），不是手拍的魔法数', () => {
+    expect(V3_MIN_HEADROOM).toBe(256)
+    const justUnder = v3({ files: [f('07-next-steps.md', 4096 - (V3_MIN_HEADROOM - 1))] })
+    const justOver = v3({ files: [f('07-next-steps.md', 4096 - V3_MIN_HEADROOM)] })
+    expect(justUnder.pass).toBe(false)
+    expect(justOver.pass).toBe(true)
+  })
+
+  it('变异体：把 `dead` 恒置 false ⇒ 同一个贴死样本必须读成通过（证明红因是那次比较）', () => {
+    const dir = repo({
+      '07-next-steps.md': pad(4096 - 90, '# 入口卷（贴死）'),
+      '07-next-steps.part9.md': pad(100, '# 小卷'),
+    })
+    const target = join(dir, 'scripts', GATE)
+    const src = readFileSync(target, 'utf8')
+    const base = runIn(dir, ['--all'])
+    expect(base.rc, base.out.slice(-400)).toBe(1)
+    expect(base.out).toMatch(/FAIL V3/)
+    const mutated = src.replace(/^    const dead = headroom < V3_MIN_HEADROOM$/m, '    const dead = false')
+    expect(mutated, '变异锚点已失效（脚本改形，夹具必须同步）').not.toBe(src)
+    writeFileSync(target, mutated, 'utf8')
+    const after = runIn(dir, ['--all'])
+    expect(after.out, after.out.slice(-400)).toMatch(/PASS V3/)
+    // 摘掉那次比较后**整条闸必须变绿**：若仍判红，说明红因来自别处，这条腿就没打在被告分支上。
+    expect(after.rc, '变异后仍判红 ⇒ 红因不是 V3 那次比较（同族：别人的红替它通过了断言）').toBe(0)
   })
 })

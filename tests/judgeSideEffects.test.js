@@ -13,6 +13,7 @@ import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   evaluate, verdictOf, diffHashes, treeHashes, enumerateCandidates, riskFaceHasWrites,
+  stableText, TS_SENTINEL,
 } from '../scripts/check-judge-side-effects.mjs'
 
 const ROOT = resolve(fileURLToPath(import.meta.url), '../..')
@@ -28,8 +29,10 @@ const CAND = [
 ]
 const ok = (path, identical = false) => ({ path, identical })
 const RES = [
-  { file: 'check-d1-roundtrips.mjs', defaultRun: { rc: 0, changed: [], touched: [] }, writeRun: { rc: 0, flag: '--update-write-quota', changed: [{ path: 'docs/d1-write-quota.json' }], touched: [ok('docs/d1-write-quota.json')] } },
-  { file: 'verify-backend.mjs', defaultRun: { rc: 0, changed: [], touched: [] }, writeRun: { rc: 0, flag: '--update', changed: [], touched: [ok('docs/sql-baseline.json', true)] } },
+  { file: 'check-d1-roundtrips.mjs', defaultRun: { rc: 0, changed: [], touched: [] }, writeRun: { rc: 0, flag: '--update-write-quota', changed: [{ path: 'docs/d1-write-quota.json' }], touched: [ok('docs/d1-write-quota.json')],
+      idempotency: { rc: 0, drift: [], comparable: 1 } } },
+  { file: 'verify-backend.mjs', defaultRun: { rc: 0, changed: [], touched: [] }, writeRun: { rc: 0, flag: '--update', changed: [], touched: [ok('docs/sql-baseline.json', true)],
+      idempotency: { rc: 0, drift: [], comparable: 1 } } },
   { file: 'gen-api-doc.mjs', defaultRun: { rc: 0, changed: [{ path: 'docs/API.md' }], touched: [ok('docs/API.md')] }, writeRun: null, skippedWrite: true },
 ]
 // 登记册夹具：人填的例外一律带可证伪理由（数字或反引号命令），否则 named() 会当它不存在
@@ -275,11 +278,79 @@ describe('入口通道真跑（--fixture / --inject-red / 缺输入面）', () =
     expect(rc, out.slice(-700)).toBe(1)
     expect(out).toContain('INJECTED-writer.mjs')
   })
-  it('零候选的合成面 ⇒ S1 红、rc=1（"没有副作用"必须由读数说话，不是由空面说话）', () => {
+  it('零候选的合成面 ⇒ S1 红且 rc 绝不记 0（"没有副作用"必须由读数说话，不是由空面说话）', () => {
     const p = f('empty.json', { candidates: [], results: [], registry: { entries: [], observed_utc: new Date().toISOString() } })
     const { rc, out } = cli(['--fixture', p])
-    expect(rc, out.slice(-500)).toBe(1)
-    expect(out).toContain('S1')
+    // 相位说明：第五十轮加了 S7 之后，空面同时是"判出违规"（S1）与"双跑没有对象"（S7 未验证），
+    // 而 `verdictOf` 的既有口径是 **2 优先于 1**（混合时不得读成"判出违规"）。
+    // 所以这里断言"非 0 + 两条各自点名"，不把 rc 写死成 1 —— 写死等于把相位变化伪装成回归。
+    expect(rc, out.slice(-500)).not.toBe(0)
+    expect([1, 2]).toContain(rc)
+    expect(out).toContain('FAIL S1')
+    expect(out).toContain('UNVERIFIED S7')
     expect(out).toContain('候选 0 件')
+  })
+})
+
+/**
+ * S7（第五十轮 R50-H2①）：同一写开关连跑两趟 ⇒ 产物字节必须收敛。
+ * 一手动因：上一轮 `check-doc-commands --update` 三跑三个 sha（README 生成块每次多一个空行），
+ * 是本轮机翻输出时人肉发现的 —— 本件比过"默认 args vs 写盘 args"，从没比过"写盘 vs 写盘"。
+ * 归一化只折 ISO 观测时刻（`observed_utc` 这类字段天生每次都不同，按裸字节比 = 自造一条永红假漂移，
+ * 教训 L-2 同族）；空行/缩进/顺序一律**不**归一，那才是真缺陷形态。
+ */
+describe('S7 写侧幂等：双跑收敛判定 + 归一化的两侧', () => {
+  const w = (extra = {}) => [{
+    file: 'check-d1-roundtrips.mjs', defaultRun: { rc: 0, changed: [], touched: [] },
+    writeRun: { rc: 0, flag: '--update-write-quota', changed: [{ path: 'docs/d1-write-quota.json' }],
+      touched: [ok('docs/d1-write-quota.json')], idempotency: { rc: 0, drift: [], comparable: 1 }, ...extra },
+  }]
+  const s7 = (results) => evaluate({ candidates: CAND, results, registry: REG, entryMd: MERGED_MD }).rows.find((r) => r.id === 'S7')
+
+  it('反例：第二趟后归一面仍不等 ⇒ S7 判红并点名"哪个脚本改了哪个产物"', () => {
+    const r = s7(w({ idempotency: { rc: 0, drift: ['docs/d1-write-quota.json'], comparable: 1 } }))
+    expect(r.ok).toBe(false)
+    expect(r.detail).toContain('check-d1-roundtrips.mjs → docs/d1-write-quota.json')
+    expect(r.detail).toContain('第二趟会继续改产物')
+    expect(verdictOf([...evaluate({ candidates: CAND, results: w({ idempotency: { rc: 0, drift: ['x'] }, }), registry: REG, entryMd: MERGED_MD }).rows, r]).rc).toBe(1)
+  })
+
+  it('正例：双跑全部收敛 ⇒ S7 绿，且读数里印出"双跑几件 / 几件没对象"（不是一句"通过"）', () => {
+    const r = s7(RES)
+    expect(r.ok).toBe(true)
+    expect(r.detail).toMatch(/双跑 \d+ 件/)
+    expect(r.detail).toContain('全部收敛')
+  })
+
+  it('没有对象：写通道一次都没碰产物 ⇒ 记 UNVERIFIED 而不是"幂等已证"', () => {
+    const none = [{ file: 'usage.mjs', defaultRun: { rc: 0, changed: [], touched: [] },
+      writeRun: { rc: 0, flag: '--write', changed: [], touched: [] } }]
+    const rows = evaluate({ candidates: [{ file: 'usage.mjs', staticResolved: 1, staticUnbound: 0, blind: false, writeFlags: ['--write'] }],
+      results: none, registry: { entries: [], observed_utc: new Date().toISOString() }, entryMd: '' }).rows
+    const r = rows.find((x) => x.id === 'S7')
+    expect(r.ok).toBe(false)
+    expect(r.unverified).toBe(true)
+    expect(r.detail).toContain('没有对象')
+    expect(verdictOf(rows).rc, '证据失效必须是 2 相位，不得与"判出违规"的 1 混写').toBe(2)
+  })
+
+  it('真入口回执：全量面跑出来的登记册里必须带着双跑读数（S7 的证据落在册上，不只在 stdout）', () => {
+    const reg = JSON.parse(readFileSync(join(ROOT, 'docs', 'judge-side-effects.json'), 'utf8'))
+    const double = reg.entries.filter((e) => e.double_ran)
+    expect(double.length, '册上没有任何一件 double_ran ⇒ --update 那一步没重跑，S7 只是本机一次性输出').toBeGreaterThan(0)
+    expect(double.every((e) => Array.isArray(e.idempotent_drift) && e.idempotent_drift.length === 0),
+      `漂移件：${double.filter((e) => (e.idempotent_drift || []).length).map((e) => e.file).join(', ')}`).toBe(true)
+    // as-of 口径：册上的时刻只证明"那次跑过"，不承诺现值（同 D 系判据的 note 措辞）。
+    expect(Date.parse(reg.observed_utc) / 1000).toBeLessThan(Date.now() / 1000 + 60)
+  })
+
+  it('归一化两侧：只差一个 ISO 时刻 ⇒ 相等；多一个空行 ⇒ 不等（少一侧都算没验证）', () => {
+    const a = Buffer.from('{"observed_utc":"2026-09-28T07:50:30.755Z","counts":{"mentions":202}}', 'utf8')
+    const b = Buffer.from('{"observed_utc":"2026-09-28T09:12:01.004Z","counts":{"mentions":202}}', 'utf8')
+    const c = Buffer.from('{"observed_utc":"2026-09-28T07:50:30.755Z","counts":{"mentions":202}}\n\n', 'utf8')
+    expect(stableText(a)).toBe(stableText(b))
+    expect(stableText(a)).not.toBe(stableText(c))
+    expect(stableText(a)).toContain(TS_SENTINEL)
+    expect(stableText(null), '文件在第二趟被删掉也是漂移的一种，不得与"没变"同形').toBe('(缺席)')
   })
 })

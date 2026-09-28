@@ -63,6 +63,18 @@ function stagedAdded(dir = root) {
 /** 新卷出生余量下限：25%（= 3,072B）。取 25% 的实测依据见登记册「体量预算」节与第三十五轮报告。 */
 export const NEW_VOLUME_MIN_HEADROOM = 0.25
 
+/** 入口卷的名字 —— 每轮真正往下写的只有它，所以"贴死"只判它。 */
+export const MAIN_VOLUME = '07-next-steps.md'
+
+/**
+ * 入口卷还能往下写一条的字节下限：**由本仓自己的历史步长量出来**，不是拍的。
+ * 实测 @2026-09-28（`git log -20 -- memory/07-next-steps.md` + 对每次提交取 `wc -c` 差）：
+ * 最近 12 次改动里的**正增量**为 80 / 254 / 255 / 290 / 343 / 612 B（中位数 ≈ 255），
+ * 负增量是"迁卷"（把内容挪去分卷）不是"写得下"。⇒ 取 256B ≈ 中位数：
+ * 余量低于它，下一轮**连一条指针行都塞不进**，只能靠压措辞 —— 那正是上一轮发生的事故。
+ */
+export const V3_MIN_HEADROOM = 256
+
 /** 主卷那行「在册卷号：1–58」的声明区间；解析不到 ⇒ null（V5 据此记未验证，不记通过）。 */
 export function readDeclaredRange(memDir) {
   const p = join(memDir, '07-next-steps.md')
@@ -120,7 +132,37 @@ export function evaluate({ files, max, all = true, added = null, partNumbers, de
       : '二次确认未触发异常（超限件两次读数一致；无超限件时一次都不重读）',
   })
   const biggest = files.reduce((a, b) => (b.size > (a?.size || 0) ? b : a), null)
-  rows.push({ id: 'V3', pass: files.length === 0 || !!biggest, detail: biggest ? `最大卷 ${biggest.name} ${biggest.size}B（阈值余量 ${max - biggest.size}B）` : '无对象' })
+  // V3（第五十轮改判三态）：旧写法是 `pass: files.length === 0 || !!biggest` ——
+  // **只要目录里有卷就恒真**，"余 0B"与"余 900B"在账面上长得一模一样。上一轮主卷被压到 4,096B 整
+  // （台账里管这叫"压措辞续命"）就是这条恒真放行的：读数印了，但没人（也没有闸）据它判红。
+  // 形状取自 `ai/size-limit`：`packages/size-limit/calc.js:51-56` 只在**显式设了预算**时才给
+  // `check.passed` 赋值，`config.failed = checks.some(i => i.passed === false)` 用 `=== false` 而不是真值；
+  // `create-reporter.js:115` 再给"没预算"单独一个 `unlimited` 态。⇒ 三态：够写 / 贴死 / 没量到，
+  // 缺任一态都会退化成"看起来在自检"。
+  // 判的对象只钉**入口卷**（`07-next-steps.md`）：它是每轮真要往下写的东西。历史分卷是终态件，
+  // 拿"贴死"连坐整库 = 逼后来人删事实换绿（assertion scope = blast radius）。
+  const mainFile = files.find((f) => f.name === MAIN_VOLUME)
+  if (!mainFile) {
+    rows.push({
+      id: 'V3', pass: true, status: 'UNVERIFIED',
+      detail: files.length === 0
+        ? '无对象（作用面为空 ⇒ 入口卷的余量没量到，不是"余量够"）'
+        : `作用面 ${files.length} 卷里没有入口卷 ${MAIN_VOLUME} ⇒ 本条未验证（历史卷的余量不判，见上）`,
+    })
+  } else {
+    const headroom = max - mainFile.size
+    const dead = headroom < V3_MIN_HEADROOM
+    rows.push({
+      id: 'V3', pass: !dead,
+      detail: `入口卷 ${mainFile.name} ${mainFile.size}B ⇒ 余 ${headroom}B（阈值 ${max}B，可写下限 ${V3_MIN_HEADROOM}B）`
+        + `${biggest && biggest.name !== MAIN_VOLUME ? `；全作用面最大是 ${biggest.name} ${biggest.size}B（终态卷，不判）` : ''}`
+        + (dead
+          ? ` ⇒ **贴死**：下一轮一条指针行都塞不进去。正解＝把整段轮次摘要迁去新卷号（V4 管出生余量，本条管存量），`
+            + '**禁止**用压措辞/删事实换绿 —— 上一轮压到 4,096B 整就是这条恒真放行的'
+          : (headroom < max * 0.15 ? '（贴线：还能写一条，但本轮收尾前先腾地方）' : '')),
+    })
+  }
+
   // V4（第三十五轮）：**新建**的记忆卷必须带着余量出生。
   // 立它的实测：第三十三轮写了「新卷到 3.5KB 就开新卷号」这条规则，第三十四轮我自己就把卷 50
   // 造到 4,006B 出生（余 90B）—— 规则在案的下一轮被破，说明它是措辞不是闸。
