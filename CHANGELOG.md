@@ -4,6 +4,52 @@
 
 ## [未发布]
 
+### 2026-09-29 追加六十七（对标第五十三轮：护栏自己说的话是不是真的）
+
+- **E1｜台账漂移从"只报"升为"拦"**（内层 R53-H4）。一手对照（本轮 03:36，在 `git archive HEAD` 的一次性检出里把
+  册上 `mentions` 注入成 42，真值 231）：默认档印 `漂移：counts{mentions 册上 42 → 现算 231}` 却 **rc=0**，
+  而 `--check` 档 **rc=1** 并给出处置命令——**`verify` 链与 `ci.yml` 当时跑的都是默认档** ⇒ 第五十二轮那次 CI 红
+  只能等测试腿来报。修法＝两处一律加 `-- --check`（人工报告档仍留在 `check:doc-commands` 别名里，不删），
+  并加两条常驻腿：「接线正向」（链与 CI 都带档、且链里不得残留裸调用）+「牙齿正向」
+  （干净检出先绿做对照，再把册改过期 ⇒ 严格档必红、默认档按设计仍 0，把这条不对称写死成断言）。
+  检出人口由**盘面递归枚举**得出并与 `git ls-files` 齐平（第一版我拿 `git ls-files` 去数解出来的树 ⇒ 恒得 0，
+  那条对照自己判红，红因全在夹具）。
+- **E3｜逃生门补上计量，并把假主张改真**（内层 R53-H5）。`ci-green-contract.mjs` 从前只印「这笔账会留在 CI 与台账里」，
+  而同一文件 `grep -nE "writeFileSync|appendFile|ledger|\.jsonl"` 实测 **0 命中**，pre-push 的 stderr 又不进任何归档
+  ⇒ 那句话从写下那天起就是假的。对照（当次读原文）：`pre-commit/pre-commit` 的 `SKIP`
+  （`pre_commit/commands/run.py:130`）同样不落盘，但它在运行输出里逐钩打 `Skipped`——成熟做法至少"当场可见"，
+  本仓必须多走一步。现在：绕过时 `appendEscapeLedger()` 往 `.ci/escape-hatch.jsonl` 追加一行
+  `{utc,base_sha,head_sha,branch,reason,actor}`，**写不进去就拒放行**（fail-closed：无计量的绕过等于没有绕过）；
+  新判据 `npm run verify:escape-hatch`（`scripts/check-escape-hatch-log.mjs`）核整本账：坏 JSON / 缺字段 /
+  理由短于 20 字 / sha 形状不合 ⇒ 逐条点名行号判红；"文件不存在"与"文件在但 0 条"两种零输入分开措辞；
+  **刻意不判**"绕过之后远端有没有回绿"（要联网 ⇒ 做成阻断项就是不可自愈的闸，户内规⑩）。
+  本轮用写入器把第五十二轮那次真实绕过**回溯补记**入账，并标 `backfilled: true` + `note` 写明
+  "utc 取该笔 committer date、reason 是按提交说明与报告 §8·4 重建的措辞，不是当时原文"——原文已无人取回，
+  **这正是装计量的理由**，不许用一句假装是原文的话把它盖掉。夹具 6 腿含行为回执（真落一行 + 拒写时不留半成品）。
+  自证里判据还抓到自己的反例：`--selftest` 的"合规样本"理由只有 15 字 ⇒ 第一条腿当场 FAIL，说明 20 字下限真在拦东西。
+- **E2 + E5｜分项预算接线，并把覆盖面往下压一层**（内层 R53-H1）。判据接进 CI 的 `build-and-test`
+  （Build + Bundle-size 之后的独立 step，按本仓 `check:size` 先例），但**不进本机 `verify` 链**——链里没有 build，
+  硬塞进去每次只会 rc=2，那是把"这台机器没构建"混进门禁结论；这条取舍写进脚本头注并由夹具腿钉住
+  （链里 `not.toContain('report:item-budgets')`——钉的是"没接错地方"，不是"没接"）。
+  名册新增 `noBudgetMax` 地板（判据读名册里的数，代码里不写死 ⇒ 无第二真相源）：**只准降不准升**，
+  升=新增 chunk 家族没进名册，处置只能是补登记或复用既有 pattern。E5 把 ≥6KB gz 的 7 件补进名册
+  （`tooltip/pie/bar/legend/axisHelper/grid/CustomerPage`，预算一律当次实测 ×1.10 向上取整到 100B），
+  地板随之下调 52 → 45；真面读数 `登记 17 条（匹配 17 / 死条目 0）｜62 件（判 17 / 未登记 45）｜已判体积 300.3/370.5KB gz`。
+  接线当轮又抓到一处"判据自己崩了"的新形态（与上一轮同族）：地板那行 `const capBreach = r.stats.unjudged > cap`
+  被我排在 `r.rc === 2` **之前**，零输入时 `evaluate` 不带 `stats` ⇒ 判据抛 `TypeError` 退出、rc=1 冒充红灯；
+  是新增的地板腿当场抓出来的，已修正顺序并给三挡零输入腿补 `stderr 不含 Traceback`。
+- **文档追上真相源**：README 的 vitest 文件数 109 → **110**；另一处写死的"盘上 64 个别名"改成
+  **指回现值命令**（读 `npm run check:doc-commands` 输出的 aliases）——写死即第二真相源，那句 64 已落后两轮。
+- **本轮仍未做（不得当成做完）**：E4 行尾归一（`git ls-files --eol` 全量实测 `i/crlf=0 / w/crlf=172 / attr/unset=0`，
+  其中 171 件工作树与 HEAD 一致、可直接重取）排在业务改动之后单独一笔；E6 D1 语义等价第二通道需只读远端探针
+  （风险分类禁 spawn ⇒ 只能人工执行并记时刻）；E7 CHANGELOG 分节、E8 对外待办入口为低优先。
+  另有一处**对上一轮自身的纠正**：第五十二轮写的"实测仍为 1 件 w/crlf"是我把 `git ls-files --eol` 按 TAB 拆列拆错
+  造出的**假 0**（真实形态是 `i/lf w/crlf attr/text eol=lf` + TAB + 路径，属性面在第一个 TAB **之前**）
+  ⇒ 真值 172 件，差 171 倍；同一轮还把 E4 的 268（字节含 CR 口径，含 249 个二进制里合法的 `0D0A`）
+  与 172（git 工作树行尾口径）并排写而不标口径，也是同一类失效。
+
+
+
 ### 2026-09-29 追加六十六（对标第五十二轮：把反向半边补齐）
 
 - **R52-H1′ 下架项缺图的真面演习**（上一轮只是纸面结论）。一手：`_r52tmp/drill_r52.py` 把

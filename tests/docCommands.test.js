@@ -6,7 +6,7 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
 import { spawnSync } from 'node:child_process'
-import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdtempSync, rmSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -371,4 +371,70 @@ describe('行尾不得改变判定（本机 205 / CI 224 那次红的根因面�
     const reg = JSON.parse(readFileSync(join(ROOT, 'docs', 'doc-commands.json'), 'utf8'))
     expect(mentions, '册上 counts 与当场重算不符 ⇒ --update 没跑或判据又变成机器相关').toBe(reg.counts.mentions)
   })
+})
+
+// 第五十三轮 E1（R53-H4）：把"台账漂移"从**只报**升为**阻断**的接线，必须自己长出牙齿。
+// 一手（本轮 03:36 实测）：同一份人为过期的台账（`mentions=42`，真值 231）——
+//   默认档 `verdict=GREEN rc=0` 且照样印 `漂移：…`；`--check` 档 `rc=1` 并给出处置命令。
+//   而 `verify` 链与 `ci.yml` 那一步当时跑的都是**默认档** ⇒ 第五十二轮的 CI 红只能等测试腿来报。
+describe('E1 台账漂移接闸（严格档必须既被接上、又真有牙齿）', () => {
+  it('接线正向：verify 链与 ci.yml 都跑 `--check`；且链里不得残留不带档的裸调用', () => {
+    const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'))
+    const chain = String(pkg.scripts.verify || '')
+    const ci = readFileSync(join(ROOT, '.github', 'workflows', 'ci.yml'), 'utf8')
+    expect(chain, 'verify 链里的 check:doc-commands 必须带 --check 档').toContain('npm run check:doc-commands -- --check')
+    // 反向半边：裸调用一旦回到链上，本条必须红（否则"接了又被顺手改回去"没人看得见）
+    expect(chain.replace(/npm run check:doc-commands -- --check/g, '')).not.toContain('npm run check:doc-commands')
+    expect(ci).toContain('npm run check:doc-commands -- --check')
+    // 人工档仍在别名里保留（默认档给人看报告，不是删除它）
+    expect(pkg.scripts['check:doc-commands']).toBe('node scripts/check-doc-commands.mjs')
+  })
+
+  it('牙齿正向：干净检出上先证两侧都绿（对照），再把册改过期 ⇒ `--check` rc=1 且点名子键，默认档仍 rc=0', () => {
+    // 人口必须由盘面枚举得出（②-f）：解出来的检出面与 `git ls-files` 不一致时，这条腿的读数没有资格被采信。
+    const dir = mkdtempSync(join(tmpdir(), 'dcom-arch-'))
+    const tar = join(dir, 'head.tar')
+    const arch = spawnSync('git', ['archive', '-o', tar, 'HEAD'], { cwd: ROOT, encoding: 'utf8', timeout: 120_000 })
+    expect(arch.status, arch.stderr).toBe(0)
+    // 传绝对路径给 tar 会踩两种坑：Git-Bash 的 GNU tar 把 `C:` 当远程主机（Cannot connect to C:），
+    // 而 CI 上未必有 bsdtar。所以解包走 **cwd + 相对文件名**，两边都不碰盘符。
+    const ex = spawnSync('tar', ['-xf', 'head.tar'], { cwd: dir, encoding: 'utf8', timeout: 120_000 })
+    expect(ex.status, ex.stderr).toBe(0)
+    const tracked = spawnSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8', timeout: 60_000 }).stdout.split('\n').filter(Boolean)
+    // 解出来的树**没有 .git** ⇒ 拿 `git ls-files` 去数它的人口只会得到 0，把对照判成失败（本轮第一次就这么红的）。
+    // 人口一律由盘面递归枚举得出，并排掉自己刚写的那个 tar。
+    const walk = (d, acc = 0) => {
+      for (const e of readdirSync(d, { withFileTypes: true })) {
+        if (e.isDirectory()) acc = walk(join(d, e.name), acc)
+        else if (e.name !== 'head.tar') acc += 1
+      }
+      return acc
+    }
+    const listed = walk(dir)
+    expect(listed, `检出人口 ${listed} ≠ 真面人口 ${tracked.length} ⇒ 夹具人口不齐平，读数不作数`).toBe(tracked.length)
+    const cli = (args) => {
+      const r = spawnSync(process.execPath, [join('scripts', 'check-doc-commands.mjs'), ...args],
+        { cwd: dir, encoding: 'utf8', timeout: 120_000 })
+      return { rc: r.status, out: `${r.stdout || ''}${r.stderr || ''}` }
+    }
+    try {
+      const control = cli(['--check'])
+      expect(control.rc, `对照必须先绿，否则反例测的是夹具：${control.out.slice(-400)}`).toBe(0)
+      const regPath = join(dir, 'docs', 'doc-commands.json')
+      const reg = JSON.parse(readFileSync(regPath, 'utf8'))
+      reg.counts.mentions = 42
+      writeFileSync(regPath, JSON.stringify(reg, null, 2) + '\n', 'utf8')
+      const strict = cli(['--check'])
+      expect(strict.rc, '--check 对过期册必须拦').toBe(1)
+      expect(strict.out).toContain('mentions 册上 42')
+      expect(strict.out).toContain('现算')
+      const lenient = cli([])
+      // 这条不是"默认档坏了"，而是**它按设计就不拦**（D7 只把 README 那半写进 ok）。
+      // 把它写成断言，是为了让下一轮看清：接闸靠的是链上选了哪一档，不是判据本身变严。
+      expect(lenient.rc, '默认档按设计只报不拦；若某天它也开始拦，本条必须红并同步这里的说明').toBe(0)
+      expect(lenient.out).toContain('漂移：counts{mentions 册上 42')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  }, 180_000)
 })

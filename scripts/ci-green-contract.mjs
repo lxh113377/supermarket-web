@@ -10,7 +10,7 @@
 // 四态：GREEN 放行 / RED 拒 / BLOCKED（有 run 但缺必需 job）拒 / UNKNOWN（取不到 run、
 // gh 不可用、网络失败）拒 —— **裸静音判红**，绝不把"没查到"读成"没问题"。
 // 逃生门：CI_GREEN_SKIP=1 才可绕过，且必须同时给 CI_GREEN_REASON，输出面 loudly 留痕。
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync, existsSync, appendFileSync, mkdirSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -18,6 +18,90 @@ import { fileURLToPath } from 'node:url'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
 export const CONTRACT_FILE = '.ci/contract.json'
+
+// ── 逃生门计量（第五十三轮 E3 / 内层 R53-H5）────────────────────────────────
+// 一手：下面 `main()` 里那句「这笔账会留在 CI 与台账里」在写它的那天起就是**假主张**——同文件
+// `grep -nE "writeFileSync|appendFile|ledger|\\.jsonl"` 实测 0 命中，而 pre-push 的 stderr 不进任何
+// 被归档的 run 日志 ⇒ 绕过理由只活在那一刻。对照参照（当次读原文）：`pre-commit/pre-commit` 的
+// `SKIP`（`pre_commit/commands/run.py:130`）同样不落盘，但它在运行输出里逐钩打 `Skipped`——
+// 成熟做法至少"当场可见"；本仓必须多走一步：**把绕过写进版本库**，因为没人看得见那次 stderr。
+// 时机要说清：pre-push 跑在 push **之前**，所以这条记录进的是**下一笔提交**，不是被绕开的那一笔
+// （常驻判据 `verify:escape-hatch` 每次都核全部历史行，所以不会漏读）。
+export const ESCAPE_LEDGER = '.ci/escape-hatch.jsonl'
+export const ESCAPE_REQUIRED = ['utc', 'base_sha', 'head_sha', 'branch', 'reason', 'actor']
+
+/** 组一条记录：任何必填项为空就抛（fail-closed）——不许写出一条"看着记了、其实没法复算"的行。 */
+export function buildEscapeRecord(input = {}) {
+  const rec = {
+    utc: String(input.utc || new Date().toISOString()),
+    base_sha: String(input.base || '').trim(),
+    head_sha: String(input.head || '').trim(),
+    branch: String(input.branch || '').trim(),
+    reason: String(input.reason || '').trim(),
+    actor: String(input.actor || '').trim(),
+  }
+  if (input.backfilled) rec.backfilled = true
+  // kind/backfilled/note 必须透传：`genesis` 起始行不是绕过记录，丢了 kind 就会把它计成一次绕过
+  // （第五十三轮实测：写入器只认自己列的六个字段，刚落盘的 genesis 在账面上成了"绕过 2 / 起始 0"）。
+  if (input.kind) rec.kind = String(input.kind)
+  if (input.note) rec.note = String(input.note)
+  const miss = ESCAPE_REQUIRED.filter((k) => !rec[k])
+  if (miss.length) {
+    throw new Error(`记录缺必填项：${miss.join(', ')}（base/head 取不到时禁止留空放行——那等于记了一笔对不了账的账）`)
+  }
+  if (rec.reason.length < 20) throw new Error(`理由只有 ${rec.reason.length} 字，短于 20 ⇒ 不足以复算当时为什么必须绕`)
+  if (!/^[0-9a-f]{7,40}$/.test(rec.base_sha) || !/^[0-9a-f]{7,40}$/.test(rec.head_sha)) {
+    throw new Error('base_sha/head_sha 必须是 7–40 位十六进制')
+  }
+  return rec
+}
+
+/** 追加一行（append-only；显式锁 `\n`、UTF-8 —— 户内规「记指纹的写入必须锁 newline」同规）。 */
+export function appendEscapeLedger(input = {}, dir = root) {
+  const rec = buildEscapeRecord(input)
+  const pth = join(dir, ESCAPE_LEDGER)
+  mkdirSync(dirname(pth), { recursive: true })
+  const line = JSON.stringify(rec) + '\n'
+  appendFileSync(pth, line, 'utf8')
+  return { path: pth, bytes: Buffer.byteLength(line), rec }
+}
+
+/**
+ * 落点可覆盖（`CI_GREEN_LEDGER_DIR`）——不覆盖就会让夹具往真账本里写记录：未变异的那条 CLI 腿
+ * 以 `cwd=REPO` 跑生产脚本，绕过分支会往仓内 `.ci/escape-hatch.jsonl` 追加一行，
+ * 于是"演练"污染了本该只记真实绕过的审计面（本轮实测确实多写过一行，已删）。
+ * 测试一律把落点指到临时目录；真账本只由真绕过写入。
+ */
+function ledgerDir() {
+  const d = (process.env.CI_GREEN_LEDGER_DIR || '').trim()
+  return d ? resolve(d) : root
+}
+
+/** 绕过者署名：git 配置的 user.name，取不到退回环境变量；都没有就写 unknown。**绝不**读任何密钥面。 */
+function actorOf() {
+  try {
+    const n = execFileSync('git', ['config', 'user.name'], { cwd: root, encoding: 'utf8' })
+    if (n && n.trim()) return n.trim()
+  } catch { /* 取不到就走环境变量 */ }
+  return String(process.env.USERNAME || process.env.USER || 'unknown')
+}
+
+/**
+ * 手工执行（没有 pre-push 的 ref 行、也没有 CI_GREEN_BASE）时 base 的真实回退链：取远端跟踪引用。
+ * 第五十三轮实发：既有夹具 `tests/ciGreenContract.test.js` 的「带理由就放行」腿走的正是这条路径，
+ * base 取不到时被新加的 fail-closed 拒成 rc=1。**放宽校验是错的**（那等于允许记一条对不了账的账），
+ * 正解是把 base 接到真实可得的地方；真取不到（裸仓／无远端）才继续拒。
+ */
+function remoteBaseOf(contract) {
+  const br = contract && contract.branch ? String(contract.branch) : 'HEAD'
+  for (const ref of [`refs/remotes/origin/${br}`, 'refs/remotes/origin/HEAD']) {
+    try {
+      const sha = execFileSync('git', ['rev-parse', '--verify', '--quiet', ref], { cwd: root, encoding: 'utf8' }).trim()
+      if (/^[0-9a-f]{7,40}$/.test(sha)) return sha
+    } catch { /* 这条引用不存在就试下一条；全失败交给调用方拒放行 */ }
+  }
+  return ''
+}
 
 export function loadContract(dir = root) {
   const p = join(dir, CONTRACT_FILE)
@@ -105,7 +189,26 @@ export function main({ pushRef = null, remoteSha = null } = {}) {
   if (skip) {
     const reason = (process.env.CI_GREEN_REASON || '').trim()
     if (!reason) { console.error(`[ci-green] ${contract.escapeHatch} 已设但 CI_GREEN_REASON 为空 ⇒ 仍拒（逃生门要留可审计的理由）`); return 1 }
-    console.error(`[ci-green] !! 绕过契约 !! 理由="${reason}" —— 这笔账会留在 CI 与台账里，请自行确保远端为绿`)
+    // 落账排在放行**之前**：写不进去就拒放行。没有计量的逃生门，等于给护栏装了个不带日志的开关。
+    const r0 = (parseRefLines(pushRef || ''))[0] || {}
+    let head = String(r0.localSha || remoteSha || '').trim()
+    if (!head) {
+      try { head = execFileSync('git', ['rev-parse', '--verify', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim() } catch { head = '' }
+    }
+    const base = String(r0.remoteSha || process.env.CI_GREEN_BASE || remoteBaseOf(contract) || '').trim()
+    const branch = String(r0.localRef || `refs/heads/${contract.branch}`).replace(/^refs\/heads\//, '')
+    let w = null
+    try {
+      w = appendEscapeLedger({ base, head, branch, reason, actor: actorOf() }, ledgerDir())
+    } catch (e) {
+      console.error(`[ci-green] FAIL 逃生门无法落账（${e.message}）⇒ 拒放行：这笔绕过一旦放行就无人能复算它发生过什么`)
+      return 1
+    }
+    console.error(`[ci-green] !! 绕过契约 !! 已追加 1 行（${w.bytes}B）→ ${ESCAPE_LEDGER}`
+      + `｜base=${w.rec.base_sha.slice(0, 7)}→head=${w.rec.head_sha.slice(0, 7)}｜branch=${w.rec.branch}｜actor=${w.rec.actor}`)
+    // 只陈述已发生的事：记录此刻还在本机工作树里，**下一笔提交**才进版本库；
+    // 而"远端有没有回绿"本判据不判（要联网，做成阻断项就成了不可自愈的闸）。
+    console.error('[ci-green] !! 计量已落盘，但记录进的是下一笔提交；远端是否回绿**不在本判据面内**，请自行确保并回读 run。')
     return 0
   }
   // 无 ref 行（手工执行）时退回契约分支 + CI_GREEN_BASE，保持"人也能直接跑这一条"的用法

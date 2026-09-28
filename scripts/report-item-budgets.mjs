@@ -6,8 +6,11 @@
  * 本件判**单个 chunk 各自的预算** —— 聚合数不变时单块可以此消彼长（实测 62 件里最大一块占首屏 76%），
  * 这正是"总量没动、结构已变"的盲区。
  *
- * **第一版只出报告、不进 `npm run verify`**（户内规「新指标先量误报率再接闸」）：
- * 别名名为 `report:item-budgets` 而非 `verify:*`，接闸与否由下一轮拿实测误报数决定。
+ * **接线档位（第五十三轮 E2 更新，别按旧措辞理解）**：判据已接进 CI 的 `build-and-test` 必需 job
+ * （`ci.yml` 里 Build + Bundle-size 之后的独立 step），但**不进本机 `npm run verify` 链** ——
+ * 链里没有 build 这一步，而本判据的输入面是构建产物：硬塞进链里它每次只会 rc=2（没量到），
+ * 那是把「这台机器没构建」混进门禁结论。户内先例一致：`check:size` 同样只挂 CI（见 list-uncovered 的未纳入名单）。
+ * 接线前提（户内规「新指标先量误报率再接闸」）：第五十二轮真面误报数=0，本轮补登记后 verdict 仍 GREEN。
  *
  *   node scripts/report-item-budgets.mjs                     # 真面：读 dist/assets + docs/item-budgets.json
  *   node scripts/report-item-budgets.mjs --dist <dir> --roster <file>
@@ -152,10 +155,22 @@ function main() {
     return 2
   }
   const r = evaluate({ assets, roster })
+  // 未登记面的地板（名册项 noBudgetMax，只准降不准升）：判据读**名册里的这个数**，不在代码里写死（第二真相源）。
+  // 缺失 ⇒ 判 UNVERIFIED：把「没人立过上限」读成「上限无穷、自动通过」是户内 G14 的反面。
+  const cap = roster.noBudgetMax
+  if (typeof cap !== 'number') {
+    console.log('[report:item-budgets] UNVERIFIED 名册里没有 noBudgetMax ⇒ 未登记面没有上限可依，不判"全在治理内"')
+    return 2
+  }
   if (r.rc === 2) {
     console.log(`[report:item-budgets] UNVERIFIED ${r.why}`)
     return 2
   }
+  // 地板的**超**判在明细之后出（户内规：先红的判据不许 exit 掉后面的读数），
+  // 而"名册里没有地板"这一半是前置条件，必须在取数之后就挡住（没依据就不许继续算）。
+  // ⚠️ 这行必须排在 `r.rc === 2` 之后：零输入时 evaluate 根本不带 stats，
+  // 先读 `r.stats.unjudged` 会让判据自己抛 TypeError 退出（rc=1）—— 第五十三轮夹具当场抓到过一次。
+  const capBreach = r.stats.unjudged > cap
   for (const row of r.rows) {
     if (row.state === 'over') console.log(`FAIL  ${row.id} 实测 ${row.size}B > 预算 ${row.budget}B（超 ${row.size - row.budget}B，规则 \`${row.matchedBy}\`）`)
     else if (row.state === 'ok') console.log(`PASS  ${row.id} 实测 ${row.size}B ≤ 预算 ${row.budget}B（余 ${row.headroom}B）`)
@@ -167,11 +182,14 @@ function main() {
     console.log(`          最大三件：${nb.slice(0, 3).map((x) => `${x.id}=${kb(x.size)}KB`).join(' · ')}`)
   }
   for (const p of r.problems) console.log(`· ${p}`)
+  if (capBreach) console.log(`FAIL  未登记 ${r.stats.unjudged} 件 > 地板 ${cap} ⇒ 有新增 chunk 家族没进名册（地板只准降不准升；处置＝补登记并带当次实测时刻，或复用既有 pattern）`)
+  else console.log(`      未登记地板：实测 ${r.stats.unjudged} ≤ 上限 ${cap}（余 ${cap - r.stats.unjudged}）`)
   const s = r.stats
-  console.log(`[report:item-budgets] verdict=${s.dead ? 'RED' : (r.problems.length ? 'RED' : 'GREEN')} rc=${r.rc}｜`
+  const rc = (r.rc === 1 || capBreach) ? 1 : 0
+  console.log(`[report:item-budgets] verdict=${rc ? 'RED' : 'GREEN'} rc=${rc}｜`
     + `登记 ${s.declared} 条（匹配 ${s.matched} / 死条目 ${s.dead}）｜产物 ${s.total} 件（判 ${s.judged} / 未登记 ${s.unjudged}）｜`
-    + `已判体积 ${kb2(s.judgedGz)}/${kb2(s.totalGz)}KB gz`)
-  return r.rc
+    + `地板 ${s.unjudged}/${cap}｜已判体积 ${kb2(s.judgedGz)}/${kb2(s.totalGz)}KB gz`)
+  return rc
 }
 const kb2 = (n) => (n / 1024).toFixed(1)
 

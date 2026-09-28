@@ -1,22 +1,133 @@
 {
   "$comment": "分项体积预算名册 —— `npm run report:item-budgets`（scripts/report-item-budgets.mjs）的判据输入。与 docs/size-budget.json 类聚合预算（scripts/check-bundle-size.mjs 的 firstLoadJs/firstLoadCss/largestChunk）互补：那件判首屏合计，本件判单个 chunk。第一版**不进 `npm run verify`**，接闸与否看下一轮实测误报数。",
   "unit": "gzipBytes",
-  "match": "对 dist/assets/ 下的**文件名**做 glob 匹配（只支持 `*`）；一件只认名册里第一条命中的规则 ⇒ 规则之间不要重叠。登记规则：本轮起「实测 ≥ 10,000B gz 的件全部在册」，未达线者由判据以 `no-budget` 点名（不判合格），最大未登记件会出现在报告里。",
+  "match": "对 dist/assets/ 下的**文件名**做 glob 匹配（只支持 `*`）；一件只认名册里第一条命中的规则 ⇒ 规则之间不要重叠。登记规则：第五十三轮起「实测 ≥ 6,000B gz 的件全部在册」（五十轮为 ≥10,000B），未达线者由判据以 `no-budget` 点名（不判合格），最大未登记件会出现在报告里。",
   "provenance": {
-    "measuredBy": "npx vite build --outDir .r52build --emptyOutDir（2026-09-29 02:1x，内层 HEAD a5c9f5b）；gzipSync 逐件实测，62 件合计 370.9KB gz",
+    "measuredBy": "npx vite build --outDir dist（2026-09-29 03:4x 内层 HEAD 8053c1e，gzipSync 逐件实测 62 件）；E5 补登记的 7 件取同一次构建读数",
     "rule": "budget = 实测 ×1.10 向上取整到 100B ⇒ 每项都有 ≥10% 余量（零余量地板＝冻结增长，见户内「Ratchet floors need headroom」）",
     "warning": "下面每项的 measuredAtBuild 是**取证注记字符串**，不是判据输入：判据不得读它，读它=把某一台机器某一次构建的产物当基准（随工作树变的量，第一次接 CI 就会自判红）"
   },
   "items": [
-    { "id": "react-vendor", "pattern": "react-vendor-*.js", "budget": 74400, "measuredAtBuild": "67,558B gz（2026-09-29 实测）", "note": "React 19 运行时单块，占首屏 76%；dependabot 升级会整体抬它，所以它是分项预算里最该盯的一块" },
-    { "id": "echarts-extension", "pattern": "extension-*.js", "budget": 65500, "measuredAtBuild": "59,512B gz", "note": "echarts 公共扩展块；深路径按需注册（AGENTS.md 铁律）失效时首先膨胀的是它" },
-    { "id": "echarts-graphic", "pattern": "graphic-*.js", "budget": 52700, "measuredAtBuild": "47,875B gz", "note": "echarts graphic 层。pie 空态已改 DashboardTab HTML overlay，加回 GraphicComponent 会顶穿这条" },
-    { "id": "admin-page", "pattern": "AdminPage-*.js", "budget": 20200, "measuredAtBuild": "18,273B gz", "note": "管理后台单块（懒加载）。顾客端不载它，但它是功能增长最密集的一块" },
-    { "id": "router", "pattern": "router-*.js", "budget": 15700, "measuredAtBuild": "14,219B gz", "note": "HashRouter 首屏必须载 router，非懒加载可削（归因见 check-bundle-size.mjs 头注）" },
-    { "id": "echarts-renderers", "pattern": "renderers-*.js", "budget": 13700, "measuredAtBuild": "12,410B gz", "note": "canvas/svg renderer 块" },
-    { "id": "product-detail-page", "pattern": "ProductDetailPage-*.js", "budget": 13300, "measuredAtBuild": "12,049B gz", "note": "顾客端商品详情（github.io 主入口之一）" },
-    { "id": "echarts-line", "pattern": "line-*.js", "budget": 11300, "measuredAtBuild": "10,217B gz", "note": "line series 块" },
-    { "id": "echarts-install", "pattern": "install-*.js", "budget": 11300, "measuredAtBuild": "10,183B gz", "note": "use() 注册入口块（注意：`installCommon-*`/`installDataZoom*` 不匹配本规则，走 no-budget）" },
-    { "id": "first-load-css", "pattern": "index-*.css", "budget": 11100, "measuredAtBuild": "10,032B gz", "note": "首屏 CSS（聚合预算里 firstLoadCss 的分项化）" }
-  ]
+    {
+      "id": "react-vendor",
+      "pattern": "react-vendor-*.js",
+      "budget": 74400,
+      "measuredAtBuild": "67,558B gz（2026-09-29 实测）",
+      "note": "React 19 运行时单块，占首屏 76%；dependabot 升级会整体抬它，所以它是分项预算里最该盯的一块"
+    },
+    {
+      "id": "echarts-extension",
+      "pattern": "extension-*.js",
+      "budget": 65500,
+      "measuredAtBuild": "59,512B gz",
+      "note": "echarts 公共扩展块；深路径按需注册（AGENTS.md 铁律）失效时首先膨胀的是它"
+    },
+    {
+      "id": "echarts-graphic",
+      "pattern": "graphic-*.js",
+      "budget": 52700,
+      "measuredAtBuild": "47,875B gz",
+      "note": "echarts graphic 层。pie 空态已改 DashboardTab HTML overlay，加回 GraphicComponent 会顶穿这条"
+    },
+    {
+      "id": "admin-page",
+      "pattern": "AdminPage-*.js",
+      "budget": 20200,
+      "measuredAtBuild": "18,273B gz",
+      "note": "管理后台单块（懒加载）。顾客端不载它，但它是功能增长最密集的一块"
+    },
+    {
+      "id": "router",
+      "pattern": "router-*.js",
+      "budget": 15700,
+      "measuredAtBuild": "14,219B gz",
+      "note": "HashRouter 首屏必须载 router，非懒加载可削（归因见 check-bundle-size.mjs 头注）"
+    },
+    {
+      "id": "echarts-renderers",
+      "pattern": "renderers-*.js",
+      "budget": 13700,
+      "measuredAtBuild": "12,410B gz",
+      "note": "canvas/svg renderer 块"
+    },
+    {
+      "id": "product-detail-page",
+      "pattern": "ProductDetailPage-*.js",
+      "budget": 13300,
+      "measuredAtBuild": "12,049B gz",
+      "note": "顾客端商品详情（github.io 主入口之一）"
+    },
+    {
+      "id": "echarts-line",
+      "pattern": "line-*.js",
+      "budget": 11300,
+      "measuredAtBuild": "10,217B gz",
+      "note": "line series 块"
+    },
+    {
+      "id": "echarts-install",
+      "pattern": "install-*.js",
+      "budget": 11300,
+      "measuredAtBuild": "10,183B gz",
+      "note": "use() 注册入口块（注意：`installCommon-*`/`installDataZoom*` 不匹配本规则，走 no-budget）"
+    },
+    {
+      "id": "first-load-css",
+      "pattern": "index-*.css",
+      "budget": 11100,
+      "measuredAtBuild": "10,032B gz",
+      "note": "首屏 CSS（聚合预算里 firstLoadCss 的分项化）"
+    },
+    {
+      "id": "echarts-tooltip",
+      "pattern": "tooltip-*.js",
+      "budget": 8200,
+      "measuredAtBuild": "7,417B gz",
+      "note": "tooltip 组件块（看板悬停）"
+    },
+    {
+      "id": "echarts-pie",
+      "pattern": "pie-*.js",
+      "budget": 7400,
+      "measuredAtBuild": "6,691B gz",
+      "note": "pie series 块；pie 空态已改 HTML overlay，加回组件会顶穿这条"
+    },
+    {
+      "id": "echarts-bar",
+      "pattern": "bar-*.js",
+      "budget": 7000,
+      "measuredAtBuild": "6,316B gz",
+      "note": "bar series 块（注意 `barGrid-*` 不匹配本规则）"
+    },
+    {
+      "id": "echarts-legend",
+      "pattern": "legend-*.js",
+      "budget": 7000,
+      "measuredAtBuild": "6,295B gz",
+      "note": "legend 块"
+    },
+    {
+      "id": "echarts-axis-helper",
+      "pattern": "axisHelper-*.js",
+      "budget": 6900,
+      "measuredAtBuild": "6,271B gz",
+      "note": "坐标轴公共辅助块"
+    },
+    {
+      "id": "echarts-grid",
+      "pattern": "grid-*.js",
+      "budget": 6700,
+      "measuredAtBuild": "6,057B gz",
+      "note": "grid 组件块"
+    },
+    {
+      "id": "customer-page",
+      "pattern": "CustomerPage-*.js",
+      "budget": 6800,
+      "measuredAtBuild": "6,138B gz",
+      "note": "顾客端「我的」页（github.io 侧）"
+    }
+  ],
+  "noBudgetMax": 45,
+  "noBudgetMaxNote": "未登记件数上限（第五十二轮立地板 52（真面 52/62），第五十三轮 E5 补登记 7 件后下调到 45（当场实测 45/62））。**只准降不准升**：升=新增 chunk 家族却没进名册，处置只能是「补登记（带当次实测时刻）」或「复用既有 pattern」，禁把地板调高求绿。降的过程＝E5 的收敛进度，所以这一项同时是欠账计数器和收敛台账。取数面由 scripts/report-item-budgets.mjs 现场枚举 dist/assets 得出，禁手抄清单。"
 }

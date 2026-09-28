@@ -238,13 +238,32 @@ describe('CLI 入口（子进程真跑）', () => {
     expect(b.rc).toBe(1)
     expect(b.out).toContain('读不到合法的')
   })
-  itCli('逃生门：CI_GREEN_SKIP=1 缺理由照样拒；带理由才放行且 loudly 留痕', () => {
+  itCli('逃生门：缺理由照样拒；带理由才放行，且**必须真的落一条可复算的账**（第五十三轮 E3 装的计量）', () => {
     const noReason = runCli({ input: ref('main'), env: { CI_GREEN_SKIP: '1' } })
     expect(noReason.rc).toBe(1)
     expect(noReason.out).toContain('仍拒')
-    const withReason = runCli({ input: ref('main'), env: { CI_GREEN_SKIP: '1', CI_GREEN_REASON: 'fixture: 演练逃生门' } })
-    expect(withReason.rc).toBe(0)
+    // 落点指到临时目录：不设这条，本腿会以 cwd=REPO 往仓内真账本 `.ci/escape-hatch.jsonl` 追加一行，
+    // 于是"演练"污染了本该只记真实绕过的审计面（本轮实测确实写过）。
+    const led = tmpLayout()
+    const withReason = runCli({
+      input: ref('main'),
+      env: { CI_GREEN_SKIP: '1', CI_GREEN_LEDGER_DIR: led, CI_GREEN_REASON: 'fixture 演练：基座红不可自愈，本笔正是那条修复' },
+    })
+    expect(withReason.rc, withReason.out).toBe(0)
     expect(withReason.out).toContain('绕过契约')
+    expect(withReason.out).toContain('.ci/escape-hatch.jsonl')
+    const line = readFileSync(join(led, '.ci', 'escape-hatch.jsonl'), 'utf8').trim()
+    const rec = JSON.parse(line)
+    for (const k of ['utc', 'base_sha', 'head_sha', 'branch', 'reason', 'actor']) {
+      expect(String(rec[k] || ''), `记录字段 ${k} 不得为空（否则这条账无法复算）`).not.toBe('')
+    }
+    expect(rec.head_sha.slice(0, 7)).toBe(HEAD_SHA.slice(0, 7))
+    // 理由太短 ⇒ 记一条对不了账的账比不记更坏 ⇒ 拒放行且不留半成品
+    const led2 = tmpLayout()
+    const short = runCli({ input: ref('main'), env: { CI_GREEN_SKIP: '1', CI_GREEN_LEDGER_DIR: led2, CI_GREEN_REASON: '太短了' } })
+    expect(short.rc, short.out).toBe(1)
+    expect(short.out).toContain('无法落账')
+    expect(existsSync(join(led2, '.ci', 'escape-hatch.jsonl')), '拒写时不得留下半成品记录').toBe(false)
   })
 
   itCli('变异体 M1：基点取错字段（remote→local）⇒ 上面那条对偶断言必须翻红', () => {

@@ -161,7 +161,7 @@ jobs:
       # 死命令，盘上 61 个别名根本没有它 —— 而此前任何门禁都不读文档正文。历史面走"带到期时刻的归档面"，
       # 不做永久豁免；README 的门禁一览由本判据 `--update` 生成，D6 判它不许漂。
       - name: Documented commands vs real aliases
-        run: npm run check:doc-commands
+        run: npm run check:doc-commands -- --check
 
       # 对标第四十三轮 R43-P0 / 第四十四轮：静态推不出的"这判据会不会改写受版本控制的产物"，用真跑判。
       # CI 走 --blind-only（只测 import/形参/argv 那三类静态解不出的候选）：全量面本机实测 9 件 ≈300s，
@@ -228,6 +228,12 @@ jobs:
         env:
           GITHUB_EVENT_BEFORE: ${{ github.event.before }}
 
+      # 第五十三轮 E3：逃生门计量。`CI_GREEN_SKIP` 绕过绿契约时必须往 .ci/escape-hatch.jsonl 追加一行，
+      # 这一步核整本账（字段齐全 / 理由够长 / sha 形状合规）。离线可判 ⇒ 既能进本机 verify 链也能进 CI；
+      # 刻意**不判**"绕过之后远端有没有回绿"（那要联网，做成阻断项就成了不可自愈的闸）。
+      - name: Escape-hatch ledger gate (npm run verify:escape-hatch)
+        run: npm run verify:escape-hatch
+
       - name: Upload coverage report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -247,6 +253,13 @@ jobs:
       # 体积预算（P1-B2）：build 之后按 gzip 首屏体积卡阈值，防体积悄悄回归
       - name: Bundle size budget (gzip, first-load)
         run: node scripts/check-bundle-size.mjs
+
+      # 第五十二轮交付、第五十三轮 E2 接线：聚合预算之外的**分项**预算（每个 chunk 一条 limit + 未登记面地板）。
+      # 必须排在 Build 之后 —— 输入面是 dist/assets；本机 verify 链里没有 build，所以它不进那条链（理由见脚本头注）。
+      # 地板只准降不准升：升=新增 chunk 家族没进名册，处置是补登记（带当次实测时刻）或复用既有 pattern，
+      # 禁把 docs/item-budgets.json 的 noBudgetMax 调高求绿。
+      - name: Per-chunk size budgets (npm run report:item-budgets)
+        run: npm run report:item-budgets
 
       # 第八轮 H4（对标 microfeed 的 "Verify the Worker bundle"）：npm run build 只编译 src/，
       # functions/ 完全在 vite 视野之外 —— 此前绑定名写错/入口语法坏要等到 wrangler 真部署才炸。
