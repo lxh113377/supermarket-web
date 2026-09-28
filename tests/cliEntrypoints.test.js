@@ -16,7 +16,7 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, cpSync, re
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { evaluate, collect, collectRegistered, collectCovered, isGateLike, parseRegistry, probeDenominator, REGISTRY } from '../scripts/check-cli-entrypoints.mjs'
+import { evaluate, collect, collectRegistered, collectCovered, isGateLike, parseRegistry, probeDenominator, testFace, REGISTRY } from '../scripts/check-cli-entrypoints.mjs'
 import { classifyRisk, probeSafeEvidence } from '../scripts/lib/preflight.mjs'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -132,7 +132,7 @@ describe('判据 G1~G9：合成仓双向变异', () => {
     const bad = res.rows.filter((r) => !r.pass)
     expect(bad.map((r) => `${r.id}:${r.detail}`), JSON.stringify(res.rows, null, 1)).toEqual([])
     expect(res.summary.matched).toBe(res.summary.declared)
-    expect(res.summary.declared).toBe(13)
+    expect(res.summary.declared).toBe(14)
   })
 
   it('G1 反例：登记面枚举为空 ⇒ 判红（零输入不得 PASS）', () => {
@@ -417,6 +417,77 @@ ${riskRows}
     expect(row.pass).toBe(false)
     expect(row.detail).toContain('幽灵')
     expect(row.detail).toContain('pix.py')
+  })
+
+  /**
+   * G14（第四十七轮）：采集目录 tests/ 本身要有正向断言 —— 旧版 `collectCovered` 第一行就是
+   * "目录不存在 ⇒ return 空 Map"，于是"没人写夹具"与"我根本没读到目录"两种情况账面完全一样。
+   */
+  it('G14 正向：tests/ 存在、有测试文件、且至少一个真起子进程 ⇒ 绿并印出两个数', () => {
+    const { res } = baseRepo()
+    const row = res.rows.find((r) => r.id === 'G14')
+    expect(row.pass, row.detail).toBe(true)
+    expect(row.detail).toMatch(/tests\/：\d+ 个测试文件，其中 \d+ 个真起子进程/)
+  })
+
+  it('G14 反例：tests/ 被改名 ⇒ 本条判"采集面消失"，而 G1 照样绿、G2 却报出一堆假"缺口"（正是本条要抓的误诊）', () => {
+    const r = baseRepo()
+    rmSync(join(r.dir, 'tests'), { recursive: true, force: true })
+    const res = evaluate({ ...collect(r.dir), declared: parseRegistry(readFileSync(join(r.dir, REGISTRY), 'utf8')) })
+    const g14 = res.rows.find((x) => x.id === 'G14')
+    expect(g14.pass).toBe(false)
+    expect(g14.status).toBe('UNVERIFIED')
+    expect(g14.detail).toContain('空集而不是零覆盖')
+    expect(res.rows.find((x) => x.id === 'G1').pass, '登记面与 tests/ 无关 ⇒ 它看不见这件事').toBe(true)
+    expect(res.rows.find((x) => x.id === 'G2').pass, '症状长在别处：覆盖面空 ⇒ G2 会喊"未登记缺口"').toBe(false)
+  })
+
+  it('G14 反例：tests/ 还在但里面没有一个真起子进程 ⇒ 判红并说清"实测未覆盖"其实是"全都未覆盖"', () => {
+    const r = baseRepo()
+    rmSync(join(r.dir, 'tests', 'demo.test.js'))
+    writeFileSync(join(r.dir, 'tests', 'pure.test.js'), "import { evaluate } from '../scripts/check-cli-entrypoints.mjs'\nevaluate({})\n")
+    const g14 = evaluate(collect(r.dir)).rows.find((x) => x.id === 'G14')
+    expect(g14.pass).toBe(false)
+    expect(g14.detail).toContain('没有任何一个含 spawn')
+  })
+
+  it('G14 对偶：把起子进程的夹具补回来 ⇒ 必须转绿（不许是一道只能改判据才能过的死闸）', () => {
+    const r = baseRepo()
+    rmSync(join(r.dir, 'tests', 'demo.test.js'))
+    expect(evaluate(collect(r.dir)).rows.find((x) => x.id === 'G14').pass).toBe(false)
+    writeFileSync(join(r.dir, 'tests', 'demo.test.js'), `import { spawnSync } from 'node:child_process'\nspawnSync('node', ['scripts/demo-gate.mjs'])\n`)
+    const back = evaluate(collect(r.dir)).rows.find((x) => x.id === 'G14')
+    expect(back.pass, back.detail).toBe(true)
+  })
+
+  it('G14 边界：调用方没喂采集面读数 ⇒ 记 UNVERIFIED，且**不得**把它印成"tests/ 不存在"（读不动 ≠ 结论为否）', () => {
+    const r = baseRepo()
+    const row = evaluate({ ...collect(r.dir), face: undefined }).rows.find((x) => x.id === 'G14')
+    expect(row.pass).toBe(false)
+    expect(row.status).toBe('UNVERIFIED')
+    expect(row.detail).toContain('未传采集面读数')
+    expect(row.detail, '把"没读数"写成"目录不存在"就是给后人留一条假证据').not.toContain('不存在')
+  })
+
+  it('G14 边界：落在扩展名名单外的文件必须**被印出来**，不许静默少记（第四十七轮 R46-H2）', () => {
+    const r = baseRepo()
+    expect(evaluate(collect(r.dir)).rows.find((x) => x.id === 'G14').detail).not.toContain('名单外')
+    writeFileSync(join(r.dir, 'tests', 'payload.json'), '{"a":1}\n')
+    const row = evaluate(collect(r.dir)).rows.find((x) => x.id === 'G14')
+    expect(row.pass, '数据件不该把判据判红').toBe(true)
+    expect(row.detail).toContain('.json×1')
+  })
+
+  it('R46-H2 去写死有牙齿：`.cjs` 夹具进采集面（旧版三处各写一遍 `\\.m?[jt]sx?$`，.cjs 恒被少记成"没跑过"）', () => {
+    const r = baseRepo()
+    expect(collect(r.dir).covered.has('other-gate.mjs'), '基线：other-gate 只有缺口表登记，没有夹具').toBe(false)
+    writeFileSync(join(r.dir, 'tests', 'legacy.cjs'), `const { spawnSync } = require('node:child_process')\nspawnSync('node', ['scripts/other-gate.mjs'])\n`)
+    expect(collect(r.dir).covered.get('other-gate.mjs'), '新增的 .cjs 夹具必须被认成覆盖').toBeTruthy()
+    // 反向半边：名单外的扩展名仍然不算对象（证明这不是"把过滤整个删掉"换来的绿）
+    writeFileSync(join(r.dir, 'tests', 'stray.txt'), "spawnSync('node', ['scripts/other-gate.mjs'])\n")
+    const face = testFace(r.dir)
+    expect(face.outside).toContain('.txt×1')
+    expect(face.files).toBe(2)
   })
 
   /**

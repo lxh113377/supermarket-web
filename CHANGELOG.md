@@ -4,6 +4,39 @@
 
 ## [未发布]
 
+### 2026-09-28 追加六十一（对标第四十七轮：判据的"眼睛"之前，先确认它有没有对象可看）
+
+- **新增 G14：采集目录本身必须有正向读数**（`check-cli-entrypoints.mjs`）。G1~G13 全在判"登记/覆盖/风险对不对"，
+  没有一条判"**采集器到底有没有对象可喂**"：`collectCovered()` 第一行 `if (!existsSync(dir/tests)) return covered`
+  ⇒ 目录被改名或移出时覆盖面**静默变空集**，而 G4 地板只拦到 23（真面现 35）⇒ 最多可悄悄少掉 12 个入口的
+  "跑没跑过"而账面全绿。`testFace()` 返回 `{exists, files, withSpawn, outside}`，真面实测
+  **116 个测试文件、其中 21 个真起子进程**；三种"读不动"（调用方没喂 face / 目录不存在 / 目录空）一律记
+  **UNVERIFIED** 并照样计入 `mismatched`（退出码非 0、仍拦），但**不许**把"没量到"印成"结论为否"。
+  夹具 7 条（正向印两个数 / 目录消失 / 无 spawn 件 / 对偶转绿 / face 缺值 / 名单外扩展名可见 / `.cjs` 进面）。
+- **R46-H2 的第二半：扩展名从"写死三遍"收敛成单源 `TEST_SOURCE_RE`**（本文件两处 + `tests/testCeilings.test.js` 一处），
+  并把名单放宽到含 `.cjs`。**这条腿配了变异体**：把白名单还原成 `/\.(?:m?[jt]sx?)$/` ⇒ 用例当场
+  `expected undefined to be truthy`（红因正是"新增的 .cjs 夹具必须被认成覆盖"），还原后 2 passed ——
+  证明去写死不是换了个说法，而是真的把一类少记堵住了。反向半边也钉住：`.txt` 仍算名单外（不是"把过滤整个删掉"换来的绿）。
+- **三条失败面（都记原文，不粉饰）**：
+  ① `npx vitest run tests/cliEntrypoints.test.js` 报 `Tests no tests` + `Failed to parse source for import analysis`，
+  但**报错位置在 `scripts/check-cli-entrypoints.mjs:552`**，而我第一反应去查测试文件：`node --check tests/cliEntrypoints.test.js`
+  回 `RC=0`（测试文件本来是好的）。最小反证＝对被 import 的模块做同一检查：
+  `node --check scripts/check-cli-entrypoints.mjs` ⇒ `SyntaxError: Unexpected token ')' @546`，
+  根因是我新写的 G14 嵌套三元多闭合了一个括号。教训形状：**vitest 的解析错误落在 import 链上的任何一个模块**，
+  报错行号是"模块结束处"而不是缺陷处 ⇒ 归因第一步是把 `node --check` 打到**两边**，而不是只打症状那一侧。
+  ② 静态读到一处**未执行到的缺陷**（如实标注，不冒充实测）：`collect()` 已经传 `face: testFace(dir)`，
+  而 `evaluate()` 的解构参数表里没有 `face` ⇒ G14 行一旦执行就是 `ReferenceError`。修法是加参数并给
+  `face = null` 默认值 + 专属 UNVERIFIED 分支；**没有**把默认值设成"就地探测目录"（那会让纯判据偷偷读盘，
+  违背可注入 seam 的口径）。
+  ③ 我写的反向断言 `expect(detail).not.toContain('不存在')` 被**自己的免责声明**绊红：那条 detail 里写着
+  `不得读成"tests/ 不存在"`。正解＝改措辞（"不得据此断言采集目录没了"），**不放宽断言** ——
+  断言要防的正是"把没读数写成目录缺失"，把话说白并不削弱它。
+- **文档追平 + 拆掉两处第二真相源**：`docs/cli-entrypoints.md` 的 G 清单原本**把 G10 写了两遍**（一行"分母地板"、
+  一行"探针分母地板"）⇒ 去重并补 G14；README 的 `G1~G13` → `G1~G14`。同处还硬写着"bracketLexer 13 条 /
+  memoryVolume 12 条"，实跑 `npx vitest run` 得 **13 / 31** ⇒ 前者是巧合对上、后者已漂 19 条（没有任何判据读它，
+  所以漂了若干轮）。按本仓既有口径（"写死即第二真相源"）改成指针形态。
+  `verify:docs`（OK 7 项，单测文件数 = 105）与 `check:doc-commands`（6/6 GREEN，提及 128 / 不成立 0）复跑均 rc=0。
+
 ### 2026-09-28 追加六十（对标第四十六轮：先把自己的优化假设证伪，再动手）
 
 - **R46-H1 提速：根因不是我以为的那一个。** 上轮我写下"每件候选解两次快照 ⇒ 共用一份可省一半"。本轮先分相计时再动手，

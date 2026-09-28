@@ -9,6 +9,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { isTestSourceFile } from '../scripts/check-cli-entrypoints.mjs'
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const num = (s) => Number(String(s).replace(/_/g, ''))
@@ -31,7 +32,7 @@ export function ceilingsAligned(ceiling, budget, slack = 5000) {
 
 const CFG = readFileSync(join(REPO, 'vite.config.js'), 'utf8')
 const TEST_SRC = readdirSync(join(REPO, 'tests'))
-  .filter((f) => /\.m?[jt]sx?$/.test(f) && !f.startsWith('e2e'))
+  .filter((f) => isTestSourceFile(f))
   .map((f) => readFileSync(join(REPO, 'tests', f), 'utf8'))
 
 describe('天花板对齐（测试超时 ⇄ 子进程预算）', () => {

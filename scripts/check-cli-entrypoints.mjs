@@ -85,6 +85,46 @@ export function collectNonNode(dir = root) {
 }
 
 /**
+ * 采集面扩展名的**唯一真相源**（第四十七轮 R46-H2）：此前同一件事在三处各写一遍正则
+ * （本文件两处 + `tests/testCeilings.test.js` 一处），将来出现 `.cjs`/`.gts` 夹具时三处会各自漂移，
+ * 而采集面少记的表现形式是**假缺口**（把跑过的入口报成没跑过）。白名单宽度今天够用
+ * （实测 `tests/` 下代码件只有 js/ts/tsx/mjs，另有 `.gitkeep`/`.env.stub` 两个数据件），
+ * 所以本轮不改判据宽度，改的是"写死三遍"与"边界不可见"——`testFace` 会把落在名单外的扩展名**印出来**。
+ */
+export const TEST_SOURCE_RE = /\.(?:m?[jt]sx?|cjs)$/
+export const isTestSourceFile = (name) => TEST_SOURCE_RE.test(name)
+
+/**
+ * 采集目录自身的体检（第四十七轮 G14 的对象）。
+ * 一手形状：`collectCovered()` 的第一行就是 `if (!existsSync(dir/tests)) return covered` ——
+ * 目录一旦被改名或移出，覆盖面**静默变成空集**，而 G4 的棘轮地板只拦到 23（现 35），
+ * 意味着最多可以悄悄少掉 12 个入口的"有没有被真跑过"这件事而账面全绿。
+ * 这是 R41-H3 / R43-H2 那条"声明的面 ⇄ 真正喂给采集器的面是两处"欠账的第三格：
+ * 前两格分别由 G12（来源面）与 G13（扩展名面）收掉，本格收的是**目录面**。
+ */
+export function testFace(dir = root) {
+  const testDir = join(dir, 'tests')
+  const out = { exists: existsSync(testDir), files: 0, withSpawn: 0, outside: [] }
+  if (!out.exists) return out
+  const seen = new Map()
+  ;(function walk(d) {
+    for (const e of readdirSync(d)) {
+      const p = join(d, e)
+      if (statSync(p).isDirectory()) { walk(p); continue }
+      if (!isTestSourceFile(e)) {
+        const ext = (e.match(/\.[A-Za-z0-9]+$/) || ['(无扩展名)'])[0]
+        seen.set(ext, (seen.get(ext) || 0) + 1)
+        continue
+      }
+      out.files++
+      if (/\bspawn(Sync|)?\(|\bexecFile(Sync|)?\(|\bfork\(/.test(readFileSync(p, 'utf8'))) out.withSpawn++
+    }
+  })(testDir)
+  out.outside = [...seen.entries()].map(([ext, n]) => `${ext}×${n}`).sort()
+  return out
+}
+
+/**
  * 括号配对扫描（第三十一轮，H1 的地基）：只认**代码里**的 `()` / `[]`，字符串与注释里的括号一概不算。
  * 刻意不做完整词法分析（正则字面量等边角不管）：失配的后果是"某对括号没被配对"⇒ 那个范围不算数 ⇒
  * 覆盖面**少记**而不是多记。这个方向是安全的：少记会让判据来问"这条到底跑没跑"，
@@ -159,7 +199,7 @@ export function collectCovered(dir = root) {
     for (const e of readdirSync(d)) {
       const p = join(d, e)
       if (statSync(p).isDirectory()) walk(p)
-      else if (/\.m?[jt]sx?$/.test(e)) files.push(p)
+      else if (isTestSourceFile(e)) files.push(p)
     }
   })(testDir)
   const SPAWN_FNS = new Set(['spawnSync', 'spawn', 'execFileSync', 'execSync', 'fork'])
@@ -302,7 +342,7 @@ export function probeDenominator(dir = root) {
  * G6 本地钩子入口必须有夹具 / G7 判据自身入面 / G8 门禁类入口必须被真跑或具名豁免 /
  * G9 派生风险 ⇄ 登记册「风险分类」表双向对账。
  */
-export function evaluate({ registered, covered, declared, floorOk, hookTargets, scriptFiles, docsRegisterHooksPath, selfRegistered, riskOf = new Map(), safeOf = new Map(), nonNode = [] }) {
+export function evaluate({ registered, covered, declared, floorOk, hookTargets, scriptFiles, docsRegisterHooksPath, selfRegistered, riskOf = new Map(), safeOf = new Map(), nonNode = [], face = null }) {
   const rows = []
   const uncovered = registered.filter((r) => !covered.has(r.script))
   // 登记面 = 缺口表 ∪ 豁免表（两张表都参与对账，但一行只准挂一处）：
@@ -506,6 +546,33 @@ export function evaluate({ registered, covered, declared, floorOk, hookTargets, 
       + (nonNode.length && !nnUnreg.length && !nnThin.length ? ' ⇒ 已登记为"探针不 spawn"，解释器分派的腿待 R47' : ''),
   })
 
+  // G14（第四十七轮）：采集目录本身必须有正向断言 —— "覆盖数为 0"到底是"没人写夹具"还是"我根本没读到目录"，
+  // 这两种情况在旧版里长得一模一样（`existsSync` 失败就直接 return 空 Map ⇒ G4 地板 23 还要缩掉 12 个才响）。
+  // 四种形态分开印：没读数 ≠ 读到了"目录不存在"，后者是事实、前者是探针自己没被喂对象（④-b 同源：
+  // "读不动"不得写成"结论为否"，否则一条恒红的闸会被后人当成"tests 真的没了"的证据）。
+  let faceDetail
+  let faceStatus
+  if (!face) {
+    faceStatus = 'UNVERIFIED'
+    faceDetail = '调用方未传采集面读数 ⇒ G14 没有对象可判（本条 UNVERIFIED；不得据此断言采集目录没了，那是两件事）'
+  } else if (!face.exists) {
+    faceStatus = 'UNVERIFIED'
+    faceDetail = '采集目录 tests/ 不存在 ⇒ 覆盖面是**空集而不是零覆盖**，本 run 关于"谁被真跑过"的结论全部不成立（UNVERIFIED）'
+  } else if (face.files === 0) {
+    faceDetail = 'tests/ 存在但一个测试文件都没有 ⇒ 采集面为空，覆盖类结论（G2/G8）没有对象'
+  } else if (face.withSpawn === 0) {
+    faceDetail = `tests/ 有 ${face.files} 个文件，但没有任何一个含 spawn/execFile/fork ⇒ 覆盖采集恒空，G2/G8 的"实测未覆盖"其实是"全都未覆盖"`
+  } else {
+    faceDetail = `采集目录 tests/：${face.files} 个测试文件，其中 ${face.withSpawn} 个真起子进程 ⇒ 覆盖采集有对象（本轮实测口径，不靠"我记得 tests 在"）` +
+      (face.outside.length ? `；名单外的扩展名 ${face.outside.join(' ')}（当前按数据件处理，若其中有代码夹具则本条要人看一眼）` : '')
+  }
+  rows.push({
+    id: 'G14',
+    pass: !!face && face.exists && face.files > 0 && face.withSpawn > 0,
+    status: faceStatus,
+    detail: faceDetail,
+  })
+
   const bad = rows.filter((r) => !r.pass).length
   const probeable = registered.filter((r) => !(riskOf.get(r.script) || []).length)
   return { rows, summary: { matched: rows.length - bad, mismatched: bad, declared: rows.length, covered: coveredCount, uncovered: uncovered.length, risky: risky.length, probeable: probeable.length, denom: denom.length, nonNode: nonNode.length } }
@@ -543,7 +610,7 @@ export function collect(dir = root) {
     if (ev) safeOf.set(r.script, ev)
   }
   return {
-    registered, covered, declared, riskOf, safeOf, nonNode: collectNonNode(dir),
+    registered, covered, declared, riskOf, safeOf, nonNode: collectNonNode(dir), face: testFace(dir),
     floorOk: /覆盖地板/.test(md),
     hookTargets, scriptFiles: listFiles(join(dir, 'scripts')), docsRegisterHooksPath,
     selfRegistered: registered.some((r) => r.script === selfName),
@@ -573,7 +640,9 @@ function emit() {
 export function main() {
   if (process.argv.includes('--emit')) { emit(); return 0 }
   const res = evaluate(collect())
-  for (const r of res.rows) console.log(`${r.pass ? 'PASS' : 'FAIL'} ${r.id} :: ${r.detail}`)
+  // 「证据失效」不印成「判出违规」：UNVERIFIED 行照样计入 mismatched ⇒ 退出码非 0、照样拦，
+  // 但台账上不许把"探针没读到对象"抄成"入口有缺陷"（与 check-judge-side-effects 的 S4/S6 同一口径）。
+  for (const r of res.rows) console.log(`${r.status === 'UNVERIFIED' ? 'UNVERIFIED' : (r.pass ? 'PASS' : 'FAIL')} ${r.id} :: ${r.detail}`)
   const s = res.summary
   // 门面行必须带 matched/mismatched/声明数三者（"判据回状态词 ≠ 覆盖过了"）
   const ok = s.mismatched === 0 && s.matched + s.mismatched === s.declared
