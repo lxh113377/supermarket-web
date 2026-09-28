@@ -9,26 +9,20 @@
 > 外层 `超市web/超市/memory/`（工作区）。两者内容**不同**（07 主卷 SHA256 不一致），
 > 属历史遗留的双份结构，尚未合并。**本轮的权威记录在外层**：`deliverables/前端深度优化方案-2026-09-23.md` §6。
 
-## 2026-09-28 — 对标第五十轮（每轮把尺换到**没人量的那一半**）
+## 2026-09-29 — 对标第五十一轮（把尺换到 **blob 那一侧**）
 
-> 轮初锚 `ab9def2`；报告：外层 `deliverables/GitHub开源项目对标分析报告-第五十轮-2026-09-28.md`；
-> 全部明细与踩坑在**卷 84 / 卷 85**（第四十九轮在卷 83）。一句话＝
-> `verify:images` 的分母从"seed 的 order"换成"seed ∪ 现网在售"（实测现网含 order 55、两个仓内数据源都只到 54
-> ⇒ 上一轮那句"1 张无主图"是假归因）；写侧幂等成为判据 S7；`check-memory-volume` V3 由恒真改三态（首跑即咬到主卷贴死）；
-> `check-doc-commands` 加 `--check` 读侧 + 默认链 D7 逐字节腿。
-> ⚠️ push 后 **CI 判红**又抓一条：`CODE_SPAN_RE` 在 CRLF 检出下**从不解析围栏代码块** ⇒ 本机 205 / CI 224，
-> Windows 侧长期**漏判 19 条**命令主张（不是 CI 多事）。修＝读侧归一行尾、写侧保持原形态（明细卷 86）。
+> 轮初锚 内层 `7c47d62` / 外层 `b943a3a`；报告：外层 `deliverables/GitHub开源项目对标分析报告-第五十一轮-2026-09-29.md`。
+> 本卷正文＝本轮做了哪四件 + 下一轮 P0；全部读数与踩坑在**卷 88**（五十轮在卷 87，四十九在卷 83）。
+> 四件＝`getCatalogOrders` 公开全集投影（下架项的图第一次进可判面）· `sm/` 缩略图并判（地板 2,048B 由实测导出）·
+> S7/D7 漂移红因升级为 `产物#L行 <sha8>→<sha8>`（`scripts/lib/drift-shape.mjs` 一处实现）·
+> `.gitattributes` + 60 件 renormalize + 新门禁 `verify:eol`（E3 双通道拦下"批读被 maxBuffer 杀 ⇒ 假 0 件"）。
 
-> **P0（下一轮开工先做这条，可执行）**：**R51-H1 把"现网在售"扩成"现网全集"** —— `/pub` 只回 enabled，
-> 下架项的图至今不在任何可判面内（本轮已在输出里点名盲区，但**点名不等于判过**）。前提 = 有一条不带密钥的
-> 全集通道（新增只回 `{order}` 的公开 action，或让 `report:catalog` 落一份 `docs/catalog-snapshot.json` 并判新鲜度）；
-> 复算：`curl -s -X POST https://supermarket-web.pages.dev/pub -H 'Content-Type: application/json' -d '{"action":"getPublicProducts"}'`。
-> **R51-H2 S7 的红因要可比**：漂移目前只印路径，下一轮补"两侧 sha 前 8 位 + 首个差异行号"，否则拿到名字仍要人肉 diff。
-> **R51-H3 `sm/` 缩略图面**：与主图同分母、不同目录，本轮只点名未判；并入 `verify_images.py` 时注意出生卷余量同族问题。
-> **R51-H4 覆盖率地板本轮仍不动**（读数 80.50/73.52/76.19/82.26 对 79/72/74/80，见 `vite.config.js`）。
-> **R51-H5 继承**：通用解释器分派，触发条件 = 别名里出现第 2 条非 node 门禁（现仍只 `verify:images` 一条）。
-> 用户侧不变：**`CF_D1_BACKUP_TOKEN` + `BACKUP_PASSPHRASE` 仍缺** ⇒ 备份链 `artifact=0`，豁免至 **2026-10-12**；
-> M3 分支保护沿用 2026-09-28T07:12:31Z 实测 `NOT_ENFORCED`（本轮未重跑）；微信真机验收未做。
+> **P0（下一轮开工先做这条，可执行）**：**R52-H1 让全集面在 CI 里真的量到** —— 本轮 push 之前线上对
+> `getCatalogOrders` 回 403，故目录面在 CI 仍 UNVERIFIED。部署后复算
+> `curl -s -X POST https://supermarket-web.pages.dev/pub -H 'Content-Type: application/json' -d '{"action":"getCatalogOrders"}'`
+> 应回 `{code:0,data:[{order,needsLocalImage}]}`；判据 = 拿一条真下架商品删掉它的图，看 `npm run verify:images` 会不会红。
+> 其余 R52-H2/H3 与本轮未做的 R51-H4/H5 全在**卷 88**；用户侧不变项（备份 token 缺、豁免至 2026-10-12）同在该卷。
+
 ## 历史轮次与在途项
 
 > 本节已按 4KB 上限迁至 `07-next-steps.part48.md`（逐字未改）：H2 保留通道、H6 rate_limits、取证欠账、需人不变项，
@@ -36,6 +30,6 @@
 
 ## 分卷目录
 
-- 在册卷号：1–86。文件名一律 `07-next-steps.part<N>.md`（N 取上列区间内整数，不可跳号命名）。
+- 在册卷号：1–89。文件名一律 `07-next-steps.part<N>.md`（N 取上列区间内整数，不可跳号命名）。
   **本行由 `V5` 机器对账**（声明 ⇄ 磁盘双向差集）：改卷不并号，下一轮就会被判红。
 - 新拆卷时 `split` 会往本节追加行；追加后请顺手并回上面的区间描述，别让主卷再涨回 4KB 以上（第十七轮压缩史迁至卷 48）。

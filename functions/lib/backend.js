@@ -16,7 +16,7 @@
 import { checkRate, checkRateKV, getClientIp, sha256Fingerprint, logSecurityEvent,
   checkAuth, resolveRole, resolveCorsHeaders, PUBLIC_ACTIONS,
   RATE_LOGIN, RATE_PUBLIC_WRITE, RATE_AI, RATE_AI_ADVICE } from './security.js'
-import { getPublicProducts, getPublicCategories, getProducts, createProduct, updateProduct,
+import { getPublicProducts, getPublicCategories, getCatalogOrders, getProducts, createProduct, updateProduct,
   deleteProduct, batchUpdateProducts, batchDeleteProducts } from './actions/products.js'
 import { maybeNotifyNewOrder } from './notify.js'
 import { createOrder, deleteOrder, updateOrderStatus, recalculateOrders, getOrders, getOrderById, getOrderStatus, stalePendingReport } from './actions/orders.js'
@@ -219,6 +219,18 @@ export async function handlePublic(env, action, payload = {}, request = null, no
         if (cached) return cached
         const result = await getPublicCategories(DB)
         if (result.code === 0) await kvCacheSet(env, 'cache:public:categories', result, 60)
+        return result
+      }
+      case 'getCatalogOrders': {
+        // 第五十一轮 R51-H1：不带密钥的商品**全集号**。TTL 取 300s（比在售列表的 60s 长）——
+        // 它的语义是"目录里出现过多少个号"，新号出现频率远低于价格/库存改动，
+        // 而这条腿每轮 CI 都要打一次，命中即省掉一次 D1 读（配额是已知量，见 verify:limits）。
+        // 失效挂在 cache.js 的 invalidatePublicCatalog 上，与 products/categories 同批 ⇒
+        // 后台增删改之后这条面不会 lingering 旧号。
+        const cached = await kvCacheGetJSON(env, 'cache:public:catalog-orders')
+        if (cached) return cached
+        const result = await getCatalogOrders(DB)
+        if (result.code === 0) await kvCacheSet(env, 'cache:public:catalog-orders', result, 300)
         return result
       }
       case 'createOrder': {

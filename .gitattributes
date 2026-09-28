@@ -1,0 +1,63 @@
+# 第五十一轮 R51-H6 —— 把"字节前提"钉进版本库
+#
+# 为什么现在必须有这张表（一手的，不是"最佳实践"）：
+#   1) 第四十九轮 `check-doc-commands` 的 counts 在本机 205 / CI 224，差额 19 全落在围栏代码块里 ——
+#      根因是 `CODE_SPAN_RE` 要求标签后紧跟 LF，而本机 `core.autocrlf=true` 检出的是 CRLF。
+#      修完读侧只解决"这一把尺"，下一个按行取数的判据还会再踩一次。
+#   2) 本轮实测 blob 面（`git show HEAD:<file>` 现取，723 个跟踪件）：**60 个文本件的 blob 里带 CRLF**，
+#      另有 **100 个二进制件（.webp/.png 等）的字节里出现 0D0A**。
+#      ⇒ 只做"归一化"会把那 100 个二进制的 0D0A 当行尾剥掉（实测单个 PNG/WEBP 少 1–2 字节，
+#      两侧同样破坏 ⇒ 差值为零、看不出损坏）。所以 binary 名单**不是装饰，是这条链的硬前提**。
+#   3) 台账里写"本机测得 N"这类随行尾变化的量，第一次接 CI 就自判红（既有规：台账只准含 git 决定的量）。
+#      `* text=auto eol=lf` 之后，检出形态不再取决于每台机器的 `core.autocrlf`。
+#
+# 判据（行为回执，不靠"文件存在"计分）：`npm run verify:eol`
+#   —— 断言的是 **blob 侧**（git 决定的量），换任何 autocrlf 配置的 clone 都能复算；
+#      对照面（工作树 == blob）只在"当前检出"这一侧读，两者各出一行分母。
+* text=auto eol=lf
+
+# 二进制：一律不判行尾，也不许被归一化（名单取自本轮实测出现的扩展名 + 常见资产型）
+*.webp binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.bmp binary
+*.avif binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.eot binary
+*.mp3 binary
+*.mp4 binary
+*.webm binary
+*.zip binary
+*.gz binary
+*.br binary
+*.pdf binary
+*.db binary
+*.sqlite binary
+*.jar binary
+*.node binary
+
+# 明确是文本的（含被 `text=auto` 猜错的资产）：钉死，不留给启发式
+*.sh text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.js text eol=lf
+*.mjs text eol=lf
+*.cjs text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.svg text eol=lf
+*.py text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Windows 上会跑的批处理必须保持 CRLF（本仓现在没有，声明是为了将来加的时候不靠人记）
+*.bat text eol=crlf
+*.cmd text eol=crlf

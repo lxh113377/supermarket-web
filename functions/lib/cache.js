@@ -47,6 +47,7 @@ export async function invalidatePublicCatalog(env) {
   await Promise.all([
     kvCacheDel(env, 'cache:public:products'),
     kvCacheDel(env, 'cache:public:categories'),
+    kvCacheDel(env, 'cache:public:catalog-orders'),
   ])
 }
 

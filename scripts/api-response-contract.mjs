@@ -56,7 +56,10 @@ export const CONDITIONAL_FIELDS = {
     // 形状随 payload：payload.stock 缺省时响应就没有 stock 键。实测两个消费方都不读这个返回值
     // （ProductInlineEditForm 提交后走 onSaved() 重拉列表），所以今天是无害的；
     // 但"响应形状取决于请求里带了哪些字段"这件事必须留在册上，谁改成读返回值时会当场看到。
-    'stock（payload 未带 stock 时不返回该键；两个消费方均不读此返回值）'],
+    'stock（payload 未带 stock 时不返回该键；两个消费方均不读此返回值）',
+    // 第五十一轮 R51-H1：全集探针必须带 order（否则 getCatalogOrders 里没对象可断言），
+    // 而原有探针不带 ⇒ 响应回显文档时该键时有时无。消费方不读 createProduct 的返回值（保存后重拉列表）。
+    'order（payload 未带 order 时不返回该键；轮51 下架探针带 order 才有，消费方不读此返回值）'],
   '/web seedReviews': ['skipped（本轮有跳过计数时才带）'],
 }
 

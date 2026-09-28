@@ -598,6 +598,39 @@ const EMIT_PEAKS = (() => { const i = process.argv.indexOf('--emit-peaks'); retu
 // 不必回头改判据逻辑。
 const PEAK_SAMPLES = Math.max(1, Number(process.env.SQL_PEAK_SAMPLES || 1))
 
+// ---------- 第五十一轮 R51-H1：下架项在两面的可见性必须**相反**（行为回执） ----------
+// 为什么不能只写"getCatalogOrders 返回个数组"就交差：本轮实测 db/seed.sql 与
+// src/data/products-seed.ts 里 enabled=0 的行数都是 **0** ⇒ 种子上"全集 == 在售"，
+// 任何比长度的断言都是恒真（M4「阈值低到不可能失败」同族）。所以这里**现造一条下架项**，
+// 再断言：全集面**看得见**它、在售面**看不见**它。这两条一真一假互为对偶，
+// 谁把 `WHERE enabled = 1` 删了或把全集面也加上过滤，当场红一条。
+// 位置放在 SQL 峰值采样之前：让新增调用进基线（`--update-sql-baseline` 确认后入册），而不是绕过它。
+const r51ProbeOrder = 9051
+const r51ProbeCreate = await handleAdmin(env, 'createProduct', 'test-key-123', {
+  name: '轮51全集探针', spec: '探针', price: 1, order: r51ProbeOrder, enabled: false,
+})
+ok(r51ProbeCreate.code === 0,
+  `R51-H1 前提自证：下架探针建得起来（建不起来下面三条全是空转）code=${r51ProbeCreate.code} ${r51ProbeCreate.errorCode || ''}`)
+const r51Catalog = await handlePublic(env, 'getCatalogOrders', {})
+ok(r51Catalog.code === 0 && Array.isArray(r51Catalog.data)
+  && r51Catalog.data.every((x) => x && Number.isInteger(x.order) && x.order > 0
+    && typeof x.needsLocalImage === 'boolean'),
+  `getCatalogOrders 每条只有 order + needsLocalImage 两键（实测键集 ${JSON.stringify(Object.keys(r51Catalog.data?.[0] || {}).sort())}）⇒ 公开面不吐名称·价格·图片 URL`)
+const r51Dup = (r51Catalog.data || []).length - new Set((r51Catalog.data || []).map((x) => x.order)).size
+ok(r51Dup === 0, `全集号不重复（重复 ${r51Dup} 个 ⇒ 图片门禁的分母会虚高成假红）`)
+const r51Pub = await handlePublic(env, 'getPublicProducts', {})
+const r51ProbeRow = (r51Catalog.data || []).find((x) => x.order === r51ProbeOrder)
+ok(!!r51ProbeRow,
+  `对偶①：下架探针**在**全集面里（实得命中=${JSON.stringify(r51ProbeRow || null)}）⇒ 缺图的下架项从此可判`)
+ok(r51ProbeRow?.needsLocalImage === true,
+  `下架探针未带 image ⇒ needsLocalImage=true（该入分母；实得 ${r51ProbeRow?.needsLocalImage}）`)
+ok(!r51Pub.data.some((p) => p.order === r51ProbeOrder),
+  `对偶②：同一探针**不在**在售面里（enabled=1 过滤未被放宽；实得 some=${r51Pub.data.some((p) => p.order === r51ProbeOrder)}）`)
+const r51ProbeDelete = await handleAdmin(env, 'deleteProduct', 'test-key-123', {
+  productId: r51ProbeCreate.data?._id || r51ProbeCreate.data?.id,
+})
+ok(r51ProbeDelete.code === 0, `R51-H1 收尾：探针删得掉、不给后面的断言留脏行 code=${r51ProbeDelete.code}`)
+
 /** 采样 N 次（本进程算 1 次，其余用子进程），返回逐 action 的语句峰值上界。 */
 function samplePeaks() {
   const merged = { ...SQL_PEAK }

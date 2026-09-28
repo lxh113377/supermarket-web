@@ -175,6 +175,11 @@
           "cacheKey": "cache:public:categories",
           "rateBucket": null
         },
+        "getCatalogOrders": {
+          "write": false,
+          "cacheKey": "cache:public:catalog-orders",
+          "rateBucket": null
+        },
         "createOrder": {
           "write": true,
           "cacheKey": null,
@@ -235,7 +240,8 @@
       "getPublicProducts",
       "getPublicCategories",
       "aiChat",
-      "getOrderStatus"
+      "getOrderStatus",
+      "getCatalogOrders"
     ],
     "publicRateLimitedWrite": [
       "createOrder",

@@ -4,6 +4,36 @@
 
 ## [未发布]
 
+### 2026-09-29 追加六十五（对标第五十一轮：把尺换到 blob 那一侧）
+
+- **R51-H1 现网全集通道（不带密钥）**。一手实测 `functions/lib/actions/products.js:44` 的
+  `getPublicProducts` SQL 带 `WHERE enabled = 1` ⇒ 下架商品的图在上轮**只是被点名**，从没进过可判面。
+  新增公开 action `getCatalogOrders`：只投影 `{order, needsLocalImage}` 两个键（**不回** name/price/图片 URL，
+  权限形状对标 `PostgREST/postgrest` 的匿名角色列级投影）。`verify:images` 的应有集由此扩成
+  `seed ∪ 现网在售 ∪ 目录全集`；action 未部署时该面记 UNVERIFIED 且**不并入分母**（真面实测线上先回 403
+  `action_not_public`）。行为回执在 `verify-backend`：现造一条 `enabled=false` 探针（seed 里 disabled 行数实测 0，
+  光比长度是恒真），断言它对全集面**可见**、对在售面**不可见** —— 两条互为对偶。夹具 25 腿含变异体。
+- **R51-H3 `sm/` 缩略图并判**。`src/utils/images.ts:29` 的 `productSrcSet` 把 400w 与 800w 一起交给浏览器，
+  缺一张就是选中不存在的候选图。地板**量出来**：实测 55 件 min=4,392B / p10=6,176B / max=39,072B ⇒
+  取 2,048B（余 2,344B），主图那把 10KB 尺套过来会一次红掉 44 件；上限两侧区间重叠 ⇒ **只报不判**。
+  主图全绿而缩略图目录失踪 ⇒ rc=2（半边没量 ≠ 两半都过）。
+- **R51-H2 漂移红因可比**。新增 `scripts/lib/drift-shape.mjs`，S7（双跑幂等）与 D7（README 逐字节）
+  共用同一个 `describeDrift()`：印 `产物#L<首处差异行> <sha8 前>→<sha8 后>`。裸字符串（上一轮形状）
+  被点名成「形状不合」而不是静默兼容。
+- **R51-H6 字节前提钉进版本库**。本轮把尺换到**没人量的 blob 侧**：723 个跟踪件全量取 blob，实测
+  **60 个文本件的 blob 里带 CRLF**、另有 **100 个二进制件字节里出现 `0D0A`** ⇒ 没有 binary 名单的归一化
+  会悄悄吃掉那 100 个资产 1–2 个字节，而"两侧都归一再比"看不见这种破坏。落 `​.gitattributes`
+  （`* text=auto eol=lf` + 24 条 binary + `.sh/.bat` 定向）+ `git add --renormalize` 那 60 件 +
+  新门禁 `npm run verify:eol`（E1 属性表被 git 解析生效 / E2 文本 blob 零 CRLF / E3 分母闭合 **且双通道对账**
+  / E4 工作树侧只报不判）。改前状态按 HEAD `7c47d62` 逐字节备份并载回比对（60 件、0 处不符）。
+- **判据自身被真跑抓出的三处**（都写成了常驻回归，不是事后补记）：① 首版把 249 个二进制一起批读，
+  `spawnSync` 超默认 maxBuffer 被杀（rc=null、stderr 全空）⇒ 表现成"扫到 0 件 CRLF"，是 E3 的第二条通道
+  （git `i/*` 报 60）当场把它拦成"两侧不一致"；② `import.meta.url === 'file://' + argv[1]` 在 Windows 永不成立
+  ⇒ 整脚本变成"跑了、rc=0、什么都没判"；③ 只报不判的 E4 被置成 unverified ⇒ 全绿正例被它判成 UNVERIFIED。
+- 同日两处自伤：`eol_safe_patch.py` 首版对同一文件的多条替换各读一次原文、各写一次 ⇒ 后写的覆盖先写的，
+  `backend.js` 的 import 静默丢失（`node --check` 全过、运行时 `ReferenceError`）；`verify_images.py` 是 CRLF
+  件而补丁器按文本模式读写 ⇒ 一次写入把 309 行行尾整个翻掉（`git diff --numstat` 446/309 ⇒ 还原后 154/17）。
+
 ### 2026-09-28 追加六十四（对标第五十轮：把尺换到没人量的那一半）
 
 - **R50-H1 `verify:images` 的分母接上现网面**。一手实测 @2026-09-28 17:35（`curl` 现网 200/5767B）：在售 25 条

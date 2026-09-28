@@ -26,6 +26,7 @@ import { readFileSync, writeFileSync, readdirSync, existsSync, statSync } from '
 import { dirname, join, resolve, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { reasonDefects } from './lib/registry-reason.mjs'
+import { describeDrift, formatDrift } from './lib/drift-shape.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 export const ROOT = resolve(__dirname, '..')
@@ -187,6 +188,9 @@ export function evaluate({ docs, aliases, fileExists = () => true, registry, inj
     !readme ? '本轮作用面里没有 README.md ⇒ 无处可比'
       : (synced.src === null ? 'README 里没有 "## 功能一览" 锚点 ⇒ 生成器无处可插（BLOCKED 形状）'
         : (drifted ? `**漂了**（action=${synced.action}）⇒ 跑 \`node ${SELF} --update\` 重生`
+            // R51-H2：红因与 S7 同源于 describeDrift()，印"首处差异在第几行 + 两侧 sha8"，
+            // 拿到行不用再 diff；这里**不重算**一遍比较式（两处实现＝第二把尺，会与 ok 分叉）。
+            + `｜首处差异 ${formatDrift(describeDrift('README.md', readme.src, synced.src))}`
           : '逐字节相等（跑 `--update` 不会改 README 一个字节）'))
       + `；登记册 ${regDrift === null ? 'counts/note 与生成器输出一致（observed_utc 不参与比较：它天生每次不同）' : `漂移：${regDrift}`}`)
 

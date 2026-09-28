@@ -31,6 +31,10 @@ import urllib.request
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 IMAGES_DIR = PROJECT_ROOT / 'public' / 'images'
+# sm/ 是 400w 缩略图面（第五十一轮 R51-H3）。它不是"可选优化"：src/utils/images.ts:29 的
+# productSrcSet 把 `sm/{order}.webp 400w` 和 `{order}.webp 800w` 一起交给浏览器，
+# 缺一张就是"浏览器选中了不存在的候选图" ⇒ 与主图同分母、不同目录，必须并判。
+SM_DIR = IMAGES_DIR / 'sm'
 SEED_FILE = PROJECT_ROOT / 'src' / 'data' / 'products-seed.ts'
 
 # ── 现网面（第五十轮 R50-H1）────────────────────────────────────────────────
@@ -77,6 +81,15 @@ def load_expected_orders():
 
 EXPECTED_ORDERS, SEED_ERROR = load_expected_orders()
 MIN_SIZE = 10 * 1024  # 10KB
+
+# sm/ 的地板是**量出来的**，不是抄主图的：本轮实测 `public/images/sm` 55 件，
+# 体积 min=4,392B / p10=6,176B / max=39,072B；主图 min=11,994B（对 10,240B 地板余 1,754B）。
+# 把主图的 10KB 直接套到缩略图上会一次红掉 44 件 —— 那是判据错，不是资产错。
+# 取 2,048B：下界离真实最小值留 2,344B 余量，上界足以抓住"空壳/占位/截断"这类坏件
+# （12B 的裸 RIFF 头过不了这里，也过不了魔数）。
+# 反过来"缩略图比某些主图还大"（实测 max 39,072 > 主图 min 11,994）**只报不判**：
+# 两侧区间重叠 ⇒ 没有可分的阈值 ⇒ 按既有规「改机制而非调参」，这里先不下判。
+SM_MIN_SIZE = 2 * 1024  # 2KB
 
 
 def fetch_live_orders(url: str, timeout: float):
@@ -130,6 +143,63 @@ def fetch_live_orders(url: str, timeout: float):
         notes.append(f'{len(no_order)} 条在售商品没有可用 order ⇒ 无图可判，请人看一眼（{", ".join(no_order[:5])}）')
     return orders, None, notes
 
+
+
+def fetch_live_catalog(url: str, timeout: float):
+    """取商品**全集**（含下架）的 `{order, needsLocalImage}`，返回 `(entries|None, err|None, notes)`。
+
+    第五十一轮 R51-H1。与 `fetch_live_orders` 同形：**取不到就返回 err**，绝不返回空集冒充
+    "目录里没东西"。为什么在售面不够：`getPublicProducts` 的 SQL 带 `WHERE enabled = 1`，
+    下架商品在**任何不带密钥的面上都不可见**，而密钥按 AGENTS.md 红线绝不进 CI/日志 ⇒
+    "下架项缺一张图"这件事，上一轮只在输出里点了名，从没被判过。
+
+    该 action 未部署时（本轮 push 之前必然如此）线上按 `action_not_public` 回 code=-1，
+    本函数如实返回 err ⇒ 全集面记 UNVERIFIED、不并入分母。这条腿在部署完成后自动开始生效。
+    """
+    body = json.dumps({'action': 'getCatalogOrders', 'payload': {}}).encode('utf-8')
+    req = urllib.request.Request(url, data=body, method='POST',
+                                headers={'content-type': 'application/json',
+                                         'user-agent': 'supermarket-web-verify-images/1.0 (gate)'})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as res:
+            raw = res.read()
+    except urllib.error.HTTPError as exc:
+        return None, f'现网全集面返回 HTTP {exc.code}（{url}）', []
+    except (urllib.error.URLError, OSError) as exc:
+        return None, (f'现网全集面取不到：{type(exc).__name__}: {getattr(exc, "reason", exc)}'
+                      f'（{url}，超时 {timeout}s）'), []
+    try:
+        parsed = json.loads(raw.decode('utf-8'))
+    except (ValueError, UnicodeDecodeError) as exc:
+        return None, f'现网全集面响应不是合法 JSON：{type(exc).__name__}: {exc}', []
+    if not isinstance(parsed, dict) or parsed.get('code') != 0 or not isinstance(parsed.get('data'), list):
+        code = parsed.get('code') if isinstance(parsed, dict) else type(parsed).__name__
+        return None, (f'现网全集面形状不对：code={code}（多半是该 action 还没上线 ⇒ 记未验证，'
+                      '不读成"目录里没商品"）'), []
+    entries, bad = {}, []
+    for item in parsed['data']:
+        if not isinstance(item, dict):
+            bad.append(str(item)[:24])
+            continue
+        order = item.get('order')
+        need = item.get('needsLocalImage')
+        if isinstance(order, bool) or not isinstance(order, (int, float)) or int(order) != order \
+                or not isinstance(need, bool):
+            bad.append(str(item)[:24])
+            continue
+        entries[int(order)] = need
+    notes = []
+    if bad:
+        notes.append(f'{len(bad)} 条目录项没有可用的 order/needsLocalImage 对 ⇒ 无图可判，请人看一眼'
+                     f'（{", ".join(str(b) for b in bad[:5])}）')
+    # 全量形状不合 ⇒ **未验证**，不是"目录里 0 件"。一手：本轮第一版让线上 403 走空集出口，
+    # 输出印成"现网目录全集需本地件 0 号"—— 一条从没量到的面被写成量到了且没问题，
+    # 与户内「盲区不得复用成零」同族；被自家夹具（桩把两个 action 答成同一份）当场抓到。
+    if parsed['data'] and not entries:
+        return None, (f'现网全集面 {len(parsed["data"])} 条里**零条**可用'
+                      f'（形状不合 ⇒ 服务端返回的不是 {{order, needsLocalImage}}）'
+                      '⇒ 该面未验证，不读成"目录里没商品"'), notes
+    return entries, None, notes
 
 
 # 图片文件头签名
@@ -190,14 +260,25 @@ def main() -> int:
         live_timeout = LIVE_TIMEOUT_DEFAULT
     if live_mode == 'off':
         live_orders, live_err = None, '现网面被显式关闭（`VERIFY_IMAGES_LIVE=off`）'
+        catalog_orders, catalog_err = None, '同上（现网面整体关闭）'
     else:
         live_orders, live_err, live_notes = fetch_live_orders(live_url, live_timeout)
-    expected = seed_orders | (live_orders or set())
+        # 全集面（R51-H1）：同一个 URL、另一个 action。取不到只让**这一面**记未验证。
+        catalog_entries, catalog_err, catalog_notes = fetch_live_catalog(live_url, live_timeout)
+        live_notes = live_notes + catalog_notes
+        # 取不到 ⇒ 必须是 None，**不能**是空集：空集会被读成「目录里 0 件要本地图」，
+        # 而真相是「这一面根本没量到」。本轮第一版就在这里把线上 403 咽成了 0 号（实测），
+        # 正是户内「盲区不得复用成零」那条规的又一次复发。
+        catalog_orders = ({o for o, need in catalog_entries.items() if need}
+                          if catalog_entries is not None else None)
+    # 只收 needsLocalImage=true 的号：带自定义 image 的商品根本不碰本地件，算进来就是凭空造红。
+    expected = seed_orders | (live_orders or set()) | (catalog_orders or set())
     live_extra = sorted((live_orders or set()) - seed_orders)
+    catalog_extra = sorted((catalog_orders or set()) - seed_orders - (live_orders or set()))
     # 自证（第五十轮）：结论行会印"seed N ∪ 现网 M ⇒ 并集 T"，那就必须真的相等。
     # 这条守卫让"把 expected 改成别的来源"这类改动**当场失效**，而不是印出一行自相矛盾的覆盖面读数
     # （②-d：变异腿要能在守卫正常时被咬住；否则覆盖面那行只是装饰，谁改分母都不会红）。
-    union_now = seed_orders | (live_orders or set())
+    union_now = seed_orders | (live_orders or set()) | (catalog_orders or set())
     if expected != union_now:
         print(f'[verify-images] UNVERIFIED 覆盖面自相矛盾：应有集 {len(expected)} 号 ≠ seed ∪ 现网 = {len(union_now)} 号'
               ' ⇒ 判据自己的取数被改坏了，不据它下任何结论')
@@ -210,14 +291,22 @@ def main() -> int:
     # 脚本每次输出「缺失 49/49、覆盖率 0%」且 exit 0（静默的全面假失败），
     # 而下方 detect_format() 其实早就实现了 WebP 魔数检测（RIFF....WEBP）。
     # 这是一个「判据自身坏了」的假失败（R263 同族），不是图片真的缺失。
-    found_files = {}
-    for ext in ('.webp', '.jpg', '.jpeg', '.png', '.svg', '.gif'):
-        for f in IMAGES_DIR.glob(f'*{ext}'):
-            try:
-                order = int(f.stem)
-                found_files[order] = (f, ext)
-            except ValueError:
-                continue
+    IMAGE_EXTS = ('.webp', '.jpg', '.jpeg', '.png', '.svg', '.gif')
+
+    def collect_numeric(dir_path):
+        found = {}
+        for ext in IMAGE_EXTS:
+            for f in dir_path.glob(f'*{ext}'):
+                try:
+                    order = int(f.stem)
+                except ValueError:
+                    continue
+                found[order] = (f, ext)
+        return found
+
+    found_files = collect_numeric(IMAGES_DIR)
+    # sm/ 面（R51-H3）：目录不存在 ⇒ 该面 UNVERIFIED（空集 ≠ 全缺），与主图面的处理同形。
+    sm_found = collect_numeric(SM_DIR) if SM_DIR.is_dir() else None
 
     # 验证每个文件
     valid = []
@@ -262,6 +351,30 @@ def main() -> int:
     else:
         print('  (无缺失)')
 
+    # ── sm/ 缩略图面（第五十一轮 R51-H3）：与主图**同分母、不同目录**，各出一行分母 ──
+    sm_missing = sm_invalid = []
+    if sm_found is None:
+        sm_note = f'sm 面 UNVERIFIED：目录不存在（{SM_DIR}）⇒ 空集不等于零覆盖，不判"全缺"'
+    else:
+        sm_note = None
+        for order in sorted(expected):
+            if order not in sm_found:
+                sm_missing.append(order)
+                continue
+            f, ext = sm_found[order]
+            size = f.stat().st_size
+            fmt = detect_format(f)
+            if fmt in ('unknown', 'error'):
+                sm_invalid.append((order, f.name, size, 'unknown/unreadable format'))
+            elif size < SM_MIN_SIZE:
+                sm_invalid.append((order, f.name, size, f'too small (<{SM_MIN_SIZE}B)'))
+        sm_sizes = sorted(p.stat().st_size for p, _ in sm_found.values()) if sm_found else []
+        if sm_sizes:
+            sm_note = (f'sm 面：{len(sm_found)} 件，实测体积 min={sm_sizes[0]}B '
+                       f'对地板 {SM_MIN_SIZE}B 余 {sm_sizes[0] - SM_MIN_SIZE}B'
+                       f'（上限只报不判：max={sm_sizes[-1]}B 与主图 min 区间重叠 ⇒ 无可分阈值）')
+    sm_problems = len(sm_missing) + len(sm_invalid)
+
     # 反向半边（第四十九轮立，第五十轮**改判归因**）：图有、应有集里没有。
     # 上一轮把这一类统一叫"无主图"，实测是**假归因**：`55.webp` 有主 —— 主人是现网在售的
     # 「润田矿泉水」（`_id: p_mtsp7bx9t0nn3f`，`image` 为空 ⇒ 前端按 `utils/images.ts:21` 回落到
@@ -270,19 +383,30 @@ def main() -> int:
     # 仍**只点名不判红**：补 seed 还是删图是归属决定（第十一轮 R11-H3 同口径 —— 判红等于逼运营回滚）。
     orphans = sorted(set(found_files) - expected)
     orphan_qualifier = '' if live_orders is not None else '（现网面未量到 ⇒ 这里只说明 seed 不要它，不足证无主）'
-    print(f'\n🧭 覆盖面：seed {len(seed_orders)} 号 · 现网在售依赖本地件 '
-          + (f'{len(live_orders)} 号 ⇒ 并集 {total} 号' if live_orders is not None else f'UNVERIFIED：{live_err}'))
+    face_parts = [f'seed {len(seed_orders)}']
+    face_parts.append(f'现网在售依赖本地件 {len(live_orders)} 号' if live_orders is not None
+                      else f'现网在售 UNVERIFIED：{live_err}')
+    face_parts.append(f'现网目录全集需本地件 {len(catalog_orders)} 号' if catalog_orders is not None
+                      else f'现网目录全集 UNVERIFIED：{catalog_err}')
+    print('\n🧭 覆盖面：' + ' · '.join(face_parts) + f' ⇒ 并集 {total} 号')
     for note in live_notes:
         print(f'  · {note}')
     if live_extra:
         print(f'  ⚠️ seed 落后于现网：{live_extra} 这些号现网在售而 seed 里没有 ⇒ 应有集本轮靠现网面兜住')
+    if catalog_extra:
+        print(f'  ⚠️ seed 与在售都不要、但目录里出现过：{catalog_extra} ⇒ 这些是**下架项**，'
+              '它们的图本轮起进分母（R51-H1 前的盲区）')
+    if sm_note:
+        print(f'  · {sm_note}')
     print(f'\n⚠️  无主图片 ({len(orphans)}){orphan_qualifier}:')
     for order in orphans:
         print(f'  order {order:2d}: {found_files[order][0].name:20s}（seed 与现网在售都不要它 ⇒ 请确认是谁在用，或改名进 seed）')
     if not orphans:
         print('  (无孤儿图)')
-    print('  盲区（不得当成已判）：下架商品的图不在任何可判面内（/pub 只回 enabled，管理端要密钥 ⇒ 密钥不进 CI/日志）；'
-          '`/images/sm/{order}.webp` 缩略图本门禁也不判。')
+    if catalog_orders is None:
+        print('  盲区（不得当成已判）：下架商品的图仍未判 —— 全集面取不到（多半是 /pub 的 '
+              'getCatalogOrders 还没部署）。该 action 上线后本行自动消失。')
+    print('  仍未判的盲区：现网带自定义 image 的条目其 URL 可达性（本门禁只判本地件，不判外链）。')
 
     print('\n' + '=' * 70)
     real_photo_count = len(valid)
@@ -293,14 +417,27 @@ def main() -> int:
     # 机器结论行（第四十七轮 G14 / 第四十八轮 R48-H1 同一口径）：人读的报告文本不改语义，
     # 尾部的结论行**必须点名判的是哪个面** —— 上一轮这行只印裸分母，于是"现网面根本没量"与
     # "两个面都量过"在输出上长得一模一样（分母 54 vs 55 是唯一线索，而没人会去数）。
-    face_line = (f'面=seed {len(seed_orders)} ∪ 现网在售 {len(live_orders)}' if live_orders is not None
-                 else f'面=seed {len(seed_orders)}（现网 UNVERIFIED ⇒ 本轮只判了 seed）')
+    face_line = (f'面=seed {len(seed_orders)} ∪ 在售 {len(live_orders) if live_orders is not None else "UNVERIFIED"}'
+                 f' ∪ 目录 {len(catalog_orders) if catalog_orders is not None else "UNVERIFIED"}')
     problems = len(missing) + len(invalid)
     if problems:
         print(f'[verify-images] FAIL 缺失 {len(missing)} / 无效 {len(invalid)} / 应有 {total}'
               f' ⇒ 合计 {problems} 件不可交付（{face_line}）')
         return 1
-    print(f'[verify-images] OK {len(valid)}/{total} 全部为有效图片（{face_line}）'
+    if sm_found is None:
+        # 主图面全绿、缩略图面整个取不到 ⇒ 不许印 OK：这是"半边没量"，不是"两半都过"。
+        print(f'[verify-images] UNVERIFIED 主图 {len(valid)}/{total} 全绿，但缩略图面没量到（{sm_note}）')
+        return 2
+    if sm_problems:
+        print(f'[verify-images] FAIL 主图齐 {len(valid)}/{total}，但 sm 缩略图 缺失 {len(sm_missing)}'
+              f' / 无效 {len(sm_invalid)} ⇒ 合计 {sm_problems} 件 srcSet 候选图不可交付（目录={SM_DIR.name}/，{face_line}）')
+        if sm_missing:
+            print(f'  sm 缺失 orders: {sm_missing}')
+        for order, name, size, reason in sm_invalid:
+            print(f'  sm order {order}: {name} {size}B  {reason}')
+        return 1
+    print(f'[verify-images] OK 主图 {len(valid)}/{total} + 缩略图 {total}/{total} 全部有效'
+          f'（{face_line}）'
           + (f'（另有 {len(orphans)} 张无主图，见上：不拦，但请有人认领）' if orphans else ''))
     return 0
 

@@ -32,7 +32,7 @@ const webp = () => Buffer.concat([Buffer.from('RIFF'), Buffer.from([0, 0, 0, 0])
  * `catOrders` 用来放**分类**段里的 `order:` —— 那个键名在真文件里有两个语义（分类排序 vs 图片文件名），
  * 分面必须按数据流划，所以这些号**不许**进应有集（第四十九轮的修法）。
  */
-function face({ orders = [1, 2, 3], images = { 1: webp(), 2: webp(), 3: webp() }, catOrders = [], anchorless = false } = {}) {
+function face({ orders = [1, 2, 3], images = { 1: webp(), 2: webp(), 3: webp() }, sm, catOrders = [], anchorless = false } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'vi48-'))
   dirs.push(dir)
   mkdirSync(join(dir, 'scripts'), { recursive: true })
@@ -46,6 +46,18 @@ function face({ orders = [1, 2, 3], images = { 1: webp(), 2: webp(), 3: webp() }
     mkdirSync(join(dir, 'public', 'images'), { recursive: true })
     for (const [order, bytes] of Object.entries(images)) {
       if (bytes) writeFileSync(join(dir, 'public', 'images', `${order}.webp`), bytes)
+    }
+    // 第五十一轮 R51-H3：sm/ 与主图**同分母、不同目录**。默认镜像主图面（现存各腿据此继续成立），
+    // 传 `sm` 才单独造缺口。**不镜像**的话所有老腿都会因为"缩略图面没量到"变成 rc=2，
+    // 那是夹具被新判据带崩，不是判据抓到了真缺陷。
+    const smMap = sm === undefined ? images : sm
+    if (smMap !== 'nodir') {
+      // 'nodir' ⇒ **整个目录都不建**：造一个空目录会被读成"缩略图一张都没有"（rc=1 判红），
+      // 而这条腿要测的是"这一面没量到"（rc=2）。两种形状差一个 mkdir，语义完全不同。
+      mkdirSync(join(dir, 'public', 'images', 'sm'), { recursive: true })
+      for (const [order, bytes] of Object.entries(smMap)) {
+        if (bytes) writeFileSync(join(dir, 'public', 'images', 'sm', `${order}.webp`), bytes)
+      }
     }
   }
   return dir
@@ -71,7 +83,7 @@ describe('verify:images 的四档退出码（判据自己必须会红）', () =>
   it('正向：图片齐全 ⇒ rc=0，且尾部结论行点名件数', () => {
     const r = run(face())
     expect(r.status, r.stdout + r.stderr).toBe(0)
-    expect(r.stdout).toMatch(/\[verify-images\] OK 3\/3/)
+    expect(r.stdout).toMatch(/\[verify-images\] OK 主图 3\/3 \+ 缩略图 3\/3 全部有效/)
   })
 
   it('反例（一手修复前的形状）：缺一张图 ⇒ rc=1 且点名缺几件（旧版这里印"覆盖率 66%"却 return 0）', () => {
@@ -104,7 +116,7 @@ describe('verify:images 的四档退出码（判据自己必须会红）', () =>
   it('真入口回执：对真仓当场跑一次 ⇒ rc=0 且结论行的分母来自 seed 的 products 段（不是写死的 49）', () => {
     const r = run(REPO)
     expect(r.status, `真面应当全绿，实测 rc=${r.status}：${r.stdout.split('\n').slice(-1)}`).toBe(0)
-    const m = /\[verify-images\] OK (\d+)\/(\d+)/.exec(r.stdout)
+    const m = /\[verify-images\] OK 主图 (\d+)\/(\d+) \+ 缩略图 (\d+)\/(\d+)/.exec(r.stdout)
     expect(m, `结论行缺两个数：${r.stdout.split('\n').slice(-1)}`).toBeTruthy()
     const seed = readFileSync(join(REPO, 'src', 'data', 'products-seed.ts'), 'utf8')
     const at = seed.indexOf('export const products')
@@ -125,7 +137,7 @@ describe('verify:images 的四档退出码（判据自己必须会红）', () =>
     const declared = /现网在售依赖本地件 (\d+ 号|UNVERIFIED)/.test(r.stdout)
     expect(declared, `覆盖面行没声明现网面状态：${r.stdout.split('\n').filter((l) => l.includes('覆盖面'))}`).toBe(true)
     expect(r.stdout, '现网面取不到时结论行必须说"只判了 seed"').toMatch(
-      /(面=seed \d+ ∪ 现网在售 \d+|现网 UNVERIFIED ⇒ 本轮只判了 seed)/)
+      /面=seed \d+ ∪ 在售 (\d+|UNVERIFIED) ∪ 目录 (\d+|UNVERIFIED)/)
     // 真面上的实测口径（@2026-09-28）：现网在售 25 条的 image **全为空** ⇒ 并集应为 55（seed 54 + 55 号）
     if (/∪ 现网在售 (\d+)/.test(r.stdout)) {
       expect(Number(/∪ 现网在售 (\d+)/.exec(r.stdout)[1]), '现网在售数由 /pub 现读，写死的期望会自判红').toBeGreaterThan(0)
@@ -137,7 +149,7 @@ describe('verify:images 的四档退出码（判据自己必须会红）', () =>
     const dir = face({ orders: [1, 2, 3], catOrders: [7777, 7778], images: { 1: webp(), 2: webp(), 3: webp() } })
     const r = run(dir)
     expect(r.status, `分类排序号被当成商品 ⇒ 假红：${r.stdout.split('\n').slice(-1)}`).toBe(0)
-    expect(r.stdout).toMatch(/\[verify-images\] OK 3\/3/)
+    expect(r.stdout).toMatch(/\[verify-images\] OK 主图 3\/3 \+ 缩略图 3\/3 全部有效/)
     // 反向半边：同一份 seed 换成"没有 products 锚点"的形态 ⇒ 必须 fail-closed 记 UNVERIFIED，
     // 而不是静默退回整文件扫描（那正是本轮要修的侥幸）。
     const back = run(face({ orders: [1, 2, 3], catOrders: [7777], anchorless: true }))
@@ -191,19 +203,36 @@ const STUB_SRC = `
 const { createServer } = require('node:http')
 const fs = require('node:fs')
 const payload = process.env.STUB_PAYLOAD || '{}'
+// 第五十一轮：一条 URL 现在会被**两个 action**打（getPublicProducts 与 getCatalogOrders）。
+// 未具名的 action 一律回 403 + action_not_public —— 与线上"该 action 还没部署"的真实形状一致，
+// 于是老腿们天然把全集面读成 UNVERIFIED，而不是拿到一份对不上形状的 200。
+const routes = JSON.parse(process.env.STUB_ROUTES || '{}')
 const srv = createServer((req, res) => {
   let b = ''
   req.on('data', (c) => { b += c })
-  req.on('end', () => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(payload) })
+  req.on('end', () => {
+    let action = ''
+    try { action = String(JSON.parse(b || '{}').action || '') } catch { action = '' }
+    if (Object.prototype.hasOwnProperty.call(routes, action)) {
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify(routes[action]))
+    } else {
+      res.writeHead(403, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ code: -1, errorCode: 'action_not_public', message: '该操作不在公开接口白名单内' }))
+    }
+  })
 })
 srv.listen(0, '127.0.0.1', () => fs.writeFileSync(process.env.STUB_PORT_FILE, String(srv.address().port)))
 `
-const stubLive = async (payload) => {
+const stubLive = async (payload, routes) => {
   const portFile = join(mkdtempSync(join(tmpdir(), 'vi50p-')), 'port')
   // 端口经**环境变量**回传：`node -e` 下 argv 语义与跑脚本不同（argv[1] 才是第一个用户参数），
   // 上一版按 argv[2] 取值 ⇒ 子进程写盘即抛、桩永远不起（那条腿当时正确报了"夹具坏了"而不是假绿）。
   const child = spawn('node', ['-e', STUB_SRC], {
-    env: { ...process.env, STUB_PAYLOAD: JSON.stringify(payload), STUB_PORT_FILE: portFile },
+    env: {
+      ...process.env, STUB_PAYLOAD: JSON.stringify(payload), STUB_PORT_FILE: portFile,
+      STUB_ROUTES: JSON.stringify({ getPublicProducts: payload, ...(routes || {}) }),
+    },
     stdio: 'ignore',
   })
   stubs.push(child)
@@ -229,7 +258,7 @@ describe('verify:images 的现网面（分母 = seed ∪ 现网在售，取不�
     const r = run(face({ orders: [1, 2, 3] }), { VERIFY_IMAGES_LIVE: 'on', VERIFY_IMAGES_LIVE_URL: url })
     expect(r.status, `线上在售的 4 号没图必须拦：${r.stdout.split('\n').slice(-2)}`).toBe(1)
     expect(r.stdout).toMatch(/\[verify-images\] FAIL 缺失 1 \/ 无效 0 \/ 应有 4/)
-    expect(r.stdout).toContain('面=seed 3 ∪ 现网在售 1')
+    expect(r.stdout).toContain('面=seed 3 ∪ 在售 1 ∪ 目录 UNVERIFIED')
     expect(r.stdout).toContain('seed 落后于现网：[4]')
   })
 
@@ -238,7 +267,7 @@ describe('verify:images 的现网面（分母 = seed ∪ 现网在售，取不�
     const r = run(face({ orders: [1, 2, 3], images: { 1: webp(), 2: webp(), 3: webp(), 4: webp() } }),
       { VERIFY_IMAGES_LIVE: 'on', VERIFY_IMAGES_LIVE_URL: url })
     expect(r.status, r.stdout + r.stderr).toBe(0)
-    expect(r.stdout).toMatch(/\[verify-images\] OK 4\/4/)
+    expect(r.stdout).toMatch(/\[verify-images\] OK 主图 4\/4 \+ 缩略图 4\/4 全部有效/)
     expect(r.stdout).toContain('无主图片 (0)')
     expect(r.stdout).not.toContain('另有 1 张无主图')
   })
@@ -247,7 +276,7 @@ describe('verify:images 的现网面（分母 = seed ∪ 现网在售，取不�
     const url = await stubLive({ code: 0, data: [{ _id: 'p_a', order: 9, image: 'https://cdn.example/a.png' }] })
     const r = run(face({ orders: [1, 2, 3] }), { VERIFY_IMAGES_LIVE: 'on', VERIFY_IMAGES_LIVE_URL: url })
     expect(r.status, r.stdout + r.stderr).toBe(0)
-    expect(r.stdout).toMatch(/\[verify-images\] OK 3\/3/)
+    expect(r.stdout).toMatch(/\[verify-images\] OK 主图 3\/3 \+ 缩略图 3\/3 全部有效/)
     expect(r.stdout).toContain('另 1 条带自定义 image 字段')
   })
 
@@ -257,7 +286,9 @@ describe('verify:images 的现网面（分母 = seed ∪ 现网在售，取不�
       { VERIFY_IMAGES_LIVE: 'on', VERIFY_IMAGES_LIVE_URL: 'http://127.0.0.1:1/pub', VERIFY_IMAGES_LIVE_TIMEOUT: '3' })
     expect(r.status, `现网通不通不该改变 seed 面结论：${r.stdout.split('\n').slice(-1)}`).toBe(0)
     expect(r.stdout).toContain('UNVERIFIED')
-    expect(r.stdout).toContain('现网 UNVERIFIED ⇒ 本轮只判了 seed')
+    expect(r.stdout).toContain('在售 UNVERIFIED')
+    expect(r.stdout).toContain('目录 UNVERIFIED')
+    expect(r.stdout).toContain('⇒ 并集 2 号')
     expect(r.stdout).toContain('不足证无主')
   })
 
@@ -266,7 +297,9 @@ describe('verify:images 的现网面（分母 = seed ∪ 现网在售，取不�
     const r = run(face({ orders: [1, 2, 3] }), { VERIFY_IMAGES_LIVE: 'on', VERIFY_IMAGES_LIVE_URL: url })
     expect(r.status).toBe(0)
     expect(r.stdout).toContain('现网响应形状不对')
-    expect(r.stdout).not.toContain('∪ 现网在售 0')
+    expect(r.stdout).not.toContain('∪ 在售 0')
+    // 全集面形状不对时也**不得**把"0 件"印成量到了（本轮第一版就在这里把 403 咽成了 0 号）
+    expect(r.stdout).not.toContain('∪ 目录 0')
   })
 
   it('变异体：摘掉"并上现网面"那一行 ⇒ 自相矛盾守卫必须接管（rc=2 而不是继续判绿）', async () => {
@@ -274,7 +307,7 @@ describe('verify:images 的现网面（分母 = seed ∪ 现网在售，取不�
     const dir = face({ orders: [1, 2, 3] })
     const target = join(dir, 'scripts', 'verify_images.py')
     const src = readFileSync(target, 'utf8')
-    const mutated = src.replace(/^    expected = seed_orders \| \(live_orders or set\(\)\)$/m, '    expected = set(seed_orders)')
+    const mutated = src.replace(/^    expected = seed_orders \| \(live_orders or set\(\)\) \| \(catalog_orders or set\(\)\)$/m, '    expected = set(seed_orders)')
     expect(mutated, '变异锚点已失效（脚本改形，夹具必须同步）').not.toBe(src)
     writeFileSync(target, mutated, 'utf8')
     try {
@@ -287,6 +320,87 @@ describe('verify:images 的现网面（分母 = seed ∪ 现网在售，取不�
       expect(back.status, '还原后必须回到"判出缺图"的 1').toBe(1)
       expect(back.stdout).toContain('缺失图片 (1/4)')
     }
+  })
+})
+
+describe('verify:images 的现网全集面（R51-H1：下架项第一次进可判面）', () => {
+  const cat = (rows) => ({ getCatalogOrders: { code: 0, data: rows } })
+
+  it('新牙齿（上一轮的验收问题）：下架项缺一张图 ⇒ rc=1。旧形状里这条门禁永远不响', async () => {
+    // 40 号只在目录里（既不在 seed 也不在售，needsLocalImage=true）⇒ 它是**下架项**
+    const url = await stubLive({ code: 0, data: [{ _id: 'p_a', order: 1, image: '' }] },
+      cat([{ order: 40, needsLocalImage: true }]))
+    const r = run(face({ orders: [1, 2, 3] }), { VERIFY_IMAGES_LIVE: 'on', VERIFY_IMAGES_LIVE_URL: url })
+    expect(r.status, `下架项缺图必须拦：${r.stdout.split('\n').slice(-3)}`).toBe(1)
+    expect(r.stdout).toMatch(/\[verify-images\] FAIL 缺失 1 \/ 无效 0 \/ 应有 4/)
+    expect(r.stdout).toContain('现网目录全集需本地件 1 号')
+    expect(r.stdout).toContain('这些是**下架项**')
+  })
+
+  it('同一条目 needsLocalImage=false（它有自己的图）⇒ 不入分母、不造红', async () => {
+    const url = await stubLive({ code: 0, data: [{ _id: 'p_a', order: 1, image: '' }] },
+      cat([{ order: 40, needsLocalImage: false }]))
+    const r = run(face({ orders: [1, 2, 3] }), { VERIFY_IMAGES_LIVE: 'on', VERIFY_IMAGES_LIVE_URL: url })
+    expect(r.status, r.stdout + r.stderr).toBe(0)
+    expect(r.stdout).toContain('现网目录全集需本地件 0 号')
+  })
+
+  it('该 action 未部署（线上 403 action_not_public）⇒ 全集面记 UNVERIFIED，seed/在售结论与 rc 一律不变', async () => {
+    const url = await stubLive({ code: 0, data: [{ _id: 'p_a', order: 1, image: '' },
+      { _id: 'p_b', order: 2, image: '' }, { _id: 'p_c', order: 3, image: '' }] })
+    const r = run(face({ orders: [1, 2, 3] }), { VERIFY_IMAGES_LIVE: 'on', VERIFY_IMAGES_LIVE_URL: url })
+    expect(r.status, '取不到的面不该把整条门禁拖红：' + r.stdout.split('\n').slice(-2)).toBe(0)
+    expect(r.stdout).toContain('目录 UNVERIFIED')
+    expect(r.stdout).toContain('下架商品的图仍未判')
+  })
+
+  it('变异体（本轮真犯过的错）：把"取不到 ⇒ None"写成"取不到 ⇒ 空集" ⇒ 403 会被印成"目录 0 号"假绿', async () => {
+    const url = await stubLive({ code: 0, data: [{ _id: 'p_a', order: 1, image: '' }] })
+    const dir = face({ orders: [1, 2, 3] })
+    const target = join(dir, 'scripts', 'verify_images.py')
+    const src = readFileSync(target, 'utf8')
+    const mutated = src.replace('if catalog_entries is not None else None)', 'if catalog_entries is not None else set())')
+    expect(mutated, '变异锚点已失效（脚本改形，夹具必须同步）').not.toBe(src)
+    writeFileSync(target, mutated, 'utf8')
+    try {
+      const r = run(dir, { VERIFY_IMAGES_LIVE: 'on', VERIFY_IMAGES_LIVE_URL: url })
+      expect(r.stdout, '摘掉 None 后必须把"没量到"印成"量到 0 件"（这正是修复前的形状）')
+        .toContain('现网目录全集需本地件 0 号')
+      expect(r.stdout).not.toContain('下架商品的图仍未判')
+    } finally {
+      cpSync(SCRIPT, target)
+      const back = run(dir, { VERIFY_IMAGES_LIVE: 'on', VERIFY_IMAGES_LIVE_URL: url })
+      expect(back.stdout, '还原后必须回到"这一面没量到"的措辞').toContain('目录 UNVERIFIED')
+    }
+  })
+})
+
+describe('verify:images 的 sm/ 缩略图面（R51-H3：同分母、不同目录）', () => {
+  it('反例：主图齐、缺一张缩略图 ⇒ rc=1 且**按目录点名**（srcSet 会选中不存在的候选图）', () => {
+    const r = run(face({ orders: [1, 2, 3], sm: { 1: webp(), 2: webp(), 3: null } }))
+    expect(r.status, `缩略图缺口必须拦：${r.stdout.split('\n').slice(-4)}`).toBe(1)
+    expect(r.stdout).toMatch(/\[verify-images\] FAIL 主图齐 3\/3，但 sm 缩略图 缺失 1/)
+    expect(r.stdout).toContain('sm 缺失 orders: [3]')
+  })
+
+  it('反例：缩略图够格当图但小到可疑（低于实测地板 2048B）⇒ 计入无效', () => {
+    const tiny = Buffer.concat([Buffer.from('RIFF'), Buffer.from([0, 0, 0, 0]), Buffer.from('WEBP'), Buffer.alloc(64)])
+    const r = run(face({ orders: [1, 2, 3], sm: { 1: webp(), 2: webp(), 3: tiny } }))
+    expect(r.status).toBe(1)
+    expect(r.stdout).toContain('too small')
+  })
+
+  it('边界：主图面全绿但 sm 目录整个失踪 ⇒ rc=2 UNVERIFIED，**不得**印成 OK（半边没量 ≠ 两半都过）', () => {
+    const r = run(face({ orders: [1, 2, 3], sm: 'nodir' }))
+    expect(r.status, r.stdout.split('\n').slice(-2).join(' / ')).toBe(2)
+    expect(r.stdout).toContain('UNVERIFIED 主图 3/3 全绿，但缩略图面没量到')
+    expect(r.stdout).not.toMatch(/\[verify-images\] OK/)
+  })
+
+  it('正向 + 分母自证：sm 件数与主图面各出一行，且实测最小值对地板有余量', () => {
+    const r = run(face())
+    expect(r.status, r.stdout + r.stderr).toBe(0)
+    expect(r.stdout).toMatch(/sm 面：3 件，实测体积 min=\d+B 对地板 2048B 余 \d+B/)
   })
 })
 

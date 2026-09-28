@@ -43,6 +43,7 @@ import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { scanArtifactWrites } from './lib/preflight.mjs'
 import { reasonDefects } from './lib/registry-reason.mjs'
+import { describeDrift, formatDrift } from './lib/drift-shape.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 export const ROOT = resolve(__dirname, '..')
@@ -283,7 +284,7 @@ export function evaluate({ candidates, results, registry, injected = null, entry
         + '全量面重跑：`node scripts/check-judge-side-effects.mjs`'
       : `双跑 ${idem.length} 件（同一 flag 各 2 趟）`
         + (drifted.length
-          ? `；**归一掉观测时刻后仍不收敛**: ${drifted.map((d) => `${d.file} → ${d.writeRun.idempotency.drift.join(', ')}`).join(' ｜ ')}`
+          ? `；**归一掉观测时刻后仍不收敛**: ${drifted.map((d) => `${d.file} → ${d.writeRun.idempotency.drift.map(formatDrift).join(' , ')}`).join(' ｜ ')}`
             + ' ⇒ 第二趟会继续改产物，等于每次运行都在攒漂移'
           : '；全部收敛（含只写观测字段的：那类已归一，不算漂移）')
         + `；另 ${untouchedWrite.length} 件写通道没碰任何产物 ⇒ 不双跑（既不计已证也不计违规）`,
@@ -357,8 +358,11 @@ function probe(file, writeFlags) {
             const mid = snapFiles(dest2, dw.touched.map((t) => t.path))
             const w2 = runOne(dest2, file, [writeFlags[0]])
             const after = snapFiles(dest2, dw.touched.map((t) => t.path))
+            // R51-H2：漂移**从路径升级成结构体**（两侧 sha8 + 首个差异行号），
+            // 与 check-doc-commands 的 D7 同源（scripts/lib/drift-shape.mjs），不在 detail 里重算。
             const drift = dw.touched.map((t) => t.path)
               .filter((p) => stableText(mid[p]) !== stableText(after[p]))
+              .map((p) => describeDrift(p, mid[p], after[p]))
             second = { rc: w2.rc, drift, comparable: dw.touched.length }
           }
           writeRun = { rc: w.rc, flag: writeFlags[0], changed: dw.changed, touched: dw.touched, idempotency: second }

@@ -46,6 +46,37 @@ export async function getPublicProducts(DB) {
   return { code: 0, data: rows.map(rowToProduct) }
 }
 
+/**
+ * 商品全集号（第五十一轮 R51-H1）—— /pub 上**唯一**不带密钥就能看到"下架项"的通道。
+ *
+ * 立它的理由是一手的，不是假想：`getPublicProducts` 的 SQL 带 `WHERE enabled = 1`，
+ * 于是 `scripts/verify_images.py` 上一轮把"应有图片集"接到"seed ∪ 现网在售"之后，
+ * **下架商品的图仍然不在任何可判面内**（管理端要 ADMIN_KEY，而密钥按 AGENTS.md 红线绝不进 CI/日志）。
+ * 那条门禁于是对"下架项缺一张图"永远不响 —— 上一轮只是把这个盲区**印出来**了，点名 ≠ 判过。
+ *
+ * 权限形状对标 `PostgREST/postgrest`：匿名角色（`db-anon-role`）能读的是**列级授权后的投影**，
+ * 不是整行。所以这里只回 `{order, needsLocalImage}` 两个键：不含 name / price / description，
+  也**不把 image 字段原样公开**（那是商家自填值，可能是外部 URL）—— 门禁要的不是图在哪，
+  而是"这条到底依不依赖本地件"，一个布尔就够了。
+ * 也**不加** enabled 过滤 —— 本 action 要回答的问题是"目录里一共出现过多少个号"，
+ * "某个号现在是否在卖"属于 `getPublicProducts` 的语义，两者刻意不混。
+ */
+export async function getCatalogOrders(DB) {
+  const rows = await qAll(DB,
+    `SELECT "order", image FROM products ORDER BY "order" ASC LIMIT 1000`)
+  const seen = new Set()
+  const data = []
+  for (const row of rows) {
+    const n = Number(row && row.order)
+    if (!Number.isInteger(n) || n <= 0 || seen.has(n)) continue
+    seen.add(n)
+    // 布尔而不是 URL：门禁只需知道"这条依不依赖本地件"。把商家自填的 image 原样公开
+    // 会把外部域名/路径写进公开响应，而它对这个判据没有任何增量作用。
+    data.push({ order: n, needsLocalImage: !String(row.image || '').trim() })
+  }
+  return { code: 0, data }
+}
+
 export async function getPublicCategories(DB) {
   const rows = await qAll(DB, `SELECT _id, name, type, "order", subcategories FROM categories ORDER BY "order" ASC LIMIT 200`)
   return { code: 0, data: rows.map(rowToCategory) }

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-27T08:53:44.806Z",
+  "updatedAt": "2026-09-28T16:21:26.443Z",
   "peakStatements": {
     "P:getPublicCategories": 1,
     "P:getPublicProducts": 1,
@@ -7,7 +7,7 @@
     "A:getOrder": 1,
     "A:getOrders": 1,
     "A:updateOrderStatus": 4,
-    "amortized:audit-retention-purge": 3,
+    "amortized:audit-retention-purge": 6,
     "P:getOrderStatus": 1,
     "A:getOrderStatus": 1,
     "A:createProduct": 2,
@@ -21,12 +21,13 @@
     "A:getAllReviews": 1,
     "P:addPublicReview": 3,
     "P:getReviews": 1,
+    "P:createSubmission": 3,
+    "A:deleteSubmission": 2,
     "A:batchUpdateProducts": 3,
     "A:batchDeleteProducts": 3,
     "A:createSubmission": 2,
     "A:getSubmissions": 1,
     "A:updateSubmissionStatus": 2,
-    "A:deleteSubmission": 2,
     "A:recalculateOrders": 2,
     "P:getProducts": 0,
     "A:login": 3,
@@ -42,8 +43,8 @@
     "A:addPublicReview": 2,
     "A:createOrder": 4,
     "P:aiChat": 3,
-    "P:createSubmission": 3,
-    "A:getSubmissionImages": 1
+    "A:getSubmissionImages": 1,
+    "P:getCatalogOrders": 1
   },
   "samples": 1
 }

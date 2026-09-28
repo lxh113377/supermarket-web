@@ -15,6 +15,7 @@ import {
   evaluate, verdictOf, diffHashes, treeHashes, enumerateCandidates, riskFaceHasWrites,
   stableText, TS_SENTINEL,
 } from '../scripts/check-judge-side-effects.mjs'
+import { describeDrift, formatDrift } from '../scripts/lib/drift-shape.mjs'
 
 const ROOT = resolve(fileURLToPath(import.meta.url), '../..')
 const SCRIPT = join('scripts', 'check-judge-side-effects.mjs')
@@ -307,12 +308,26 @@ describe('S7 写侧幂等：双跑收敛判定 + 归一化的两侧', () => {
   }]
   const s7 = (results) => evaluate({ candidates: CAND, results, registry: REG, entryMd: MERGED_MD }).rows.find((r) => r.id === 'S7')
 
-  it('反例：第二趟后归一面仍不等 ⇒ S7 判红并点名"哪个脚本改了哪个产物"', () => {
-    const r = s7(w({ idempotency: { rc: 0, drift: ['docs/d1-write-quota.json'], comparable: 1 } }))
+  it('反例：第二趟后归一面仍不等 ⇒ S7 判红并点名"哪个脚本改了哪个产物的第几行"', () => {
+    const r = s7(w({ idempotency: { rc: 0,
+      drift: [describeDrift('docs/d1-write-quota.json', 'a\nb\nc\n', 'a\nb\n')], comparable: 1 } }))
     expect(r.ok).toBe(false)
     expect(r.detail).toContain('check-d1-roundtrips.mjs → docs/d1-write-quota.json')
     expect(r.detail).toContain('第二趟会继续改产物')
+    // R51-H2：红因必须**可比**。第四十九轮那次只印到路径，接手的人还得自己 diff 才知道
+    // "多了个空行"—— 所以这里断言到"首处差异行号 + 两侧 sha8"这一层，少一位就红。
+    expect(r.detail).toMatch(/docs\/d1-write-quota\.json#L3 [0-9a-f]{8}→[0-9a-f]{8}/)
     expect(verdictOf([...evaluate({ candidates: CAND, results: w({ idempotency: { rc: 0, drift: ['x'] }, }), registry: REG, entryMd: MERGED_MD }).rows, r]).rc).toBe(1)
+  })
+
+  it('R51-H2 反向：交裸字符串（第五十轮的旧形状）⇒ 点名"形状不合"，不许静默兼容', () => {
+    const r = s7(w({ idempotency: { rc: 0, drift: ['docs/d1-write-quota.json'], comparable: 1 } }))
+    expect(r.ok).toBe(false)
+    expect(r.detail).toContain('形状不合')
+    expect(r.detail).not.toMatch(/d1-write-quota\.json#L\d+ [0-9a-f]{8}→/)
+    // 兼容一次＝允许下一个调用方继续交裸串。这里把"裸串不能变成合法形状"钉成断言。
+    expect(formatDrift('docs/x.json')).toContain('形状不合')
+    expect(formatDrift(describeDrift('docs/x.json', null, 'new'))).toContain('(新建)')
   })
 
   it('正例：双跑全部收敛 ⇒ S7 绿，且读数里印出"双跑几件 / 几件没对象"（不是一句"通过"）', () => {
