@@ -35,6 +35,16 @@ const CODE_SPAN_RE = /`([^`\n]+)`|```(?:bash|sh|shell|console)?\n([\s\S]*?)```/g
 const CMD_RE = /npm run ([a-zA-Z0-9:._-]+)|node\s+(?:--\S+\s+)*?((?:scripts|[.\w/-]*\/scripts)\/[A-Za-z0-9._/<>-]+\.(?:mjs|cjs|js|py))/g
 const PLACEHOLDER_RE = /(<[^>\n]+>|…|\$\{?[A-Z_][A-Z0-9_]*\}?|\b[A-Za-z0-9._-]*[XY]\.(?:mjs|js|py)\b)/
 
+/**
+ * 取数面一律先把 CRLF 归一成 LF —— **判据不该知道自己在哪台机器上**。
+ * 一手实测（第五十轮 push 后 CI 红、本机全绿）：`CODE_SPAN_RE` 的围栏分支要求代码块标签后紧跟 LF，
+ * 而本机 `core.autocrlf=true` 的检出是 CRLF ⇒ **围栏代码块整体解析失败**：
+ * 本机 mentions=205 / CI（Linux，LF）mentions=224，差的 19 条全是围栏里的命令主张
+ * ⇒ Windows 侧一直在漏判这 19 条，不是"CI 多事"。
+ * 归一只发生在"读来判"这一侧；写侧（`--update` 落盘）保留该文件原有行尾形态。
+ */
+export const normalizeEol = (s) => String(s).replace(/\r\n/g, '\n')
+
 export function collectDocs(readRoot = ROOT) {
   const out = []
   // 第四十八轮 R48-H3：`CHANGELOG.md` 原本**整份不在取数面里** —— 一手实测（@2026-09-28）：
@@ -46,14 +56,14 @@ export function collectDocs(readRoot = ROOT) {
   // 而不是把这份文档长期留在面外（第四十一轮"历史不是永久豁免"的同一口径，方向反过来用）。
   for (const f of ['README.md', 'SECURITY.md', 'CONTRIBUTING.md', 'HANDOFF.md', 'CHANGELOG.md']) {
     const p = join(readRoot, f)
-    if (existsSync(p)) out.push({ path: f, src: readFileSync(p, 'utf8') })
+    if (existsSync(p)) out.push({ path: f, src: normalizeEol(readFileSync(p, 'utf8')) })
   }
   const walk = (dir) => {
     if (!existsSync(dir)) return
     for (const e of readdirSync(dir)) {
       const full = join(dir, e)
       if (statSync(full).isDirectory()) walk(full)
-      else if (e.endsWith('.md')) out.push({ path: relative(readRoot, full).replace(/\\/g, '/'), src: readFileSync(full, 'utf8') })
+      else if (e.endsWith('.md')) out.push({ path: relative(readRoot, full).replace(/\\/g, '/'), src: normalizeEol(readFileSync(full, 'utf8')) })
     }
   }
   walk(join(readRoot, 'docs'))
@@ -312,7 +322,10 @@ function main() {
       console.log(`[doc-commands] 已重写 ${REGISTRY}（提及 ${counts.mentions} 条 / 不成立 ${counts.broken} 条）`)
       const rp = join(ROOT, 'README.md')
       const before = readFileSync(rp, 'utf8')
-      const { src, action } = syncGateTable(before, renderGateTable(aliases))
+      // 写出面保持该文件原有的行尾形态（比较面已按 `normalizeEol` 归一，判定与机器无关；
+      // 这里若把 LF 写进一份 CRLF 的 README，一次"重生生成物"的提交会变成整文件行尾 churn）。
+      const table = before.includes('\r\n') ? renderGateTable(aliases).replace(/\n/g, '\r\n') : renderGateTable(aliases)
+      const { src, action } = syncGateTable(before, table)
       if (!src) { console.error(`[doc-commands] BLOCKED README 里没有 "## 功能一览" 锚点 ⇒ 无处插生成块，拒绝硬塞`); process.exit(2) }
       writeFileSync(rp, src, 'utf8')
       console.log(`[doc-commands] README 门禁一览块 ${action}（${aliases.filter((a) => /^(verify|check):/.test(a.name)).length} 条，全部取自 package.json）`)

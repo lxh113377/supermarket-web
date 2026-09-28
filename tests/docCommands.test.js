@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { copyGateScripts } from './helpers/copyGateScripts.mjs'
-import { evaluate, extractCommands, collectDocs, readAliases, renderGateTable, syncGateTable, registryBody } from '../scripts/check-doc-commands.mjs'
+import { evaluate, extractCommands, collectDocs, readAliases, renderGateTable, syncGateTable, registryBody, normalizeEol } from '../scripts/check-doc-commands.mjs'
 
 const ROOT = resolve(fileURLToPath(import.meta.url), '../..')
 const SCRIPT = join('scripts', 'check-doc-commands.mjs')
@@ -343,5 +343,32 @@ describe('D7 生成块逐字节 + --check 读侧（写侧的读侧）', () => {
     expect(after.ok, '摘掉比较后仍判红 ⇒ 这条腿没打在被告分支上（红因来自别处）').toBe(true)
     expect(after.detail).toContain('逐字节相等')
     rmSync(dir, { recursive: true, force: true })
+  })
+})
+
+/**
+ * 取数面必须与机器无关（第五十轮：本机全绿、CI 判红的一手根因）。
+ * 读数：本机 `mentions=205`，CI（Linux/LF）同一份提交算出 **224**，差 19 条。
+ * 机制：`CODE_SPAN_RE` 的围栏分支要求代码块标签后紧跟 LF；本机 `core.autocrlf=true` 的检出是 CRLF
+ * ⇒ **整块围栏代码里的命令主张在 Windows 侧从来不可见**（不是 CI 多事，是本机长期漏判 19 条）。
+ * 正解：读来判的那一侧归一行尾（`collectDocs` 内的 `normalizeEol`），写回的那一侧保持文件原有形态（见 main 的 eol 分支）。
+ */
+describe('行尾不得改变判定（本机 205 / CI 224 那次红的根因面）', () => {
+  const LF = String.fromCharCode(10)
+  const CRLF = String.fromCharCode(13, 10)
+  it('同一段围栏命令：CRLF 原文抽不到（旧漏判面），归一后抽得到', () => {
+    const md = ['标题', '', '```bash', 'npm run verify:docs', '```', ''].join(LF)
+    const crlf = md.split(LF).join(CRLF)
+    expect(extractCommands(crlf).map((c) => c.target)).not.toContain('verify:docs')
+    expect(extractCommands(normalizeEol(crlf)).map((c) => c.target)).toContain('verify:docs')
+  })
+
+  it('真面取数已经是 LF（一个 CR 都不许留），且台账 counts 等于当场重算的值', () => {
+    const docs = collectDocs()
+    expect(docs.length).toBeGreaterThan(20)
+    expect(docs.filter((d) => d.src.includes(String.fromCharCode(13))).length, 'collectDocs 没归一行尾 ⇒ 台账又是机器相关的量').toBe(0)
+    const mentions = docs.reduce((n, d) => n + extractCommands(d.src).length, 0)
+    const reg = JSON.parse(readFileSync(join(ROOT, 'docs', 'doc-commands.json'), 'utf8'))
+    expect(mentions, '册上 counts 与当场重算不符 ⇒ --update 没跑或判据又变成机器相关').toBe(reg.counts.mentions)
   })
 })
