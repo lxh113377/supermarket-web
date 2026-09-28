@@ -142,7 +142,9 @@ describe('memory-volume：超限必须点名 + 两种"零对象"不得同形', (
     const dir = repo({ '07-next-steps.part99.md': pad(5000, '# 卷 99') })
     const target = join(dir, 'scripts', GATE)
     const src = readFileSync(target, 'utf8')
-    const mutated = src.replace('const overs = files.filter((f) => f.size > max)', 'const overs = []')
+    // 变异锚点 v2（第四十六轮同步）：V2 加了"超限件二次确认"之后，原锚 `const overs = files.filter(...)`
+    // 被拆成 overs0 + 复核 filter ⇒ 锚点失效，本夹具当场判红（这正是它该有的行为）。改指新的取数行。
+    const mutated = src.replace('const overs0 = files.filter((f) => f.size > max)', 'const overs0 = []')
     expect(mutated, '变异锚点已失效（判据改形，夹具必须同步）').not.toBe(src)
     writeFileSync(target, mutated)
     try {
@@ -261,5 +263,52 @@ describe('V5：主卷「在册卷号」声明 ⇄ 磁盘分卷双向对账（第
     const { rc, out } = runIn(dir, ['--all'])
     expect(rc, out.slice(-400)).toBe(0)
     expect(out).toMatch(/PASS V5 :: 声明 1–2 ⇄ 磁盘 2 本/)
+  })
+})
+
+// 第四十六轮 R45-H3：共享工作树里"读到的字节数"可能是别人写到一半的形态。
+// 一手两例（都记在 memory/07-next-steps.part74/76）：第四十四轮 verify:volume 判 part72 4333B，
+// 20 秒后实测 2637B 且 `git diff HEAD` 为空；第四十五轮同一秒 status 报 4333B、`git cat-file -s` 报 3020B。
+// ⇒ 超限这件事改成**二次确认**：两次一致才判违规；不一致记 UNVERIFIED（既不是违规也不是通过）。
+describe('V2 二次确认（撕裂读不得冒充违规，也不得冒充通过）', () => {
+  const f = (name, size) => ({ name, size })
+  const big = [f('07-next-steps.part9.md', 5200)]
+  const rows = (over) => evaluate({ files: big, max: 4096, all: true, ...over }).rows
+  const find = (rs, id) => rs.find((r) => r.id === id)
+
+  it('两次读数一致 ⇒ 照常判违规（新腿不许把真超限洗成"未验证"）', () => {
+    const rs = rows({ remeasure: () => 5200 })
+    expect(find(rs, 'V2').pass).toBe(false)
+    expect(find(rs, 'V2').detail).toContain('part9.md 5200B')
+    expect(find(rs, 'V2b').status).toBe('OK')
+  })
+  it('两次不一致 ⇒ 记 UNVERIFIED，并把两个数都印出来（不是"通过"，也不是"违规"）', () => {
+    const rs = rows({ remeasure: () => 2637 })
+    expect(find(rs, 'V2').pass).toBe(true)
+    expect(find(rs, 'V2').status).toBe('UNVERIFIED')
+    expect(find(rs, 'V2b').status).toBe('UNVERIFIED')
+    expect(find(rs, 'V2b').detail).toContain('5200B→2637B')
+  })
+  it('没有超限件时一次都不重读（成本只在要判红的路径上付）', () => {
+    let calls = 0
+    const rs = evaluate({ files: [f('07-next-steps.md', 100)], max: 4096, all: true, remeasure: () => { calls += 1; return 1 } }).rows
+    expect(calls).toBe(0)
+    expect(find(rs, 'V2').pass).toBe(true)
+    expect(find(rs, 'V2b').detail).toContain('未触发')
+  })
+  it('旧形状（不注入 remeasure）行为不变 ⇒ 二次确认是加法不是替换', () => {
+    const rs = rows({})
+    expect(find(rs, 'V2').pass).toBe(false)
+    expect(find(rs, 'V2b').status).toBe('OK')
+  })
+  it('真入口对偶腿：5.2KB 的卷仍在 --all 面上判 rc=1（演习证明新腿不会放走真违规）', () => {
+    const dir = repo({
+      '07-next-steps.md': '## 分卷目录\n\n- 在册卷号：1–1。文件名一律 `07-next-steps.part<N>.md`。\n',
+      '07-next-steps.part1.md': pad(5200, '# 超限卷'),
+    })
+    const { rc, out } = runIn(dir, ['--all'])
+    expect(rc, out.slice(-400)).toBe(1)
+    expect(out).toMatch(/FAIL V2/)
+    expect(out).toMatch(/V2b/)
   })
 })

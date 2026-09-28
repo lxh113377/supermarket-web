@@ -132,7 +132,7 @@ describe('判据 G1~G9：合成仓双向变异', () => {
     const bad = res.rows.filter((r) => !r.pass)
     expect(bad.map((r) => `${r.id}:${r.detail}`), JSON.stringify(res.rows, null, 1)).toEqual([])
     expect(res.summary.matched).toBe(res.summary.declared)
-    expect(res.summary.declared).toBe(12)
+    expect(res.summary.declared).toBe(13)
   })
 
   it('G1 反例：登记面枚举为空 ⇒ 判红（零输入不得 PASS）', () => {
@@ -375,6 +375,48 @@ ${riskRows}
     writeFileSync(join(r.dir, '.github', 'workflows', 'ci.yml'), 'name: CI\njobs:\n  b:\n    steps:\n      - run: node scripts/other-gate.mjs\n')
     const back = evaluate(collect(r.dir)).rows.find((x) => x.id === 'G12')
     expect(back.pass, back.detail).toBe(true)
+  })
+
+  /**
+   * G13（第四十六轮）：别名里的**非 .mjs** 入口 —— 取数面看不见它，所以它既不在登记面也不在缺口面，
+   * 属"结构性失踪"。一手分母：真仓 `package.json` 里这样的入口恰好 1 条（`verify:images` → `python scripts/verify_images.py`），
+   * 而 workflows 里 grep `verify:images` = 0 处 ⇒ 只有人手敲才跑。
+   */
+  const NN_PKG = { 'report:pix': 'python scripts/pix.py' }
+  const nnReg = (rows) => `${cleanRegistry}\n## 非 node 入口\n\n| 脚本 | 真实命令 | 为什么不能 spawn |\n| --- | --- | --- |\n${rows}\n`
+  const NN_OK_ROW = '| pix.py | `python scripts/pix.py` | 实测 node 起它得 ERR_UNKNOWN_FILE_EXTENSION 裸栈，5,227B 纯 python |'
+
+  it('G13 正向：非 .mjs 入口登记了真实命令 + 可证伪理由 ⇒ 绿（登记不等于进面）', () => {
+    const { res } = baseRepo({ pkg: NN_PKG, registry: nnReg(NN_OK_ROW) })
+    const row = res.rows.find((r) => r.id === 'G13')
+    expect(row.pass, row.detail).toBe(true)
+    expect(row.detail).toContain('非 .mjs 入口 1 个 ⇄ 册上「非 node 入口」登记 1 个')
+  })
+
+  it('G13 反例：别名有 python 入口而册上没登记 ⇒ 判红并点名"结构性失踪"', () => {
+    const { res } = baseRepo({ pkg: NN_PKG })
+    const row = res.rows.find((r) => r.id === 'G13')
+    expect(row.pass).toBe(false)
+    expect(row.detail).toContain('结构性失踪')
+    expect(row.detail).toContain('pix.py')
+    // 这条红不许被 G1/G12 同时抓走 ⇒ 它们看不见非 .mjs，正是本条存在的理由
+    expect(res.rows.find((r) => r.id === 'G1').pass).toBe(true)
+    expect(res.rows.find((r) => r.id === 'G12').pass).toBe(true)
+  })
+
+  it('G13 反例：登记了但理由不可证伪（无数字无反引号命令）⇒ 判红', () => {
+    const { res } = baseRepo({ pkg: NN_PKG, registry: nnReg('| pix.py | python scripts/pix.py | 应该是 python 跑的吧') })
+    const row = res.rows.find((r) => r.id === 'G13')
+    expect(row.pass).toBe(false)
+    expect(row.detail).toContain('不可证伪')
+  })
+
+  it('G13 反向对账：册上登记了别名里已经没有的入口 ⇒ 幽灵判红（不许留着当"已核过"）', () => {
+    const { res } = baseRepo({ registry: nnReg(NN_OK_ROW) })
+    const row = res.rows.find((r) => r.id === 'G13')
+    expect(row.pass).toBe(false)
+    expect(row.detail).toContain('幽灵')
+    expect(row.detail).toContain('pix.py')
   })
 
   /**

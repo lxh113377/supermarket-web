@@ -30,7 +30,7 @@ const recDir = mkdtempSync(join(tmpdir(), 'smrec-'))
 tmpDirs.push(recDir)
 const RECORDING = join(recDir, 'shapes.json')
 const rec = spawnSync(process.execPath, [BACKEND_RUNNER], {
-  cwd: REPO, encoding: 'utf8', timeout: 300_000,
+  cwd: REPO, encoding: 'utf8', timeout: 120_000,
   env: { ...process.env, RESPONSE_CONTRACT_OUT: RECORDING },
 })
 if (rec.status !== 0) throw new Error(`取录制失败 rc=${rec.status}: ${String(rec.stderr).slice(-300)}`)
@@ -62,7 +62,7 @@ function fakeRepo(contractObj) {
 }
 const runIn = (dir, inPath = RECORDING) => spawnSync(
   process.execPath, [join(dir, 'scripts', 'api-response-contract.mjs')], {
-    cwd: dir, encoding: 'utf8', timeout: 300_000, env: { ...process.env, RESPONSE_CONTRACT_IN: inPath },
+    cwd: dir, encoding: 'utf8', timeout: 120_000, env: { ...process.env, RESPONSE_CONTRACT_IN: inPath },
   })
 
 describe('shapeOf / deriveEntry：形状口径本身', () => {
@@ -166,7 +166,7 @@ describe('V1~V6 双向变异', () => {
 
 describe('真入口与真流量（子进程）', () => {
   it('真仓跑真流量：GATE-PASS 且六条检查数对得上', () => {
-    const r = spawnSync(process.execPath, [SELF_SCRIPT], { cwd: REPO, encoding: 'utf8', timeout: 300_000 })
+    const r = spawnSync(process.execPath, [SELF_SCRIPT], { cwd: REPO, encoding: 'utf8', timeout: 120_000 })
     const out = `${r.stdout}${r.stderr}`
     expect(r.status, out.slice(-800)).toBe(0)
     expect(out).toContain('GATE-PASS response-contract')

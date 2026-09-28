@@ -94,12 +94,21 @@ export function riskFaceHasWrites(mdSrc, scriptBase) {
   return false
 }
 
-/** 临时树逐文件**双读数**（内容 sha + mtime）；跳过 .git。 */
+/**
+ * 临时树逐文件**双读数**（内容 sha + mtime）。跳过面：`.git`（版本库元数据）与 `node_modules`
+ * （**探针自己**为了跑通依赖接进去的 junction）。
+ * 第四十六轮分相归因一手：上轮记的"全量面 6m49s"根因**不是** `git archive`（单次实测 0.86s），
+ * 而是每次读数都去遍历注入的依赖树 —— 一次 `treeHashes` 实测 **12,299ms / 10,933 个文件，
+ * 其中 10,225 个来自 node_modules** ⇒ 每件候选 4 趟读数 ≈49s × 9 件 ≈ 409s，与 6m49s 对得上。
+ * 依赖树不是受版本控制的产物，进差集面既不给判定力、又把全部成本吃下来 ⇒ 跳掉它，
+ * 并把"跳了哪些顶层目录"留在注释与门面行的文件计数里（盲区必须说出来，不得静默）。
+ */
+const SKIP_DIRS = new Set(['.git', 'node_modules'])
 export function treeHashes(dir) {
   const out = {}
   const walk = (d) => {
     for (const e of readdirSync(d)) {
-      if (e === '.git') continue
+      if (SKIP_DIRS.has(e)) continue
       const full = join(d, e)
       const st = statSync(full)
       if (st.isDirectory()) { walk(full); continue }
@@ -277,6 +286,7 @@ function probe(file, writeFlags) {
   if (!ex.ok) { rmSync(dest, { recursive: true, force: true }); return { file, unverified: ex.reason, defaultRun: null, writeRun: null } }
   try {
     const base0 = treeHashes(dest)
+    const faceFiles = Object.keys(base0).length
     const d = runOne(dest, file, [])
     const dd = diffHashes(base0, treeHashes(dest))
     const defaultRun = d.ran ? { rc: d.rc, changed: dd.changed, touched: dd.touched } : null
@@ -295,7 +305,7 @@ function probe(file, writeFlags) {
       rmSync(dest2, { recursive: true, force: true })
     }
     const unverified = (!defaultRun && !writeRun) ? (d.reason || '两侧都没跑起来') : null
-    return { file, defaultRun, writeRun, unverified, depsLinked: ex.linked, skippedWrite: !writeFlags.length }
+    return { file, defaultRun, writeRun, unverified, depsLinked: ex.linked, skippedWrite: !writeFlags.length, faceFiles }
   } finally { rmSync(dest, { recursive: true, force: true }) }
 }
 
@@ -359,7 +369,7 @@ function main() {
   for (const r of rows) console.log(`${r.ok === true ? 'PASS' : 'FAIL'} ${r.id} ${r.label} (${r.detail})`)
   if (!update) {
     for (const r of results) console.log(`  - ${r.file} blind=${(candidates.find((c) => c.file === r.file) || {}).blind}`
-      + ` 默认args: rc=${r.defaultRun ? r.defaultRun.rc : '未跑'} 内容变 ${r.defaultRun ? r.defaultRun.changed.length : '-'} / 碰过 ${r.defaultRun ? r.defaultRun.touched.length : '-'} 个`
+      + ` 读数面 ${r.faceFiles ?? '-'} 文件｜默认args: rc=${r.defaultRun ? r.defaultRun.rc : '未跑'} 内容变 ${r.defaultRun ? r.defaultRun.changed.length : '-'} / 碰过 ${r.defaultRun ? r.defaultRun.touched.length : '-'} 个`
       + ` 写盘args: ${r.writeRun ? `${r.writeRun.flag} rc=${r.writeRun.rc} 碰过 ${r.writeRun.touched.map((t) => t.path + (t.identical ? '(同字节)' : '')).join(',') || '（零）'}` : '未跑/无通道'}`
       + (r.depsLinked === false ? ' ⇒ 依赖没接上(junction 失败)' : '') + (r.unverified ? ` ⇒ UNVERIFIED(${r.unverified})` : ''))
   }
@@ -380,7 +390,7 @@ function main() {
           write_rc: r.writeRun ? r.writeRun.rc : null, write_flag: r.writeRun ? r.writeRun.flag : null,
           writes: r.writeRun ? r.writeRun.touched.map((x) => x.path) : [],
           writes_identical: r.writeRun ? r.writeRun.touched.filter((x) => x.identical).map((x) => x.path) : [],
-          unverified: r.unverified || null,
+          unverified: r.unverified || null, face_files: r.faceFiles ?? null,
         }
       }),
       generators: registry.generators || [], unprobeable: registry.unprobeable || [],

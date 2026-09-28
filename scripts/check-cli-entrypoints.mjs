@@ -18,6 +18,7 @@ import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { requireInputs, requireJson, classifyRisk, probeSafeEvidence } from './lib/preflight.mjs'
+import { reasonDefects } from './lib/registry-reason.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
@@ -60,6 +61,27 @@ export function collectRegistered(dir = root) {
   }
   return [...map.entries()].map(([script, sources]) => ({ script, sources: [...sources].sort() }))
     .sort((a, b) => a.script.localeCompare(b.script))
+}
+
+/**
+ * 取数面 A′（第四十六轮，G13 的对象）：别名里引用了 `scripts/` 下**非 .mjs** 的文件。
+ * 一手分母（本轮实测）：`grep -o "scripts/[A-Za-z0-9._-]*\.[a-z]*" package.json` 去重后只有 **1** 条不属于 `.mjs`
+ * —— `npm run verify:images` → `python scripts/verify_images.py`；而 `collectRegistered` 的正则只收 `.mjs`，
+ * 于是这条门禁别名**既不在登记面、也不在缺口面、也不在 CI**（`.github/workflows/*` 里 grep `verify:images` = 0 处）。
+ * 更关键的是它**不能**被简单放进来：实测 `node scripts/verify_images.py` 得 `ERR_UNKNOWN_FILE_EXTENSION` 裸栈
+ * ⇒ 一旦进 node 探针面，②③ 腿会把"解释器不对"读成"入口不 fail-closed"，那是判据在说谎。
+ */
+export function collectNonNode(dir = root) {
+  const out = new Map()
+  let pkg
+  try { pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) } catch { return [] }
+  for (const [name, cmd] of Object.entries(pkg.scripts || {})) {
+    for (const m of String(cmd).matchAll(/scripts\/([A-Za-z0-9._-]+\.(?:cjs|js|ts|py|sh))\b/g)) {
+      if (!out.has(m[1])) out.set(m[1], { file: m[1], cmd: String(cmd).trim(), aliases: [] })
+      out.get(m[1]).aliases.push(name)
+    }
+  }
+  return [...out.values()].sort((a, b) => a.file.localeCompare(b.file))
 }
 
 /**
@@ -217,7 +239,9 @@ export function parseRegistry(md) {
     const rows = []
     for (const line of sec.split(/\r?\n/)) {
       const cells = line.split('|').map((c) => c.trim())
-      if (cells.length < 3 || !/^[A-Za-z0-9._-]+\.mjs$/.test(cells[1])) continue
+      // 行名允许非 .mjs 扩展名（第四十六轮）：`## 非 node 入口` 那张表就是要记 `.py` 这类真入口；
+      // 旧写法只收 `\.mjs$` ⇒ 越盲区时连"把漏的东西登记下来"这条路都是堵的。
+      if (cells.length < 3 || !/^[A-Za-z0-9._-]+\.(?:mjs|cjs|js|ts|py|sh)$/.test(cells[1])) continue
       // 第四列（若有）= 实测依据。风险分类表用它承载"为什么探针不能跑它"的数值证据。
       rows.push({ script: cells[1], reason: cells[2], note: cells.slice(3).join(' | ').trim() })
     }
@@ -232,6 +256,7 @@ export function parseRegistry(md) {
     floor: floorM ? Number(floorM[1]) : null, declaredFloor: !!floorM,
     denomFloor: denomM ? Number(denomM[1]) : null, declaredDenomFloor: !!denomM,
     gaps: table('已知缺口'), exemptions: table('不可子进程豁免'), risk: riskRows,
+    nonNode: table('非 node 入口'),
   }
 }
 
@@ -277,7 +302,7 @@ export function probeDenominator(dir = root) {
  * G6 本地钩子入口必须有夹具 / G7 判据自身入面 / G8 门禁类入口必须被真跑或具名豁免 /
  * G9 派生风险 ⇄ 登记册「风险分类」表双向对账。
  */
-export function evaluate({ registered, covered, declared, floorOk, hookTargets, scriptFiles, docsRegisterHooksPath, selfRegistered, riskOf = new Map(), safeOf = new Map() }) {
+export function evaluate({ registered, covered, declared, floorOk, hookTargets, scriptFiles, docsRegisterHooksPath, selfRegistered, riskOf = new Map(), safeOf = new Map(), nonNode = [] }) {
   const rows = []
   const uncovered = registered.filter((r) => !covered.has(r.script))
   // 登记面 = 缺口表 ∪ 豁免表（两张表都参与对账，但一行只准挂一处）：
@@ -461,9 +486,29 @@ export function evaluate({ registered, covered, declared, floorOk, hookTargets, 
         ? `；[信息] 门禁类已声明、表未标（CI 必跑，不强制）: ${markerNames.filter((s) => !claimedStopped.includes(s) && isGateLike(srcOf(s))).join(', ')}` : ''),
   })
 
+  // G13（第四十六轮）：别名里引用的**非 .mjs** 入口。取数面的正则是 `.mjs`，所以这类入口今天既不在登记面、
+  // 也不在缺口面、也不在豁免面 —— 它是**结构性失踪**，不是"登记了但没夹具"。本轮一手分母：非 .mjs 只有 1 条
+  // （`verify:images` → `python scripts/verify_images.py`），且 `.github/workflows/*` 里 grep 它为 0 处。
+  // 也不许把它直接塞进 node 探针面：实测 `node scripts/verify_images.py` 得 `ERR_UNKNOWN_FILE_EXTENSION` 裸栈
+  // ⇒ ②③ 腿会把"解释器不对"读成"入口不会 fail-closed"，那是判据在说谎。第一步先让它**可见**：
+  // 要么在 `## 非 node 入口` 登记真实命令 + 可证伪理由，要么判红；等解释器分派的腿建好再谈进面（R47）。
+  const nnReg = new Map((declared.nonNode || []).map((r) => [r.script, r]))
+  const nnUnreg = nonNode.filter((e) => !nnReg.has(e.file))
+  const nnThin = nonNode.filter((e) => nnReg.has(e.file) && reasonDefects(e.file, nnReg.get(e.file).reason).length)
+  const nnGhost = [...nnReg.keys()].filter((f) => !nonNode.some((e) => e.file === f))
+  rows.push({
+    id: 'G13',
+    pass: nnUnreg.length === 0 && nnThin.length === 0 && nnGhost.length === 0,
+    detail: `别名引用的非 .mjs 入口 ${nonNode.length} 个 ⇄ 册上「非 node 入口」登记 ${nnReg.size} 个`
+      + (nnUnreg.length ? `；**结构性失踪（取数面看不见，也没人登记）**: ${nnUnreg.map((e) => `${e.file}（别名 ${e.aliases.join('/')}｜真实命令 ${e.cmd}）`).join(' / ')}` : '')
+      + (nnThin.length ? `；登记了但理由不可证伪: ${nnThin.map((e) => e.file).join(', ')}` : '')
+      + (nnGhost.length ? `；幽灵（册上登记的文件已不被任何别名引用）: ${nnGhost.join(', ')}` : '')
+      + (nonNode.length && !nnUnreg.length && !nnThin.length ? ' ⇒ 已登记为"探针不 spawn"，解释器分派的腿待 R47' : ''),
+  })
+
   const bad = rows.filter((r) => !r.pass).length
   const probeable = registered.filter((r) => !(riskOf.get(r.script) || []).length)
-  return { rows, summary: { matched: rows.length - bad, mismatched: bad, declared: rows.length, covered: coveredCount, uncovered: uncovered.length, risky: risky.length, probeable: probeable.length, denom: denom.length } }
+  return { rows, summary: { matched: rows.length - bad, mismatched: bad, declared: rows.length, covered: coveredCount, uncovered: uncovered.length, risky: risky.length, probeable: probeable.length, denom: denom.length, nonNode: nonNode.length } }
 }
 
 export function collect(dir = root) {
@@ -498,7 +543,7 @@ export function collect(dir = root) {
     if (ev) safeOf.set(r.script, ev)
   }
   return {
-    registered, covered, declared, riskOf, safeOf,
+    registered, covered, declared, riskOf, safeOf, nonNode: collectNonNode(dir),
     floorOk: /覆盖地板/.test(md),
     hookTargets, scriptFiles: listFiles(join(dir, 'scripts')), docsRegisterHooksPath,
     selfRegistered: registered.some((r) => r.script === selfName),
@@ -532,7 +577,7 @@ export function main() {
   const s = res.summary
   // 门面行必须带 matched/mismatched/声明数三者（"判据回状态词 ≠ 覆盖过了"）
   const ok = s.mismatched === 0 && s.matched + s.mismatched === s.declared
-  console.log(`${ok ? 'GATE-PASS' : 'GATE-FAIL'} cli-entrypoints :: 入口 ${s.covered + s.uncovered} 个（子进程跑过 ${s.covered} / 缺口 ${s.uncovered}；探针分母 ${s.denom} / 无风险 ${s.probeable} / 带风险 ${s.risky}）｜检查 ${s.matched}/${s.declared} 通过，${s.mismatched} 失败`)
+  console.log(`${ok ? 'GATE-PASS' : 'GATE-FAIL'} cli-entrypoints :: 入口 ${s.covered + s.uncovered} 个（子进程跑过 ${s.covered} / 缺口 ${s.uncovered}；探针分母 ${s.denom} / 无风险 ${s.probeable} / 带风险 ${s.risky}；别名里的非 node 入口 ${s.nonNode}）｜检查 ${s.matched}/${s.declared} 通过，${s.mismatched} 失败`)
   return ok ? 0 : 1
 }
 

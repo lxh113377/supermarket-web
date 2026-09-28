@@ -18,7 +18,7 @@ const tmpDirs = []
 afterAll(() => { for (const d of tmpDirs) rmSync(d, { recursive: true, force: true }) })
 const tmp = () => { const d = mkdtempSync(join(tmpdir(), 'smrd-')); tmpDirs.push(d); return d }
 const run = (args = [], cwd = REPO) => {
-  const r = spawnSync(process.execPath, [SELF, ...args], { cwd, encoding: 'utf8', timeout: 300_000 })
+  const r = spawnSync(process.execPath, [SELF, ...args], { cwd, encoding: 'utf8', timeout: 120_000 })
   return { rc: r.status, out: `${r.stdout || ''}${r.stderr || ''}` }
 }
 const row = (rows, id) => rows.find((r) => r.id === id)

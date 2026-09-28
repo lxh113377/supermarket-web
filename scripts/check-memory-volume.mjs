@@ -76,9 +76,23 @@ export function partNumbersOf(names) {
   return [...new Set(names.map((n) => /^07-next-steps\.part(\d+)\.md$/.exec(n)?.[1]).filter(Boolean).map(Number))].sort((a, b) => a - b)
 }
 
-export function evaluate({ files, max, all = true, added = null, partNumbers, declaredRange }) {
+export function evaluate({ files, max, all = true, added = null, partNumbers, declaredRange, remeasure = null }) {
   const rows = []
-  const overs = files.filter((f) => f.size > max)
+  const overs0 = files.filter((f) => f.size > max)
+  // V6（第四十六轮，R45-H3 的落地）：**共享工作树里读到的字节数可能是别人写到一半的形态**。
+  // 一手两例：第四十四轮 `verify:volume` 判 `part72 4333B > 3072B`，20 秒后同路径实测 2637B 且 `git diff HEAD` 为空；
+  // 第四十五轮同一秒 `git status` 报的 `part74 4333B` 与 `git cat-file -s` 的 3020B 对不上。
+  // 所以超限这件事必须**二次确认**：只读两遍（默认 150ms 后重 stat）——
+  // 两次一致 ⇒ 照常判违规；不一致 ⇒ 记 UNVERIFIED（既不是"违规"也不是"通过"，是"这一次没量到"）。
+  // 成本为零：二次 stat 只在"已经要判红"的路径上发生，正常轮一次都不多读。
+  const torn = []
+  const overs = overs0.filter((f) => {
+    if (!remeasure) return true
+    const again = remeasure(f.name)
+    if (again === f.size) return true
+    torn.push({ name: f.name, first: f.size, second: again })
+    return false
+  })
   // 两种"零对象"必须长得不一样（同第三十轮 scan-secrets 的口径）：
   // 全量面为零 = 取数面坏了 ⇒ fail-closed；暂存面为零 = 这次提交没动记忆 = **跳过**，不是"通过"。
   // 否则任何一条纯代码提交都会被这道闸拦下 —— 那是"拒真话"的判据缺陷，会逼人绕闸。
@@ -89,9 +103,22 @@ export function evaluate({ files, max, all = true, added = null, partNumbers, de
       ? `作用面 ${files.length} 个记忆文件（阈值来源见首行）`
       : (all ? '全量作用面为 0 ⇒ 取数面本身坏了（memory/ 里一个 .md 都不判？）' : '暂存面没有记忆文件 ⇒ 无可判对象（这是"跳过"，不是"通过"）'),
   })
-  rows.push({ id: 'V2', pass: overs.length === 0, detail: overs.length
-    ? `超限 ${overs.length} 个（阈值 ${max}B）：${overs.map((f) => `${f.name} ${f.size}B(+${f.size - max})`).join(' , ')}`
-    : `${files.length} 个全部 ≤ ${max}B` })
+  rows.push({
+    id: 'V2', pass: overs.length === 0,
+    status: (!overs.length && torn.length) ? 'UNVERIFIED' : undefined,
+    detail: overs.length
+      ? `超限 ${overs.length} 个（阈值 ${max}B）：${overs.map((f) => `${f.name} ${f.size}B(+${f.size - max})`).join(' , ')}`
+        + (torn.length ? `；另有 ${torn.length} 个二次读数不一致 ⇒ 记未验证（见 V2b）` : '')
+      : (torn.length
+        ? `${files.length} 个全部 ≤ ${max}B —— 但 ${torn.length} 个超限件二次读数不一致，本 run 对这些卷记 UNVERIFIED 而非"通过"`
+        : `${files.length} 个全部 ≤ ${max}B`),
+  })
+  rows.push({
+    id: 'V2b', pass: true, status: torn.length ? 'UNVERIFIED' : 'OK',
+    detail: torn.length
+      ? `撕裂读 ${torn.length} 个（第一次 vs 第二次）：${torn.map((t) => `${t.name} ${t.first}B→${t.second}B`).join(' , ')} ⇒ 共享工作树里可能读到别人写到一半的文件；不判违规也不判通过，复跑或按 git 面重测`
+      : '二次确认未触发异常（超限件两次读数一致；无超限件时一次都不重读）',
+  })
   const biggest = files.reduce((a, b) => (b.size > (a?.size || 0) ? b : a), null)
   rows.push({ id: 'V3', pass: files.length === 0 || !!biggest, detail: biggest ? `最大卷 ${biggest.name} ${biggest.size}B（阈值余量 ${max - biggest.size}B）` : '无对象' })
   // V4（第三十五轮）：**新建**的记忆卷必须带着余量出生。
@@ -170,6 +197,13 @@ export function main({ dir = root, all = false } = {}) {
   const res = evaluate({
     files: scope, max, all, added: all ? null : stagedAdded(dir),
     partNumbers: partNumbersOf(allNames), declaredRange: readDeclaredRange(memDir),
+    // 只有"已经要判红"的卷才付这次重读的成本（150ms 自旋后二次 stat）；一致 ⇒ 照常 FAIL。
+    remeasure: (name) => {
+      const t0 = Date.now()
+      while (Date.now() - t0 < 150) { /* 让并发写入方有机会把这半行写完 */ }
+      const p = join(memDir, name)
+      return existsSync(p) ? statSync(p).size : -1
+    },
   })
   // 贴线告警（第三十三轮）：余量 < 15% 只报不拦。为什么不拦：把 3,900B 判红会逼人"为了绿而拆卷"
   // 或删事实；但完全不报，就会连续三轮出现"写卷时踩线、提交前手忙脚乱压字节"（本轮实测三本卷

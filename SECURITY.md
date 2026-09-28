@@ -28,7 +28,7 @@
   那一类（目标是 import 常量、形参或 argv）由它兜住，读数与时刻落 `docs/judge-side-effects.json`，风险标签并回
   `docs/cli-entrypoints.md` 的风险分类表（`verify:entrypoints` G9 双向对账）。`npm run check:doc-commands` 则保证
   文档里印的命令真能跑（历史文档走带到期时刻的归档面，不是永久豁免）。
-  CI 里前者走 `--blind-only` 缩面（本机实测全量面 9 件 ≈300s、缩面 3 件 ≈76s），**取数面印在门面行上**，
+  CI 里前者走 `--blind-only` 缩面（本机实测全量面 9 件：修前 6m49s、第四十六轮分相归因后 1m37s（根因是读数面把探针自己注入的 node_modules junction 也算进去：单次 10,933 文件里 10,225 个来自依赖树）、缩面 3 件 ≈76s），**取数面印在门面行上**，
   缩面的读数不得冒充全量核过。
 
 ## 已知非安全问题（设计如此，请勿作为漏洞上报）

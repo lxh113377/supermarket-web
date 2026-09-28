@@ -93,6 +93,20 @@
 | check-functions-build.mjs | esbuild 冷编译实测 9.0s（本地 9044ms），塞进 `npm test` 会把单测拖成分钟级；且它经 wrangler 起编译。已在 `npm run verify` 与 CI（ci.yml:165）以真命令跑过 |
 | verify-release-parity.mjs | 缺 `PARITY_AFTER_TS` 起点时**按设计 rc=2**（fail-closed，"没有起点就不判'看起来一样'"），探针的 rc=0 断言对它不成立；且比对要拉两端线上产物（网络）。`release-parity.yml:71` 以真命令跑 |
 
+## 非 node 入口（别名引用了探针起不了的入口；**第四十五轮的 G12 只看目录级漂移，这一张表看的是扩展级失踪**）
+
+第四十六轮一手分母：把 `package.json` 别名里的 `scripts/<file>` 按宽扩展名（`mjs|cjs|js|ts|py|sh`）取一遍，
+不属于 `.mjs` 的恰好 **1** 条 ⇒ 它今天既不在登记面（`collectRegistered` 的正则只收 `.mjs`），
+也不在缺口/豁免面，`.github/workflows/*` 里 grep `verify:images` = **0** 处 —— 只有人手敲时才跑。
+判据 = **G13**：别名引用的非 .mjs 入口必须在下面这张表里登记真实命令 + 可证伪理由，否则判红；
+登记了但别名里不再引用 ⇒ 幽灵判红。**不许**直接把它塞进 node 探针分母：实测 `node scripts/verify_images.py`
+得 `ERR_UNKNOWN_FILE_EXTENSION` 裸栈 ⇒ ②③ 两法会把"解释器不对"读成"入口不会 fail-closed"，那是判据在说谎。
+正解（R47）＝按别名里的真实命令分派解释器，再给它自己的缺输入面 / 零分母两条腿。
+
+| 脚本 | 真实命令 | 为什么探针不能 spawn（实测依据） |
+| --- | --- | --- |
+| verify_images.py | `python scripts/verify_images.py` | 别名 `verify:images`；实测 `node scripts/verify_images.py` ⇒ `ERR_UNKNOWN_FILE_EXTENSION` 裸栈（@2026-09-28 本机）；文件 5,227B 在盘；workflows 引用 0 处 ⇒ 不进 node 面，等解释器分派的腿 |
+
 ## 风险分类（默认不自动 spawn；标签由 `classifyRisk` 从源码推导；带 `@probe-safe` 声明且本表写"已证明停在门口"的才回到分母）
 
 第三十二轮把这层判断交给**被试对象自述**（口径借 `golang/go` 的 `-short`：`testflag.go:67`
@@ -124,7 +138,7 @@ G11 认的是"已证明停在门口"这个整词，不是子串 —— 否则 �
 | check-branch-protection.mjs | gh-cli | ❌ **未停在门口**：真跑会打 api.github.com（需 gh 鉴权）⇒ 不进 ②③ 自动面；它的**入口**由 `tests/branchProtection.test.js` 以 `BRANCH_PROTECTION_JSON` 注入读数的方式被子进程真跑（7 条，含四态与变异体） |
 | check-d1-roundtrips.mjs | writes-artifacts | **这一行的标签是"跑出来的"，不是推出来的**（第四十三轮 `check-judge-side-effects` 一手）：`--update-write-quota` 实测 rc=0 且改写受版本控制的 `docs/d1-write-quota.json`，而静态推导对它推不出任何东西（目标常量 `WRITE_QUOTA_FILE` 是 `lib/d1-quota.mjs` import 进来的）⇒ 它此前挂"零风险"是漏登，不是它不危险。它同时是 PROBED 成员（`verify:roundtrips`），已在 CI 真跑，故不需要 `@probe-safe` 声明 |
 | check-doc-commands.mjs | writes-artifacts | ❌ 不声明停在门口：只有显式 `--update` 才改写 `docs/doc-commands.json` 与 README 的门禁块（两处都受版本控制）；默认 args 只读，本轮真面实测 rc=1 / 6 条判据 4 通过 2 失败（D5+D6 同点名 `check:judge-side-effects`）。它在文档面为空时由 **D1 判红**而不是 rc=2 ⇒ 探针的"缺输入即 bail"形状对它不成立 |
-| check-judge-side-effects.mjs | writes-artifacts | ❌ 不声明停在门口：只有 `--update` 重写 `docs/judge-side-effects.json`；无 flag 的真跑法把每个候选解进 `os.tmpdir()` 的一次性 `git archive` 快照里跑（本机第四十四轮实测：候选 9 件、约 300s、工作树字节零改动）⇒ 慢且要 git+tar，不进 ②③ 自动面。本轮新增件在 HEAD 里还没有 ⇒ 它**对自己的探针**记 UNVERIFIED 并具名在册（`unprobeable`），入库后自动可探 |
+| check-judge-side-effects.mjs | writes-artifacts | ❌ 不声明停在门口：只有 `--update` 重写 `docs/judge-side-effects.json`；无 flag 的真跑法把每个候选解进 `os.tmpdir()` 的一次性 `git archive` 快照里跑（本机第四十六轮实测：候选 9 件、**1m37s**（修前 6m49s，根因＝读数面把探针注入的 node_modules 也算进去）、工作树字节零改动）⇒ 慢且要 git+tar，不进 ②③ 自动面。本轮新增件在 HEAD 里还没有 ⇒ 它**对自己的探针**记 UNVERIFIED 并具名在册（`unprobeable`），入库后自动可探 |
 ## 为什么"CI 里真跑过"算减轻因素、但不抵消缺口
 
 被豁免/挂账的入口大多确实在 CI 或部署流程里以 `node scripts/X.mjs` 真跑过 —— 入口崩了 CI 就红，
@@ -140,9 +154,14 @@ G7 判据自身入面 / G8 门禁类必须真跑或具名豁免 / G9 **派生风
 G10 **探针分母地板**（改别名或加危险特征都会让分母静默缩短 ⇒ 当场红）、G12 **取数面逐来源非空**（登记面由
 npm 别名／`.githooks`／workflows 三个来源合成，只判"总数非零"时任一面归零照样绿 ⇒ 三个来源各出一行分母；
 本轮真面 npm 45／hook 4／ci 7。口径借 `check-limit-provenance` 的 C7b：声明了却零贡献的来源必须点名，
-要么修取数要么删声明 —— 第四十一轮"往根表加 `scripts/` 是 74→74 的静默空操作"那条欠账的第一次带数字收口））
+要么修取数要么删声明 —— 第四十一轮"往根表加 `scripts/` 是 74→74 的静默空操作"那条欠账的第一次带数字收口）、
+G13 **别名里的非 .mjs 入口不得结构性失踪**（同一族往下一格：G12 管"某个来源静默归零"，G13 管"整个扩展名看不见"。
+真面分母 1 条：`verify:images` → `python scripts/verify_images.py`；它既不在登记面也不在缺口/豁免面，
+workflows 里 grep 它为 0 处 ⇒ 只有人敲才跑。**不许**直接放它进 node 探针面：实测 `node scripts/verify_images.py`
+得 `ERR_UNKNOWN_FILE_EXTENSION` 裸栈 ⇒ ②③ 两法会把"解释器不对"读成"入口不会 fail-closed"。
+第一步只要求它**登记**（真实命令 + 可证伪理由），解释器分派的腿待 R47））
 夹具：`tests/cliEntrypoints.test.js`（条数**不在此写死**——写死即第二真相源，以 `npx vitest run tests/cliEntrypoints.test.js`
-当场输出为准；构成 = 判据路径真跑（PROBED 名册）+ 缺输入面 + 零分母 + 合成仓 G1~G12 双向变异 + 覆盖面口径三向
+当场输出为准；构成 = 判据路径真跑（PROBED 名册）+ 缺输入面 + 零分母 + 合成仓 G1~G13 双向变异 + 覆盖面口径三向
 （真跑记账 / 死数组与仅提到不记账）+ classifyRisk 三向 + scan-secrets 三种分母形状 + preflight 出口件 + 真仓互洽）。
 采集层自己另有夹具：`tests/bracketLexer.test.js`（第四十五轮，13 条）—— 括号配对扫描是"覆盖采集"的眼珠子，
 它坏了没人看得见，所以正例（结构已知的输入给出手算配对数）、变异体（把修复还原成旧写法必须翻红）、

@@ -7,7 +7,7 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
 import { spawnSync } from 'node:child_process'
-import { writeFileSync, mkdtempSync, readFileSync } from 'node:fs'
+import { writeFileSync, mkdtempSync, readFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -231,6 +231,24 @@ describe('两把字节尺（幂等生成器的形状）', () => {
     expect(h[keys[0]]).toHaveProperty('sha')
     expect(Number.isFinite(h[keys[0]].mt)).toBe(true)
   })
+  it('node_modules 不得进差集面（第四十六轮分相归因：一次读数 12,299ms / 10,933 个文件，其中 10,225 个来自注入的依赖 junction）', () => {
+    const t = mkdtempSync(join(tmpdir(), 'jsfx-tree-'))
+    mkdirSync(join(t, 'node_modules', 'x'), { recursive: true })
+    mkdirSync(join(t, 'docs'), { recursive: true })
+    writeFileSync(join(t, 'node_modules', 'x', 'index.js'), 'module.exports=1')
+    writeFileSync(join(t, 'docs', 'a.json'), '{}')
+    const keys = Object.keys(treeHashes(t))
+    expect(keys).toEqual(['docs/a.json'])
+    expect(keys.some((k) => k.startsWith('node_modules'))).toBe(false)
+  })
+  it('跳过依赖面不许把真产物一起跳掉：同树里 docs 与根文件都必须在读数里', () => {
+    const t = mkdtempSync(join(tmpdir(), 'jsfx-tree2-'))
+    mkdirSync(join(t, 'node_modules'), { recursive: true })
+    writeFileSync(join(t, 'node_modules', 'junk.js'), 'x')
+    writeFileSync(join(t, 'README.md'), '# hi')
+    writeFileSync(join(t, 'docs.md'), '# hi')
+    expect(Object.keys(treeHashes(t)).sort()).toEqual(['README.md', 'docs.md'])
+  })
   it('riskFaceHasWrites 只在「风险分类」节内找（别的表里的同名行不许喂绿）', () => {
     const md = '## 已知缺口\n\n| verify-x.mjs | 这行写 writes-artifacts 也不算 |\n\n## 风险分类\n\n| verify-y.mjs | writes-artifacts | 实测 |\n'
     expect(riskFaceHasWrites(md, 'verify-y.mjs')).toBe(true)
@@ -241,7 +259,7 @@ describe('两把字节尺（幂等生成器的形状）', () => {
 
 describe('入口通道真跑（--fixture / --inject-red / 缺输入面）', () => {
   const cli = (args) => {
-    const r = spawnSync(process.execPath, [SCRIPT, ...args], { cwd: ROOT, encoding: 'utf8', timeout: 300_000 })
+    const r = spawnSync(process.execPath, [SCRIPT, ...args], { cwd: ROOT, encoding: 'utf8', timeout: 120_000 })
     return { rc: r.status, out: `${r.stdout || ''}${r.stderr || ''}` }
   }
   it('喂全绿合成回执 ⇒ rc=0 且门面行印回执数与改写面', () => {
