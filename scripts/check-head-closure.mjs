@@ -58,6 +58,9 @@ export const EXEC_EXT = /\.(mjs|js|py|ps1|sh)$/
 export const ORPHAN_EXEMPT = new Map([
   ['scripts/git-push-fallback.ps1', '人工逃生件：推送被代理掐断时在终端手跑，自动链引用它等于让 CI 真推代码'],
   ['scripts/purge-admin-key-history.sh', '历史改写件：跑它=重写已推送历史，必须由人显式发起，禁止进链'],
+  ['scripts/session-worktree.mjs', '人工会话隔离件：它建/删 linked worktree 并删 session/* 分支，'
+    + '进链等于让 CI 自己造删工作树；用法见 docs/session-worktree.md，'
+    + '实测入口 `node scripts/session-worktree.mjs list` 返回 0 且只列主树'],
 ])
 
 function git(args) {
