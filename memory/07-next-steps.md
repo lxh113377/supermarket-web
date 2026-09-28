@@ -9,24 +9,28 @@
 > 外层 `超市web/超市/memory/`（工作区）。两者内容**不同**（07 主卷 SHA256 不一致），
 > 属历史遗留的双份结构，尚未合并。**本轮的权威记录在外层**：`deliverables/前端深度优化方案-2026-09-23.md` §6。
 
-## 2026-09-28 — 对标第四十七轮（判据的"眼睛"之前，先确认它有没有对象可看）
+## 2026-09-28 — 对标第四十八轮（一条门禁"能红"与"有人看"是两件事）
 
-> 报告：外层 `deliverables/GitHub开源项目对标分析报告-第四十七轮-2026-09-28.md`；轮初锚 `29e87b9`；
-> 本轮两笔 `812d54b`（G14 + 扩展名单源）/ `a7bf54f`（`verdictOf` rc 0/1/2），收尾复读 CI 全绿。
-> 叙事块（一手形状 / 同行出处 / 三条失败面）**逐字迁至卷 78**；第四十六轮整块在**卷 77**。
+> 报告：外层 `deliverables/GitHub开源项目对标分析报告-第四十八轮-2026-09-28.md`；轮初锚 `3ca4ae9`；本轮一笔 `ce9431e`。
+> 上轮三条 P0 **全闭合**，明细逐字在**卷 79**、四条失败面原文在 `CHANGELOG.md` 追加六十二：
+> **H1** `verify_images.py` 的 `main()` 从不 `sys.exit`（负控制原文：合成面印「缺失 1/3｜覆盖率 66%」**rc=0**）⇒ 三档 0/1/2
+> + 删掉"seed 读不到退回 1–49"的兜底 + 接进 `verify` 聚合链与 `ci.yml`。**H2** `runnerExcludes()` 现读 `vite.config.js`
+> 的 exclude ⇒ G14 印 `vitest 面 110 / 被排除面 7（spawn 0 个）`，取不到配置印"差集未知"不印 0；**只加读数不改判定**。
+> **H3** `CHANGELOG.md` 入 doc-commands claim 面（先量 137 条 span／缺失 0 ⇒ 零红；上轮"会一入面就恒红"是猜测，被实测否证）。
+> **计划外 H4（机器型落点）**：`scripts/check-staged-syntax.mjs` 进 `pre-commit`——判 **index 里的 blob**、盲区明说、
+> 非工作树 rc=2；起因是同一个编辑形态我四轮犯满 4 次，而它以前要等全链 verify 或一整条 CI 才现形。
 
-> **P0（下一轮开工先做这条，可执行）**：**R48-H1 `verify:images` 的判据自己是永绿的** ——
-> `scripts/verify_images.py` 的 `main()` 只 `print` 不 `sys.exit` ⇒ **缺图/坏图也 rc=0**（本机 0.13s、54/54 那张"覆盖率"从来没有退出码）。
-> 它是 G13「非 node 入口」表里第一条**判据自身失效**的一手证据：先给 main 加退出码（缺件即非 0），
-> 再谈 R47-H2 的解释器分派 —— 否则只是把一条永绿的门禁接进 CI，绿得更整齐而已。
-> **R48-H2 采集面 ⇄ 运行面还不是一回事**：`vite.config.js` 的 `exclude` 把 `tests/e2e*/**` 摘出 vitest 面，
-> 而 `testFace`/`collectCovered` 扫整棵 `tests/` ⇒ e2e 里的 spawn 记账来自 Playwright 不来自 `npm test`。
-> 先出两个面的**差集读数**再定分账/并账，**禁**直接缩面。
-> **R48-H3 CHANGELOG.md 整份不在 doc-commands 取数面**：往它追加 `node scripts/zz-not-a-real-file.mjs` ⇒
-> 提及数 128→128 纹丝不动、D2 仍 GREEN（`check-doc-commands.mjs:39` 的根文档清单只有 README/SECURITY/CONTRIBUTING/HANDOFF）
-> ⇒ 里面的命令主张没人核过。入面前先决定历史条目（CloudBase 死命令）走归档面还是具名豁免，**禁**为绿塞进 claim 面。
+> **P0（下一轮开工先做这条，可执行）**：**R49-H1 先取 CI 回执再宣称接线** —— 本轮只在**本机**证明 `verify:images` 能红
+> （四档 rc 全部实测），Linux runner 那步 `Product image assets gate` + setup-python **还没读到结论**：
+> `gh api repos/lxh113377/supermarket-web/actions/runs/<newest>/jobs` 看该 step 的 conclusion，读不到就记未验证。
+> **R49-H2 `docs/doc-commands.json` 的 `counts` 是带 `observed_utc` 的快照，不是现值**：本轮实测 registry 196 / 当场 202。
+> 我曾想加 D7 逼 `--update` 同步，**自己否证了**——没有判据或文档消费它，加闸只制造无意义的生成件提交。
+> 正解＝note 字段写明"as-of 快照，禁引用为现值"，再 grep 谁把它当现值抄走。
+> **R49-H3 覆盖率棘轮跟门禁数走**：测试文件 105→107、别名 62→63；动阈值前先看 `npm test` 当场读数
+> （阈值 79/72/74/80 由 `verify:docs` 对账真相源，禁在别处写第二个数）。**R49-H4 通用解释器分派**触发条件写死：
+> **别名里出现第 2 条非 node 门禁**才做（为一个样本建框架即过度设计）。
 > 用户侧不变：**`CF_D1_BACKUP_TOKEN` + `BACKUP_PASSPHRASE` 仍缺** ⇒ 备份链 `artifact=0`，豁免至 **2026-10-12**；
-> M3 分支保护本轮实测 **NOT_ENFORCED**（protection=404 + rulesets=200，时刻 2026-09-28T07:12:31Z）⇒ 服务端不拦 push；微信真机验收未做。
+> M3 分支保护沿用 2026-09-28T07:12:31Z 的实测 `NOT_ENFORCED`（本轮未重跑）；微信真机验收未做。
 
 ## 历史轮次与在途项
 
@@ -35,6 +39,6 @@
 
 ## 分卷目录
 
-- 在册卷号：1–78。文件名一律 `07-next-steps.part<N>.md`（N 取上列区间内整数，不可跳号命名）。
+- 在册卷号：1–79。文件名一律 `07-next-steps.part<N>.md`（N 取上列区间内整数，不可跳号命名）。
   **本行由 `V5` 机器对账**（声明 ⇄ 磁盘双向差集）：改卷不并号，下一轮就会被判红。
 - 新拆卷时 `split` 会往本节追加行；追加后请顺手并回上面的区间描述，别让主卷再涨回 4KB 以上（第十七轮压缩史迁至卷 48）。
