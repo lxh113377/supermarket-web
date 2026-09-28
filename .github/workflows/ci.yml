@@ -137,6 +137,20 @@ jobs:
       - name: CLI entrypoint real-run gate
         run: npm run verify:entrypoints
 
+      # 对标第四十三轮 R43-H1：文档里印的命令有没有跟真相源对过账（别名册 ⇄ package.json ⇄ 盘上文件）。
+      # 立它的事实：`docs/implementation-plan-2026-08-08.md` 里三条 `npm run predeploy` 是 CloudBase 时代的
+      # 死命令，盘上 61 个别名根本没有它 —— 而此前任何门禁都不读文档正文。历史面走"带到期时刻的归档面"，
+      # 不做永久豁免；README 的门禁一览由本判据 `--update` 生成，D6 判它不许漂。
+      - name: Documented commands vs real aliases
+        run: npm run check:doc-commands
+
+      # 对标第四十三轮 R43-P0 / 第四十四轮：静态推不出的"这判据会不会改写受版本控制的产物"，用真跑判。
+      # CI 走 --blind-only（只测 import/形参/argv 那三类静态解不出的候选）：全量面本机实测 9 件 ≈300s，
+      # 每件都要解一份 git archive 快照再跑两趟，不适合放在每次推送的必需 job 里；缩面后的取数面印在
+      # 门面行上，S3/S5 对"本轮没敲那扇门"的对象记未复核而不记幽灵（假红会把闸变成噪音）。
+      - name: Empirical artifact-write probe (blind candidates)
+        run: npm run check:judge-side-effects -- --blind-only
+
       # 对标第三十一轮：记忆卷 4KB 上限的仓内闸（借 pre-commit/pre-commit-hooks 的 check-added-large-files
       # 形态：阈值显式 + 默认只管要提交的面；CI 这条走 --all 全量面，所以外部 handoff.py 只是报告型也不裸奔）
       - name: Memory volume budget gate

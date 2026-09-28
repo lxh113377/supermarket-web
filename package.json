@@ -56,7 +56,7 @@
     "migrate": "node scripts/migrate.mjs",
     "audit:deps": "npm audit --registry=https://registry.npmjs.org --audit-level=high",
     "maintain:purge-events": "node scripts/purge-security-events.mjs",
-    "verify": "npm run scan:secrets && npm run lint && npm run verify:case && npm run verify:env && npm run verify:csp && npm run check:cycles && npm run verify:contract && npm run verify:response && npm run verify:registry && npm run verify:docs && npm run verify:schema && npm run verify:migrate-replay && npm run verify:roundtrips && npm run verify:authz && npm run verify:limits && npm run verify:errors && npm run verify:pii && npm run verify:entrypoints && npm run verify:restore-drill && npm run verify:licenses && npm run verify:volume && npm run verify:pointers && npm run verify:changelog && npm run typecheck && npm test && npm run verify:backend && npm run verify:functions && node scripts/list-uncovered.mjs",
+    "verify": "npm run scan:secrets && npm run lint && npm run verify:case && npm run verify:env && npm run verify:csp && npm run check:cycles && npm run verify:contract && npm run verify:response && npm run verify:registry && npm run verify:docs && npm run check:doc-commands && npm run verify:schema && npm run verify:migrate-replay && npm run verify:roundtrips && npm run verify:authz && npm run verify:limits && npm run verify:errors && npm run verify:pii && npm run verify:entrypoints && npm run verify:restore-drill && npm run verify:licenses && npm run verify:volume && npm run verify:pointers && npm run verify:changelog && npm run typecheck && npm test && npm run verify:backend && npm run verify:functions && node scripts/list-uncovered.mjs",
     "test:coverage": "vitest run --coverage",
     "verify:licenses": "node scripts/check-licenses.mjs",
     "verify:changelog": "node scripts/check-changelog.mjs",
@@ -66,7 +66,9 @@
     "gen:response-contract": "node scripts/api-response-contract.mjs --write",
     "verify:volume": "node scripts/check-memory-volume.mjs --all",
     "report:branch-protection": "node scripts/check-branch-protection.mjs",
-    "report:d1-usage": "node scripts/check-d1-remote-usage.mjs"
+    "report:d1-usage": "node scripts/check-d1-remote-usage.mjs",
+    "check:doc-commands": "node scripts/check-doc-commands.mjs",
+    "check:judge-side-effects": "node scripts/check-judge-side-effects.mjs"
   },
   "dependencies": {
     "echarts": "^5.6.0",

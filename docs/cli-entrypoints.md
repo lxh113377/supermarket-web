@@ -122,6 +122,9 @@ G11 认的是"已证明停在门口"这个整词，不是子串 —— 否则 �
 | verify-backend.mjs | sql-delete, writes-artifacts | ✅ 已证明停在门口：rc=2 / 0s（缺 `db/schema.sql`）⇒ 夹具链里的 DELETE 分支走不到。它同时是 PROBED 第 11 条。`writes-artifacts` 是本轮 R42-H2 新认出来的：`writeFileSync(SQL_BASELINE_PATH, …)` 的目标走 `join(root,'docs',…)` 表达式，旧口径（只认字面量/裸标识符）推不出 ⇒ 标签补上，登记面与派生面重新相等 |
 | verify-release-parity.mjs | network-fetch | ✅ 已证明停在门口：缺 `PARITY_AFTER_TS` 起点时按设计 rc=2 / 0s（"没有起点就不判看起来一样"）。另见「不可子进程豁免」 |
 | check-branch-protection.mjs | gh-cli | ❌ **未停在门口**：真跑会打 api.github.com（需 gh 鉴权）⇒ 不进 ②③ 自动面；它的**入口**由 `tests/branchProtection.test.js` 以 `BRANCH_PROTECTION_JSON` 注入读数的方式被子进程真跑（7 条，含四态与变异体） |
+| check-d1-roundtrips.mjs | writes-artifacts | **这一行的标签是"跑出来的"，不是推出来的**（第四十三轮 `check-judge-side-effects` 一手）：`--update-write-quota` 实测 rc=0 且改写受版本控制的 `docs/d1-write-quota.json`，而静态推导对它推不出任何东西（目标常量 `WRITE_QUOTA_FILE` 是 `lib/d1-quota.mjs` import 进来的）⇒ 它此前挂"零风险"是漏登，不是它不危险。它同时是 PROBED 成员（`verify:roundtrips`），已在 CI 真跑，故不需要 `@probe-safe` 声明 |
+| check-doc-commands.mjs | writes-artifacts | ❌ 不声明停在门口：只有显式 `--update` 才改写 `docs/doc-commands.json` 与 README 的门禁块（两处都受版本控制）；默认 args 只读，本轮真面实测 rc=1 / 6 条判据 4 通过 2 失败（D5+D6 同点名 `check:judge-side-effects`）。它在文档面为空时由 **D1 判红**而不是 rc=2 ⇒ 探针的"缺输入即 bail"形状对它不成立 |
+| check-judge-side-effects.mjs | writes-artifacts | ❌ 不声明停在门口：只有 `--update` 重写 `docs/judge-side-effects.json`；无 flag 的真跑法把每个候选解进 `os.tmpdir()` 的一次性 `git archive` 快照里跑（本机第四十四轮实测：候选 9 件、约 300s、工作树字节零改动）⇒ 慢且要 git+tar，不进 ②③ 自动面。本轮新增件在 HEAD 里还没有 ⇒ 它**对自己的探针**记 UNVERIFIED 并具名在册（`unprobeable`），入库后自动可探 |
 ## 为什么"CI 里真跑过"算减轻因素、但不抵消缺口
 
 被豁免/挂账的入口大多确实在 CI 或部署流程里以 `node scripts/X.mjs` 真跑过 —— 入口崩了 CI 就红，

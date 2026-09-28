@@ -1,0 +1,22 @@
+{
+  "schema": "chaoshi-doc-commands-v1",
+  "note": "由 `node scripts/check-doc-commands.mjs --update` 生成；archive_faces 是人填的\"历史归档面\"声明，--update 保留已填值。每条必须带 exempt_until（到期即重新按现行主张判，历史不是永久豁免）。D2 拿它与真实别名/文件面对账，改文档不改册不会红，改册不改文档会红。",
+  "observed_utc": "2026-09-28T03:21:08.073Z",
+  "counts": {
+    "docs": 28,
+    "aliases": 62,
+    "mentions": 122,
+    "claim": 110,
+    "template": 1,
+    "archive": 11,
+    "broken": 0
+  },
+  "archive_faces": [
+    {
+      "path": "docs/implementation-plan-2026-08-08.md",
+      "exempt_until": "2026-12-31",
+      "reason": "2026-08-08 的 CloudBase 时代实施计划，属历史归档件：其中 3 条 `npm run predeploy` 对应的 npm 别名已随迁移消失（`node -e ...` 实测 package.json 61 个别名里无 predeploy），而部署权威 skill `chaoshi-web-deploy` §7 把该命令标为\"照旧版执行 = 部署到已死的腾讯云\"。归档件保留原文是为了可考，不代表它是现行指令。",
+      "verified_utc": "2026-09-28T01:30:00Z"
+    }
+  ]
+}

@@ -67,8 +67,17 @@ export function collectRegistered(dir = root) {
  * 刻意不做完整词法分析（正则字面量等边角不管）：失配的后果是"某对括号没被配对"⇒ 那个范围不算数 ⇒
  * 覆盖面**少记**而不是多记。这个方向是安全的：少记会让判据来问"这条到底跑没跑"，
  * 多记会让假绿永久存续（本轮要治的正是后者）。
+ *
+ * **第四十四轮一手修复（这条腿此前从来没生效过）**：字符串态一律用**名字**（sq/dq/tpl）存，
+ * 旧写法把**引号字符本身**赋给 state，而下面的分支判的是 `'sq' | 'dq' | 'tpl'` ⇒ 两边永不相等，
+ * 于是字符串内容根本没被跳过：串里的括号照计数、串里的 `//` 当行注释、**串里的 `/*` 当块注释**。
+ * 一手事故面：`tests/docCommands.test.js:96` 的理由串里有 `.github/workflows/*`，那个 `/*` 把该行之后
+ * 整段吞成注释 ⇒ `spawnSync(` 的括号配不上对 ⇒ 覆盖采集少记一个入口，`verify:entrypoints` 的 G2/G8
+ * 于是把**已经有子进程真跑夹具**的 `check-doc-commands.mjs` 报成"未登记缺口"。
+ * 修法只统一状态名，不动"宁少记不多记"的方向。
  */
 function scanBrackets(src) {
+  const QUOTE_STATE = { "'": 'sq', '"': 'dq', '`': 'tpl' }
   const parens = []
   const brackets = []
   const stack = []
@@ -80,12 +89,12 @@ function scanBrackets(src) {
     if (state === 'block') { if (c === '*' && d === '/') { i++; state = null }; continue }
     if (state === 'sq' || state === 'dq' || state === 'tpl') {
       if (c === '\\') { i++; continue }
-      if (c === state) state = null
+      if ((state === 'sq' && c === "'") || (state === 'dq' && c === '"') || (state === 'tpl' && c === '`')) state = null
       continue
     }
     if (c === '/' && d === '/') { state = 'line'; i++; continue }
     if (c === '/' && d === '*') { state = 'block'; i++; continue }
-    if (c === "'" || c === '"' || c === '`') { state = c; continue }
+    if (QUOTE_STATE[c]) { state = QUOTE_STATE[c]; continue }
     if (c === '(' || c === '[') { stack.push([c, i]); continue }
     if (c === ')' || c === ']') {
       const want = c === ')' ? '(' : '['
@@ -226,6 +235,18 @@ export function parseRegistry(md) {
   }
 }
 
+/** 读"跑出来的副作用登记册"：entries[].writes 非空 => 该脚本实测会改写受控产物。 */
+export function empiricalWriters(dir = root) {
+  const p = join(dir, 'docs', 'judge-side-effects.json')
+  const map = []
+  if (!existsSync(p)) return { ok: false, map }
+  try {
+    const j = JSON.parse(readFileSync(p, 'utf8'))
+    for (const e of j.entries || []) if ((e.writes || []).length) map.push([String(e.file).replace(/^scripts\//, ''), e.writes])
+    return { ok: true, map }
+  } catch { return { ok: false, map } }
+}
+
 /** 门禁类入口：npm 别名形如 `verify:xxx` / `check:xxx`（裸 `verify` 是聚合命令，本身不是入口）。 */
 export function isGateLike(sources) {
   return sources.some((s) => /^npm:(verify|check):/.test(s))
@@ -349,6 +370,16 @@ export function evaluate({ registered, covered, declared, floorOk, hookTargets, 
   // 为什么值得单独立一道：第二十九轮的探针分母只有门禁类，非门禁面的裸栈一直藏到本轮；
   // 而把分母直接扩到全登记面就会撞上"真会删线上审计日志"的脚本（本轮实测：`purge-security-events`
   // 在无 tty 下照样把 DELETE 打到远端 D1）。名单一旦手抄就会随重构过期，那道"不该跑"的闸也就形同虚设。
+  // 第四十三轮：静态推不出的产物写入（目标是 import 进来的常量、形参或 argv）由
+  // `check-judge-side-effects.mjs` **跑出来**并登记；这里把实测面并进来，两类证据合成一份风险集。
+  // 没有这份册（首轮/CI 干净检出）时按"没有额外证据"处理，且把缺口印在 G9 的 detail 里 ——
+  // 不静默、也不虚报成"核过"。
+  const empirical = empiricalWriters()
+  for (const [script, paths] of empirical.map) {
+    const cur = riskOf.get(script) || []
+    if (!cur.includes('writes-artifacts')) riskOf.set(script, [...cur, 'writes-artifacts'].sort())
+    void paths
+  }
   const risky = registered.filter((r) => {
     const t = riskOf.get(r.script) || []
     return t.length && !t.includes('missing-file')

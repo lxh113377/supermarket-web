@@ -22,6 +22,14 @@
 - **审计**：安全事件入表 + SHA-256 指纹，定期清理（`scripts/purge-security-events.mjs`）
 - **密钥不入库**：后端密钥经 Cloudflare Pages secret / `.dev.vars` 注入；pre-commit 有暂存区密钥扫描
 - **纵深防御**：服务端重算订单金额、字段白名单、图片 scheme 白名单
+- **自动化链的写入边界**（第四十三、四十四轮在册）：门禁越多，"探针顺手改写/删除受版本控制产物"就越是真实风险。
+  两条机检兜这一层：`npm run check:judge-side-effects` 把候选解进**一次性 `git archive` 快照**真跑两趟（默认 args /
+  显式写盘 args），逐文件比 sha 与 mtime **两把尺** —— 幂等生成器"写了同样的字节"也算写过；静态推不出写入目标的
+  那一类（目标是 import 常量、形参或 argv）由它兜住，读数与时刻落 `docs/judge-side-effects.json`，风险标签并回
+  `docs/cli-entrypoints.md` 的风险分类表（`verify:entrypoints` G9 双向对账）。`npm run check:doc-commands` 则保证
+  文档里印的命令真能跑（历史文档走带到期时刻的归档面，不是永久豁免）。
+  CI 里前者走 `--blind-only` 缩面（本机实测全量面 9 件 ≈300s、缩面 3 件 ≈76s），**取数面印在门面行上**，
+  缩面的读数不得冒充全量核过。
 
 ## 已知非安全问题（设计如此，请勿作为漏洞上报）
 
