@@ -38,6 +38,14 @@
   把 62 个 minified 产物算进站面，实测 **3,428 warnings / 1,977 errors** 且判据报"File is too long…
   seems like a minified file"。删掉临时目录后回到 **0 warnings / 0 errors（290 files）**。
   ⇒ "沙箱删除层故障期用 fresh-dir"这条纪律要配一句"fresh-dir 的名字必须落在 gitignore 面内"。
+- **本轮把自己绊倒的一次：CI 红在"先重生台账、后写正文"**（写序错误，不是代码缺陷）。`41b4370` 推上去后
+  `build-and-test` 判红：`tests/docCommands.test.js` 报 `mentions 册上 226 → 现算 230 / claim 211 → 215`。
+  时序一手：跑 `--update` 时 CHANGELOG 的「追加六十六」与卷 90/91 还没落笔，而这两件正文里内联了 4 条命令
+  ⇒ 入库的册当场过期；`npm run verify` 当时是 0，因为它跑在写正文**之前**。
+  复算取证：本机重算 = 230，`git archive HEAD` 解到一次性目录再算也 = 230 ⇒ 与第五十轮那次"本机 205 / CI 224"
+  **不是同一个根因**（这次不是行尾，是写序），禁把两次混成一族。
+  修法＝`--update` 重生（230/215）+ 复跑该夹具 25 腿全过 + 全链复跑 rc=0 后再提交；
+  规约补条：**「正文写完 → 重生台账 → 全链 verify → 提交」是唯一合法顺序**，已挂账 R53-H4（把这条变成机器拦）。
 
 ### 2026-09-29 追加六十五（对标第五十一轮：把尺换到 blob 那一侧）
 
