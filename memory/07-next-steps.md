@@ -10,25 +10,27 @@
 > 属历史遗留的双份结构，尚未合并。**本轮的权威记录在外层**：`deliverables/前端深度优化方案-2026-09-23.md` §6。
 
 
-## 2026-09-28 — 对标第四十一轮（每日配额量成第三把尺；一次看起来成功的假扩面）
+## 2026-09-28 — 对标第四十二轮（cron 的"窗口内成功过"与"最近一次是红的"是两把尺）
 
-> 报告：外层 `deliverables/GitHub开源项目对标分析报告-第四十一轮-2026-09-28.md`；轮初锚 `f098f9c`。
-> 第三十九轮整块（含 R40 三条 P0 的原文）**逐字迁 卷 69**；其处置结果：R40-H2 已完成、
-> R40-H3 已完成、R40-H1 **改判**（见卷 69 原文与本轮报告 §4 #2）。
+> 报告：外层 `deliverables/GitHub开源项目对标分析报告-第四十二轮-2026-09-28.md`；轮初锚 `4212584`。
+> 本轮整块事实（含接手在途、两处自己抓自己、R42-H1/H2 收口）**逐字迁 卷 70–72**
+> （一次写 6,355B 被 V2 判超限 → 续开 71；再被 V4「新卷出生即贴线 ≤3072B」判红 → 按小节边界重切成三卷，
+> 全程逐字迁移不压措辞）。
+> 上一轮 P0 的处置：R41-H1 已完成（远端累计用量 VERIFIED，两通道带时刻）、R41-H2 已完成一层
+> （表达式目标可解引用，跨文件 import 仍推不出 ⇒ 转 R43-P0）、R41-H3 未做（同族扩散自查）。
 
-> **P0（下一轮开工先做这条，可执行）**：**R42-H1 远端用量对账** —— 第三把尺现在只有下界
-> （每次调用写多少行，本机实测 createOrder(10 件)=11 行 ⇒ 约 9,090 单/日），
-> **累计日用量取不到**：`docs/d1-write-quota.json` 里 `remote_usage` 恒为 `UNVERIFIED`。
-> 官方给的三条正规路（`cloudflare/cloudflare-docs partials/workers/d1-pricing.mdx:11-12`）=
-> meta object（`docs/d1/worker-api/return-object.mdx:43-44` 的 `rows_read`/`rows_written`）/
-> GraphQL Analytics `d1AnalyticsAdaptiveGroups` / dashboard Metrics&gt;Row Metrics。
-> 前置：CF 凭据 + **必须先加载 `chaoshi-web-deploy`**；产出必须分 `VERIFIED / UNREACHABLE` 两态并带时刻，
-> **禁止**把"没连上"折算成"配额安全"。
-> **R42-H2 `writes-artifacts` 穿不过常量路径**（本轮一手）：`check-d1-roundtrips.mjs` 运行时会改写
-> 受版本控制的 `docs/d1-write-quota.json`，但 `writeFileSync(WRITE_QUOTA_FILE, …)` 里 `docs` 在常量右侧 ⇒
-> 风险表上它是零风险。先取分母：`grep -rn "writeFileSync([A-Z_]" scripts/ | wc -l`（本轮未数，禁无数字提案）。
-> **R42-H3 同族扩散自查**：本轮根因是「声明的面 ⇄ 真正喂给采集器的面是两处」⇒
-> 在其它多前缀判据里列同类（每条各出一行分母），别默认"扩了就是扩了"。
+> **P0（下一轮开工先做这条，可执行）**：**R43-P0 跨文件 import 的目标常量仍然推不出** ——
+> 实测分母：`scripts/` 里 8 个含 `writeFileSync(` 的 .mjs 中 **3 个只剩 unbound**
+> （`check-d1-roundtrips.mjs` 的 `WRITE_QUOTA_FILE` 来自 `import … './lib/d1-quota.mjs'`；
+> `backup-crypto.mjs`/`restore-drill.mjs` 的是形参与 argv）⇒ 它们运行即改写受版本控制的产物，
+> 风险表上却是零风险。择一：① **经验腿**（跑完判据后比 `git status --porcelain` 差集，脏了点名）；
+> ② 解析 import 再解引用（`argv` 那一类仍解不出）。**禁**为让本仓变绿而放宽 `writes-artifacts`。
+> **R43-H1** `check-backup-liveness.mjs` 的 presence 模式把 OK 行印成"最近一次可核对备份"是假的
+> （该模式不要求产物）⇒ 输出与 mode 对齐，并配"presence 模式不得出现'备份'字样"的断言。
+> **R43-H2** 同族扩散自查（承 R41-H3，仍欠）：把"声明面 ⇄ 采集面分离"在其它多前缀判据里逐条列分母。
+> 用户侧不变：**`CF_D1_BACKUP_TOKEN` + `BACKUP_PASSPHRASE` 仍缺** ⇒ 备份链 `artifact=0`，
+> 本轮起记为**具名限期豁免至 2026-10-12**（`docs/cron-health.json`，到期自动重新判红）；
+> M3 分支保护未重跑；微信真机验收未做。
 > 用户侧不变：**M3 分支保护本轮未重跑 ⇒ 记未验证**（承 09-27 13:16:35Z 读数不许抄）；
 > `BACKUP_PASSPHRASE` + `CF_D1_BACKUP_TOKEN` 仍缺 ⇒ 备份链 `artifact=0`。
 
@@ -39,6 +41,6 @@
 
 ## 分卷目录
 
-- 在册卷号：1–69。文件名一律 `07-next-steps.part<N>.md`（N 取上列区间内整数，不可跳号命名）。
+- 在册卷号：1–72。文件名一律 `07-next-steps.part<N>.md`（N 取上列区间内整数，不可跳号命名）。
   **本行由 `V5` 机器对账**（声明 ⇄ 磁盘双向差集）：改卷不并号，下一轮就会被判红。
 - 新拆卷时 `split` 会往本节追加行；追加后请顺手并回上面的区间描述，别让主卷再涨回 4KB 以上（第十七轮压缩史迁至卷 48）。

@@ -83,6 +83,7 @@
 | purge-security-events.mjs | 破坏性运维命令（`DELETE FROM security_events … --remote`）。**本轮实测**：修前它在无 tty 下 1s 内直接进入远端 DELETE；现按 `migrate.confirmRemote` 口径要求显式 `--yes`，无授权时 rc=2 ⇒ 用法改成 `npm run maintain:purge-events -- --yes` |
 | smoke-deploy.mjs | 打线上端点（实测 2s，首行 `PASS 静态站 https://supermarket-web.pages.dev/`），部署后才有效，由 `npm run smoke` 在部署后跑。注意：CI 的部署后冒烟是 `ci.yml` 里**内联 curl**（`_health` + `getPublicCategories`），与本脚本不是同一份实现 ⇒ 两处判定会漂移，已记入本轮改进清单 |
 | uptime-check.mjs | 线上探测（实测 13s，打 `/_health` 并解析 JSON），本地 spawn 只会测网络。CI 的 `uptime.yml` 以真命令跑它 |
+| check-d1-remote-usage.mjs | 真跑 = 打 Cloudflare GraphQL + 起 `wrangler d1 info` 子进程（本轮实测：无 flag 骨架 **rc=0 / 7.7s**，两通道各走一遍）⇒ 跑它测的是服务商可用性，不是代码；带 `--write` 还会改写受版本控制的 `docs/d1-remote-usage.json`。它**不是**门禁类别名（`report:d1-usage`）⇒ 不占 G8 的门禁面；纯判据由 `tests/d1RemoteUsage.test.js` 注入读数覆盖（U5 三向的四种出口各有断言），入口通道没有 fixture 注数面 ⇒ 记本缺口，CI 侧它是 advisory（`continue-on-error`，理由写在 ci.yml 该步注释里）|
 
 ## 不可子进程豁免
 
@@ -103,6 +104,9 @@ G11 认的是"已证明停在门口"这个整词，不是子串 —— 否则 �
 | 脚本 | 风险特征 | 实测依据 + 是否回到探针分母 |
 | --- | --- | --- |
 | check-backup-liveness.mjs | gh-cli | ✅ 已证明停在门口：骨架实测 rc=2 / 0s（缺 GITHUB_REPOSITORY 即 bail），`gh api` 在其后 ⇒ 回到分母 |
+| check-cron-health.mjs | gh-cli, writes-artifacts | ✅ 已证明停在门口：骨架**实测 rc=2 / 0.2s**（现测 156ms：缺 `GITHUB_REPOSITORY` 即在门口 bail），`gh api` 与 `writeFileSync(join(ROOT, REGISTRY))` 都在其后 ⇒ 回到分母。它的**入口**由 `tests/cronHealth.test.js` 以 `--fixture` 注入合成读数被子进程真跑（三档退出码 0/1/2 各一条：不碰网络、不改受版本控制的册） |
+| check-d1-remote-usage.mjs | network-fetch, wrangler, writes-artifacts | ❌ **没停在门口**（本条否证了我给它写的初稿"缺登记册即 rc=2"）：无 flag 骨架**实测 rc=0 / 7.7s** —— CF GraphQL 与 `wrangler d1 info` 各真打了一遍，只因不带 `--write` 才没落盘 ⇒ 探针跑它等于测 Cloudflare 可用性，永不进自动面。判据本体由 `tests/d1RemoteUsage.test.js` 注入读数覆盖（U5 三向的四种出口各有断言） |
+| api-response-contract.mjs | writes-artifacts | ❌ 不声明停在门口：**读侧骨架实测 rc=0 / 0.3s**（它就是 `verify:response` 每轮真跑的那条，也是 PROBED 成员）。`writes-artifacts` 只在显式 `--write`（= `gen:response-contract` 别名）时成立。本轮 R42-H2 把"目标是表达式/常量"的形态认出来之后它才入表 ⇒ 此前它挂"零风险"是**漏登**，不是它变危险了 |
 | check-catalog-facts.mjs | network-fetch | ✅ 已证明停在门口：rc=2 / 1s（缺 `db/seed.sql`）；`--live` 才走 fetch ⇒ 回到分母 |
 | check-functions-build.mjs | wrangler | ✅ 已证明停在门口：rc=2 / 0s（缺 `node_modules/wrangler`）；esbuild 冷编译实测 9.0s 在其后。门禁类，CI 必跑 |
 | check-live-shape.mjs | network-fetch | ✅ 已证明停在门口：骨架实测 rc=2 / 0s（`existsSync(functions/_health.js)` 拦在 fetch 之前即 bail），线上请求在其后才走 ⇒ 回到分母。真仓实测 4s 回 HTTP=200；CI 里是 **advisory**（`continue-on-error`）——线上取不到判 UNREACHABLE 而不折算成通过 |
@@ -115,7 +119,7 @@ G11 认的是"已证明停在门口"这个整词，不是子串 —— 否则 �
 | purge-security-events.mjs | sql-delete, wrangler | ✅ 已证明停在门口：无 `--yes` 时 rc=2 / 0s 直接 bail —— 修前实测 1s 内就把 DELETE 打到远端 D1（删审计日志）⇒ 回到分母 |
 | smoke-deploy.mjs | network-fetch | ❌ 未停在门口：实测 2s 先打线上（首行 `PASS 静态站 …`）再失败 |
 | uptime-check.mjs | network-fetch | ❌ 未停在门口：实测 13s 真打线上 `/_health`（回 `{"status":"ok","db":"ok",…}`） |
-| verify-backend.mjs | sql-delete | ✅ 已证明停在门口：rc=2 / 0s（缺 `db/schema.sql`）⇒ 夹具链里的 DELETE 分支走不到。它同时是 PROBED 第 11 条 |
+| verify-backend.mjs | sql-delete, writes-artifacts | ✅ 已证明停在门口：rc=2 / 0s（缺 `db/schema.sql`）⇒ 夹具链里的 DELETE 分支走不到。它同时是 PROBED 第 11 条。`writes-artifacts` 是本轮 R42-H2 新认出来的：`writeFileSync(SQL_BASELINE_PATH, …)` 的目标走 `join(root,'docs',…)` 表达式，旧口径（只认字面量/裸标识符）推不出 ⇒ 标签补上，登记面与派生面重新相等 |
 | verify-release-parity.mjs | network-fetch | ✅ 已证明停在门口：缺 `PARITY_AFTER_TS` 起点时按设计 rc=2 / 0s（"没有起点就不判看起来一样"）。另见「不可子进程豁免」 |
 | check-branch-protection.mjs | gh-cli | ❌ **未停在门口**：真跑会打 api.github.com（需 gh 鉴权）⇒ 不进 ②③ 自动面；它的**入口**由 `tests/branchProtection.test.js` 以 `BRANCH_PROTECTION_JSON` 注入读数的方式被子进程真跑（7 条，含四态与变异体） |
 ## 为什么"CI 里真跑过"算减轻因素、但不抵消缺口

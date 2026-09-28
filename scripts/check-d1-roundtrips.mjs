@@ -1,6 +1,9 @@
-// 注：本判据运行时会**改写受版本控制的产物** docs/d1-write-quota.json，但只在 --update-write-quota 分支，
-//     且路径藏在常量里 ⇒ classifyRisk 推不出 writes-artifacts（风险词表要求字面路径出现在调用括号内）。
-//     所以这里**不挂** @probe-safe：没有可推导的危险特征却写声明，G11 会判无效声明（第四十一轮实测）。
+// 注：本判据运行时会**改写受版本控制的产物** docs/d1-write-quota.json，但只在 --update-write-quota 分支。
+//     第四十一轮时 `classifyRisk` 看不见它（路径在常量右侧，风险词表要求字面路径出现在调用括号内）；
+//     第四十二轮 R42-H2 给 preflight 加了常量解引用腿 ⇒ 现在 `writes-artifacts` 由 `WRITE_QUOTA_FILE` 的
+//     RHS 现取推得，登记册「风险分类」表据此挂着本脚本一行（G9 双向对账）。
+//     这里仍**不挂** @probe-safe：没有可推导的危险特征却写声明会被 G11 判无效声明（第四十一轮实测），
+//     而本脚本现在是**有**危险特征的门禁类项，靠 isGateLike 进分母，不靠声明。
 // 对标第十四轮（2026-09-26/27）：D1「往返数」判据 —— 一次业务动作打多少次数据库。
 //
 // 与第三轮 C1 的分工（两把尺，互不顶替；第一把尺口径一字未动）：
@@ -17,6 +20,16 @@ import { dirname, join, relative } from 'node:path'
 import { createRequire } from 'node:module'
 import { openSqlite, createMeteredD1 } from './lib/metered-d1.mjs'
 import { requireInputs, requireJson } from './lib/preflight.mjs'
+// 第四十二轮：配额常量与回执推导从 `scripts/lib/d1-quota.mjs` 现取，本文件不再定义（避免两处写死同一事实）。
+// 本文件仍 `export`（check-d1-remote-usage.mjs 与既有夹具从本模块名取），改成**转口**而不是自己再持一份。
+import {
+  WRITE_QUOTA_FILE, DAILY_ROWS_WRITTEN_FREE, REMOTE_USAGE_FILE, REMOTE_MAX_AGE_DAYS,
+  ROWS_READ_MEASURABLE_LOCALLY, remoteUsageClaim,
+} from './lib/d1-quota.mjs'
+export {
+  WRITE_QUOTA_FILE, DAILY_ROWS_WRITTEN_FREE, REMOTE_USAGE_FILE, REMOTE_MAX_AGE_DAYS,
+  ROWS_READ_MEASURABLE_LOCALLY, remoteUsageClaim,
+}
 
 // 两处仓库内依赖改成「先收环境、再取模块」（第二十五轮实测：在只拷 scripts/ 的空目录里跑，
 // 原来第一行输出是 MODULE_NOT_FOUND/package_json_reader 的裸栈，人话文案根本印不出来）：
@@ -37,20 +50,17 @@ const ADMIN_KEY = 'roundtrip-probe-key'
 // 本仓无 CF 凭据、判不出当前档位 ⇒ 一律按最坏情况（免费档 50）设防。
 export const STATEMENT_BUDGET_FREE = 50
 
-// ── 第四十一轮：第三把尺「每次调用写多少行」的对端常量与登记册 ──
+// ── 第三把尺「每次调用写多少行」的对端常量与登记册 ──
 // 每日配额此前在册 0 条（第三十九轮 grep 实测），而它自 2026-09-01 起会让超限查询直接失败。
-// 同一事实只在本仓一处写死，出处见 docs/limit-provenance.md 的 PLATFORM_FACTS。
-export const WRITE_QUOTA_FILE = join(root, 'docs', 'd1-write-quota.json')
-export const DAILY_ROWS_WRITTEN_FREE = 100_000
-/** 本机测不到的那半，如实登记成事实而不是留给下一轮猜：
- *  D1 生产 meta 里有 rows_read / rows_written 两个字段（cloudflare/cloudflare-docs
- *  src/content/docs/d1/worker-api/return-object.mdx:43-44），官方「Track your D1 usage」
- *  三条路 = meta object / GraphQL Analytics(d1AnalyticsAdaptiveGroups) /
- *  dashboard Metrics&gt;Row Metrics（同 partials/workers/d1-pricing.mdx:11-12）。node:sqlite
- *  只给 changes（=受影响行数，与该文件 :18 的 rows written 定义同口径），扫描行数拿不到
- *  ⇒ 每日行「读取」配额在册但本机无法对账 ⇒ remote_usage 一律记 UNVERIFIED。
- */
-export const ROWS_READ_MEASURABLE_LOCALLY = false
+// 值与出处都收在 `scripts/lib/d1-quota.mjs`（同一事实只许一处判；本轮起因=另一判据也需要这几个常量，
+// 直接 import 本文件会让它的 fail-closed 门被我这里的 requireInputs 抢先，详见 lib/d1-quota.mjs 文件头）。
+//
+// A11 的两条口径是从本轮实跑的红里长出来的，不是设计时想到的：
+//  ① **声明里不许带时刻**。第一版把 `VERIFIED@<retrievedAtUtc>` 整串写进登记册，于是 A11 与 U7 同时永红
+//     —— 每次重跑都换一个时刻，而登记册只能按"生成那一刻"回填 ⇒ 这是一条"正常提交变不了绿"的判据，
+//     按自家口径它没资格当闸。时刻归 `remote_usage_at`/回执，声明只留状态。
+//  ② 只认通道状态（VERIFIED/UNREACHABLE），**不认回执的整体 verdict** —— 回执的 RED 里可能就包含
+//     "登记册落后"这一条（U7），拿它当依据会形成循环依赖（登记册等回执不红、回执等登记册更新）。
 
 let pass = 0
 const failures = []
@@ -293,7 +303,7 @@ async function measureInner() {
 // 第十轮立的规矩：判据要能脱离真实环境被逐条打红，否则「跑一遍没红」不等于「它有牙齿」。
 export function evaluate({ rows, hits, sourcesCount, quota }, {
   register = REGISTER, exempt = EXEMPT, budgetExempt = STATEMENT_BUDGET_EXEMPT,
-  budget = STATEMENT_BUDGET_FREE,
+  budget = STATEMENT_BUDGET_FREE, receipt, now = new Date().toISOString(),
 } = {}) {
   const out = []
   const push = (id, cond, label, detail) => out.push({ id, ok: Boolean(cond), label, detail })
@@ -360,12 +370,32 @@ export function evaluate({ rows, hits, sourcesCount, quota }, {
         ? `${Object.keys(qa).length} 项逐值相等（登记即实测）`
         : `漏登 ${missing.length} [${missing.join(', ')}]；幽灵 ${ghost.length} [${ghost.join(', ')}]；漂移 ${drift.length} [${drift.map((k) => `${k} 登记${qa[k]}≠实测${measured[k]}`).join(' , ')}]`)
     push('A10', quota.daily_rows_written_free === DAILY_ROWS_WRITTEN_FREE
-      && quota.remote_usage === 'UNVERIFIED'
       && quota.rows_read_measurable_local === ROWS_READ_MEASURABLE_LOCALLY
       && callsPerDay >= 1,
-      'A10 配额口径自洽：常量 ⇄ 登记册同值、现网用量必须显式记未验证',
+      'A10 配额口径自洽：常量 ⇄ 登记册同值',
       `${DAILY_ROWS_WRITTEN_FREE} 行写入/日 ÷ 峰值 ${peakRows} 行 = 最重 action 每天约 ${callsPerDay} 次。`
-      + `现网真实日用量=${quota.remote_usage}（本机 rows_read 可测=${ROWS_READ_MEASURABLE_LOCALLY}，真取法见文件头注）`)
+      + `现网真实日用量=${quota.remote_usage}（本机 rows_read 可测=${ROWS_READ_MEASURABLE_LOCALLY}）`)
+    // A11（第四十二轮 R42-H1）：声明 ⇄ 回执。UNVERIFIED 只能是"真的没回执"，VERIFIED 必须有落盘回执背书。
+    // 三态与 A9 同口径：调用方没注入 receipt（undefined）= 本腿不作数；注入 null = 按"回执面不存在"判。
+    if (receipt === undefined) {
+      push('A11', true, 'A11 remote_usage 声明 ⇄ 远端回执对账',
+        '本次调用未注入回执面（SKIP，不是 PASS）：真跑判据时 CLI 会显式传入回执或 null')
+    } else {
+      const exp = remoteUsageClaim(receipt)
+      const same = quota.remote_usage === exp.claim
+      // 新鲜度：VERIFIED 声明必须有"没过期的"回执背书。时刻不参与字符串比较（见上方口径①），
+      // 单独按 REMOTE_MAX_AGE_DAYS 判龄，取数时刻缺失也按过期处理。
+      const ageOk = exp.claim !== 'VERIFIED' || (exp.at
+        ? (Date.parse(now) - Date.parse(exp.at)) <= REMOTE_MAX_AGE_DAYS * 86_400_000
+        : false)
+      const pathOk = exp.claim === 'UNVERIFIED' ? !quota.remote_usage_receipt
+        : quota.remote_usage_receipt === 'docs/d1-remote-usage.json'
+      push('A11', same && ageOk && pathOk, 'A11 remote_usage 声明 ⇄ 远端回执对账（虚报、落后、过期三侧都要红）',
+        same && ageOk && pathOk ? `两侧同态=${exp.claim}｜回执 @${exp.at}`
+          : !same ? `登记册写 ${quota.remote_usage} 而回执推导应为 ${exp.claim} ⇒ 声明落后或无据`
+            : !ageOk ? `回执时刻缺失或已超 ${REMOTE_MAX_AGE_DAYS} 天（@${exp.at || '无'}）⇒ 过期的 VERIFIED 等于没取到`
+              : `VERIFIED 却指错回执路径（${quota.remote_usage_receipt || 'null'}）`)
+    }
   }
   push('A6', sourcesCount > 0, 'A6 源码扫描面非空', `${sourcesCount} 个文件`)
   for (const h of hits) {
@@ -385,6 +415,9 @@ async function main() {
   const measuredNow = Object.fromEntries(rows.map((r) => [r.name, r.maxRowsWritten]))
   if (process.argv.includes('--update-write-quota')) {
     const peak = Math.max(0, ...rows.map((r) => r.maxRowsWritten || 0))
+    let receipt = null
+    try { receipt = JSON.parse(readFileSync(REMOTE_USAGE_FILE, 'utf8')) } catch { receipt = null }
+    const ru = remoteUsageClaim(receipt)
     const doc = {
       note: '本件由 `node scripts/check-d1-roundtrips.mjs --update-write-quota` 生成；A9 拿它与当场实测双向对账，手改即红。峰值口径 = 各 action 两端规模里较大者。',
       generatedUtc: new Date().toISOString(),
@@ -394,8 +427,11 @@ async function main() {
       peakRowsWritten: peak,
       callsPerDayAtPeak: peak > 0 ? Math.floor(DAILY_ROWS_WRITTEN_FREE / peak) : null,
       rows_read_measurable_local: ROWS_READ_MEASURABLE_LOCALLY,
-      remote_usage: 'UNVERIFIED',
-      remote_usage_why: '未跑远端导出与 GraphQL Analytics 用量面（缺 CF 凭据，且按在册规矩须先加载部署权威 skill）⇒ 记未验证而不是通过',
+      remote_usage: ru.claim,
+      remote_usage_at: ru.at,
+      remote_usage_max_age_days: REMOTE_MAX_AGE_DAYS,
+      remote_usage_why: ru.why,
+      remote_usage_receipt: receipt ? 'docs/d1-remote-usage.json' : null,
       actions: measuredNow,
     }
     writeFileSync(WRITE_QUOTA_FILE, JSON.stringify(doc, null, 2) + '\n')
@@ -404,10 +440,13 @@ async function main() {
   }
   let quota = null
   try { quota = JSON.parse(readFileSync(WRITE_QUOTA_FILE, 'utf8')) } catch { quota = null }
+  // 回执面显式注入：读不到就是 null（"查过、没有"），与"没查"（undefined）是两件事
+  let receipt = null
+  try { receipt = JSON.parse(readFileSync(REMOTE_USAGE_FILE, 'utf8')) } catch { receipt = null }
   const sources = collectSources(join(root, 'functions'))
   const hits = scanLoopedDbCalls(sources, root)
   let aborted = false
-  for (const v of evaluate({ rows, hits, sourcesCount: sources.length, quota })) {
+  for (const v of evaluate({ rows, hits, sourcesCount: sources.length, quota }, { receipt })) {
     console.log(`${v.ok ? 'PASS' : 'FAIL'}  ${v.label}${v.detail ? ` (${v.detail})` : ''}`)
     if (v.ok) pass++
     else failures.push(v.label)

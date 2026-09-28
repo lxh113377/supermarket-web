@@ -151,8 +151,30 @@ jobs:
         continue-on-error: true
         run: npm run check:live-shape
 
+      # 对标第四十二轮 R42-H1：远端 D1 累计用量 ⇄ 本机下界对账（advisory，同 Branch-Protection 的取舍：
+      # 取不到读数时判据自己 rc=2 记 UNREACHABLE，绝不折算成"配额安全"；红了不拦发布，但每轮在日志留痕）。
+      # 两通道 = GraphQL Analytics（UTC 日界，配额 00:00 UTC 重置）+ `wrangler d1 info`（滚动 24h）。
+      - name: D1 remote cumulative usage vs local floor (advisory)
+        continue-on-error: true
+        env:
+          CLOUDFLARE_ACCOUNT_ID: 04b1466b2606b678a332fe6f26aa87ec
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node scripts/check-d1-remote-usage.mjs
+
       - name: Workspace memory pointer sync (advisory)
         run: npm run verify:pointers
+
+      # 对标第四十二轮：全部 schedule: 工作流的"最近一次"普查（advisory）。
+      # 为什么不阻断（写下来，不留"以后再说"）：本轮实测 2 条 cron 的最近一次 scheduled run **都是红的**，
+      # 根因是用户侧凭据（CF_D1_BACKUP_TOKEN / BACKUP_PASSPHRASE）没配 —— 判据本身没错，
+      # 但在凭据配上之前把它接成阻断位，会让每个 push 连带变红（全仓连坐，见 docs/ci-triage-runbook.md）。
+      # 已按在册口径登记为"具名 + 限期 + 理由可证伪"的豁免（docs/cron-health.json，至 2026-10-12）；
+      # 真正的阻断位在 uptime.yml（每日那条 cron 自己跑它，红了就落在 cron 的日志里）。
+      - name: Every scheduled workflow - is the LAST scheduled run green (advisory)
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run check:cron-health
 
       # 对标第三十三轮：用户侧安全设置普查（advisory，故意不阻断）——借 ossf/scorecard 的 Branch-Protection
       # 形态，但取不到时绝不按"满足"计：四态 ENFORCED / NOT_ENFORCED / UNVERIFIED + 时刻，每轮在 CI 日志留痕，

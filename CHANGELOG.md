@@ -29,6 +29,52 @@
   实测远端仍停在 4212584、暂存区 0 件；唯一损伤是那行指针被替换吃掉两个引用，已修。
   教训：含反引号/特殊字符的落盘内容一律走 Write/Edit 工具，不要内联进 shell。
 
+### 2026-09-28 追加五十七（对标第四十二轮：cron 的"窗口内成功过"与"最近一次是红的"是两把尺）
+
+- 轮初锚 `4212584`；取号先列盘：在册最大「五十五」⇒ 本条原取「五十六」，落笔时**被并行会话同分钟占走**
+  （它的"拆穿从未备份 + 会话隔离"那条也是五十六，且把 `## [未发布]` 抬头多出一个 ⇒ 本轮新加的
+  "未发布抬头恰好 1 个"判据当场抓到我自己）⇒ 顺延**五十七**，重复抬头已删。
+- **接手在途（第三十九轮先例）**：并行会话的 R42-H1/H2（`check-d1-remote-usage.mjs` + `preflight` 常量穿透）
+  停在 `verify:entrypoints` 的 G2/G9 两条红上（新脚本没进登记册），提交面不自足就发不出去 ⇒ 本轮补齐后一并提交。
+- **一手红（本轮换尺的动因）**：`gh run list --workflow=Uptime` 第一行 = run `36299454141`
+  @2026-09-27T06:13:21Z event=schedule **failure**，而旧尺 `LIVENESS_MODE=presence …check-backup-liveness.mjs`
+  对同一时刻**实跑 rc=0**，因为它认的那次"成功"是 09-26 的一次 `workflow_dispatch`。
+  同时 `D1 Daily Backup` 自 09-26 起 **连续 2 次 scheduled 判红**（日志原文 `::error::未配置 CF_D1_BACKUP_TOKEN`）
+  ⇒ 也**顺带把第三十七轮那条"未验证"改判**：那次记的是"'无口令会判红'的语义仍未观测"，现已观测
+  （run 36356709142 的失败 step 名就是 `Fail loudly instead of reporting a green no-op`）。
+  两条红的根因同一条：缺 `CF_D1_BACKUP_TOKEN` + `BACKUP_PASSPHRASE`（用户侧凭据，agent 不代填）。
+- **新尺 `scripts/check-cron-health.mjs`**（`npm run check:cron-health`，C1/C2/C3/C3b/C4/C5/C6 七腿）：
+  结构性枚举 `.github/workflows/*.yml` 的 `schedule:` 块 ⇒ 实测 2 条（周期各 1 天）；YAML 路径面 ⇄ 远端
+  注册面双向对账；逐条出**三态** OK/RED/UNVERIFIED，连红只数 `event == 'schedule'`；红因具名归口
+  （C6 印"2 条红 ⇄ 1 个根因"，不把同因的两件事数成两件）；豁免三件套缺一即红（限期 + 含实测数字/可复跑
+  命令的理由，复用 `lib/registry-reason` + `root_cause`）。退出码 0/1/2，取不到数一律 rc=2。
+  两条自己抓到的自己的缺陷：① 第一版枚举器在 `uptime.yml` 的注释行前退出块、并因 `- cron: '…'   # 注释`
+  的**尾注释**把备份链整条漏掉 ⇒ 74→74 型静默漏面，改为"有 schedule 块却解不出 cron ⇒ 带 `unparsed` 入面
+  由 C2 点名 + C3b 反向断言"；② 被 cron 自己调用时**当前 in_progress 的 run 结论为 null**，会被读成
+  "最近一次失败"⇒ 刚修好就自判红，按 `koala73/worldmonitor` 的口径加"排除自己 + 未完成不入判定 +
+  run 列表按去重数比 `total_count` 截断即 rc=2"。夹具 **19 条**（含 `--fixture` 子进程跑入口的三档退出码、
+  `--inject-red` 演习必须判红）。
+- **R42-H1 收口（采纳 + 修一处每天假红）**：`check-d1-remote-usage.mjs` 的 U5 初稿是"日窗 0 而滚动 24h
+  非 0 ⇒ 一律可疑"，本机 **00:11 UTC 实跑 rc=1** —— UTC 日窗才开 11 分钟，而配额按 00:00 UTC 重置
+  ⇒ 每天头几小时必红一次。修法**不是**时间门（那是自己开盲区），而是拿**同一请求**里按 date 分组的
+  history 腿做结构互检，四种出口各有断言（`tests/d1RemoteUsage.test.js` 9 条）。另把 `verdictOf` 补
+  `UNVERIFIED` 档并把退出码从 `failed.length ? 1 : 0` 改成三档 —— 原写法会让新增的"失明"出口静默变绿。
+- **R42-H2 穿透再扩一层**：`scanArtifactWrites` 原来只认"裸标识符/字面量"，而本仓多数写法是
+  `writeFileSync(join(ROOT, REGISTRY), …)`（目标是**表达式**）⇒ 按括号深度取第一个顶层实参后解引用，
+  受控产物写入者从 2 件变 **5 件**（新增 `api-response-contract`、`check-cron-health`、`check-d1-remote-usage`）；
+  `verify-backend.mjs` 的登记标签同步补 `writes-artifacts`（此前是漏登）。**仍未解的一半**：跨文件
+  `import` 进来的目标常量（`check-d1-roundtrips` 的 `WRITE_QUOTA_FILE` 就来自 `lib/d1-quota.mjs`）
+  照样推不出，实测 `scripts/` 8 个含 `writeFileSync` 的 .mjs 里有 **3 个只剩 unbound** ⇒ 记 R43-P0。
+- 接线：`ci.yml` 加 advisory step（**理由写进注释**：凭据配上之前接成阻断位会让每个 push 连坐），
+  `uptime.yml` 加**非 advisory** step（cron 现场才是该红该落的地方），README 加两枚 `event=schedule` 徽章。
+- **接手件的一处不变量搬家**（全链 `npm run verify` 实测抓到，不是推理）：A10 原先同时断言"配额常量同值"和
+  "现网用量不许虚报成 OK"，在途重构把后者搬进新腿 A11 却**没同步第四十一轮的夹具** ⇒ `remote_usage:'OK'`
+  不再让任何一腿变红（该测试当场失败暴露了它）。按"断言不删只换家"改：虚报的三种写法（吹 `OK`／无回执吹
+  `VERIFIED`／有回执却仍写 `UNVERIFIED`）全部改钉在 A11 上，另补"声明落后同样红"一条；A10 原有两条常量断言保留。
+- **台账被自己的两道闸连着拦两次**（本轮的"抓自己"清单）：主卷换 R43 P0 + 本轮事实迁卷时，一次写 6,355B
+  ⇒ **V2** 判超 4KB → 续开卷 71；紧接着 **V4「新卷出生即贴线 ≤3072B」直接把 commit 拦下来**（不是警告）
+  ⇒ 按小节边界把两卷重切成 **70/71/72**（2,507B / 2,777B / 1,632B），全程逐字迁移、不压措辞、五个小节一条不丢。
+
 ### 2026-09-28 追加五十五（对标第四十一轮：把「每日配额」从在册 0 条量成第三把尺，并封掉一次看起来成功的假扩面）
 
 - 取号先列盘：在册最大「五十四」⇒ 本条「五十五」（并行会话已占五十四，本轮顺延取号）。轮初锚 `f098f9c`（第三十九轮台账笔，其 CI run `36337389643` = `completed/success`，读自 `gh run view --json conclusion`）。

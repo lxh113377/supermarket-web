@@ -72,15 +72,20 @@ describe('行写入尺 · 反例（每条只动一个变量，红因可归因）
     expect(state(miss, 'A9').detail).toContain('漏登 1')
   })
 
-  it('A10：把现网用量写成 OK 必须红（未验证不许折算成通过）；常量被改也得红', () => {
+  it('A10：常量被改必须红；**现网用量虚报改由 A11 守**（第四十二轮把这条不变量搬进回执对账腿，断言不删只换家）', () => {
     const r = rows()
     const q = quotaFor(r)
-    const a = state(evaluate({ rows: r, hits: [], sourcesCount: 3, quota: { ...q, remote_usage: 'OK' } }), 'A10')
-    expect(a.ok).toBe(false)
     const b = state(evaluate({ rows: r, hits: [], sourcesCount: 3, quota: { ...q, daily_rows_written_free: 99999 } }), 'A10')
     expect(b.ok).toBe(false)
     const c = state(evaluate({ rows: r, hits: [], sourcesCount: 3, quota: { ...q, rows_read_measurable_local: true } }), 'A10')
     expect(c.ok).toBe(false)
+    // 虚报的三种写法都要红：吹 OK、没回执却吹 VERIFIED、回执路径乱指
+    const a11 = (quota, receipt) => state(evaluate({ rows: r, hits: [], sourcesCount: 3, quota }, { receipt }), 'A11')
+    expect(a11({ ...q, remote_usage: 'OK' }, null).ok).toBe(false)
+    expect(a11({ ...q, remote_usage: 'VERIFIED' }, null).ok).toBe(false)
+    expect(a11({ ...q, remote_usage: 'UNVERIFIED' }, null).ok).toBe(true)
+    const real = { retrievedAtUtc: new Date().toISOString(), channels: { graphql: { state: 'VERIFIED' } } }
+    expect(a11({ ...q, remote_usage: 'UNVERIFIED', remote_usage_receipt: null }, real).ok).toBe(false) // 声明落后同样红
   })
 
   it('未注入登记册 ⇒ A9 必须是 SKIP（detail 自证），与「查过但没有」的 FAIL 不同形', () => {

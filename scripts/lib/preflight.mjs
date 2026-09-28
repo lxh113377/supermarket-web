@@ -63,11 +63,75 @@ function stripWholeLineComments(src) {
   return String(src).split(/\r?\n/).filter((l) => !/^\s*(?:\/\/|\/\*|\*\/|\*)/.test(l)).join('\n')
 }
 
+/**
+ * `writeFileSync(<标识符>, ...)` 的目标解析（第四十二轮，R42-H2）。
+ *
+ * 一手漏报：`check-d1-roundtrips.mjs:401` 运行即改写受版本控制的登记册，但写的是
+ * `writeFileSync(WRITE_QUOTA_FILE, …)` —— 路径在常量右侧，而 `RISK_PATTERNS` 那条要求字面路径出现在
+ * 调用括号内，于是风险表上它是"零风险"。分母当场数得（本轮实测 `scripts/` 44 个 .mjs）：
+ * 标识符形态 10 处（其中上轮 grep 口径的大写常量 5 处）、字面量形态 0 处 ⇒ 这一族不是假想，是这里的多数派。
+ *
+ * 口径（两态分开数，禁合并）：
+ *  - `resolved` = 标识符在同文件有 `const/let/var NAME = …` 声明，且 RHS 命中产物路径词表 ⇒ 真危险；
+ *  - `unbound`  = 目标由运行时决定：RHS 含 `process.argv/env`，**或该标识符根本没有同文件声明**
+ *                 （函数形参、局部变量、跨文件 import、运行时拼出来的路径）⇒ 不算危险特征，但必须被数出来
+ *                 并写进登记册（"看不见"≠"无风险"）；把它们并进危险集会反过来削掉探针分母（本轮实测：
+ *                 `restore-drill.mjs` 的 4 个形参目标全被误判 ⇒ 覆盖退步，方向错）。
+ *                 这一族的真解是**经验腿**（跑完核对工作树是否变脏），已记 R43-P0，不在本轮冒充。
+ */
+export const ARTIFACT_PATH_RE = /(?:docs|dist|api-contract|API\.md|\.ci\/contract\.json)/
+// 第一个实参**整段**取出来再提标识符：本轮新增判据自己的写法是
+// `writeFileSync(join(ROOT, REGISTRY), …)` —— 目标既不是裸标识符也不是字面量，
+// 只认标识符形态会漏掉"表达式里指着产物常量"这一大类（R42-H2 的剩余半边）。
+// 逗号不能当分隔符（`join(ROOT, REGISTRY)` 里就有逗号）⇒ 按括号深度扫到第一个**顶层**逗号为止。
+const WRITE_OPEN_RE = /\bwriteFileSync\(\s*/g
+const IDENT_RE = /\b([A-Za-z_$][\w$]*)\b/g
+
+/** 从 `writeFileSync(` 之后取第一个实参的原文（配对到闭合或顶层逗号）。 */
+export function firstArgOf(code, from) {
+  let depth = 1
+  let arg = ''
+  for (let i = from; i < code.length; i++) {
+    const c = code[i]
+    if (c === '(' || c === '[' || c === '{') depth++
+    else if (c === ')' || c === ']' || c === '}') { depth--; if (depth === 0) break }
+    else if (c === ',' && depth === 1) break
+    arg += c
+  }
+  return arg
+}
+
+export function scanArtifactWrites(src) {
+  const code = stripWholeLineComments(src)
+  const names = new Set()
+  let literalHit = false
+  for (const m of code.matchAll(WRITE_OPEN_RE)) {
+    const arg = firstArgOf(code, m.index + m[0].length)
+    if (ARTIFACT_PATH_RE.test(arg)) literalHit = true
+    for (const x of arg.matchAll(IDENT_RE)) names.add(x[1])
+  }
+  const resolved = []
+  const unbound = []
+  if (literalHit) resolved.push('字面路径直接出现在调用第一实参里')
+  for (const n of [...names].sort()) {
+    const m = new RegExp(`\\b(?:const|let|var)\\s+${n.replace(/\$/g, '\\$')}\\s*=`).exec(code)
+    if (!m) { unbound.push(`${n}(无同文件声明=形参/局部/import)`); continue }
+    const eol = code.indexOf('\n', m.index)
+    const rhs = code.slice(m.index + m[0].length, eol === -1 ? undefined : eol)
+    if (ARTIFACT_PATH_RE.test(rhs)) { resolved.push(`${n}→${rhs.trim().slice(0, 60)}`); continue }
+    if (/process\.(?:argv|env)/.test(rhs)) { unbound.push(`${n}(flag/env 注入)`); continue }
+    unbound.push(`${n}(声明有、RHS 无产物词=${rhs.trim().slice(0, 40)})`)
+  }
+  return { names: [...names].sort(), resolved, unbound }
+}
+
 /** 返回命中的风险标签（去重、排序）；空数组=该脚本可以被探针真跑。 */
 export function classifyRisk(src) {
   const code = stripWholeLineComments(src)
   const out = []
   for (const [re, tag] of RISK_PATTERNS) if (re.test(code)) out.push(tag)
+  // 常量解引用腿：字面量那条扫不到的，按 RHS 现取；解不出静态产物路径的不算（见上"分母退步"实证）
+  if (scanArtifactWrites(code).resolved.length) out.push('writes-artifacts')
   return [...new Set(out)].sort()
 }
 

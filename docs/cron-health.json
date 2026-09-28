@@ -1,0 +1,38 @@
+{
+  "schema": "chaoshi-cron-health-v1",
+  "note": "本件由 `node scripts/check-cron-health.mjs --update` 生成；C4 拿它与 YAML 声明面双向对账，手改即红。accepts_red_* 是人填的豁免，--update 会保留同名条目已填的值。",
+  "generatedUtc": "2026-09-28T00:22:52.760Z",
+  "lookback_days": 7,
+  "entries": [
+    {
+      "workflow": "d1-backup.yml",
+      "name": "D1 Daily Backup",
+      "cron": "0 20 * * *",
+      "period_days": 1,
+      "observed_state": "RED",
+      "observed_last_run": {
+        "id": 36356709142,
+        "at": "2026-09-27T22:51:17Z",
+        "conclusion": "failure"
+      },
+      "accepts_red_until": "2026-10-12",
+      "accepts_red_reason": "`node scripts/check-backup-liveness.mjs` 实测 rc=1：最近 5 次 run 无一满足\"导出步骤 success + artifact >= 1 + run success\"；run 36356709142 @2026-09-27T22:51:17Z 日志原文 `##[error]未配置 CF_D1_BACKUP_TOKEN`。配好 token 后本条自动转 OK ⇒ 该理由可被同一条命令当场证伪。",
+      "root_cause": "缺 CF_D1_BACKUP_TOKEN + BACKUP_PASSPHRASE（用户侧凭据，agent 不得代填）"
+    },
+    {
+      "workflow": "uptime.yml",
+      "name": "Uptime",
+      "cron": "0 1 * * *",
+      "period_days": 1,
+      "observed_state": "RED",
+      "observed_last_run": {
+        "id": 36299454141,
+        "at": "2026-09-27T06:13:21Z",
+        "conclusion": "failure"
+      },
+      "accepts_red_until": "2026-10-12",
+      "accepts_red_reason": "本条红是**搬运**不是自坏：该 run 里唯一失败的 step 是 `Backup chain liveness (did the nightly run really produce an artifact)`（`gh run view 36299454141 --json jobs` 实测 failed steps 长度 1），其日志原文 `✗ 最近 4 次 run 里没有任何一次满足…` ⇒ 与 d1-backup.yml 同一个根因，不是巡检链自己坏。",
+      "root_cause": "缺 CF_D1_BACKUP_TOKEN + BACKUP_PASSPHRASE（用户侧凭据，agent 不得代填）"
+    }
+  ]
+}

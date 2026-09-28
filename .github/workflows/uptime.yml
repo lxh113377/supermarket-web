@@ -70,3 +70,14 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           BACKUP_SKIP_OK: ${{ vars.BACKUP_SKIP_OK }}
         run: npm run check:backup-liveness
+
+      - name: Every scheduled workflow - last scheduled run + red streak
+        # 对标第四十二轮：本 job 原来只替**备份链**一条量"有没有成功产出过"，而全仓有 2 条 cron。
+        # 一手实况：上一次 scheduled run（本文件自己）是 run 36299454141 = failure，而旧尺对
+        # 同一时刻实跑 rc=0 —— 因为它认的是 09-26 的一次 workflow_dispatch。本步补的是"最近性"那半把尺。
+        # 这里**不挂** continue-on-error：本 job 就是那条每日 cron 的现场，红了要落在 cron 的日志里；
+        # 已知的红走登记册的具名限期豁免（docs/cron-health.json，至 2026-10-12），不是靠静音。
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: npm run check:cron-health

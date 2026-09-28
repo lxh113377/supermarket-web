@@ -1,0 +1,99 @@
+{
+  "schema": "chaoshi-d1-remote-usage-v1",
+  "retrievedAtUtc": "2026-09-27T20:54:05.587Z",
+  "endpoint": "https://api.cloudflare.com/client/v4/graphql",
+  "accountResolvedVia": "wrangler whoami",
+  "databaseName": "supermarket",
+  "windowUtc": {
+    "today_geq": "2026-09-27T00:00:00Z",
+    "today_lt": "2026-09-28T00:00:00Z",
+    "hist_geq": "2026-09-21T00:00:00Z",
+    "hist_lt": "2026-09-28T00:00:00Z"
+  },
+  "quota": {
+    "rows_written_free_per_day": 100000,
+    "rows_read_free_per_day": 5000000,
+    "resets": "00:00 UTC",
+    "source": "cloudflare/cloudflare-docs src/content/partials/workers/d1-pricing.mdx:7-8,24"
+  },
+  "channels": {
+    "graphql": {
+      "state": "VERIFIED",
+      "retrievedAt": "2026-09-27T20:54:08.274Z",
+      "rowsRead": 24709,
+      "rowsWritten": 81,
+      "byDateUtc": [
+        [
+          "2026-09-21",
+          {
+            "rowsRead": 128,
+            "rowsWritten": 0
+          }
+        ],
+        [
+          "2026-09-22",
+          {
+            "rowsRead": 4407,
+            "rowsWritten": 153
+          }
+        ],
+        [
+          "2026-09-23",
+          {
+            "rowsRead": 967,
+            "rowsWritten": 26
+          }
+        ],
+        [
+          "2026-09-24",
+          {
+            "rowsRead": 5269,
+            "rowsWritten": 122
+          }
+        ],
+        [
+          "2026-09-25",
+          {
+            "rowsRead": 4068,
+            "rowsWritten": 98
+          }
+        ],
+        [
+          "2026-09-26",
+          {
+            "rowsRead": 7728,
+            "rowsWritten": 63
+          }
+        ],
+        [
+          "2026-09-27",
+          {
+            "rowsRead": 24709,
+            "rowsWritten": 81
+          }
+        ]
+      ],
+      "reason": null
+    },
+    "wrangler": {
+      "state": "VERIFIED",
+      "retrievedAt": "2026-09-27T20:54:09.188Z",
+      "rolling24h": {
+        "rows_read_24h": 24709,
+        "rows_written_24h": 81,
+        "read_queries_24h": 433,
+        "write_queries_24h": 31
+      },
+      "databaseId": "4bfc0283-d307-4285-9f02-dc230cfe4f5c",
+      "reason": null
+    }
+  },
+  "verdict": "OK",
+  "legs": {
+    "total": 8,
+    "passed": 8,
+    "failed": 0,
+    "skipped": 0
+  },
+  "failureIds": []
+}
