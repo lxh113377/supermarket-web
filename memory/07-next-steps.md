@@ -28,6 +28,8 @@
 > 也不许为绿把 `.py` 硬塞进 node 探针面（实测 node 起它是 `ERR_UNKNOWN_FILE_EXTENSION` 裸栈）。
 > **R47-H3 S6 阈值现在可以谈了**：全量面 1m37s ⇒ "每轮收尾跑一次 `--update`"变成可行选项；
 > 动阈值前先出册龄分布（`node scripts/check-judge-side-effects.mjs --max-age-days 0` 会印年龄，取近 N 轮 git 历史里的 observed_utc 序列）。
+> **R47-H4 外层指针已到它自己的天花板**：`超市/memory/07-next-steps.md` 本轮 append 后 40,760B，
+> 外部 `handoff.py volume` 的 `shell_max=40,960B` 只剩 200B ⇒ 下轮先归档旧轮指针或改口径，**禁**压措辞续命。
 > 用户侧不变：**`CF_D1_BACKUP_TOKEN` + `BACKUP_PASSPHRASE` 仍缺** ⇒ 备份链 `artifact=0`，
 > 具名限期豁免至 **2026-10-12**；M3 分支保护未重跑 ⇒ 记未验证；微信真机验收未做。
 
