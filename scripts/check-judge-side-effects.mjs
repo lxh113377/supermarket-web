@@ -20,14 +20,19 @@
 //   3) 逐文件比 **sha256 与 mtime 两把尺**：幂等生成器"写了同样的字节"仍算写过 ⇒ 登记/差集看 touched，
 //      只有 S2"内容真被改动"才看 changed（本轮实测 `verify-backend --update` rc=0 且 sha 零差异）；
 //   4) 结果写 `docs/judge-side-effects.json`，与登记册、与静态推导**双向**对账；
-//   5) S5 的"漏登"只有在**还没并进风险表**时才算缺陷 ⇒ 本件可自愈（补标签再跑就绿），不是永红闸。
+//   5) S5 的"漏登"只有在**还没并进风险表**时才算缺陷 ⇒ 本件可自愈（补标签再跑就绿），不是永红闸；
+//   6) S6 判**证据新鲜度**（第四十五轮加）：册上 `observed_utc` 距今超过 `--max-age-days`（默认 14 天）
+//      ⇒ 记 UNVERIFIED/rc=2。理由是本轮把标签改成"静态 ∪ 实测"合成之后，**没有任何判据读过那个时刻**
+//      ⇒ 改了写盘代码而不重跑探针，`writes-artifacts` 就悄悄失真（"在册"被当成"仍成立"，同族病）。
+//      并且 `--blind-only` 拒绝 `--update`：缩面人口不全，重写册子等于用偏样冒充全量、还会把时刻刷新。
 //
 // 退出码分档（A-get-memory ⑧-b）：候选 rc 落在 126/127/128/129/被信号杀 ⇒ 该候选 UNVERIFIED，
 // 绝不折算成"没改动产物"。零候选/零回执一律 S1 判红。
 //
 // 用法：node scripts/check-judge-side-effects.mjs             真跑全量候选（需 git + tar + node）
-//       node scripts/check-judge-side-effects.mjs --blind-only 只测"静态推不出"的那一类（CI 档位）
-//       node scripts/check-judge-side-effects.mjs --update    把实测结果写进登记册（人填字段保留）
+//       node scripts/check-judge-side-effects.mjs --blind-only 只测"静态推不出"的那一类（CI 档位，禁 --update）
+//       node scripts/check-judge-side-effects.mjs --update    把实测结果写进登记册（人填字段保留；仅全量面）
+//       node scripts/check-judge-side-effects.mjs --max-age-days N  改 S6 的证据期限（默认 14 天，本轮实测值）
 //       node scripts/check-judge-side-effects.mjs --fixture F 喂合成回执（夹具/演练，不起子进程）
 //       node scripts/check-judge-side-effects.mjs --inject-red 演习：注入"实测有写、静态说没有"，S5 必须判红
 import { readFileSync, writeFileSync, readdirSync, existsSync, statSync, mkdirSync, rmSync, symlinkSync } from 'node:fs'
@@ -122,7 +127,7 @@ export function diffHashes(before, after) {
   return { changed, touched }
 }
 
-export function evaluate({ candidates, results, registry, injected = null, entryMd = '' }) {
+export function evaluate({ candidates, results, registry, injected = null, entryMd = '', now = Date.now(), maxAgeDays = 14 }) {
   const rows = []
   const push = (id, ok, label, detail) => rows.push({ id, ok, label, detail })
   const res = (results || []).concat(injected || [])
@@ -212,13 +217,30 @@ export function evaluate({ candidates, results, registry, injected = null, entry
     + (unreached.size ? `；写通道未触达 ${unreached.size} 件（不计幽灵也不计已证）` : '')
     + (ghosts.length ? `；静态幽灵（写通道触达却没碰任何产物）: ${ghosts.join(', ')}` : ''))
 
+  const MAX_AGE_DAYS = maxAgeDays
+  // S6：风险标签的证据有没有过期。第四十四轮把标签改成"静态 ∪ 实测"合成，但**没有任何判据读过
+  // `observed_utc`** ⇒ 改了写盘代码而不重跑探针，`writes-artifacts` 就悄悄失真（同 R44 那批"在册即已验"的病）。
+  // 阈值是**拍的**，所以同时印出复算命令与当前年龄，让下一轮能证伪它而不是继承它。
+  // 语义取 UNVERIFIED（rc=2）而不是"违规"：过期不是罪，是**证据失效**——但它照样拦 CI，
+  // 因为"没人重跑"不该被读成"标签仍然成立"。
+  const stamp = registry && registry.observed_utc
+  const ageDays = stamp && Number.isFinite(Date.parse(stamp)) ? (now - Date.parse(stamp)) / 86400000 : null
+  push('S6', ageDays !== null && ageDays <= MAX_AGE_DAYS,
+    `S6 登记册实测读数必须够新（≤${MAX_AGE_DAYS} 天，可用 --max-age-days 覆写）—— 否则风险表里的 writes-artifacts 是旧证据`,
+    ageDays === null
+      ? `册上没有 observed_utc 或读不出时刻 ⇒ 无法判新鲜度，不折算成"证据仍成立"；重跑 \`node scripts/check-judge-side-effects.mjs --update\`（全量面）`
+      : `读数距今 ${ageDays.toFixed(1)} 天（observed_utc=${stamp}，阈值 ${MAX_AGE_DAYS} 天）`
+      + (ageDays <= MAX_AGE_DAYS ? ' ⇒ 在期限内' : ' ⇒ **证据已过期**：静态标签与实测行为可能已分叉，重跑全量面 --update；`--blind-only` 不刷册（缩面不得冒充全量）'))
+
   return { rows, counts: { candidates: candidates.length, blind: blind.length, receipts: byFile.size, observedWrites: allObserved.size } }
 }
 
 export function verdictOf(rows) {
   const failed = rows.filter((r) => r.ok === false)
   if (!failed.length) return { verdict: 'GREEN', rc: 0 }
-  return failed.some((r) => r.id === 'S4') ? { verdict: 'UNVERIFIED', rc: 2 } : { verdict: 'RED', rc: 1 }
+  // S4（取不到读数）与 S6（读数过期）都是**证据失效**，不是"判出违规" ⇒ 记 UNVERIFIED / rc=2；
+  // 两者照样拦 CI（非零），但台账上不许把"证据旧了"抄成"标签错了"，也不许抄成"通过"。
+  return failed.some((r) => r.id === 'S4' || r.id === 'S6') ? { verdict: 'UNVERIFIED', rc: 2 } : { verdict: 'RED', rc: 1 }
 }
 
 function extractTo(dest) {
@@ -288,6 +310,19 @@ function main() {
   const inj = argv.includes('--inject-red')
   const blindOnly = argv.includes('--blind-only')
   const fxIdx = argv.indexOf('--fixture')
+  const ageIdx = argv.indexOf('--max-age-days')
+  const ageArg = ageIdx === -1 ? null : argv[ageIdx + 1]
+  const maxAgeDays = ageArg === null ? 14 : Number(ageArg)
+  // 参数校验必须在**任何探测之前**：本仓全量面要跑 ≈300s，把校验放在后面等于"非法用法先烧五分钟"
+  // （本轮这条就是这么被 120s 超时抓出来的）。
+  if (ageArg !== null && (!Number.isFinite(maxAgeDays) || maxAgeDays < 0)) {
+    console.error(`[judge-side-effects] --max-age-days 需要一个非负数字，实测拿到 ${JSON.stringify(ageArg)} ⇒ rc=2（不静默退回默认 14）`)
+    process.exit(2)
+  }
+  if (update && blindOnly) {
+    console.error('[judge-side-effects] 拒绝执行：--update 只允许配全量面（`--blind-only` 是缩面，重写册子等于用偏样冒充全量，且会刷新 observed_utc）⇒ rc=2')
+    process.exit(2)
+  }
   let candidates, results
   if (fxIdx !== -1) {
     const f = JSON.parse(readFileSync(argv[fxIdx + 1], 'utf8'))
@@ -316,7 +351,11 @@ function main() {
   const fxEntry = fxIdx !== -1 ? JSON.parse(readFileSync(argv[fxIdx + 1], 'utf8')).entryMd : undefined
   const entryMd = fxEntry !== undefined ? fxEntry : (existsSync(entryPath) ? readFileSync(entryPath, 'utf8') : '')
   if (entryMd === '' && !update) console.error(`[judge-side-effects] BLOCKED 读不到 ${ENTRY_REG} ⇒ 无法判"漏登是否已并入风险表"，本 run 不宣称绿`)
-  const { rows, counts } = evaluate({ candidates, results, registry, entryMd })
+  const { rows, counts } = evaluate({
+    candidates, results, registry, entryMd,
+    now: Date.now(),
+    maxAgeDays,
+  })
   for (const r of rows) console.log(`${r.ok === true ? 'PASS' : 'FAIL'} ${r.id} ${r.label} (${r.detail})`)
   if (!update) {
     for (const r of results) console.log(`  - ${r.file} blind=${(candidates.find((c) => c.file === r.file) || {}).blind}`

@@ -118,6 +118,9 @@ describe('判据 G1~G9：合成仓双向变异', () => {
       [`scripts/${SELF}`]: 'console.log("ok")\n',
       'tests/demo.test.js': `import { spawnSync } from 'node:child_process'\nspawnSync('node', ['scripts/demo-gate.mjs'])\nspawnSync('node', ['scripts/${SELF}'])\n`,
       '.githooks/pre-push': '#!/bin/sh\nnode scripts/demo-gate.mjs\n',
+      // 第四十五轮 G12 顺带抓到的**夹具人口缺口**：取数面声明了三个来源（npm 别名 / .githooks / workflows），
+      // 而这份合成仓只建了两个 ⇒ 真面有的第三个来源在夹具里从来没被喂过（②-f 同族：夹具人口必须等于真面人口）。
+      '.github/workflows/ci.yml': 'name: CI\njobs:\n  build:\n    steps:\n      - run: node scripts/demo-gate.mjs\n',
       'CONTRIBUTING.md': '本地门禁：`git config core.hooksPath .githooks`\n',
       [REGISTRY]: over.registry ?? cleanRegistry,
     })
@@ -129,7 +132,7 @@ describe('判据 G1~G9：合成仓双向变异', () => {
     const bad = res.rows.filter((r) => !r.pass)
     expect(bad.map((r) => `${r.id}:${r.detail}`), JSON.stringify(res.rows, null, 1)).toEqual([])
     expect(res.summary.matched).toBe(res.summary.declared)
-    expect(res.summary.declared).toBe(11)
+    expect(res.summary.declared).toBe(12)
   })
 
   it('G1 反例：登记面枚举为空 ⇒ 判红（零输入不得 PASS）', () => {
@@ -332,6 +335,46 @@ ${riskRows}
     writeFileSync(join(withGhost.dir, 'scripts', 'ghost.mjs'), 'console.log("ok")\n')
     const fixed = evaluate(collect(withGhost.dir)).rows.find((r) => r.id === 'G9')
     expect(fixed.pass, fixed.detail).toBe(true)
+  })
+
+  /**
+   * G12（第四十五轮）：取数面声明了三个来源，就必须**逐个**问它有没有贡献。
+   * 动因是 R41-H3 那条欠账的形状：往根表加一项结果 74→74（静默空操作），而账面写着"面已含"。
+   * 口径借本仓 `check-limit-provenance` 的 C7b（声明了却零贡献的来源判红）。
+   */
+  it('G12 正向：npm 别名 / .githooks / workflows 三个来源各自都有贡献 ⇒ 绿并逐个数', () => {
+    const { res } = baseRepo()
+    const row = res.rows.find((r) => r.id === 'G12')
+    expect(row.pass, row.detail).toBe(true)
+    expect(row.detail).toMatch(/npm 别名 \d+／\.githooks \d+／workflows \d+/)
+  })
+
+  it('G12 反例：workflows 整面消失 ⇒ 取数面静默缩短，必须点名 ci 而不是只报总数', () => {
+    const r = baseRepo()
+    rmSync(join(r.dir, '.github'), { recursive: true, force: true })
+    const row = evaluate(collect(r.dir)).rows.find((x) => x.id === 'G12')
+    expect(row.pass).toBe(false)
+    expect(row.detail).toMatch(/声明了却零贡献的来源\*\*: ci/)
+  })
+
+  it('G12 反例：钩子目录改名（真面最容易踩的那种）⇒ 判红点名 hook，且 G1 的总数照样绿，正说明只有这条能抓', () => {
+    const r = baseRepo()
+    rmSync(join(r.dir, '.githooks'), { recursive: true, force: true })
+    const res = evaluate(collect(r.dir))
+    const g12 = res.rows.find((x) => x.id === 'G12')
+    expect(g12.pass).toBe(false)
+    expect(g12.detail).toMatch(/声明了却零贡献的来源\*\*: hook/)
+    expect(res.rows.find((x) => x.id === 'G1').pass, 'G1 只看总数 ⇒ 它看不见这件事').toBe(true)
+  })
+
+  it('G12 对偶：把删掉的来源补回来 ⇒ 必须转绿（不许是一道只能改判据才能过的死闸）', () => {
+    const r = baseRepo()
+    rmSync(join(r.dir, '.github'), { recursive: true, force: true })
+    expect(evaluate(collect(r.dir)).rows.find((x) => x.id === 'G12').pass).toBe(false)
+    mkdirSync(join(r.dir, '.github', 'workflows'), { recursive: true })
+    writeFileSync(join(r.dir, '.github', 'workflows', 'ci.yml'), 'name: CI\njobs:\n  b:\n    steps:\n      - run: node scripts/other-gate.mjs\n')
+    const back = evaluate(collect(r.dir)).rows.find((x) => x.id === 'G12')
+    expect(back.pass, back.detail).toBe(true)
   })
 
   /**

@@ -137,8 +137,15 @@ G11 认的是"已证明停在门口"这个整词，不是子串 —— 否则 �
 判据实现：`scripts/check-cli-entrypoints.mjs`（G1 分母非零 / G2 两表⇄实测双向对账 / G3 理由非空且不含 TODO /
 G4 棘轮地板 / G5 hook 目标在册 + 生效前提已登记 / G6 **本地钩子入口必须有夹具**（pre-push 那类 CI 不跑的） /
 G7 判据自身入面 / G8 门禁类必须真跑或具名豁免 / G9 **派生风险⇄风险分类表双向对账** / G10 **分母地板** / G11 **@probe-safe 声明⇄风险表⇄源码特征三方对账** /
-G10 **探针分母地板**（改别名或加危险特征都会让分母静默缩短 ⇒ 当场红））
-夹具：`tests/cliEntrypoints.test.js`（122 条 = 16 条判据路径真跑 + 31 条缺输入面 + 31 条零分母 + 合成仓
-G1~G10 双向变异 + 覆盖面口径三向（真跑记账 / 死数组与仅提到不记账）+ classifyRisk 三向 + scan-secrets 三种
-分母形状 + preflight 出口件 + 真仓互洽）；新闸自身：`tests/memoryVolume.test.js`（12 条，含"超限却判绿"的
+G10 **探针分母地板**（改别名或加危险特征都会让分母静默缩短 ⇒ 当场红）、G12 **取数面逐来源非空**（登记面由
+npm 别名／`.githooks`／workflows 三个来源合成，只判"总数非零"时任一面归零照样绿 ⇒ 三个来源各出一行分母；
+本轮真面 npm 45／hook 4／ci 7。口径借 `check-limit-provenance` 的 C7b：声明了却零贡献的来源必须点名，
+要么修取数要么删声明 —— 第四十一轮"往根表加 `scripts/` 是 74→74 的静默空操作"那条欠账的第一次带数字收口））
+夹具：`tests/cliEntrypoints.test.js`（条数**不在此写死**——写死即第二真相源，以 `npx vitest run tests/cliEntrypoints.test.js`
+当场输出为准；构成 = 判据路径真跑（PROBED 名册）+ 缺输入面 + 零分母 + 合成仓 G1~G12 双向变异 + 覆盖面口径三向
+（真跑记账 / 死数组与仅提到不记账）+ classifyRisk 三向 + scan-secrets 三种分母形状 + preflight 出口件 + 真仓互洽）。
+采集层自己另有夹具：`tests/bracketLexer.test.js`（第四十五轮，13 条）—— 括号配对扫描是"覆盖采集"的眼珠子，
+它坏了没人看得见，所以正例（结构已知的输入给出手算配对数）、变异体（把修复还原成旧写法必须翻红）、
+已知盲区（模板串插值少记 / 正则字面量多记）三类各钉一条，另加一条**活体腿**：真读 `tests/docCommands.test.js`
+本文件，断言当年被吞掉的那处 `spawnSync(` 现在配得上对。新闸自身：`tests/memoryVolume.test.js`（12 条，含"超限却判绿"的
 变异体与"加指针后仍 ≤4KB"的守恒断言）

@@ -76,7 +76,7 @@ export function collectRegistered(dir = root) {
  * 于是把**已经有子进程真跑夹具**的 `check-doc-commands.mjs` 报成"未登记缺口"。
  * 修法只统一状态名，不动"宁少记不多记"的方向。
  */
-function scanBrackets(src) {
+export function scanBrackets(src) {
   const QUOTE_STATE = { "'": 'sq', '"': 'dq', '`': 'tpl' }
   const parens = []
   const brackets = []
@@ -421,6 +421,20 @@ export function evaluate({ registered, covered, declared, floorOk, hookTargets, 
       : `探针分母 ${denom.length} ${denom.length >= declared.denomFloor ? `>= 地板 ${declared.denomFloor}（headroom +${denom.length - declared.denomFloor}；其中靠 @probe-safe 声明进来的非门禁危险项 ${denom.filter((r) => !isGateLike(r.sources) && (riskOf.get(r.script) || []).length).length} 个）` : `< 地板 ${declared.denomFloor}（**分母被缩短 ${declared.denomFloor - denom.length} 项**：改别名或加危险特征都会走到这里）`}`,
   })
 
+  // G12（第四十五轮，承 R41-H3「声明的面 ⇄ 喂进采集器的面是两处」这条同族欠账）：
+  // 取数面 A 声明了三个来源（package.json 别名 / .githooks / .github/workflows），但 G1 只判"总数非零"
+  // ⇒ 任一来源**静默归零**时登记面会悄悄缩短，而账面照样绿（第四十一轮的病：往根表加一项是 74→74 的空操作）。
+  // 口径借本仓 `check-limit-provenance` 的 C7b：声明了却零贡献的来源必须点名，二选一——修取数，或删声明。
+  const famOf = (s) => (String(s).startsWith('npm:') ? 'npm' : String(s).startsWith('hook:') ? 'hook' : String(s).startsWith('ci:') ? 'ci' : null)
+  const byFam = { npm: new Set(), hook: new Set(), ci: new Set() }
+  for (const r of registered) for (const s of r.sources) { const f = famOf(s); if (f) byFam[f].add(r.script) }
+  const emptyFam = Object.entries(byFam).filter(([, v]) => v.size === 0).map(([k]) => k)
+  rows.push({
+    id: 'G12',
+    pass: emptyFam.length === 0,
+    detail: `取数面逐来源非空：npm 别名 ${byFam.npm.size}／.githooks ${byFam.hook.size}／workflows ${byFam.ci.size}（三者可重叠，故和 ≠ 总数 ${registered.length}）`
+      + (emptyFam.length ? `；**声明了却零贡献的来源**: ${emptyFam.join(', ')} ⇒ 要么取数面坏了（目录改名 / 不再直调 scripts），要么把这条来源从声明里删掉，不许留着当"已覆盖"` : ''),
+  })
   // G11（第三十二轮）：`@probe-safe` 是**脚本自己**说"我会在触碰外部世界之前停住"，所以三件事必须同时对得上：
   //   a) 声明必须落在真有危险特征的脚本上（没特征还声明 = 无效声明，只会把口径搞浑）；
   //   b) 声明必须带实测数字（"应该没问题"不算依据；`golang/go` 的 `-short` 也是测试自己给条件）；

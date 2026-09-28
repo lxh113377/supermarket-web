@@ -7,7 +7,7 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
 import { spawnSync } from 'node:child_process'
-import { writeFileSync, mkdtempSync } from 'node:fs'
+import { writeFileSync, mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -34,6 +34,7 @@ const RES = [
 ]
 // 登记册夹具：人填的例外一律带可证伪理由（数字或反引号命令），否则 named() 会当它不存在
 const REG = {
+  observed_utc: new Date().toISOString(), // S6 判证据新鲜度；过期形状另有专门用例
   entries: [
     { file: 'scripts/check-d1-roundtrips.mjs', writes: ['docs/d1-write-quota.json'] },
     { file: 'scripts/verify-backend.mjs', writes: ['docs/sql-baseline.json'] },
@@ -161,6 +162,53 @@ describe('副作用实测腿 · 每条红都必须可归因', () => {
   })
 })
 
+describe('证据新鲜度（S6）——"在册"不等于"仍成立"', () => {
+  const base = { entries: REG.entries, generators: REG.generators, unprobeable: [], conditional_writers: REG.conditional_writers }
+  const DAY = 86400000
+
+  it('读数在期限内 ⇒ S6 绿，并把年龄与阈值都印出来', () => {
+    const reg = { ...base, observed_utc: new Date(Date.now() - 2 * DAY).toISOString() }
+    const { rows } = evaluate({ candidates: CAND, results: RES, registry: reg, entryMd: MERGED_MD, now: Date.now(), maxAgeDays: 14 })
+    expect(state(rows, 'S6').ok).toBe(true)
+    expect(state(rows, 'S6').detail).toContain('读数距今 2.0 天')
+    expect(verdictOf(rows).rc).toBe(0)
+  })
+
+  it('读数过期 ⇒ S6 红且判 UNVERIFIED（rc=2）——过期是证据失效，不是"标签错了"，更不是"通过"', () => {
+    const reg = { ...base, observed_utc: new Date(Date.now() - 40 * DAY).toISOString() }
+    const { rows } = evaluate({ candidates: CAND, results: RES, registry: reg, entryMd: MERGED_MD, now: Date.now(), maxAgeDays: 14 })
+    expect(state(rows, 'S6').ok).toBe(false)
+    expect(state(rows, 'S6').detail).toContain('证据已过期')
+    expect(verdictOf(rows)).toEqual({ verdict: 'UNVERIFIED', rc: 2 })
+  })
+
+  it('册上没有时刻 ⇒ 同判过期（零证据不许折算成"仍成立"）', () => {
+    const { rows } = evaluate({ candidates: CAND, results: RES, registry: base, entryMd: MERGED_MD, now: Date.now(), maxAgeDays: 14 })
+    expect(state(rows, 'S6').ok).toBe(false)
+    expect(state(rows, 'S6').detail).toContain('无法判新鲜度')
+  })
+
+  it('期限可由调用方覆写（禁把 14 天写成不可改的常量；非法值当场 rc=2 而不是静默退回默认）', () => {
+    const reg = { ...base, observed_utc: new Date(Date.now() - 40 * DAY).toISOString() }
+    expect(state(evaluate({ candidates: CAND, results: RES, registry: reg, entryMd: MERGED_MD, now: Date.now(), maxAgeDays: 60 }).rows, 'S6').ok).toBe(true)
+    const bad = spawnSync(process.execPath, [SCRIPT, '--max-age-days', 'abc'], { cwd: ROOT, encoding: 'utf8', timeout: 120_000 })
+    expect(bad.status, `${bad.stdout}${bad.stderr}`.slice(-400)).toBe(2)
+    expect(`${bad.stderr}`).toContain('需要一个非负数字')
+  })
+
+  it('缩面档拒绝 --update（用偏样重写全量册 + 刷新时刻 = 冒充刚核过）', () => {
+    const r = spawnSync(process.execPath, [SCRIPT, '--blind-only', '--update'], { cwd: ROOT, encoding: 'utf8', timeout: 120_000 })
+    expect(r.status, `${r.stdout}${r.stderr}`.slice(-400)).toBe(2)
+    expect(`${r.stderr}`).toContain('缩面')
+  })
+
+  it('真面自证：仓里现存那份册必须在期限内（这条红就说明上一轮根本没重跑探针）', () => {
+    const reg = JSON.parse(readFileSync(join(ROOT, 'docs', 'judge-side-effects.json'), 'utf8'))
+    const { rows } = evaluate({ candidates: [], results: [], registry: reg, entryMd: '', now: Date.now(), maxAgeDays: 14 })
+    expect(state(rows, 'S6').ok, state(rows, 'S6').detail).toBe(true)
+  })
+})
+
 describe('两把字节尺（幂等生成器的形状）', () => {
   const mk = (sha, mt) => ({ sha, mt })
   it('同字节但 mtime 变 ⇒ touched 有、changed 无（这就是 verify-backend 那一类）', () => {
@@ -210,7 +258,7 @@ describe('入口通道真跑（--fixture / --inject-red / 缺输入面）', () =
     expect(out).toContain('INJECTED-writer.mjs')
   })
   it('零候选的合成面 ⇒ S1 红、rc=1（"没有副作用"必须由读数说话，不是由空面说话）', () => {
-    const p = f('empty.json', { candidates: [], results: [] })
+    const p = f('empty.json', { candidates: [], results: [], registry: { entries: [], observed_utc: new Date().toISOString() } })
     const { rc, out } = cli(['--fixture', p])
     expect(rc, out.slice(-500)).toBe(1)
     expect(out).toContain('S1')
