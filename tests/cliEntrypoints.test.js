@@ -491,6 +491,41 @@ ${riskRows}
   })
 
   /**
+   * R48-H2：采集面 ⇄ 运行面是两个面。`vite.config.js` 的 `exclude` 把 e2e 三个目录摘出 vitest，
+   * 而 `testFace`/`collectCovered` 扫整棵 `tests/` ⇒ "被哪条 runner 跑过"必须可读出来，
+   * 但**面由配置派生**（判据里不许再抄一份目录清单）。
+   */
+  it('R48-H2 活体真面：runner 差集由 vite.config.js 派生，且两面之和恰等于采集面（不重不漏）', () => {
+    const f = testFace(REPO)
+    expect(f.excludes, '读不到 exclude ⇒ 这是"未知"，不许当"runner 没排除任何东西"').not.toBeNull()
+    expect(f.excludes.length).toBeGreaterThan(0)
+    expect(f.excludedFiles, '真面里被排除的测试件为 0 ⇒ 这条腿空转（用 find tests/e2e -name "*.ts" 复核过是 7）').toBeGreaterThan(0)
+    expect(f.files - f.excludedFiles + f.excludedFiles).toBe(f.files)
+    expect(f.excludedWithSpawn, '真面这 7 个件今天不起子进程 ⇒ 覆盖面未被污染；若哪天有了，本条要红逼人来看').toBe(0)
+    const row = evaluate(collect(REPO)).rows.find((x) => x.id === 'G14')
+    expect(row.detail).toContain(`vitest 面 ${f.files - f.excludedFiles} / 被排除面 ${f.excludedFiles}`)
+  })
+
+  it('R48-H2 反例：被排除面里有了起子进程的件 ⇒ 必须点名"记账来自 Playwright，不来自 npm test"', () => {
+    const r = baseRepo()
+    writeFileSync(join(r.dir, 'vite.config.js'), "export default { test: { exclude: ['node_modules/**', 'tests/e2e/**'] } }\n")
+    mkdirSync(join(r.dir, 'tests', 'e2e'), { recursive: true })
+    writeFileSync(join(r.dir, 'tests', 'e2e', 'ship.spec.ts'), "import { spawnSync } from 'node:child_process'\nspawnSync('node', ['scripts/other-gate.mjs'])\n")
+    const row = evaluate(collect(r.dir)).rows.find((x) => x.id === 'G14')
+    expect(row.detail).toContain('被排除面 1')
+    expect(row.detail).toContain('来自 Playwright')
+    expect(row.detail).not.toContain('暂未被污染')
+  })
+
+  it('R48-H2 边界：没有 vite.config.js ⇒ 印"差集未知"，不许印成"runner 没排除任何目录"（读不动 ≠ 结论为否）', () => {
+    const r = baseRepo()
+    const row = evaluate(collect(r.dir)).rows.find((x) => x.id === 'G14')
+    expect(row.pass, '采集面有对象就仍判绿；差集未知是**读数缺失**，不是违规').toBe(true)
+    expect(row.detail).toContain('差集**未知**')
+    expect(row.detail).not.toMatch(/被排除面 0/)
+  })
+
+  /**
    * 退出码分相（第四十七轮）：0 全绿 / 1 判出违规 / 2 证据失效。
    * 形状取自 `pytest-dev/pytest`：`src/_pytest/main.py:392` 在收集后先问 `session.testscollected == 0`
    * 并返回专属的 `ExitCode.NO_TESTS_COLLECTED`，而不是让它顺着 `return None` 掉进"通过"。

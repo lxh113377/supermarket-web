@@ -64,6 +64,18 @@ jobs:
       - name: Static HTML CSP gate (no dead inline styles)
         run: npm run verify:csp
 
+      # 第四十八轮 R48-H1：`verify:images` 此前既不在 verify 链也不在 CI（workflows 引用 0 处），
+      # 而且它的 `main()` 从不 sys.exit ⇒ **缺图也 rc=0**。本轮同时补退出码与接线；
+      # 接线的唯一命令形态仍是 `npm run verify:images`（别名只有一处真相源），
+      # Linux runner 上没有 `python` 只有 `python3` ⇒ 用 setup-python 把解释器补齐，而不是在 CI 里另写一条 python3 命令。
+      - name: Set up Python (product image assets gate)
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Product image assets gate (npm run verify:images)
+        run: npm run verify:images
+
       - name: Test (vitest, with v8 coverage)
         # 一次跑测兼产出覆盖率（避免全量套件跑两遍）；失败仍然阻断
         run: npx vitest run --coverage

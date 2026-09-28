@@ -36,7 +36,14 @@ const PLACEHOLDER_RE = /(<[^>\n]+>|…|\$\{?[A-Z_][A-Z0-9_]*\}?|\b[A-Za-z0-9._-]
 
 export function collectDocs(readRoot = ROOT) {
   const out = []
-  for (const f of ['README.md', 'SECURITY.md', 'CONTRIBUTING.md', 'HANDOFF.md']) {
+  // 第四十八轮 R48-H3：`CHANGELOG.md` 原本**整份不在取数面里** —— 一手实测（@2026-09-28）：
+  // 往里植入一条盘上根本不存在的 `node scripts/zz-not-a-real-file.mjs`，提及数 128→128 纹丝不动、D2 仍 GREEN
+  // ⇒ 变更日志里每条"跑 X 即可复现"都是没人核过的断言，而它恰恰是最容易被后来人照抄的那份文档。
+  // 上轮我担心"历史条目里的 CloudBase 死命令会让它一入面就恒红"，本轮先量再动：
+  // 现面 137 条命令式 code-span，涉及 6 个脚本名（盘上不存在 **0** 个）、28 个别名（不在册 **0** 个）
+  // ⇒ 直接进 claim 面，零红。真要出现"历史命令已失效"，走它自己的归档面（`archive_faces` + `exempt_until`），
+  // 而不是把这份文档长期留在面外（第四十一轮"历史不是永久豁免"的同一口径，方向反过来用）。
+  for (const f of ['README.md', 'SECURITY.md', 'CONTRIBUTING.md', 'HANDOFF.md', 'CHANGELOG.md']) {
     const p = join(readRoot, f)
     if (existsSync(p)) out.push({ path: f, src: readFileSync(p, 'utf8') })
   }

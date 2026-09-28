@@ -26,7 +26,7 @@
 
 - **架构**：Vite 8 + React 19 + TS + Cloudflare Pages Functions + D1；前端双部署（pages.dev 管理端 / github.io 顾客端，dispatch 双发）。
 - **后端分层**（2026-09-05 拆分）：`functions/lib/{db,security}.js` + `functions/lib/actions/{products,orders,reviews,submissions,ai}.js`，`backend.js` 仅剩调度 + 兼容 re-export（测试契约：`checkRate/checkRateKV/resolveCorsHeaders/batchUpdateProducts/batchDeleteProducts` 必须从 backend.js 可导入）。
-- **action 契约 23 个**：改动必须同步 `src/auth.ts` 调用侧 + `scripts/verify-backend.mjs`（47 断言，计数类断言用相对基线禁硬编码）。
+- **action 契约**：改动必须同步 `src/auth.ts` 调用侧 + `scripts/verify-backend.mjs`；**计数一律不在此写死**（写死即第二真相源，本行原记 23 个 / 47 断言，@2026-09-28 实测为 `/web` 31 + `/pub` 8、后端 152 条断言通过 ⇒ 数字已过期两轮）。现读：`npm run verify:docs`（印 action 数与真相源）／`npm run verify:backend`（印 结果: N 通过）。
 - **wrangler.toml 必含 `pages_build_output_dir = "dist"`**，否则整个 toml 被忽略 → D1 绑定静默失效（lessons.part35）。
 - **改 Pages secret 后必须重新部署才生效**（部署时注入）；本地密钥在 `.dev.vars`（gitignore）。
 - **商品图**：`public/images/<order>.webp`（800w）+ `public/images/sm/<order>.webp`（400w 缩略图）；新增商品图必须同步生成 sm/ 副本，否则 srcSet 静默回退原图。

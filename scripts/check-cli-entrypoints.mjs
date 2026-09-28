@@ -95,6 +95,21 @@ export const TEST_SOURCE_RE = /\.(?:m?[jt]sx?|cjs)$/
 export const isTestSourceFile = (name) => TEST_SOURCE_RE.test(name)
 
 /**
+ * runner 的排除面**由配置派生**（第四十八轮 R48-H2），不在判据里再抄一份目录清单：
+ * `vite.config.js` 的 `exclude` 把 e2e / e2e-visual / e2e-stub 三个目录摘出 vitest 面，而
+ * `testFace`/`collectCovered` 扫整棵 `tests/` ⇒ "某个入口被哪条 runner 真跑过"是糊的。一手实测：真面里被排除的
+ * 8 个文件目前 spawn 计数为 **0**，所以今天**没有**污染覆盖面 —— 本轮因此只加读数、不改判定
+ * （为一件没发生的事改口径，就是把判据写成预言；但等它发生时，得有人看得见）。
+ */
+export function runnerExcludes(dir = root) {
+  const p = join(dir, 'vite.config.js')
+  if (!existsSync(p)) return null
+  const m = /exclude\s*:\s*\[([^\]]*)\]/.exec(readFileSync(p, 'utf8'))
+  if (!m) return null
+  return [...m[1].matchAll(/['"]([^'"]+)['"]/g)].map((x) => x[1]).filter((g) => g.startsWith('tests/'))
+}
+
+/**
  * 采集目录自身的体检（第四十七轮 G14 的对象）。
  * 一手形状：`collectCovered()` 的第一行就是 `if (!existsSync(dir/tests)) return covered` ——
  * 目录一旦被改名或移出，覆盖面**静默变成空集**，而 G4 的棘轮地板只拦到 23（现 35），
@@ -104,8 +119,9 @@ export const isTestSourceFile = (name) => TEST_SOURCE_RE.test(name)
  */
 export function testFace(dir = root) {
   const testDir = join(dir, 'tests')
-  const out = { exists: existsSync(testDir), files: 0, withSpawn: 0, outside: [] }
+  const out = { exists: existsSync(testDir), files: 0, withSpawn: 0, outside: [], excludes: runnerExcludes(dir), excludedFiles: 0, excludedWithSpawn: 0 }
   if (!out.exists) return out
+  const prefixes = (out.excludes || []).map((g) => g.replace(/\/\*\*.*$/, '/').replace(/\*.*$/, ''))
   const seen = new Map()
   ;(function walk(d) {
     for (const e of readdirSync(d)) {
@@ -117,7 +133,15 @@ export function testFace(dir = root) {
         continue
       }
       out.files++
-      if (/\bspawn(Sync|)?\(|\bexecFile(Sync|)?\(|\bfork\(/.test(readFileSync(p, 'utf8'))) out.withSpawn++
+      const spawned = /\bspawn(Sync|)?\(|\bexecFile(Sync|)?\(|\bfork\(/.test(readFileSync(p, 'utf8'))
+      if (spawned) out.withSpawn++
+      // rel 必须相对**仓根**，因为 exclude 的形态就是 `tests/e2e/**`；
+      // 早先按"相对 tests/"算 ⇒ 前缀永远对不上，读数会印成"被排除面 0"（本轮实测抓到：真面 8 个 e2e 文件被读成 0）。
+      const rel = p.slice(dir.length + 1).replace(/\\/g, '/')
+      if (prefixes.some((pre) => rel.startsWith(pre))) {
+        out.excludedFiles++
+        if (spawned) out.excludedWithSpawn++
+      }
     }
   })(testDir)
   out.outside = [...seen.entries()].map(([ext, n]) => `${ext}×${n}`).sort()
@@ -543,7 +567,7 @@ export function evaluate({ registered, covered, declared, floorOk, hookTargets, 
       + (nnUnreg.length ? `；**结构性失踪（取数面看不见，也没人登记）**: ${nnUnreg.map((e) => `${e.file}（别名 ${e.aliases.join('/')}｜真实命令 ${e.cmd}）`).join(' / ')}` : '')
       + (nnThin.length ? `；登记了但理由不可证伪: ${nnThin.map((e) => e.file).join(', ')}` : '')
       + (nnGhost.length ? `；幽灵（册上登记的文件已不被任何别名引用）: ${nnGhost.join(', ')}` : '')
-      + (nonNode.length && !nnUnreg.length && !nnThin.length ? ' ⇒ 已登记为"探针不 spawn"，解释器分派的腿待 R47' : ''),
+      + (nonNode.length && !nnUnreg.length && !nnThin.length ? ' ⇒ 已登记；node 探针面仍不收它（实测 node 起 .py 是 ERR_UNKNOWN_FILE_EXTENSION），改由 python 侧夹具覆盖并已接进 verify/CI 链' : ''),
   })
 
   // G14（第四十七轮）：采集目录本身必须有正向断言 —— "覆盖数为 0"到底是"没人写夹具"还是"我根本没读到目录"，
@@ -563,8 +587,18 @@ export function evaluate({ registered, covered, declared, floorOk, hookTargets, 
   } else if (face.withSpawn === 0) {
     faceDetail = `tests/ 有 ${face.files} 个文件，但没有任何一个含 spawn/execFile/fork ⇒ 覆盖采集恒空，G2/G8 的"实测未覆盖"其实是"全都未覆盖"`
   } else {
+    // runner 差集单独算成一变量：上一轮那条"四层嵌套三元多闭合一个括号"的教训还在台账上，
+    // 同形态不再犯第二次（可读性也归零）。
+    const gap = face.excludes === null
+      ? '未取到 vite.config.js 的 exclude ⇒ 差集**未知**（不是"runner 没排除任何目录"）'
+      : `vitest 面 ${face.files - face.excludedFiles} / 被排除面 ${face.excludedFiles}`
+        + `（patterns: ${face.excludes.length ? face.excludes.join(' ') : '无'}）`
+        + (face.excludedWithSpawn
+          ? `，**其中 ${face.excludedWithSpawn} 个真起子进程 ⇒ 那份"跑过"的记账来自 Playwright/别的 runner，不来自 npm test**`
+          : '，被排除面里 0 个起子进程 ⇒ 覆盖面暂未被污染')
     faceDetail = `采集目录 tests/：${face.files} 个测试文件，其中 ${face.withSpawn} 个真起子进程 ⇒ 覆盖采集有对象（本轮实测口径，不靠"我记得 tests 在"）` +
-      (face.outside.length ? `；名单外的扩展名 ${face.outside.join(' ')}（当前按数据件处理，若其中有代码夹具则本条要人看一眼）` : '')
+      (face.outside.length ? `；名单外的扩展名 ${face.outside.join(' ')}（当前按数据件处理，若其中有代码夹具则本条要人看一眼）` : '') +
+      `；runner 差集 ${gap}`
   }
   rows.push({
     id: 'G14',

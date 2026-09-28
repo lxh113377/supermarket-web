@@ -96,16 +96,20 @@
 ## 非 node 入口（别名引用了探针起不了的入口；**第四十五轮的 G12 只看目录级漂移，这一张表看的是扩展级失踪**）
 
 第四十六轮一手分母：把 `package.json` 别名里的 `scripts/<file>` 按宽扩展名（`mjs|cjs|js|ts|py|sh`）取一遍，
-不属于 `.mjs` 的恰好 **1** 条 ⇒ 它今天既不在登记面（`collectRegistered` 的正则只收 `.mjs`），
+不属于 `.mjs` 的恰好 **1** 条 ⇒ 它当时既不在登记面（`collectRegistered` 的正则只收 `.mjs`），
 也不在缺口/豁免面，`.github/workflows/*` 里 grep `verify:images` = **0** 处 —— 只有人手敲时才跑。
 判据 = **G13**：别名引用的非 .mjs 入口必须在下面这张表里登记真实命令 + 可证伪理由，否则判红；
 登记了但别名里不再引用 ⇒ 幽灵判红。**不许**直接把它塞进 node 探针分母：实测 `node scripts/verify_images.py`
 得 `ERR_UNKNOWN_FILE_EXTENSION` 裸栈 ⇒ ②③ 两法会把"解释器不对"读成"入口不会 fail-closed"，那是判据在说谎。
-正解（R47）＝按别名里的真实命令分派解释器，再给它自己的缺输入面 / 零分母两条腿。
+**R47 的正解本轮落地了，但落法与"给 node 探针加解释器"不同**：一条门禁该有的两件事是
+**①能红**（`scripts/verify_images.py` 的 `main()` 原本从不 `sys.exit`，实测缺图面印"覆盖率 66%"却 rc=0 ⇒
+本轮改出三档 0/1/2）与 **②接进阻断链**（`npm run verify:images` 现已进 `verify` 聚合链与 `ci.yml`，
+配 `actions/setup-python@v5`，命令形态仍只有别名一处）。node 探针面依旧不收 `.py` —— 它由
+`tests/verifyImages.test.js` 用 python 自己起子进程来覆盖（8 条腿含一条变异体），而不是骗 node 去 spawn 它。
 
 | 脚本 | 真实命令 | 为什么探针不能 spawn（实测依据） |
 | --- | --- | --- |
-| verify_images.py | `python scripts/verify_images.py` | 别名 `verify:images`；实测 `node scripts/verify_images.py` ⇒ `ERR_UNKNOWN_FILE_EXTENSION` 裸栈（@2026-09-28 本机）；文件 5,227B 在盘；workflows 引用 0 处 ⇒ 不进 node 面，等解释器分派的腿 |
+| verify_images.py | `python scripts/verify_images.py` | 别名 `verify:images`；实测 `node scripts/verify_images.py` ⇒ `ERR_UNKNOWN_FILE_EXTENSION` 裸栈（@2026-09-28 本机）；文件在盘且 `main()` 现返回三档 rc（0 全绿 / 1 缺失或无效 / 2 没有对象可判，合成面实测 4 档形态各跑过）；`verify` 聚合链引用 1 处 + `ci.yml` 引用 1 处（setup-python 后跑 `npm run verify:images`）⇒ 不进 node 面，改由 `npx vitest run tests/verifyImages.test.js` 覆盖 |
 
 ## 风险分类（默认不自动 spawn；标签由 `classifyRisk` 从源码推导；带 `@probe-safe` 声明且本表写"已证明停在门口"的才回到分母）
 

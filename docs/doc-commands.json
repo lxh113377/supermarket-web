@@ -1,12 +1,12 @@
 {
   "schema": "chaoshi-doc-commands-v1",
   "note": "由 `node scripts/check-doc-commands.mjs --update` 生成；archive_faces 是人填的\"历史归档面\"声明，--update 保留已填值。每条必须带 exempt_until（到期即重新按现行主张判，历史不是永久豁免）。D2 拿它与真实别名/文件面对账，改文档不改册不会红，改册不改文档会红。",
-  "observed_utc": "2026-09-28T03:21:08.073Z",
+  "observed_utc": "2026-09-28T07:50:30.755Z",
   "counts": {
-    "docs": 28,
-    "aliases": 62,
-    "mentions": 122,
-    "claim": 110,
+    "docs": 29,
+    "aliases": 63,
+    "mentions": 196,
+    "claim": 184,
     "template": 1,
     "archive": 11,
     "broken": 0

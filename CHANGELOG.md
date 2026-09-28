@@ -4,6 +4,62 @@
 
 ## [未发布]
 
+### 2026-09-28 追加六十二（对标第四十八轮：一条门禁"能红"与"有人看"是两件事）
+
+- **R48-H1 `verify:images` 的判据自己一直是永绿的 ⇒ 改三档退出码并接进阻断链。**
+  一手负控制（修复前）：合成面（seed 三个 `order:`、图片只有两张合法 WebP）印出「缺失图片 (1/3)｜覆盖率 66%」
+  却 **rc=0**——`main()` 从不返回、`__main__` 也不 `sys.exit`；且 seed 读不到时旧代码退回 `range(1,50)`，
+  等于"数据源坏了也照样能判"。本轮：`main()` 返回 **0 全绿 / 1 真有缺失或无效 / 2 没有对象可判**，
+  删掉兜底；图片面失踪单独走 2 并印"空集不等于零覆盖"。四档形态全部实测（真面 `OK 54/54` rc=0、
+  缺图 rc=1 点名 `FAIL 缺失 1 / 无效 0 / 应有 3`、无图片面 rc=2、`order:` 零命中 rc=2）。
+  接线：`npm run verify:images` 进 `verify` 聚合链，`ci.yml` 加 `setup-python` + 同名步骤（命令形态仍只在别名一处）。
+  形状取自 `kubernetes/kubernetes :: hack/verify-gofmt.sh:55,67`（两处 `exit 1`）与
+  `psf/black :: src/black/__init__.py:372-379`（`--check` 三档：0 无改动 / 1 有改动 / 123 内部错误），
+  @2026-09-28 经 `gh api` 取回原文（2,099B / `85bf76a9c1`；58,967B / `8b830d869e`）。
+  夹具 `tests/verifyImages.test.js` **8 条**，含真入口回执（分母由 seed 现算）与变异体
+  （`return 1` → `return 0` ⇒ 同一缺图面必须被读成"通过"）。
+- **R48-H2 采集面 ⇄ 运行面的差集现在可读，且面由配置派生。**
+  `runnerExcludes()` 现读 `vite.config.js` 的 `exclude`（真面 3 个 pattern），G14 追加
+  `vitest 面 110 / 被排除面 7（其中起子进程 0 个 ⇒ 覆盖面暂未被污染）`；取不到配置时印 **`差集未知`**，
+  不印"被排除面 0"。借鉴 `vitest-dev/vitest :: packages/vitest/src/defaults.ts:13,20`
+  （`export const defaultExclude` 被同一配置对象消费，3,816B / blob `1aa7f251f0`）——**不在判据里抄第二份目录清单**。
+  本轮**不改判定**（只加读数）：一手实测被排除的 7 个件里 spawn 计数为 0，为一件没发生的事改口径就是把判据写成预言。
+  夹具 3 条：活体真面（两面之和 == 采集面）、合成反例（被排除面里放一个起子进程的件 ⇒ 必须点名"记账来自 Playwright"）、
+  边界（无 `vite.config.js` ⇒ 未知）。
+- **R48-H3 `CHANGELOG.md` 进文档判据取数面（先量再动）。**
+  上轮我给自己写的 P0 里含一条**猜测**："历史条目（CloudBase 死命令）会让它一入面就恒红"。本轮实测：
+  CHANGELOG 里命令式 code-span 137 条、涉及 6 个脚本名（盘上不存在 **0**）、28 个别名（不在册 **0**）⇒ 直接入 claim 面**零红**。
+  入面后 `check:doc-commands` 提及 128 → **196**、claim 184 全部成立；随后新增别名 `check:syntax` 一进来，
+  D5"在册却无人知晓"与 D6"README 门禁一览缺行"**同时点名**⇒ 两条反向对账腿真在干活（提及随之到 197，6/6 GREEN）。
+  死命令其实在 `docs/implementation-plan-2026-08-08.md`，那里早已有 `archive_faces` + `exempt_until` 机制。
+- **计划外第四条（机器型落点）：`scripts/check-staged-syntax.mjs` 接进 `pre-commit`。**
+  动机是同一个自我破坏形态四轮里犯了 4 次（把"被保留内容的头几行"当成编辑锚 ⇒ 那几行消失），
+  而它以前要等 4 分钟全链 verify 或一整条 CI 才现形。新闸判 **index 里的 blob**（`git cat-file blob :<path>`，
+  不是工作树——并行会话可能已经把它改了），`.js/.cjs/.mjs` 走 `node --check`、`.py` 走 `py_compile`，
+  `.ts/.tsx/.jsx` 作为**盲区在门面行明说**（由 oxlint + typecheck 负责），非工作树 ⇒ rc=2 环境不满足，
+  暂存面为空 ⇒ 印"跳过（不是通过）"。夹具 `tests/stagedSyntax.test.js` **6 条**，含"工作树被改坏但暂存版本是好的 ⇒ 不该拦"
+  与其反向半边（把工作树那份也 add ⇒ 必须翻红），以及变异体。接线即生效面：G1 登记面 47→**48**、
+  子进程真跑 35→**36**、门禁类 31:28→**32:29**，`cli-entrypoints` 14/14 仍 GATE-PASS。
+- **P-1 绑定表里的两处死数字改成指针**：`memory/agents.md` 原写"action 契约 23 个 / 47 断言"，
+  @2026-09-28 实测为 `/web` 31 + `/pub` 8、后端 **152** 条断言通过（数字已过期两轮）⇒ 改为指向
+  `npm run verify:docs` / `npm run verify:backend` 的当场读数。同处留了一句自省：本文件不在 doc-commands 取数面里，
+  所以它写的命令同样没人核——这正是 R48-H3 那一族的又一格。
+- **本轮四条失败面（原文入账）**：
+  ① `npm run verify` 第二跑 rc=1，红在 `verify:docs`：`单测文件数：README.md:126 写的是 105，真相源实测 107`
+  ——我加了两个测试文件没追文档，这是**同一条判据连续第三轮**抓到我的文档漂移（改文档追上真相源，不改真相源凑绿）。
+  ② 第三跑 rc=1，红在 `tests/ciWorkflow.test.ts`：`未钉 SHA 的 action：ci.yml: actions/setup-python@v5`
+  ——改 CI 前没读 CI 的规矩（本仓要求每个 `uses:` 钉 40 位提交 SHA）。SHA 由
+  `gh api repos/actions/setup-python/git/ref/tags/v7.0.0` 现取 `5fda3b95a4ea91299a34e894583c3862153e4b97`，
+  修后该文件 **31 passed**。
+  ③ 变异腿第一版挑错被告行：把 `if (runner.status !== 0)` 改成 `!== 2` ⇒ 坏件的 rc=1 仍满足"≠2"，
+  用例红是因为**变异没生效**；改成摘掉整个守卫（`if (false)`）才出现"坏件被读成通过"。
+  户内 ②"每条变异必须绑定只有它能使其变红的输入面"的第二次实发。
+  ④ Edit 锚点自我破坏**第 4 次**：插入新 `describe` 时 `old_string` 又取了 `verdictOf` 文档注释头两行
+  ⇒ 注释被吞、`node --check` 报语法错。这次不再靠"我记得要回读"，而是落成上面那条提交边界机器闸。
+- 验证：`npx vitest run tests/verifyImages.test.js` 8 passed、`tests/stagedSyntax.test.js` 6 passed、
+  `tests/cliEntrypoints.test.js` 161 passed、`check:doc-commands` 6/6 GREEN、`verify:docs` OK 7 项（单测文件数 107）、
+  `verify:backend` 152 通过、`npm run verify` **rc=0**（第三跑）。
+
 ### 2026-09-28 追加六十一（对标第四十七轮：判据的"眼睛"之前，先确认它有没有对象可看）
 
 - **新增 G14：采集目录本身必须有正向读数**（`check-cli-entrypoints.mjs`）。G1~G13 全在判"登记/覆盖/风险对不对"，
