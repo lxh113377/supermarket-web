@@ -17,10 +17,7 @@
 > S7/D7 漂移红因升级为 `产物#L行 <sha8>→<sha8>`（`scripts/lib/drift-shape.mjs` 一处实现）·
 > `.gitattributes` + 60 件 renormalize + 新门禁 `verify:eol`（E3 双通道拦下"批读被 maxBuffer 杀 ⇒ 假 0 件"）。
 
-> **P0（下一轮开工先做这条，可执行）**：**R52-H1 让全集面在 CI 里真的量到** —— 本轮 push 之前线上对
-> `getCatalogOrders` 回 403，故目录面在 CI 仍 UNVERIFIED。部署后复算
-> `curl -s -X POST https://supermarket-web.pages.dev/pub -H 'Content-Type: application/json' -d '{"action":"getCatalogOrders"}'`
-> 应回 `{code:0,data:[{order,needsLocalImage}]}`；判据 = 拿一条真下架商品删掉它的图，看 `npm run verify:images` 会不会红。
+> **P0（下一轮开工先做这条，可执行）**：**R52-H1′ 真面演习——下架项缺一张图到底会不会红**。R52-H1 原项本轮已闭环（加 step 后的 job `109051203667` 原文行 `面=seed 54 ∪ 在售 22 ∪ **目录 55**`），但**演习仍未在真面做过一次**：临时把某条下架项的本地件改名 → 跑 `npm run verify:images` 应 rc=1 且点名该号 → 改回。答不出这一条，"下架项可判"就还是纸面结论。
 > 其余 R52-H2/H3 与本轮未做的 R51-H4/H5 全在**卷 88**；用户侧不变项（备份 token 缺、豁免至 2026-10-12）同在该卷。
 
 ## 历史轮次与在途项
