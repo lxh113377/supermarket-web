@@ -352,7 +352,12 @@ def main() -> int:
         print('  (无缺失)')
 
     # ── sm/ 缩略图面（第五十一轮 R51-H3）：与主图**同分母、不同目录**，各出一行分母 ──
-    sm_missing = sm_invalid = []
+    # 两个计数器各自独立：写成 `sm_missing = sm_invalid = []` 会让它们指向同一个列表，于是
+    # 「缺 1 张」被同时记进缺失与无效（合计翻倍），且下面按元组解包 invalid 时直接崩（第五十二轮实测）。
+    sm_missing = []
+    sm_invalid = []
+    # 未量到的面**不许**有一行「没多余」的读数（盲区 ≠ 零，户内 G14 同口径），所以初值取 None 而不是空串。
+    sm_orphan_line = None
     if sm_found is None:
         sm_note = f'sm 面 UNVERIFIED：目录不存在（{SM_DIR}）⇒ 空集不等于零覆盖，不判"全缺"'
     else:
@@ -368,6 +373,13 @@ def main() -> int:
                 sm_invalid.append((order, f.name, size, 'unknown/unreadable format'))
             elif size < SM_MIN_SIZE:
                 sm_invalid.append((order, f.name, size, f'too small (<{SM_MIN_SIZE}B)'))
+        # 反向半边（第五十二轮 R52-H3）：sm/ 里"应有集之外"的件。与主图 orphan 同族 ⇒
+        # **只点名不判红**（删资产是归属决定，判等于逼运营回滚），但必须先能看见 ——
+        # 上一轮这一面完全没有反向腿，于是"sm 里堆了一堆没人引用的旧缩略图"在输出上与"没堆"同形。
+        sm_orphans = sorted(set(sm_found) - set(expected))
+        sm_orphan_line = ('  sm 反向半边：{} 件缩略图不在应有集内（{}）⇒ 请确认是谁在用，或随 seed 一起清'
+                          .format(len(sm_orphans), ', '.join(str(o) for o in sm_orphans[:12]))
+                          if sm_orphans else '  sm 反向半边：无多余缩略图')
         sm_sizes = sorted(p.stat().st_size for p, _ in sm_found.values()) if sm_found else []
         if sm_sizes:
             sm_note = (f'sm 面：{len(sm_found)} 件，实测体积 min={sm_sizes[0]}B '
@@ -398,6 +410,8 @@ def main() -> int:
               '它们的图本轮起进分母（R51-H1 前的盲区）')
     if sm_note:
         print(f'  · {sm_note}')
+    if sm_orphan_line:
+        print(sm_orphan_line)
     print(f'\n⚠️  无主图片 ({len(orphans)}){orphan_qualifier}:')
     for order in orphans:
         print(f'  order {order:2d}: {found_files[order][0].name:20s}（seed 与现网在售都不要它 ⇒ 请确认是谁在用，或改名进 seed）')

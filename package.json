@@ -41,6 +41,7 @@
     "backup:verify": "node scripts/backup-crypto.mjs --verify",
     "report:pr-tests": "node scripts/check-pr-has-tests.mjs",
     "report:catalog": "node scripts/check-catalog-facts.mjs",
+    "report:item-budgets": "node scripts/report-item-budgets.mjs",
     "check:backup-liveness": "node scripts/check-backup-liveness.mjs",
     "check:cron-health": "node scripts/check-cron-health.mjs",
     "check:live-shape": "node scripts/check-live-shape.mjs",

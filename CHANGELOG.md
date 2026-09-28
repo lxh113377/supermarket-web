@@ -4,6 +4,41 @@
 
 ## [未发布]
 
+### 2026-09-29 追加六十六（对标第五十二轮：把反向半边补齐）
+
+- **R52-H1′ 下架项缺图的真面演习**（上一轮只是纸面结论）。一手：`_r52tmp/drill_r52.py` 把
+  `public/images/2.webp`（2 号实测是**真下架项**，目录全集里有它而 seed 没有）临时改名 →
+  `npm run verify:images` 回 `[GATE:drill-pass] 下架项缺图会红，且点名 2 号`（rc=1）→ try/finally 改回并
+  按 sha256 复验字节一致、`复原==HEAD blob: True`。同轮量到全集面自身的构成：**55 = 在售 22 + 下架 33**，
+  而"仅目录面能看到、seed 与在售都不要"的边际集合今天= **空集** ⇒ 这一面的价值是"结构上不再盲"，
+  不是"今天多抓了 N 件"；这句必须写，否则下轮会把 0 误读成"没用"。
+- **R52-H3 `sm/` 反向半边 + 判据自己的两处崩溃**（两条都是本轮真跑抓出来的，非事后补记）：
+  ① `scripts/verify_images.py:355` 写的是 `sm_missing = sm_invalid = []` ⇒ 两个计数器指向**同一个列表**，
+  "缺 1 张缩略图"被同时记进缺失与无效（合计翻倍），且后面按元组解包 ints 时 `TypeError: cannot unpack
+  non-iterable int object`，rc 仍是 1 —— 既有夹具只看 rc + stdout 子串，而 FAIL 行在崩溃**之前**就打印了，
+  所以这条腿**一直是绿的**。修法＝拆成两个列表；② 本轮新加的反向半边把 `sm_orphans` 建在 `else` 分支里、
+  却在分支外构造 `sm_orphan_line` ⇒ `sm: 'nodir'` 时 `UnboundLocalError`（把"没量到"跑成 rc=1），
+  修法＝构造移进 `else`、初值 `None`（未量到的面**不许**印"无多余缩略图"，盲区 ≠ 零）。
+  夹具 25 → 27 腿，含三个变异体（别名复原 / 反向半边恒印"无多余" / 盲区印成"无多余"）逐一命中具名腿，
+  全部断言加 `stderr 不含 Traceback`。真面读数：seed-only 面印 `sm 反向半边：1 件…（55）`，
+  三面并集面印 `无多余缩略图`（55 由目录全集兜进应有集）。
+- **R51-H4 继承项：分项体积预算** `npm run report:item-budgets`（`scripts/report-item-budgets.mjs` +
+  名册 `docs/item-budgets.json`）。与 `check:size` 的聚合三分母互补：那件判首屏合计，这件判**单个 chunk**
+  —— 聚合数不动时单块可以此消彼长（实测最大一块占首屏 76%）。形状借 `GoogleChrome/lighthouse-ci` 的
+  assertions，但**第一版不进 `npm run verify`**（户内规「新指标先量误报率再接闸」），别名故意叫 `report:*`
+  而不是 `verify:*`。四态 + 两条恒等式（`judged + no-budget == 总件数`、`matched + dead == 登记数`），
+  死条目判红（死豁免比缺豁免危险）。真面实测：登记 10 条全匹配、62 件中判 10 / 未登记 52、
+  已判体积 256.2/370.5KB gz；预算一律取实测 ×1.10 向上取整到 100B ⇒ 每项 ≥10% 余量（零余量地板＝冻结增长）。
+  名册里 `measuredAtBuild` 一律写成**字符串**并注明"判据不得读它"，防止把某台机器的一次构建埋成台账基准。
+  夹具 7 腿（含 1B 预算变异体、三挡零输入、真名册结构自证）。
+- **文档追上真相源**（禁反向）：README 单测文件数 108 → **109**（新夹具件）；`docs/doc-commands.json`
+  的 `aliases` 64 → **65**（新别名），并复验生成器幂等（两跑去掉 `observed_utc` 后同 sha `d381e7a78170`）。
+- **本轮踩到的一条工具链坑**（已进 lessons）：为量分项预算按 AGENTS.md 用 `--outDir <fresh-dir>` 建到
+  `.r52build/`，该名字**不在 .gitignore 覆盖面内** ⇒ `npm run lint`（oxlint 默认按 .gitignore 取数）
+  把 62 个 minified 产物算进站面，实测 **3,428 warnings / 1,977 errors** 且判据报"File is too long…
+  seems like a minified file"。删掉临时目录后回到 **0 warnings / 0 errors（290 files）**。
+  ⇒ "沙箱删除层故障期用 fresh-dir"这条纪律要配一句"fresh-dir 的名字必须落在 gitignore 面内"。
+
 ### 2026-09-29 追加六十五（对标第五十一轮：把尺换到 blob 那一侧）
 
 - **R51-H1 现网全集通道（不带密钥）**。一手实测 `functions/lib/actions/products.js:44` 的

@@ -379,8 +379,11 @@ describe('verify:images 的 sm/ 缩略图面（R51-H3：同分母、不同目录
   it('反例：主图齐、缺一张缩略图 ⇒ rc=1 且**按目录点名**（srcSet 会选中不存在的候选图）', () => {
     const r = run(face({ orders: [1, 2, 3], sm: { 1: webp(), 2: webp(), 3: null } }))
     expect(r.status, `缩略图缺口必须拦：${r.stdout.split('\n').slice(-4)}`).toBe(1)
-    expect(r.stdout).toMatch(/\[verify-images\] FAIL 主图齐 3\/3，但 sm 缩略图 缺失 1/)
+    expect(r.stdout).toMatch(/\[verify-images\] FAIL 主图齐 3\/3，但 sm 缩略图 缺失 1 \/ 无效 0 ⇒ 合计 1 件/)
     expect(r.stdout).toContain('sm 缺失 orders: [3]')
+    // 崩溃也会给 rc=1（M4 三挡里"其余=CRASH"这挡）：FAIL 行在崩溃前就打印出去了，所以只看
+    // rc + stdout 子串会放绿灯。这条断言把"判据跑完了"和"判据崩了"分开。
+    expect(r.stderr, `判据不该抛异常：${r.stderr.split('\n').slice(0, 3).join(' | ')}`).not.toMatch(/Traceback/)
   })
 
   it('反例：缩略图够格当图但小到可疑（低于实测地板 2048B）⇒ 计入无效', () => {
@@ -388,6 +391,10 @@ describe('verify:images 的 sm/ 缩略图面（R51-H3：同分母、不同目录
     const r = run(face({ orders: [1, 2, 3], sm: { 1: webp(), 2: webp(), 3: tiny } }))
     expect(r.status).toBe(1)
     expect(r.stdout).toContain('too small')
+    // 与上一条配对：无效 1 时缺失必须**是 0**（别名缺陷的症状正是两侧同时 +1）
+    expect(r.stdout).toMatch(/sm 缩略图 缺失 0 \/ 无效 1 ⇒ 合计 1 件/)
+    expect(r.stdout).not.toContain('sm 缺失 orders:')
+    expect(r.stderr, `判据不该抛异常：${r.stderr.split('\n').slice(0, 3).join(' | ')}`).not.toMatch(/Traceback/)
   })
 
   it('边界：主图面全绿但 sm 目录整个失踪 ⇒ rc=2 UNVERIFIED，**不得**印成 OK（半边没量 ≠ 两半都过）', () => {
@@ -395,12 +402,36 @@ describe('verify:images 的 sm/ 缩略图面（R51-H3：同分母、不同目录
     expect(r.status, r.stdout.split('\n').slice(-2).join(' / ')).toBe(2)
     expect(r.stdout).toContain('UNVERIFIED 主图 3/3 全绿，但缩略图面没量到')
     expect(r.stdout).not.toMatch(/\[verify-images\] OK/)
+    // 这一面根本没量到 ⇒ 连"无多余缩略图"都不许印（盲区 ≠ 零）。轮52 的 UnboundLocalError
+    // 就是在这条腿上暴露的：构造行写在 else 外面，没量到时读不到变量直接崩，rc 仍是 1。
+    expect(r.stdout).not.toContain('sm 反向半边')
   })
 
   it('正向 + 分母自证：sm 件数与主图面各出一行，且实测最小值对地板有余量', () => {
     const r = run(face())
     expect(r.status, r.stdout + r.stderr).toBe(0)
     expect(r.stdout).toMatch(/sm 面：3 件，实测体积 min=\d+B 对地板 2048B 余 \d+B/)
+    // 镜像面 ⇒ 不该有"多余缩略图"。这条是下面反向腿的对照组：没有它，"恒印无多余"与
+    // "这一面根本没走"在输出上长得一样。
+    expect(r.stdout).toContain('sm 反向半边：无多余缩略图')
+    expect(r.stderr).not.toMatch(/Traceback/)
+  })
+
+  it('R52-H3 反向半边：sm/ 里多一件没人引用的缩略图 ⇒ 点名但**不判红**（删资产是归属决定）', () => {
+    const r = run(face({ orders: [1, 2, 3], sm: { 1: webp(), 2: webp(), 3: webp(), 9: webp() } }))
+    expect(r.status, '只点名不该拦：' + r.stdout.split('\n').slice(-2)).toBe(0)
+    expect(r.stdout).toContain('sm 反向半边：1 件缩略图不在应有集内（9）')
+    expect(r.stdout).toMatch(/\[verify-images\] OK 主图 3\/3 \+ 缩略图 3\/3 全部有效/)
+  })
+
+  it('R52-H3 双分母：主图与缩略图各有各的缺口计数，不许合成一个数（两半同形=看不见）', () => {
+    // 主图缺 4、sm 缺 4 且多 9 ⇒ 两面各自的数必须同时成立
+    const r = run(face({ orders: [1, 2, 3, 4], images: { 1: webp(), 2: webp(), 3: webp(), 4: null },
+      sm: { 1: webp(), 2: webp(), 3: webp(), 9: webp() } }))
+    expect(r.status, r.stdout.split('\n').slice(-2).join(' / ')).toBe(1)
+    expect(r.stdout).toMatch(/缺失图片 \(1\/4\)/)
+    expect(r.stdout).not.toContain('sm 反向半边：无多余缩略图')
+    expect(r.stdout).toContain('sm 反向半边：1 件缩略图不在应有集内（9）')
   })
 })
 
