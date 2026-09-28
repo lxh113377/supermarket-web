@@ -59,6 +59,12 @@
 - 验证：`npx vitest run tests/verifyImages.test.js` 8 passed、`tests/stagedSyntax.test.js` 6 passed、
   `tests/cliEntrypoints.test.js` 161 passed、`check:doc-commands` 6/6 GREEN、`verify:docs` OK 7 项（单测文件数 107）、
   `verify:backend` 152 通过、`npm run verify` **rc=0**（第三跑）。
+- **收尾补一条：CI 侧接线已由远端回执证实**（此前只在**本机**证明过 `verify:images` 能红）。
+  push `ce9431e` 时 pre-push 闸现读 `run 36394668910@ce9431e 全绿`，再按 step 复读：
+  `Set up Python (product image assets gate)`、`Product image assets gate (npm run verify:images)` 与它的 Post 步骤
+  均 `success`，五个必需 job 全绿 ⇒ "接进 CI"不再是一句本机断言。
+  还缺的那一半同样记下：**没做过"注入缺图 ⇒ 该步必 fail"的 CI 侧演习**，所以"能红"目前只有本机一份证据
+  （已改立为 R49-H1；`tests/ciWorkflow.test.ts` 31 passed 是修完 SHA 钉法之后的复跑）。
 
 ### 2026-09-28 追加六十一（对标第四十七轮：判据的"眼睛"之前，先确认它有没有对象可看）
 

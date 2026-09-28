@@ -20,9 +20,9 @@
 > **计划外 H4（机器型落点）**：`scripts/check-staged-syntax.mjs` 进 `pre-commit`——判 **index 里的 blob**、盲区明说、
 > 非工作树 rc=2；起因是同一个编辑形态我四轮犯满 4 次，而它以前要等全链 verify 或一整条 CI 才现形。
 
-> **P0（下一轮开工先做这条，可执行）**：**R49-H1 先取 CI 回执再宣称接线** —— 本轮只在**本机**证明 `verify:images` 能红
-> （四档 rc 全部实测），Linux runner 那步 `Product image assets gate` + setup-python **还没读到结论**：
-> `gh api repos/lxh113377/supermarket-web/actions/runs/<newest>/jobs` 看该 step 的 conclusion，读不到就记未验证。
+> **P0（下一轮开工先做这条，可执行）**：**R49-H1 本轮收尾已取到 CI 回执** —— run `36394668910@ce9431e` 里
+> `Set up Python (product image assets gate)` 与 `Product image assets gate (npm run verify:images)` 两步均 `success`、
+> 五必需 job 全绿 ⇒ 接线成立。**新 H1 改为 CI 侧演习**：注入一件缺图 ⇒ 该步必须 fail（"能红"目前只有本机一份证据）。
 > **R49-H2 `docs/doc-commands.json` 的 `counts` 是带 `observed_utc` 的快照，不是现值**：本轮实测 registry 196 / 当场 202。
 > 我曾想加 D7 逼 `--update` 同步，**自己否证了**——没有判据或文档消费它，加闸只制造无意义的生成件提交。
 > 正解＝note 字段写明"as-of 快照，禁引用为现值"，再 grep 谁把它当现值抄走。
