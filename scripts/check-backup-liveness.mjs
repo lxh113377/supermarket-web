@@ -43,6 +43,41 @@ export const BACKUP_UPLOAD_RULE = /name:\s*d1-backup(?:-enc)?-\$\{\{\s*github\.r
 export const PLAIN_UPLOAD_GUARD = /if:[^\n]*mode == 'plaintext'/
 
 /**
+ * 从已抓到的步骤形态反推"缺哪个 secret"，把 FAIL 从"去看注释"升级成"照这条做"。
+ * 只报证据支持的结论：取不到步骤明细就老实说取不到，不猜。
+ */
+function diagnoseSecrets(runs) {
+  const withSteps = runs.filter((r) => Array.isArray(r.steps) && r.steps.length)
+  if (!withSteps.length) {
+    return '｜诊断：窗口内没有一份步骤明细，无法判断卡在哪个环节（这本身是失明，不是"没问题"）'
+  }
+  const stepOf = (r, re) => (r.steps || []).find((s) => re.test(s.name || ''))
+  const exportSkipped = withSteps.filter((r) => {
+    const s = stepOf(r, /Export remote D1/i)
+    return s && s.conclusion === 'skipped'
+  })
+  const exportRan = withSteps.filter((r) => {
+    const s = stepOf(r, /Export remote D1/i)
+    return s && s.conclusion === 'success'
+  })
+  const refuseFired = withSteps.filter((r) => (r.steps || []).some(
+    (s) => /Fail loudly|refuse/i.test(s.name || '') && s.conclusion === 'failure'))
+  const parts = []
+  if (exportSkipped.length === withSteps.length) {
+    parts.push(`全部 ${exportSkipped.length} 次的「Export remote D1」都是 skipped`
+      + ' ⇒ 缺 **CF_D1_BACKUP_TOKEN**（需 D1:Read 的 Cloudflare API Token）：没 token 就根本没导出，'
+      + '后面所有步骤都是空转')
+  } else if (exportRan.length && refuseFired.length) {
+    parts.push(`导出真跑过 ${exportRan.length} 次，但可见性守卫拒绝落明文产物（"Fail loudly" 触发 ${refuseFired.length} 次）`
+      + ' ⇒ 缺 **BACKUP_PASSPHRASE**：本仓是 public，第三十七轮的三态守卫在无口令时故意判红，'
+      + '不静默降级成明文上传')
+  } else if (exportRan.length) {
+    parts.push(`导出真跑过 ${exportRan.length} 次却没有一件合格产物 ⇒ 卡在导出之后的环节（加密或上传步），需去 Actions 看该步`)
+  }
+  return parts.length ? '｜诊断：' + parts.join('；') : ''
+}
+
+/**
  * runs: [{ id, createdAt, conclusion, event, artifactCount, steps? }]
  * mode: 'backup'（默认，要求产物与导出步骤）| 'presence'（只判"这个 cron 最近真跑成功过"，
  *       用于自动化链互指：备份链反查巡检链是否还活着）
@@ -101,9 +136,21 @@ export function judgeLiveness({ runs, nowMs, maxAgeDays = 2, exempt = false, mod
   }
 
   if (!good) {
-    problems.push(mode === 'presence'
-      ? '窗口内没有任何一次成功的 scheduled run ⇒ 该 cron 很可能已停摆（GitHub 对 public 仓"60 天无仓库活动自动禁用 schedule"是官方行为）'
-      : `最近 ${runs.length} 次 run 里**没有任何一次**满足"导出步骤 success + artifact ≥ 1 + run success" ⇒ 生产库从未被这条链备份过`)
+    if (mode === 'presence') {
+      problems.push('窗口内没有任何一次成功的 scheduled run ⇒ 该 cron 很可能已停摆（GitHub 对 public 仓"60 天无仓库活动自动禁用 schedule"是官方行为）')
+    } else {
+      // 措辞必须被证据撑住：本判据只看得到 lookback 窗口内扫到的这 N 次 run，
+      // 旧版据此下"生产库**从未**被这条链备份过"的结论＝把"窗口内没看到"说成"从来没发生过"
+      // （同族教训：盲区不是零 / 未到期不是否证）。窗口外的历史本判据无从得知，就只能不写。
+      const span = runs.length >= 2
+        ? `${runs[runs.length - 1].createdAt?.slice(0, 10)} ~ ${runs[0].createdAt?.slice(0, 10)}`
+        : String(runs[0].createdAt?.slice(0, 10))
+      problems.push(
+        `本判据可见的窗口（最近 ${runs.length} 次 run，${span}，lookback ${lookbackDays} 天）内`
+        + `**没有任何一次**满足"导出步骤 success + artifact ≥ 1 + run success"`
+        + ` ⇒ 窗口内没有任何一次备份产物可核对（窗口外是否曾成功，本判据看不见，不下结论）`
+        + diagnoseSecrets(runs))
+    }
   } else if (Number.isFinite(nowMs)) {
     const then = Date.parse(good.createdAt)
     if (!Number.isFinite(then)) problems.push(`成功 run 的时间戳解不出来：${JSON.stringify(good.createdAt)} ⇒ 无法证新鲜度，按不通过处理`)

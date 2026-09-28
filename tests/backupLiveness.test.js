@@ -28,9 +28,14 @@ describe('judgeLiveness：产物才算数，conclusion 不算', () => {
     expect(r.problems).toEqual([])
     expect(r.good).toBeTruthy()
   })
-  it('实测反例：success 但 0 artifact、步骤全 skipped ⇒ 判"从未被这条链备份过"，并给出恒绿警告', () => {
+  it('实测反例：success 但 0 artifact、步骤全 skipped ⇒ 判"窗口内无可核对备份"，并给出恒绿警告', () => {
     const r = judge([realRun(), realRun({ id: 2, createdAt: dayAgo(0.4) })])
-    expect(r.problems.join()).toContain('从未被这条链备份过')
+    const p = r.problems.join()
+    // 措辞必须被证据撑住：本判据只看得见 lookback 窗口内的 run。
+    // 旧版据此下"生产库**从未**被这条链备份过"＝把"窗口内没看到"说成"从来没发生过"（盲区不是零）。
+    expect(p).toContain('窗口内没有任何一次备份产物可核对')
+    expect(p).not.toContain('从未被这条链备份过')
+    expect(p).toContain('窗口外是否曾成功，本判据看不见，不下结论')
     expect(r.warnings.join()).toContain('恒绿空转')
     expect(r.good).toBe(null)
   })
@@ -49,7 +54,7 @@ describe('judgeLiveness：产物才算数，conclusion 不算', () => {
   })
   it('artifact 有但导出步骤是 skipped ⇒ 不算好（步骤与产物要同时成立）', () => {
     const r = judge([realRun({ artifactCount: 1 })])
-    expect(r.problems.join()).toContain('从未被这条链备份过')
+    expect(r.problems.join()).toContain('窗口内没有任何一次备份产物可核对')
   })
   it('无步骤数据时不退化成假红（list 接口本来不给 steps）', () => {
     const r = judge([{ id: 9, event: 'schedule', createdAt: dayAgo(0.2), conclusion: 'success', artifactCount: 2 }])
@@ -59,7 +64,7 @@ describe('judgeLiveness：产物才算数，conclusion 不算', () => {
     const r = judge([realRun()], { exempt: true })
     expect(r.problems).toEqual([])
     expect(r.warnings.join()).toContain('已豁免')
-    expect(r.warnings.join()).toContain('从未被这条链备份过')
+    expect(r.warnings.join()).toContain('没有产出可核对的备份证据')
   })
 })
 
@@ -163,5 +168,41 @@ describe('第三十七轮：有产物 ≠ 有备份（产物名字必须像备�
   it('明文产物名同样被认（private 仓那条路没被改名改丢）', () => {
     const r = judge([realRun({ artifactCount: 1, artifactNames: ['d1-backup-77'], steps: goodSteps })])
     expect(r.good).toBeTruthy()
+  })
+})
+
+describe('诊断段：FAIL 必须点名缺哪个 secret，而不是把人支去读 YAML 注释', () => {
+  const noExport = [step('Export remote D1', 'skipped'), step('Upload backup artifact (encrypted · non-private repo)', 'skipped')]
+  const exportRanButRefused = [
+    step('Export remote D1', 'success'),
+    step('Fail loudly instead of reporting a green no-op', 'failure'),
+    step('Encrypt dump before it leaves the runner', 'skipped'),
+  ]
+  it('导出步全 skipped ⇒ 点名 CF_D1_BACKUP_TOKEN（本轮线上实测就是这个形态）', () => {
+    const r = judge([realRun({ steps: noExport })])
+    expect(r.problems.join()).toContain('CF_D1_BACKUP_TOKEN')
+    expect(r.problems.join()).not.toContain('BACKUP_PASSPHRASE')
+  })
+  it('导出真跑过但守卫拒绝 ⇒ 点名 BACKUP_PASSPHRASE（public 仓无口令时故意判红）', () => {
+    const r = judge([realRun({ steps: exportRanButRefused })])
+    expect(r.problems.join()).toContain('BACKUP_PASSPHRASE')
+    expect(r.problems.join()).not.toContain('CF_D1_BACKUP_TOKEN')
+  })
+  it('完全没有步骤明细 ⇒ 诊断必须自承失明，不许猜一个 secret', () => {
+    const r = judgeLiveness({
+      runs: [{ id: 5, event: 'schedule', createdAt: dayAgo(0.2), conclusion: 'failure', artifactCount: 0 }],
+      nowMs: NOW, lookbackDays: 4,
+    })
+    const p = r.problems.join()
+    expect(p).toContain('无法判断卡在哪个环节')
+    expect(p).not.toContain('CF_D1_BACKUP_TOKEN')
+    expect(p).not.toContain('BACKUP_PASSPHRASE')
+  })
+  it('反向腿：真有合格备份时不得出现诊断段（防诊断话术挂在绿结论上冒充证据）', () => {
+    const okSteps = [step('Export remote D1', 'success'), step('Upload backup artifact (encrypted · non-private repo)', 'success')]
+    const r = judge([realRun({ artifactCount: 1, artifactNames: ['d1-backup-enc-9'], steps: okSteps })])
+    expect(r.problems).toEqual([])
+    expect(r.good).toBeTruthy()
+    expect(r.problems.join() + r.warnings.join()).not.toContain('诊断')
   })
 })
