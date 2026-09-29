@@ -1,0 +1,37 @@
+{
+  "$comment": "「件 → 语句数」换算册 —— `npm run verify:limits` 的 C10 腿的输入。它只管一件事：**登记成「一次批量几件」的上限，换算成 D1「每次调用几条查询」之后有没有爆预算**。",
+  "whyThisExists": "第五十七轮 R57-H2。原 C5 拿登记值（件数）直接和 `d1_queries_per_invocation_free.max=50`（每调用查询数）比大小，量纲不同：`BATCH_UPDATE_MAX` 就算写成 45（按 1+2n 已是 91 条，早爆 50），C5 仍看 45≤50 判绿。本册把这一层补成可判的，同时**给 C5 的文案加了量纲自白**，免得它的绿被读成「预算安全」。",
+  "unit": "fixed/perItem 单位＝条语句；fixtureN/cap 单位＝件；fact 取 `scripts/check-limit-provenance.mjs` 的 PLATFORM_FACTS 键",
+  "keyGrammar": "键必须逐字等于登记册 `docs/limit-provenance.md` 那行的 `文件#形状#常量名=值`（与 C2/C4 同一把尺）。值改了键也变，所以**改上限必须同笔改本册**——漏改就是 S3 缺账红 + S4 幽灵红各一条，点名到键。",
+  "provenance": {
+    "whoWrites_perItem_and_fixtureN": "perItem/fixed 不是拍出来的数：C10 的 S1 要求 `fixed + perItem × fixtureN` **逐字等于** `docs/sql-baseline.json` 里 `actionKey` 的当场实测峰值（那份峰值由 `npm run verify:backend -- --update-sql-baseline` 从真调用里量出来，不由本册写）。所以把 perItem 从 2 改成 1 会当场复算不出 5 ⇒ 判红。",
+    "knownLimitation": "诚实登记：本册仍是「声明式」的——`actionKey` 与 `fixtureN` 由人指认，脚本不会自己去发现「哪个上限对应哪个 action」。它挡住的是**写错换算式**（复算不过实测），挡不住**故意同时伪造 fixtureN 与 perItem 让等式成立**。要连这个也挡住，得让 roundtrip 判据把每 action 的 `stSlope` 也生成进实测件（已在报告 §5 登记为 R58 候选，本轮不做：那会改动第二个判据的产物面，超出一次可归因改动的边界）。",
+    "measuredAt": "A:batchUpdateProducts 峰值 5（n=2）取自 2026-09-30 00:5x `--update-sql-baseline` 的当场输出；E7 之前该键是 3（口径 1+n）。"
+  },
+  "rows": {
+    "functions/lib/actions/products.js#常量#BATCH_UPDATE_MAX=20": {
+      "fact": "d1_queries_per_invocation_free",
+      "fixed": 1,
+      "perItem": 2,
+      "actionKey": "A:batchUpdateProducts",
+      "fixtureN": 2,
+      "why": "1 条预读 IN SELECT（只在有商品带 stock 时才发，最坏必发）+ 每件 1 条守卫式 UPDATE + 改到库存时 1 条流水 INSERT ⇒ 最坏 1+2n。20 ⇒ 41 条，留 9 条给鉴权/限流/审计。"
+    },
+    "src/auth.ts#常量#BATCH_UPDATE_CHUNK=20": {
+      "fact": "d1_queries_per_invocation_free",
+      "fixed": 1,
+      "perItem": 2,
+      "actionKey": "A:batchUpdateProducts",
+      "fixtureN": 2,
+      "why": "前端分片必须与服务端同值（同一批语句数），换算式与上面那条同源；两侧等值由 tests/batchChunkContract.test.js 钉住，本册只负责它有没有被换算核过预算。"
+    },
+    "functions/lib/actions/products.js#常量上限#BATCH_UPDATE_MAX": {
+      "fact": "d1_queries_per_invocation_free",
+      "fixed": 1,
+      "perItem": 2,
+      "actionKey": "A:batchUpdateProducts",
+      "fixtureN": 2,
+      "why": "同一个常量的**另一种形状**（使用点 `items.length > BATCH_UPDATE_MAX` 被普查成「常量上限」行，键里不带值）⇒ 三行同事实，换算条目也得各带一条。C10 上线当轮就是这一行先报「没登记换算条目」，才把上一轮漏改的 `1+n、n=40` 那句旧推导翻出来（见 C11）。"
+    }
+  }
+}

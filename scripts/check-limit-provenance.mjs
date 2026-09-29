@@ -20,6 +20,9 @@ const require = createRequire(import.meta.url)
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
 const REGISTRY = 'docs/limit-provenance.md'
+// C10 的两份输入（第五十七轮 R57-H2 新增）。峰值册是**判据自己生成的实测件**，本判据只读不写。
+const SCALING = 'docs/limit-scaling.json'
+const SQL_PEAKS = 'docs/sql-baseline.json'
 
 // 缺输入面先收口，且必须排在 require('@babel/parser') **之前**：在没有 node_modules 的目录里跑，
 // 原来第一行输出是 MODULE_NOT_FOUND 的裸栈（第二十五轮实测的 8 个崩栈门禁之一）。
@@ -290,7 +293,41 @@ export function imageCapGaps(sources) {
 }
 
 /** 判据核心（纯函数，喂任意输入即可反证；同第十四/十五轮口径）。 */
-export function evaluate({ items, rows, planRegistered, parseErrors, sources }) {
+/**
+ * 取一行的"实际数值"。`常量`/`截断型` 那类形状把数字写在键里（`BATCH_UPDATE_MAX=20`），
+ * 而 `常量上限`/`截断上限` 只写常量名（值在源码里）⇒ 早期实现统一 `replace(/[^\d]/g,'')`，
+ * 后者于是得到 0，`1+2×0=1 ≤ 50` 一路放过（第五十七轮 C10 首稿就是这形态，被自己的 M1 反例照出来才发现）。
+ * 现在：键里有数字用数字；没有就去**本行那个文件**里找 `const NAME = <n>`，找不到再回落到整个取数面；
+ * 两处都没有 ⇒ 返回 null，由调用方具名判红，绝不按 0 通过。
+ * @returns {number|null}
+ */
+export function capValueOf(row, sources) {
+  const fromKey = Number(String(row.value).replace(/[^\d]/g, ''))
+  if (Number.isFinite(fromKey) && String(row.value).replace(/[^\d]/g, '') !== '') return fromKey
+  const name = String(row.value).replace(/[^\w]/g, '')
+  if (!name) return null
+  const re = new RegExp(`\\b(?:export\\s+)?const\\s+${name}\\s*=\\s*(\\d+)\\b`)
+  const own = (sources || []).filter((s) => s.rel === row.file)
+  for (const pool of [own, sources || []]) {
+    const vals = [...new Set(pool.map((s) => s.code.match(new RegExp(re.source, 'g')) || []).flat()
+      .map((m) => Number(re.exec(m)[1]))) ]
+    if (vals.length === 1) return vals[0]
+    if (vals.length > 1) return null // 同作用域多套值：宁可判红让人来收敛，不猜一个
+  }
+  return null
+}
+
+/** 找一行「定义 = <n>」断言在盘上的对应值；作用域规则同 capValueOf（本文件优先，再回落整面）。 */
+function definitionValue(row, sources) {
+  const name = String(row.value).replace(/[^\w]/g, '')
+  const own = (sources || []).filter((s) => s.rel === row.file)
+  const pool = own.length ? own : (sources || [])
+  const re = new RegExp(`\\b(?:export\\s+)?const\\s+${name}\\s*=\\s*(\\d+)\\b`)
+  const vals = [...new Set(pool.map((s) => s.code.match(new RegExp(re.source, 'g')) || []).flat().map((m) => Number(re.exec(m)[1])))]
+  return { name, values: vals, scope: own.length ? row.file : '整个取数面' }
+}
+
+export function evaluate({ items, rows, planRegistered, parseErrors, sources, scaling, sqlPeak }) {
   const out = []
   const push = (id, cond, label, detail) => out.push({ id, ok: Boolean(cond), label, detail })
   const keyOf = (r) => `${r.file}#${r.shape}#${r.value}`
@@ -314,7 +351,11 @@ export function evaluate({ items, rows, planRegistered, parseErrors, sources }) 
   push('C4', dead.length === 0, 'C4 登记册无死行（源码已无该上限）',
     dead.length ? `死行: ${dead.slice(0, 5).map((d) => keyOf(d)).join(', ')}` : `${rows.length} 行全部对得上现状`)
 
-  // C5：声称受平台约束的行，必须点名是哪个事实，且值不得超过该事实
+  // C5：声称受平台约束的行，必须点名是哪个事实，且**字面值**不得超过该事实。
+  // ⚠️ 量纲自白（第五十七轮 R57-H2）：本条比的是"登记值 ⇄ 事实上限"，两边**只在同量纲时才有意义**。
+  //   `d1_statement_bytes`/`sqlite_bound_params` 这类行的值本身就是字节/参数数 ⇒ 比得对；
+  //   而 `d1_queries_per_invocation_*` 的事实单位是**每次调用的查询数**，登记值却是**一次批量几件**
+  //   ⇒ n=45（按 1+2n 已 91 条，早爆 50）在 C5 眼里仍是绿。那一层交给 **C10 换算核**，别把本条的绿读成"预算安全"。
   const bad = []
   for (const r of rows.filter((x) => x.kind === 'platform')) {
     const fact = /\b([a-z_]+(?:_free|_paid|_ms|_bytes|_params|_invocation)?)\b/.exec(r.basis)
@@ -325,8 +366,83 @@ export function evaluate({ items, rows, planRegistered, parseErrors, sources }) 
     if (num > PLATFORM_FACTS[known].max) bad.push(`${keyOf(r)} 值 ${num} 超过 ${known} 上限 ${PLATFORM_FACTS[known].max}（${PLATFORM_FACTS[known].unit}）`)
     if (fact && fact[1] === known) continue
   }
-  push('C5', bad.length === 0, 'C5 平台耦合值不得超过所引事实',
-    bad.length ? bad.join('；') : `${rows.filter((x) => x.kind === 'platform').length} 行 platform 类均在预算内`)
+  push('C5', bad.length === 0, 'C5 平台耦合值的字面值不得超过所引事实（换算量由 C10 核）',
+    bad.length ? bad.join('；')
+      : `${rows.filter((x) => x.kind === 'platform').length} 行 platform 类字面值均在所引事实内（本条**不比**件→语句那一层，见 C10）`)
+
+  // C10（第五十七轮 R57-H2）：批量件数类上限必须按「件 → 语句数」换算后再对预算，
+  // 且换算式必须能复现实测峰值——两个条件合起来才把 C5 的量纲窟窿堵上：
+  //   S1 复算：fixed + perItem × fixtureN == docs/sql-baseline.json 里该 action 的当场实测峰值
+  //      ⇒ perItem 不许随手写（写 1 复算不出 5，当场红）
+  //   S2 预算：fixed + perItem × 登记件数上限 <= 事实上限 ⇒ 红因印出可复算过程（不只报"超限"）
+  //   S3 缺账：在册 platform 行引用了 d1_queries_per_invocation_* 却没有换算条目 ⇒ 红
+  //   S4 幽灵：换算条目对不上任何在册行 ⇒ 红（借本仓 R4「对不上登记键的例外必须删」同一形状）
+  // 零输入一律 UNVERIFIED：换算册/峰值册读不到时绝不折算成"没有换算需求"（户内「读不动 ≠ 结论为否」）。
+  const qFacts = new Set(['d1_queries_per_invocation_free', 'd1_queries_per_invocation_paid'])
+  const needScale = rows.filter((r) => r.kind === 'platform' && [...qFacts].some((f) => (r.basis || '').includes(f)))
+  const scaleRows = scaling && typeof scaling === 'object' ? scaling.rows || {} : null
+  const peaks = sqlPeak && sqlPeak.peakStatements ? sqlPeak.peakStatements : null
+  if (!scaleRows || !peaks) {
+    push('C10', false, 'C10 件数上限按换算核预算（换算式须复现实测峰值且不超预算）',
+      `UNVERIFIED：换算册${scaleRows ? '在' : '读不到'}、SQL 峰值册${peaks ? '在' : '读不到'}`
+        + `⇒ ${needScale.length} 行需要换算却没有对象可核；"取不到"不折算成"不需要"（rc=2 语义，先修取数链）`)
+  } else {
+    const s10 = []
+    for (const [key, e] of Object.entries(scaleRows)) {
+      const row = byKey.get(key)
+      if (!row) { s10.push(`幽灵换算行 ${key}（登记册里没有这个键；例外册同规：对不上登记键必须删）`); continue }
+      if (!qFacts.has(e.fact)) { s10.push(`${key} 的 fact=${e.fact} 不是每调用查询数类事实 ⇒ 本册只管量纲会错的那一类`); continue }
+      const peak = peaks[e.actionKey]
+      const n = Number(e.fixtureN), fx = Number(e.fixed), per = Number(e.perItem)
+      if (!Number.isInteger(fx) || fx < 0 || !Number.isInteger(per) || per < 1 || !Number.isInteger(n) || n < 1) {
+        s10.push(`${key} 换算参数非法（fixed=${e.fact ? e.fixed : '?'} perItem=${e.perItem} fixtureN=${e.fixtureN}；perItem 必须 ≥1 的整数）`); continue
+      }
+      if (peak === undefined) { s10.push(`${key} 指向的 ${e.actionKey} 不在 SQL 峰值册里 ⇒ 换算式无从复算`); continue }
+      const rec = fx + per * n
+      if (rec !== peak) s10.push(`${key} 换算式复算不出实测峰值：${fx}+${per}×${n}=${rec}，而 ${e.actionKey} 当场实测峰值=${peak} ⇒ 公式与测量已脱节（改公式或重测，别改峰值）`)
+      const cap = capValueOf(row, sources)
+      if (cap === null) { s10.push(`${key} 换算条目对的那行是「${row.shape}」形状（键里不带数字），却从盘上解析不到 ${row.value} 的定义值 ⇒ 无从换算，不许按 0 件放过`); continue }
+      const used = fx + per * cap
+      const budget = PLATFORM_FACTS[e.fact].max
+      if (used > budget) s10.push(`${key} 值 ${cap} 件 ⇒ ${fx}+${per}×${cap}=${used} 条 > ${e.fact} 预算 ${budget}（C5 只看字面值 ${cap}≤${budget} 所以它拦不住这件事）`)
+    }
+    for (const r of needScale) {
+      if (!Object.prototype.hasOwnProperty.call(scaleRows, keyOf(r))) {
+        s10.push(`${keyOf(r)} 引用了每调用查询数事实却没登记「件→语句」换算条目 ⇒ C5 只能拿件数硬比 50，量纲错位没人管`)
+      }
+    }
+    push('C10', s10.length === 0, 'C10 件数上限按换算核预算（换算式须复现实测峰值且不超预算）',
+      s10.length ? s10.join('；')
+        : `换算核 ${Object.keys(scaleRows).length} 条（对 ${needScale.length} 行需求）：公式复现实测峰值、换算后语句数均在预算内；红因会印出 a+b×n 全过程`)
+  }
+
+  // C11（第五十七轮，由 C10 上线当轮的一次意外命中立起来）：`常量上限`/`截断上限` 那类行的键里**没有值**
+  // （值存在依据散文里，形如「定义 :153 = 40」），所以 C2/C4 的逐键对账看不见这个数字 ——
+  // 上一轮把 BATCH_UPDATE_MAX 从 40 降到 20 时，同名的「常量」行改了、「常量上限」行没改，
+  // 于是登记册里同时存在两句互相矛盾的推导（一句 1+2n⇒20，一句 1+n⇒40 且"41<50 安全"），全链 11 条判据一声不吭。
+  // ⚠️ **只核值，不核行号**（本版第二稿，第一次上线就被实测否证）：初稿把 `:行` 也当断言核，
+  //   当轮多抓两条"行号漂移而值全对"（SPEC_OPTION_LIMIT :88→131、MAX_REVIEW_IMAGES :14→15）——
+  //   任何一次无关的上方编辑都会重演，那是**维护债不是缺陷**（户内「存量欠账锚整行指纹不锚行号」同族）。
+  //   正解＝散文里不写绝对行号（写了就没人负责维持它），值仍是硬断言：改定义不改此句 ⇒ 当场红。
+  const defClaim = /定义\s*(?::\s*\d+\s*)?=\s*(\d+)/
+  const c11 = []
+  let c11Checked = 0
+  for (const r of rows.filter((x) => NAME_VALUED_SHAPES.has(x.shape))) {
+    const m = defClaim.exec(r.basis || '')
+    if (!m) continue // 只核"写了的断言"。要求每行都必须写会造出永红：常量定义在别的文件（shared.js 那一族），
+                    // 消费侧行根本没有"本文件定义"可写 —— 门禁不能逼人写假话（户内「门禁形状必须容纳真话」）。
+    const claimed = Number(m[1])
+    // 作用域跟着**断言的主语**走（本行那个文件优先，没有才回落整面），与 C10 共用 definitionValue 一把尺。
+    // 反例实测（本版第一稿）：一律按整面找 ⇒ `PAGE_SIZE` 在 OrdersTab.tsx=20 与 db/orders.ts=100
+    // 是两个各自合法的模块内常量，被误报成"同名不同值，先收敛定义"。
+    const { name, values, scope } = definitionValue(r, sources)
+    c11Checked++
+    if (!values.length) { c11.push(`${keyOf(r)} 写「定义 = ${claimed}」，但 ${scope} 里找不到 ${name} 的数字定义 ⇒ 悬空断言`); continue }
+    if (values.length > 1) { c11.push(`${keyOf(r)} 的作用域（${scope}）里 ${name} 有多套值 [${values.join(', ')}] ⇒ 同一作用域重复定义，本行无从对账，先收敛`); continue }
+    if (values[0] !== claimed) c11.push(`${keyOf(r)} 依据写「定义 = ${claimed}」而盘上是 ${name} = ${values[0]} ⇒ 同名常量有两种形状（常量 / 常量上限）时，改值必须同笔改所有引用它的那几行`)
+  }
+  push('C11', c11.length === 0, 'C11 依据里的「定义 = 值」必须与盘上定义相等（行号不作断言）',
+    c11.length ? c11.join('；') : `${c11Checked} 条写了定义断言的行与盘上相符（值唯一对上；绝对行号已撤出断言，理由见代码注）`)
 
   // C6：档位假设必须登记（Free 50 / Paid 1000 差 20 倍，不登记就没法判"这个值到底安不安全"）
   const needsPlan = rows.some((r) => /d1_queries_per_invocation/.test(r.basis))
@@ -387,6 +503,12 @@ export function loadAll() {
   const items = census(sources, (msg) => parseErrors.push(msg))
   let rows = []
   try { rows = parseRegistry(readFileSync(join(root, REGISTRY), 'utf8')) } catch { rows = [] }
+  // C10 的两份输入：换算册（人写"哪件上限对应哪个被测 action"）+ SQL 峰值册（判据当场实测生成，非手填）。
+  // 两者都**不吞异常**：读不到就交 null，由 C10 自己判 UNVERIFIED —— 静默兜底会把"没读到"说成"没需求"。
+  let scaling = null
+  try { scaling = JSON.parse(readFileSync(join(root, SCALING), 'utf8')) } catch { scaling = null }
+  let sqlPeak = null
+  try { sqlPeak = JSON.parse(readFileSync(join(root, SQL_PEAKS), 'utf8')) } catch { sqlPeak = null }
   let planRegistered = ''
   try {
     // 档位登记在 limits 册自己那节里，不放 docs/env-vars.md：
@@ -396,12 +518,16 @@ export function loadAll() {
     if (/paid/i.test(row)) planRegistered = 'Paid(1000)'
     else if (/free/i.test(row)) planRegistered = 'Free(50)'
   } catch { /* 缺文件由 C6 判红 */ }
-  return { items, rows, planRegistered, parseErrors, sources }
+  return { items, rows, planRegistered, parseErrors, sources, scaling, sqlPeak }
 }
 
 
 async function main() {
-  const { items, rows, planRegistered, parseErrors, sources } = loadAll()
+  // 整包传：上一版在这里逐个解构再逐个传参，第五十七轮加 C10 的两个输入时**这条链静默漏接**
+  // （判据照跑、C10 照判 UNVERIFIED，只是没人发现参数被丢了）。字段清单式接线只要加过一个入参就会再漏一次，
+  // 所以改成 loadAll() 的返回值整包进 evaluate —— 新增输入不再需要记得改这里。
+  const s = loadAll()
+  const { items, rows } = s
   if (process.argv.includes('--emit')) {
     const have = new Set(rows.map((r) => `${r.file}#${r.shape}#${r.value}`))
     const miss = items.filter((i) => !have.has(i.key))
@@ -411,7 +537,7 @@ async function main() {
     console.error(`[limit-provenance] 骨架 ${miss.length} 行（TODO 一律判红，不许直接贴上去交差）`)
     process.exit(0)
   }
-  const verdicts = evaluate({ items, rows, planRegistered, parseErrors, sources })
+  const verdicts = evaluate(s)
   let pass = 0
   const fails = []
   for (const v of verdicts) {

@@ -3,7 +3,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import {
-  census, evaluate, parseRegistry, loadAll, PLATFORM_FACTS,
+  census, evaluate, parseRegistry, loadAll, PLATFORM_FACTS, capValueOf,
 } from '../scripts/check-limit-provenance.mjs'
 
 const real = () => loadAll()
@@ -211,5 +211,140 @@ describe('取数面第二半：行尾注释精确剥除，且不伤含 // 的字
     const broken = 'export const o = { 坏语法 (((( }'
     census([{ rel: 'functions/lib/broken.js', code: broken }], (m) => errs.push(m))
     expect(errs.join(' '), '降级没被报告').toContain('降级')
+  })
+})
+
+// 第五十七轮 R57-H2：C10（件→语句换算核）与 C11（依据里的「定义 = 值」断言核）。
+// 立它们的动因不是"想到还能这么查"，而是 C5 有一条**结构性看不见**的失效：
+// 登记值单位是「一次批量几件」，事实单位是「每次调用几条查询」，C5 直接比大小 ⇒ n=45（真 91 条，早爆 50）仍绿。
+// 每条反例都要求「红集合 == 点名的那一条」（户内 ②-e：`in red` 成员判定会被别人的红喂绿）。
+describe('C10 件数上限换算核 / C11 定义断言核', () => {
+  const CAP_KEY = 'functions/lib/actions/products.js#常量#BATCH_UPDATE_MAX=20'
+  const SCALE_KEY = CAP_KEY
+  const only = (v, id) => {
+    const red = v.filter((x) => !x.ok).map((x) => x.id)
+    expect(red, '红里只能有 ' + id + '，实测 ' + JSON.stringify(red)).toEqual([id])
+    return v.find((x) => x.id === id).detail
+  }
+  /** 把登记值与普查项**同笔**改掉：不同笔就会顺带把 C2/C4 拖红，那条反例测的就不是 C10 了。 */
+  const withCap = (s, n) => {
+    const rows = JSON.parse(JSON.stringify(s.rows)).map((r) =>
+      (r.file + '#' + r.shape + '#' + r.value) === CAP_KEY ? { ...r, value: 'BATCH_UPDATE_MAX=' + n } : r)
+    const items = s.items.map((i) => (i.key === CAP_KEY ? { ...i, value: n, key: i.file + '#' + i.shape + '#BATCH_UPDATE_MAX=' + n } : i))
+    return { ...s, rows, items }
+  }
+  const withScale = (s, key, patch) => {
+    const scaling = JSON.parse(JSON.stringify(s.scaling))
+    if (patch === null) delete scaling.rows[key]
+    else Object.assign(scaling.rows[key], patch)
+    return { ...s, scaling }
+  }
+
+  it('正向：真面 13 条判据全绿，且 C10 确实认了 3 条换算（不是空册自证）', () => {
+    const v = evaluate(real())
+    expect(v.filter((x) => !x.ok).map((x) => x.id + ' ' + x.detail)).toEqual([])
+    expect(v.map((x) => x.id)).toEqual(expect.arrayContaining(['C10', 'C11']))
+    expect(v.find((x) => x.id === 'C10').detail).toContain('换算核 3 条')
+    expect(v.find((x) => x.id === 'C11').detail).toContain('8 条')
+  })
+
+  it('M1 上限抬到 45 并同步改册（换算式照搬 1+2n）⇒ 只有 C10 红、C5 依旧绿', () => {
+    const s = real()
+    const mutated = withCap(s, 45)
+    // 换算册的键含值（与 C2/C4 同一把尺），所以真改上限的人**必须**同笔改键 —— 那就按他改对了的样子进来，
+    // 让这条反例只考"预算这一维"。忘了改键是另一种红，由 M3（缺账）与幽灵方向各自咬住。
+    const scaling = JSON.parse(JSON.stringify(mutated.scaling))
+    const e = scaling.rows[SCALE_KEY]
+    expect(e, '夹具前提：原键必须在册').toBeTruthy()
+    delete scaling.rows[SCALE_KEY]
+    scaling.rows[SCALE_KEY.replace('=20', '=45')] = e
+    const src = { ...s, rows: mutated.rows, items: mutated.items, scaling }
+    const detail = only(evaluate(src), 'C10')
+    expect(detail).toContain('1+2×45=91')
+    expect(detail).toContain('C5 只看字面值 45≤50')
+    const c5 = src && evaluate(src).find((x) => x.id === 'C5')
+    expect(c5.ok, '这条反例的意义就是"C5 拦不住"，它若一起红说明变异打偏了：' + c5.detail).toBe(true)
+  })
+
+  it('M1b 只抬上限、忘了改换算册 ⇒ C10 同时报"缺账 + 幽灵"两条（键含值＝漏改必被看见）', () => {
+    const s = real()
+    const src = withCap(s, 45)
+    const v = evaluate(src)
+    expect(v.filter((x) => !x.ok).map((x) => x.id)).toEqual(['C10'])
+    const d = v.find((x) => x.id === 'C10').detail
+    expect(d).toContain('幽灵换算行')
+    expect(d).toContain('没登记「件→语句」换算条目')
+  })
+
+  it('M2 perItem 从 2 改成 1（值仍是 20、预算仍够）⇒ C10 因"复算不出实测峰值"判红', () => {
+    const s = real()
+    const detail = only(evaluate(withScale(s, SCALE_KEY, { perItem: 1 })), 'C10')
+    expect(detail).toContain('复算不出实测峰值')
+    expect(detail).toContain('实测峰值=5')
+  })
+
+  it('M3 删掉一条换算条目 ⇒ C10 缺账方向点名该键（引用了每调用查询数事实却没人核换算）', () => {
+    const s = real()
+    const detail = only(evaluate(withScale(s, SCALE_KEY, null)), 'C10')
+    expect(detail).toContain('没登记「件→语句」换算条目')
+    expect(detail).toContain('BATCH_UPDATE_MAX')
+  })
+
+  it('M4 换算册多一条对不上的键 ⇒ C10 幽灵方向判红（借本仓 R4「例外对不上登记键必须删」同形）', () => {
+    const s = real()
+    const scaling = JSON.parse(JSON.stringify(s.scaling))
+    scaling.rows['functions/lib/ghost.js#常量#GHOST_MAX=7'] = {
+      fact: 'd1_queries_per_invocation_free', fixed: 1, perItem: 2, actionKey: 'A:batchUpdateProducts', fixtureN: 2,
+    }
+    expect(only(evaluate({ ...s, scaling }), 'C10')).toContain('幽灵换算行')
+  })
+
+  it('M5 换算册读不到（null）⇒ C10 判红并写 UNVERIFIED，禁止把"没读到"折算成"没有换算需求"', () => {
+    const s = real()
+    const detail = only(evaluate({ ...s, scaling: null }), 'C10')
+    expect(detail).toContain('UNVERIFIED')
+    expect(detail).toContain('不折算成')
+  })
+
+  it('M6 C11：某行依据的定义值写错 ⇒ 只有 C11 红并点名（上一轮 40→20 漏改的就是这一类）', () => {
+    const s = real()
+    const rows = JSON.parse(JSON.stringify(s.rows)).map((r) =>
+      (r.shape === '常量上限' && r.value === 'PAGE_SIZE' ? { ...r, basis: r.basis.replace('定义 = 100', '定义 = 99') } : r))
+    expect(rows).not.toEqual(s.rows)
+    const detail = only(evaluate({ ...s, rows }), 'C11')
+    expect(detail).toContain('PAGE_SIZE')
+    expect(detail).toContain('而盘上是 PAGE_SIZE = 100')
+  })
+
+  it('M7 C11 放宽的只是行号：值错时带旧式行号写法仍红，值对时行号瞎写不误伤', () => {
+    const s = real()
+    const swap = (from, to) => JSON.parse(JSON.stringify(s.rows)).map((r) =>
+      (r.shape === '常量上限' && r.value === 'PAGE_SIZE' ? { ...r, basis: r.basis.replace(from, to) } : r))
+    expect(s.rows.find((r) => r.shape === '常量上限' && r.value === 'PAGE_SIZE').basis).toContain('定义 = 100')
+    const badVal = only(evaluate({ ...s, rows: swap('定义 = 100', '定义 :153 = 40') }), 'C11')
+    expect(badVal).toContain('而盘上是 PAGE_SIZE = 100')
+    const vOk = evaluate({ ...s, rows: swap('定义 = 100', '定义 :999 = 100') }).filter((x) => !x.ok)
+    expect(vOk.map((x) => x.id), '值对而行号漂不该判红（那是维护债，不是缺陷）').toEqual([])
+  })
+
+  it('M8 改**源码**里的定义值（20→45）⇒ C10 与 C11 各自独立翻红，C5 仍绿', () => {
+    const s = real()
+    const sources = s.sources.map((x) => (x.rel === 'functions/lib/actions/products.js'
+      ? { ...x, code: x.code.replace('export const BATCH_UPDATE_MAX = 20', 'export const BATCH_UPDATE_MAX = 45') }
+      : x))
+    expect(sources.some((x) => x.code.includes('BATCH_UPDATE_MAX = 45')), '变异没打进源码，这条反例就是空跑').toBe(true)
+    const v = evaluate({ ...s, sources })
+    expect(v.filter((x) => !x.ok).map((x) => x.id).sort(), '应当只有这两条尺咬到源码改动').toEqual(['C10', 'C11'])
+    expect(v.find((x) => x.id === 'C10').detail).toContain('1+2×45=91')
+    expect(v.find((x) => x.id === 'C5').ok, 'C5 看字面值 45≤50 依旧绿 ⇒ 这正是本轮补上的量纲洞').toBe(true)
+  })
+
+  it('M9 capValueOf 的洞（第一稿实测暴露）：常量上限那类键里没有数字，早先按 0 件放过', () => {
+    const s = real()
+    const row = s.rows.find((r) => r.shape === '常量上限' && r.value === 'BATCH_UPDATE_MAX')
+    expect(row, '夹具前提：该行必须在册').toBeTruthy()
+    expect(capValueOf(row, s.sources), '该行必须从盘上解析到定义值，不许得 0').toBe(20)
+    expect(capValueOf({ file: 'functions/lib/ghost.js', shape: '常量上限', value: 'NO_SUCH_CONST' }, s.sources),
+      '解析不到却返回数字 ⇒ 又是按 0 放过').toBe(null)
   })
 })
