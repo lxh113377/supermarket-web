@@ -139,6 +139,13 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN`（repo �
 
 - Cloudflare Pages Functions + D1（SQLite）；公开接口 `/pub`，管理 `/web`
 
+- **库存流水（2026-09-30 第五十六轮起）**：D1 现有 **10 张表**，第 10 张是 `stock_movements`（出入库/盘点/取消回补的
+  唯一记账面，快照 `products.stock` 仍是当前真相源）。不变式「有限库存商品 SUM(delta) == products.stock、
+  不限售项（stock=-1）恒为 0」由 `npm run verify:backend` 的 L 组当场判。**生产迁移已执行**（走 `scripts/migrate.mjs`
+  账目表通道，非裸 `d1 execute`），执行前后 `products=55 / orders=59` 未变，恢复演练载回断言通过。
+  ⚠️ 现网 55 件商品**全部** `stock < 0`（不限售）⇒ 这张表目前是空的，"把某商品改成有限库存"那条写路径
+  **尚未在现网走过**（本地有 185 条后端断言背书）。详见 `memory/07-next-steps.part111.md` 与 R57-H7。
+
 - 顾客端读取带 60s 内存缓存（`catalogCache`），云端失败回退本地数据并 warn
 
 - 商品/评价/服务查询 LIMIT 上限（1000/500/500）；订单分页（默认 50/页）
