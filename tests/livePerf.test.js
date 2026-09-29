@@ -1,7 +1,7 @@
 import { describe, it, expect, afterAll } from 'vitest'
 import { spawnSync } from 'node:child_process'
 import { assertCliRan } from './helpers/cliLeg.js'
-import { existsSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -35,7 +35,7 @@ const lh = (over = {}) => JSON.stringify({
 const roster = (pages) => JSON.stringify({ pages })
 
 /**
- * 第五十五轮 R55-H1：把「运行时性能」这一维从连续五轮的免责声明变成一条能复算的腿。
+ * 第五十五轮 R55-H1 立腿，第五十六轮 R56-H1 加「批次」与「立线条件」两层。
  *
  * 本文件钉的是**判据自己**，不是线上快不快：
  * ① 合成面驱动每条腿（缺 FCP / runtimeError / 样本不足 / 混视口 / 野标签 / 下界为 0）；
@@ -43,12 +43,14 @@ const roster = (pages) => JSON.stringify({ pages })
  *    而不是印一句"没数据"就走绿。断言按磁盘实况选期望档，两档都不许落进"沉默的 0"。
  * ③ 这一维**没有阈值**（docs/live-perf.json 的 `thresholds: null`），所以本文件也断言它没有：
  *    判据不许输出「达标/不达标」字样——那是把没立过的线当成测量结果。
+ * ④ R56 新增的两条都必须**成对**测：「同日两批不许当跨日」与「把日期挪开就得翻成条件成立」。
+ *    只测拒侧的判据会让"立线"这件事对唯一受众永久不可达而全绿（户内「判据要双向」）。
  */
-describe('现网性能读数腿：只判产物面与分布，不判达标线', () => {
-  it('判据自证 10/10（含零输入两档与"下界为 0 不算倍差"变异体）', () => {
+describe('现网性能读数腿：按 页面×批次 分组，判产物面与立线条件，不判达标线', () => {
+  it('判据自证 21/21（含零输入两档、三态分列、立线条件成对、时效成对）', () => {
     const r = cli(['--selftest'])
     expect(r.status, r.stdout + r.stderr).toBe(0)
-    expect(r.stdout).toContain('[report:live-perf] 自证 10/10')
+    expect(r.stdout).toContain('[report:live-perf] 自证 21/21')
   })
 
   it('合成面：两份齐全样本 ⇒ GREEN 且把 4.5× 这种倍差印出来（单样本会把它藏掉）', () => {
@@ -84,7 +86,7 @@ describe('现网性能读数腿：只判产物面与分布，不判达标线', (
     const r = cli(['--dir', d, '--roster', rp])
     expect(r.status, r.stdout).toBe(1)
     expect(r.stdout).toContain('runtimeError=NETWORK_ERROR')
-    expect(r.stdout).toContain('入统计样本 1/2 份')
+    expect(r.stdout).toContain('入统计 1／未采到 0／产物不符 1／文件 2（恒等式 ✓）')
   })
 
   it('零输入：样本目录不存在 ⇒ rc=2 并给取证路径，绝不印"现网很快"', () => {
@@ -124,10 +126,78 @@ describe('现网性能读数腿：只判产物面与分布，不判达标线', (
     if (present) {
       expect([0, 1]).toContain(r.status)
       expect(r.stdout).toContain(r.status ? 'verdict=RED' : 'verdict=GREEN')
-      if (r.status === 0) expect(r.stdout).toMatch(/入统计样本 (\d+)\/\1 份/)
+      // 门面恒等式（入统计 + 未采到 + 产物不符 === 样本文件数）必须自己说 ✓：
+      // 本轮第一版这里算出过「产物不符 -3」——整批被剔的组没进 groups，门面就回推出一个物理上不可能的数。
+      expect(r.stdout).toContain('恒等式 ✓')
     } else {
       expect(r.status, 'CI 干净检出没有样本面 ⇒ 必须是 rc=2，不得是 0').toBe(2)
       expect(r.stdout).toContain('UNVERIFIED')
     }
+  })
+
+  it('R56 批次分组：同一页的两批各算各的分布，混批算中位数这条路走不通', () => {
+    const d = tmp()
+    const rp = join(d, 'roster.json')
+    writeFileSync(rp, roster([{ tag: 'admin', expectUrlIncludes: 'pages.dev', minSamples: 2 }]), 'utf8')
+    writeFileSync(join(d, 'admin-s1.json'), lh(), 'utf8')
+    writeFileSync(join(d, 'admin-s2.json'), lh(), 'utf8')
+    writeFileSync(join(d, 'admin-d2-s1.json'), lh({ fetchTime: '2026-09-29T09:55:34.216Z' }), 'utf8')
+    writeFileSync(join(d, 'admin-d2-s2.json'), lh({ fetchTime: '2026-09-29T09:57:08.049Z' }), 'utf8')
+    const r = cli(['--dir', d, '--roster', rp])
+    expect(r.status, r.stdout + r.stderr).toBe(0)
+    expect(r.stdout).toContain('GROUP admin/base')
+    expect(r.stdout).toContain('GROUP admin/d2')
+  })
+
+  it('R56 立线条件（拒侧）：同日两批不得当跨日 —— 必须具名印出实测天数差 0', () => {
+    const d = tmp()
+    const rp = join(d, 'roster.json')
+    writeFileSync(rp, roster([{ tag: 'admin', expectUrlIncludes: 'pages.dev', minSamples: 2 }]), 'utf8')
+    writeFileSync(join(d, 'admin-s1.json'), lh(), 'utf8')
+    writeFileSync(join(d, 'admin-s2.json'), lh(), 'utf8')
+    writeFileSync(join(d, 'admin-d2-s1.json'), lh({ fetchTime: '2026-09-29T09:55:34.216Z', audits: { ...JSON.parse(lh()).audits, 'first-contentful-paint': { numericValue: 1900 } } }), 'utf8')
+    writeFileSync(join(d, 'admin-d2-s2.json'), lh({ fetchTime: '2026-09-29T09:57:08.049Z', audits: { ...JSON.parse(lh()).audits, 'first-contentful-paint': { numericValue: 1930 } } }), 'utf8')
+    const r = cli(['--dir', d, '--roster', rp])
+    expect(r.stdout).toContain('条件不成立')
+    expect(r.stdout).toContain('差 0 天')
+    expect(r.stdout).not.toContain('可以把 budget 写进名册')
+  })
+
+  it('R56 立线条件（允侧，与上一条成对）：把第二批日期挪到次日 ⇒ 同一条腿必须翻成"条件成立"并给出两侧中位数差', () => {
+    const d = tmp()
+    const rp = join(d, 'roster.json')
+    writeFileSync(rp, roster([{ tag: 'admin', expectUrlIncludes: 'pages.dev', minSamples: 2 }]), 'utf8')
+    writeFileSync(join(d, 'admin-s1.json'), lh(), 'utf8')
+    writeFileSync(join(d, 'admin-s2.json'), lh(), 'utf8')
+    writeFileSync(join(d, 'admin-d2-s1.json'), lh({ fetchTime: '2026-09-30T09:55:34.216Z', audits: { ...JSON.parse(lh()).audits, 'first-contentful-paint': { numericValue: 1900 } } }), 'utf8')
+    writeFileSync(join(d, 'admin-d2-s2.json'), lh({ fetchTime: '2026-09-30T09:57:08.049Z', audits: { ...JSON.parse(lh()).audits, 'first-contentful-paint': { numericValue: 1930 } } }), 'utf8')
+    const r = cli(['--dir', d, '--roster', rp])
+    expect(r.stdout).toContain('条件成立')
+    expect(r.stdout).toContain('差 1 天')
+    expect(r.stdout).toContain('可以把 budget 写进名册')
+    expect(r.stdout).toContain('first-contentful-paint')
+  })
+
+  it('R56 三态分列：网络类 NO_FCP + about:blank 归"未采到"，不得与"采到且慢"共用一个数', () => {
+    const d = tmp()
+    const rp = join(d, 'roster.json')
+    writeFileSync(rp, roster([{ tag: 'admin', expectUrlIncludes: 'pages.dev', minSamples: 1 }]), 'utf8')
+    writeFileSync(join(d, 'admin-s1.json'), lh(), 'utf8')
+    writeFileSync(join(d, 'admin-d2-s1.json'), lh({ runtimeError: { code: 'NO_FCP' }, finalDisplayedUrl: 'about:blank' }), 'utf8')
+    const r = cli(['--dir', d, '--roster', rp])
+    expect(r.status, r.stdout).toBe(1)
+    expect(r.stdout).toContain('**这一批没采到**')
+    expect(r.stdout).toContain('未采到 1')
+    // 整批全没采到时，那一组仍要出现在输出里（洗掉它等于把盲区读成"没这一批"）
+    expect(r.stdout).toContain('GROUP admin/d2')
+  })
+
+  it('名册与判据同向：thresholds 仍是 null 且 cadence 已声明（有人偷偷写线要在这里现形）', () => {
+    const rosterReal = JSON.parse(readFileSync(join(REPO, 'docs', 'live-perf.json'), 'utf8'))
+    expect(rosterReal.thresholds, '本轮仍未取得两侧边界分布 ⇒ 名册里不得出现阈值').toBeNull()
+    expect(Number(rosterReal.cadence?.maxBatchAgeDays), '取数节奏没声明 ⇒ 时效腿永不可达').toBeGreaterThan(0)
+    expect(rosterReal.sampling.command).toBe('npm run collect:live-perf')
+    const r = cli(['--selftest'])
+    expect(r.stdout).toContain('[report:live-perf] 自证 21/21')
   })
 })

@@ -1,7 +1,8 @@
 {
-  "$comment": "现网运行时性能名册 —— `npm run report:live-perf`（scripts/report-live-perf.mjs）的输入。它记的是「该量哪几个页面、每次至少要几份样本」，不是阈值。",
+  "$comment": "现网运行时性能名册 —— `npm run report:live-perf`（判据）与 `npm run collect:live-perf`（取数器）共同的输入。它记的是「该量哪几个页面、每次至少要几份、多久必须再量一次」，阈值仍由人写、立线条件由判据算。",
   "unit": "毫秒（Lighthouse audits.*.numericValue）；cumulative-layout-shift 为无量纲分数",
-  "tagDerivation": "样本文件名 `<tag>-s<n>.json`，tag 取第一个 `-s` 之前的整段 ⇒ tag 自身不得含 `-s`（如 `server` 这种名字要改成 `srv`），否则会被切成空串。本轮两个 tag 由 .lighthouse/ 里的实际文件名反推，不是先起名再造文件。",
+  "fileGrammar": "样本文件名 `<page>[-<batch>]-s<n>.json`。判据按**最后一个** `-s<数字>` 切出序号，剩下的整段用名册里**最长匹配的 tag** 还原成页名，多出来的那段就是批次名。故 page 与 batch 都不得含 `-s<数字>`（如批次名 `spring-3-s1` 会被取数器拒收）。批次为空 = 首批（第五十五轮 `admin-s1.json` 那种形态）。",
+  "batchNote": "第五十六轮加「批次」这一层，起因不是想得更细而是实测：同一天两批的中位数差到 28%–41%（admin FCP 1,513→1,935、LCP 1,953→2,762）。把批次混在一起算中位数，等于把时刻漂移洗成「稳定」。",
   "pages": [
     {
       "tag": "admin",
@@ -18,15 +19,31 @@
       "why": "微信顾客端（GitHub Pages 静态托管 + 跨源调 pages.dev 的 /pub）。这一页是真实用户的主入口，首屏快慢直接决定下单转化，也是双前端里唯一走 GitHub CDN 的一支"
     }
   ],
+  "cadence": {
+    "maxBatchAgeDays": 7,
+    "why": "第五十五轮把这条腿登记成欠账的原话是「缺的不是接线，是取数节奏，否则这条腿会因为没人喂样本而长期 UNVERIFIED」。挂在文档里没人记得跑，挂在判据里就会自己报红：本字段声明后 report:live-perf 按「最新完整批次距今天数 > maxBatchAgeDays」具名报**没人喂**；不声明则只报「时效不判」，绝不把没声明读成不会过期。",
+    "carrier": "npm run collect:live-perf -- --run（预飞按域名取状态码 + 批次名防覆写 + 产物当场自证；**不加 --run 只出计划**——裸调用实测会打全量这件事本轮真发生过：改前 rc=1/219s、改后 rc=0/0.07s）。不进 CI：联网、浏览器、本机可达性在 runner 上不可复现，且会把「本机到那个域名不通」洗成「站点慢」——本轮顾客端 d2 批次 3/3 NO_FCP 而同刻 curl github.io=000 就是这条。"
+  },
   "thresholds": null,
-  "thresholdNote": "**本轮有意不立阈值**（第五十五轮 R55-H1）。立线要两侧边界值实测依据（户内 M4：阈值必须能失败、且给出「应过最低分 / 应拒最高分」），而本轮只有一次同机同日的采样分布（admin 的 speed-index 4,580→20,707B 差 4.5×，全靠 3 份样本才看得见）。R56 的动作是「跨日再采一次，看两日的中位数差多大」，有了这个数才配写 budget。在那之前本判据只判**产物面完整性与分布形状**，绝不印「达标/不达标」。",
+  "thresholdNote": "**仍不立阈值，但理由换了形状**：第五十五轮写的是「只有一次分布」，本轮改成「由判据现算的缺项」。实测：admin 有两个完整批次但**同日**（差 0 天）⇒ 只测到同日方差；customer 只有 1 个完整批次（d2 那批 3 份全没采到）⇒ 没有两侧。立线要的是「应过侧最低分布 / 应拒侧最高分布」两侧边界值，同日方差给不了跨日方差。判据每次自己算并把缺哪条印出来（BUDGET 段），写 thresholds 的时机由 anyReady=true 那一次决定，不由记忆决定。",
+  "intraDayMeasured": {
+    "note": "同日两批（base 06:49–06:50Z / d2 09:55–09:58Z，同机同 Edge 同 simulate 节流）中位数偏移，用来把「立线时该留多少余量」钉在产物上，而不是留给下一轮猜",
+    "admin": {
+      "first-contentful-paint": "1513 → 1935.4（+27.9%）",
+      "largest-contentful-paint": "1953 → 2761.7（+41.4%）",
+      "total-blocking-time": "201.5 → 64.5（-68%）",
+      "speed-index": "4605.8 → 3596.5（-21.9%）",
+      "server-response-time": "231 → 230（-0.4%）"
+    },
+    "reading": "偏移是**双向**的（FCP/LCP 变慢、TBT/speed-index 变快），而 SRT 几乎不动 ⇒ 差异在浏览器与渲染侧，不在服务端。任何单批中位数当「日常值」都会把 ±40% 的波动写成缺陷，或写成进步"
+  },
   "sampling": {
-    "command": "CHROME_PATH='<Edge 的 msedge.exe>' npx --no-install lighthouse <url> --only-categories=performance --output=json --output-path=.lighthouse/<tag>-s<n>.json --chrome-flags=\"--headless=new --no-sandbox --disable-dev-shm-usage\" --max-wait-for-load=45000 --quiet",
+    "command": "npm run collect:live-perf",
     "formFactor": "mobile（顾客端主场景是微信内浏览器，两页同形态才可比）",
     "throttlingMethod": "simulate（Lighthouse 默认 simulated 节流；这是「模拟 4G」口径，不是真实弱网实测，报数时必须带上这一句）",
-    "chrome_note": "本机无 Chrome（`command -v chrome` 无、Program Files 下无 Chrome 目录），用 Edge 137 作 Chromium 载体；`npx --no-install lighthouse --version` = 13.5.0，`command -v lighthouse` = NO（只有 npx 解析得到）",
-    "rc_note": "实测 6 次 lighthouse 全部 **rc=1 但产物完整**：崩在 chrome-launcher 收尾的 `destroyTmp`（EPERM 删不掉 %TEMP%\\lighthouse.*），发生在 JSON 已写盘之后 ⇒ **rc 不是这一维的判决**，判决取「产物可解析 + 含 first-contentful-paint + runtimeError=none」。本判据因此不读 lighthouse 的 rc，只读产物；把 rc=1 直接当「测失败」会误杀 6/6 份有效样本",
-    "gitignored": ".lighthouse/ 是产物面、不入版本库（判据读不到就判 UNVERIFIED，绝不折算成「现网很快」）"
+    "chrome_note": "本机无 Chrome（command -v chrome 无、Program Files 下无 Chrome 目录），用 Edge 作 Chromium 载体（msedge.exe 5,403,976B）；取数器解析执行器的顺序=env LIGHTHOUSE_CLI → 依赖解析 → npm 缓存 _npx 面，实测命中 D:/npm-cache/_npx/0f94ee7615faf582/node_modules/lighthouse/cli/index.js（13.5.0）。不走 npx shim：spawnSync 在 Windows 上起不了 .cmd，加 shell 又要把 --chrome-flags 的空格自己转义",
+    "rc_note": "实测 12 次 lighthouse 全部 **rc=1 但产物可完整**：崩在 chrome-launcher 收尾的 destroyTmp（EPERM 删不掉 %TEMP%\\lighthouse.*），发生在 JSON 已写盘之后 ⇒ **rc 不是这一维的判决**，判决取「产物可解析 + 含 first-contentful-paint + runtimeError=none + 最终 URL 合名册」。取数器与判据都不读 lighthouse 的 rc；把 rc=1 直接当「测失败」会误杀全部有效样本",
+    "gitignored": ".lighthouse/ 是产物面、不入版本库（判据读不到就判 UNVERIFIED，绝不折算成「现网很快」）；测量类数值一律不写进台账文档，防止工作树一变 CI 就崩"
   },
-  "measuredAt": "2026-09-29T06:49Z–06:52Z（本机，6 份样本 fetchTime 见判据输出）"
+  "measuredAt": "首批 2026-09-29T06:49Z–06:52Z（手抄命令，6 份）；第二批 09:55Z–10:05Z（手抄命令，admin 3 份有效 / customer 3 份未采到）；第三批 10:32Z–10:33Z 起由 collect:live-perf 出样，并留 receipt-<batch>.json 预飞回执"
 }
