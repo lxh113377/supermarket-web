@@ -83,7 +83,7 @@
     "/pub createOrder": {
       "side": "/pub",
       "action": "createOrder",
-      "calls": 26,
+      "calls": 27,
       "dataKinds": [
         "object"
       ],
@@ -463,6 +463,50 @@
       "errEnvelopeAlways": [],
       "errEnvelopeSeen": []
     },
+    "/web adjustStock": {
+      "side": "/web",
+      "action": "adjustStock",
+      "calls": 6,
+      "dataKinds": [
+        "object"
+      ],
+      "envelopeAlways": [
+        "code",
+        "data"
+      ],
+      "envelopeSeen": [
+        "code",
+        "data"
+      ],
+      "keysAlways": [
+        "after",
+        "before",
+        "delta",
+        "productId",
+        "recorded"
+      ],
+      "keysSeen": [
+        "after",
+        "before",
+        "delta",
+        "productId",
+        "recorded"
+      ],
+      "errEnvelopeAlways": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ],
+      "errEnvelopeSeen": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ]
+    },
     "/web aiAdvice": {
       "side": "/web",
       "action": "aiAdvice",
@@ -546,7 +590,7 @@
     "/web batchUpdateProducts": {
       "side": "/web",
       "action": "batchUpdateProducts",
-      "calls": 2,
+      "calls": 4,
       "dataKinds": [
         "object"
       ],
@@ -612,7 +656,7 @@
     "/web createProduct": {
       "side": "/web",
       "action": "createProduct",
-      "calls": 12,
+      "calls": 14,
       "dataKinds": [
         "object"
       ],
@@ -705,7 +749,7 @@
     "/web deleteProduct": {
       "side": "/web",
       "action": "deleteProduct",
-      "calls": 9,
+      "calls": 11,
       "dataKinds": [
         "absent"
       ],
@@ -1130,6 +1174,48 @@
       "errEnvelopeAlways": [],
       "errEnvelopeSeen": []
     },
+    "/web getStockMovements": {
+      "side": "/web",
+      "action": "getStockMovements",
+      "calls": 3,
+      "dataKinds": [
+        "object"
+      ],
+      "envelopeAlways": [
+        "code",
+        "data"
+      ],
+      "envelopeSeen": [
+        "code",
+        "data"
+      ],
+      "keysAlways": [
+        "items",
+        "limit",
+        "offset",
+        "total"
+      ],
+      "keysSeen": [
+        "items",
+        "limit",
+        "offset",
+        "total"
+      ],
+      "errEnvelopeAlways": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ],
+      "errEnvelopeSeen": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ]
+    },
     "/web getSubmissionImages": {
       "side": "/web",
       "action": "getSubmissionImages",
@@ -1349,7 +1435,7 @@
     "/web updateOrderStatus": {
       "side": "/web",
       "action": "updateOrderStatus",
-      "calls": 11,
+      "calls": 12,
       "dataKinds": [
         "absent"
       ],
@@ -1379,7 +1465,7 @@
     "/web updateProduct": {
       "side": "/web",
       "action": "updateProduct",
-      "calls": 5,
+      "calls": 9,
       "dataKinds": [
         "absent"
       ],

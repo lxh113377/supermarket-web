@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { copyGateScripts } from './helpers/copyGateScripts.mjs'
+import { assertCliRan } from './helpers/cliLeg.js'
 import { evaluate, latestRound, roundsOf, cnNum, OUTER_MEMORY } from '../scripts/check-memory-pointer-sync.mjs'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -84,7 +85,7 @@ describe('真面与入口', () => {
     } else {
       // CI：外层不在场 ⇒ 判据必须把"没比"写在脸上，且分母要降下来（不得印 检查 2/2）
       expect(row(v, 'P2').state).toBe('UNVERIFIED')
-      const r = spawnSync(process.execPath, [SELF], { cwd: REPO, encoding: 'utf8', timeout: 60_000 })
+      const r = assertCliRan(spawnSync(process.execPath, [SELF], { cwd: REPO, encoding: 'utf8', timeout: 60_000 }), { label: 'memory-pointer-sync 外层不在场' })
       expect(r.status, r.stdout + r.stderr).toBe(0)
       expect(r.stdout).toContain('已核对 1/2')
       expect(r.stdout).toContain('未验证 P2')
@@ -99,22 +100,22 @@ describe('真面与入口', () => {
     writeFileSync(join(dir, '07-next-steps.md'), `## 2026-09-27 — 对标第${cn(inner.round)}轮（工作区级指针）\n`)
     // 夹具自身先做往返自证：我写的中文轮次必须能被同一套解析器读回同一个数，否则绿的是空气
     expect(roundsOf(readFileSync(join(dir, '07-next-steps.md'), 'utf8'))).toEqual([inner.round])
-    const same = spawnSync(process.execPath, [SELF, '--outer', dir], { cwd: REPO, encoding: 'utf8', timeout: 60_000 })
+    const same = assertCliRan(spawnSync(process.execPath, [SELF, '--outer', dir], { cwd: REPO, encoding: 'utf8', timeout: 60_000 }), { label: 'memory-pointer-sync 合成外层同轮' })
     expect(same.status, same.stdout + same.stderr).toBe(0)
     expect(same.stdout).toContain('已核对 2/2')
     expect(same.stdout).not.toContain('未验证')
     const behind = mkdtempSync(join(tmpdir(), 'smouter-'))
     tmpDirs.push(behind)
     writeFileSync(join(behind, '07-next-steps.md'), `## 2026-09-27 — 对标第${cn(Math.max(1, inner.round - 3))}轮（工作区级指针）\n`)
-    const lag = spawnSync(process.execPath, [SELF, '--outer', behind], { cwd: REPO, encoding: 'utf8', timeout: 60_000 })
+    const lag = assertCliRan(spawnSync(process.execPath, [SELF, '--outer', behind], { cwd: REPO, encoding: 'utf8', timeout: 60_000 }), { label: 'memory-pointer-sync 合成外层落后' })
     expect(lag.status, lag.stdout + lag.stderr).toBe(1)
     expect(lag.stdout).toContain('断更 3 轮')
   })
   it('子进程：GATE 行 + rc（红=1 / 绿=0），--json 出结构', () => {
-    const r = spawnSync(process.execPath, [SELF], { cwd: REPO, encoding: 'utf8', timeout: 60_000 })
+    const r = assertCliRan(spawnSync(process.execPath, [SELF], { cwd: REPO, encoding: 'utf8', timeout: 60_000 }), { label: 'memory-pointer-sync GATE 行' })
     expect(r.status, r.stdout + r.stderr).toBe(0)
     expect(r.stdout).toContain('GATE-PASS memory-pointer-sync')
-    const j = JSON.parse(spawnSync(process.execPath, [SELF, '--json'], { cwd: REPO, encoding: 'utf8', timeout: 60_000 }).stdout)
+    const j = JSON.parse(assertCliRan(spawnSync(process.execPath, [SELF, '--json'], { cwd: REPO, encoding: 'utf8', timeout: 60_000 }), { label: 'memory-pointer-sync --json' }).stdout)
     expect(j.rows.map((x) => x.id)).toEqual(['P1', 'P2'])
     expect(j.checked + j.rows.filter((x) => x.state === 'UNVERIFIED').length).toBe(j.declared)
   })
@@ -122,7 +123,7 @@ describe('真面与入口', () => {
     const dir = mkdtempSync(join(tmpdir(), 'smptr-'))
     tmpDirs.push(dir)
     copyGateScripts(REPO, dir, 'check-memory-pointer-sync.mjs')
-    const r = spawnSync(process.execPath, [join(dir, 'scripts', 'check-memory-pointer-sync.mjs')], { cwd: dir, encoding: 'utf8', timeout: 60_000 })
+    const r = assertCliRan(spawnSync(process.execPath, [join(dir, 'scripts', 'check-memory-pointer-sync.mjs')], { cwd: dir, encoding: 'utf8', timeout: 60_000 }), { label: 'memory-pointer-sync 缺输入面' })
     expect(r.status, r.stdout + r.stderr).toBe(2)
     expect(`${r.stderr}${r.stdout}`).toMatch(/memory/)
   })

@@ -72,12 +72,17 @@ describe('来源类别与依据', () => {
 describe('C5 平台预算对账（本轮真正抓到 200 的那条）', () => {
   it('L8 把 batchUpdate 的上限改回 200 ⇒ C5 判红并给出 200 > 50', () => {
     const s = real()
+    // 键按「文件#形状#常量名」定位，值不参与匹配：第五十六轮 E7 把这个常量从 40 降到 20，
+    // 上一版把 `=40` 写进匹配串 ⇒ 常量一改，这条变异腿就 find 到 undefined 而 TypeError
+    // （腿死于夹具而不是死于被测对象，等于这条反例从此不存在）。
+    const KEY = 'functions/lib/actions/products.js#常量#BATCH_UPDATE_MAX='
     const rows = withRows(s, (r) => {
-      const hit = r.find((x) => x.key === 'functions/lib/actions/products.js#常量#BATCH_UPDATE_MAX=40'
-        || `${x.file}#${x.shape}#${x.value}` === 'functions/lib/actions/products.js#常量#BATCH_UPDATE_MAX=40')
+      const hit = r.find((x) => String(x.key || '').startsWith(KEY)
+        || `${x.file}#${x.shape}#${x.value}`.startsWith(KEY))
+      expect(hit, `登记册必须有 ${KEY}* 那行（缺行=夹具前提不成立，本条变异无从发生）`).toBeTruthy()
       hit.value = 'BATCH_UPDATE_MAX=200'
     })
-    const v = evaluate({ ...s, rows, items: [...s.items.map((i) => (i.key.endsWith('BATCH_UPDATE_MAX=40') ? { ...i, value: 200, key: i.key.replace('=40', '=200') } : i))] })
+    const v = evaluate({ ...s, rows, items: [...s.items.map((i) => (String(i.key).startsWith(KEY) ? { ...i, value: 200, key: `${KEY}200` } : i))] })
     const bad = v.find((x) => x.id === 'C5' && !x.ok)
     expect(bad, '值 200 必须撞 d1_queries_per_invocation_free=50').toBeTruthy()
     expect(bad.detail).toContain('200')

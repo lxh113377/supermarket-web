@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { copyGateScripts } from './helpers/copyGateScripts.mjs'
+import { assertCliRan } from './helpers/cliLeg.js'
 import { declaredKeys, evaluate, HEALTH_SOURCE } from '../scripts/check-live-shape.mjs'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -73,7 +74,7 @@ describe('evaluate：三态分明，未观测不与通过同形', () => {
 
 describe('CLI 真跑（注入态确定性；advisory 不许阻断）', () => {
   const run = (env = {}, cwd = REPO) => {
-    const r = spawnSync(process.execPath, [SELF], { cwd, encoding: 'utf8', env: { ...process.env, ...env }, timeout: 60_000 })
+    const r = assertCliRan(spawnSync(process.execPath, [SELF], { cwd, encoding: 'utf8', env: { ...process.env, ...env }, timeout: 60_000 }), { label: 'check-live-shape 注入态子进程' })
     return { rc: r.status, out: `${r.stdout || ''}${r.stderr || ''}` }
   }
   it('注入缺 deploy 的线上响应 ⇒ rc=0（advisory 不阻断）但判 GATE-STALE 并点名 deploy', () => {
@@ -84,7 +85,7 @@ describe('CLI 真跑（注入态确定性；advisory 不许阻断）', () => {
   })
   // 用**当前真 HEAD** 造注入响应：造出来的才可能是 PASS；写死一个假 sha 会稳定判 STALE，
   // 那条腿就成了"期望自己造出来的红"（本轮夹具第一版正是这个错）。
-  const HEAD = spawnSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: REPO, encoding: 'utf8' }).stdout.trim()
+  const HEAD = assertCliRan(spawnSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: REPO, encoding: 'utf8' }), { label: 'git rev-parse 取本地 HEAD' }).stdout.trim()
   it('注入同型响应（deploy == 本地 HEAD）⇒ GATE-PASS 且 已核 + 漂移 + 未观测 + 失败 == 声明', () => {
     const { rc, out } = run({ LIVE_SHAPE_JSON: JSON.stringify({ status: 'ok', db: 'ok', ts: 'x', ai: {}, deploy: HEAD }) })
     expect(rc, out.slice(-400)).toBe(0)
@@ -102,7 +103,7 @@ describe('CLI 真跑（注入态确定性；advisory 不许阻断）', () => {
     const dir = tmp()
     copyGateScripts(REPO, dir, 'check-live-shape.mjs')
     writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'ls-fix' }))
-    const r = spawnSync(process.execPath, [join(dir, 'scripts', 'check-live-shape.mjs')], { cwd: dir, encoding: 'utf8', timeout: 60_000 })
+    const r = assertCliRan(spawnSync(process.execPath, [join(dir, 'scripts', 'check-live-shape.mjs')], { cwd: dir, encoding: 'utf8', timeout: 60_000 }), { label: 'check-live-shape 缺输入面假仓' })
     expect(r.status, `${r.stdout}${r.stderr}`).toBe(2)
   })
 })

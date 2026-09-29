@@ -251,6 +251,15 @@ export function judge({ files, schemaSql, extraFiles = [] }) {
       forward: 'migrate-stock.sql',
       objects: [{ table: 'products', column: 'stock' }],
     },
+    // 第五十六轮 E7：整表回滚（删表 + 删它的两条索引），走上面新加的"表对象"轨
+    'rollback-stock-movements.sql': {
+      forward: 'migrate-stock-movements.sql',
+      objects: [
+        { table: 'stock_movements' },
+        { table: 'stock_movements', index: 'idx_stock_movements_product_ts' },
+        { table: 'stock_movements', index: 'idx_stock_movements_kind_ts' },
+      ],
+    },
   }
   const ROLLBACK_DATA = {
     'rollback-rename-order20.sql': { forward: 'adhoc-rename-order20.sql' },
@@ -322,6 +331,14 @@ export function structuralRollbackTrip({ schemaSql, rollbackText, forwardText, o
       // normalizeSchema 的形态：表 → shape[`T:<表>`] = {列名: 定义}；索引 → shape[`I:<名>`]
       const hasIn = (sh) => (o.column ? !!sh[`T:${o.table}`]?.[o.column] : false)
       const hasIx = (sh) => (o.index ? `I:${o.index}` in sh : false)
+      if (!o.column && !o.index) {
+        // 整表回滚轨（第五十六轮 E7 加）：删的是**一张表**而不是某一列。
+        // 为什么要动判据而不是绕过它：本轨存在的理由是"回滚件必须被真执行过"，
+        // 而建表类迁移（新表 + 它的索引）本来就落不进"删一列/删一个索引"的形态 ——
+        // 原来的做法只能把它塞进数据轨（那条只认单语句 UPDATE 改名），或者干脆不登记由它判红。
+        if (!ref[`T:${o.table}`]) out.push(`${label} 声明要删的表 ${o.table} 不在基线真相源里 ⇒ 清单与 schema.sql 脱节`)
+        else if (afterRb[`T:${o.table}`]) out.push(`${label} 执行后表 ${o.table} 仍存在 ⇒ 回滚件没有生效（假回滚）`)
+      }
       if (o.column) {
         if (!hasIn(ref)) out.push(`${label} 声明要删的列 ${o.table}.${o.column} 不在基线真相源里 ⇒ 清单与 schema.sql 脱节`)
         else if (hasIn(afterRb)) out.push(`${label} 执行后列 ${o.table}.${o.column} 仍存在 ⇒ 回滚件没有生效（假回滚）`)
@@ -334,13 +351,15 @@ export function structuralRollbackTrip({ schemaSql, rollbackText, forwardText, o
     // ③ 从配对正向件里按谓词挑出结构语句（挑不到 = 谓词与文件对不上，判据不许静默跳过）
     const fwdStmts = splitStatements(forwardText)
       .map((s) => s.replace(/^\s+|--[^\n]*\n/g, '').trim())
-      .filter((s) => /^ALTER TABLE .+ ADD COLUMN/i.test(s) || /^CREATE (UNIQUE )?INDEX/i.test(s))
+      .filter((s) => /^ALTER TABLE .+ ADD COLUMN/i.test(s) || /^CREATE (UNIQUE )?INDEX/i.test(s) || /^CREATE TABLE/i.test(s))
     const needAdd = objects.filter((o) => o.column).length
     const needIdx = objects.filter((o) => o.index).length
+    const needTable = objects.filter((o) => o.table && !o.column && !o.index).length
     const gotAdd = fwdStmts.filter((s) => /^ALTER TABLE .+ ADD COLUMN/i.test(s)).length
     const gotIdx = fwdStmts.filter((s) => /^CREATE (UNIQUE )?INDEX/i.test(s)).length
-    if (gotAdd !== needAdd || gotIdx !== needIdx) {
-      out.push(`${label} 正向件挑出的结构语句数与声明不符（ADD COLUMN ${gotAdd}/${needAdd}、INDEX ${gotIdx}/${needIdx}）`
+    const gotTable = fwdStmts.filter((s) => /^CREATE TABLE/i.test(s)).length
+    if (gotAdd !== needAdd || gotIdx !== needIdx || gotTable !== needTable) {
+      out.push(`${label} 正向件挑出的结构语句数与声明不符（ADD COLUMN ${gotAdd}/${needAdd}、INDEX ${gotIdx}/${needIdx}、TABLE ${gotTable}/${needTable}）`
         + ' ⇒ 无法证明"前滚"用的就是当年那条语句，本轮不猜')
       return out
     }

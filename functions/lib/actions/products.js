@@ -1,9 +1,10 @@
 // 商品/分类域 handlers（从 backend.js 拆出，逻辑零改动）
 
-import { qAll, qRun, jparse, nowISO, genId, pick, insert } from '../db.js'
+import { qAll, qFirst, qRun, jparse, nowISO, genId, pick, insert } from '../db.js'
 import { isSafeImageUrl, validateImages } from '../security.js'
 import { PRODUCT_FIELDS } from '../shared.js'
 import { fail } from '../errors.js'
+import { insertMovements, deltaForStockChange } from '../stock.js'
 
 export function rowToProduct(row) {
   if (!row) return null
@@ -102,6 +103,17 @@ export async function createProduct(DB, payload) {
   }
   const doc = { _id: genId('p_'), ...data, createdAt: nowISO(), updatedAt: nowISO() }
   await insert(DB, 'products', doc)
+  // E7：建档即建账。有限库存（stock>=0）的新品必须有一条期初流水，
+  // 否则不变式「SUM(delta)==stock」对这个新品从第一天就不成立（流水页会显示"有库存无账"）。
+  // 取数走 data 不走 doc：doc 是 `{_id, ...data, ...}` 的字面量，展开后的索引签名在 tsc 推断里
+  // 会丢（doc.stock 报 TS2339），而 data 是 pick() 的产物、带索引签名；两处同一个值。
+  const openingStock = Number(data.stock)
+  if (openingStock >= 0) {
+    await insertMovements(DB, [{
+      productId: doc._id, delta: openingStock, kind: 'init', refType: 'ledger',
+      refId: '', actor: 'admin', note: '新品建档期初',
+    }])
+  }
   return { code: 0, data: doc }
 }
 
@@ -135,13 +147,21 @@ export function sanitizeSpecOptions(data) {
 
 /**
  * 单商品更新核心逻辑（updateProduct 与 batchUpdateProducts 复用；字段白名单/图片 scheme/部分更新守卫统一在此）
+ * @param stockBefore 批量入口预读到的改前库存；单条入口留空时本函数自己读一次（只在 payload 带 stock 时才读）
  * @returns {Promise<{ code: number, message?: string, errorCode?: string, kind?: string, retryable?: boolean }>}
  *   失败面由 fail() 带上 message/errorCode/kind；成功面只有 code，调用方按 code===0 分支取用。
  */
-export async function applyProductUpdate(DB, productId, payload) {
+export async function applyProductUpdate(DB, productId, payload, stockBefore) {
   const data = pick(payload, PRODUCT_FIELDS)
   sanitizeStock(data)
   sanitizeSpecOptions(data)
+  // E7：绝对值入口也必须留痕，否则"后台把 5 改成 3"这件事在流水里根本不存在。
+  // 读必须在 UPDATE **之前** —— 改完再读就得到改后的值，delta 恒为 0，账就记空了。
+  let before = stockBefore
+  if ('stock' in data && (before === undefined || before === null)) {
+    const row = await qFirst(DB, `SELECT stock FROM products WHERE _id = ?`, [productId])
+    before = row ? Number(row.stock) : null
+  }
   // enabled 守卫：仅当显式传了 enabled 才更新上架状态，防止部分更新时静默重上架缺货商品
   if ('enabled' in payload) data.enabled = payload.enabled !== false
   // 图片 scheme 白名单（纵深防御）
@@ -163,6 +183,15 @@ export async function applyProductUpdate(DB, productId, payload) {
   })
   const res = await qRun(DB, `UPDATE products SET ${setClause} WHERE _id = ?`, [...values, productId])
   if (!res.meta?.changes) return fail('product_not_found', '商品不存在')
+  if ('stock' in data) {
+    const delta = deltaForStockChange(before, data.stock)
+    if (delta !== null) {
+      await insertMovements(DB, [{
+        productId, delta, kind: 'adjust', refType: 'manual',
+        refId: '', actor: 'admin', note: '后台商品编辑改数',
+      }])
+    }
+  }
   return { code: 0 }
 }
 
@@ -175,22 +204,34 @@ export async function updateProduct(DB, payload) {
 // 批量更新：items = [{ productId, updates }]，逐条应用（同一 updates 或多组均可）。
 // 返回成功/失败明细而非整体回滚——批量场景部分失败可定位重试，避免并发 N 请求无明细。
 //
-// 上限推导（第十七轮 M2，替代原先拍的 200）：本 action 语句数 = 1 + n（第十四轮实测斜率 1），
+// 上限推导（第十七轮 M2 立，第五十六轮 E7 重推）：本 action 语句数 = 1 + n + k
+//   （k = 本次里**带库存改动**的商品数，每个多一条流水 INSERT；1 = E7 预读那一条 IN 查询，只在有库存改动时发）。
 // D1 官方 limits 页「Queries per Worker invocation — 1000 (Workers Paid) / 50 (Free)」，
-// 本仓按最坏情况（免费档 50）设防 ⇒ n ≤ 49；再留 9 条给鉴权/限流/审计写入 ⇒ **40**。
-// 原先的 200 意味着「多选 50 个商品改价」在免费档下必然半途抛错，且前端只看到一次失败。
+// 本仓按最坏情况（免费档 50，且最坏=n 件全带库存改动 ⇒ 1+2n）设防：1+2n ≤ 50-9 ⇒ n ≤ 20。
+// 第九轮原值 40 是按「1 条 UPDATE/件」推的；流水进来后每件最多 2 条，所以**预算折到 20**。
+// 这不是"顺手收紧"：留着 40 等于让「批量改 40 个商品的库存」在免费档下半途抛错（比改价更糟——
+// 前半截已落库、流水只记了一半，正是不变式要防的那种半程状态）。
 // ⚠️ 与下面 batchDeleteProducts 的 200 不是一回事：那边语句数是常数，受的是 SQLite 999 绑定参数。
 // 两侧（本文件与 src/auth.ts 的分片大小）由 tests/batchChunkContract.test.js 钉住一致。
-export const BATCH_UPDATE_MAX = 40
+export const BATCH_UPDATE_MAX = 20
 export async function batchUpdateProducts(DB, payload) {
   const { items } = payload
   if (!Array.isArray(items) || !items.length) return fail('missing_items', '缺少 items')
   if (items.length > BATCH_UPDATE_MAX) return fail('batch_too_large', `单次批量最多 ${BATCH_UPDATE_MAX} 个商品，请分批提交`)
   const failed = []
   let updated = 0
+  // E7 预读：把"改前库存"一次性拿全（1 条 IN 查询），避免逐件 SELECT 把语句数推到 n 倍
+  const stockIds = items.filter((it) => it && it.productId && it.updates && 'stock' in it.updates).map((it) => it.productId)
+  const beforeMap = new Map()
+  if (stockIds.length) {
+    const ph = stockIds.map(() => '?').join(',')
+    const rows = await qAll(DB, `SELECT _id, stock FROM products WHERE _id IN (${ph})`, stockIds)
+    for (const r of rows) beforeMap.set(r._id, Number(r.stock))
+  }
   for (const it of items) {
     if (!it || !it.productId) { failed.push({ id: '?', message: '缺少 productId' }); continue }
-    const r = await applyProductUpdate(DB, it.productId, it.updates || {})
+    const has = beforeMap.has(it.productId)
+    const r = await applyProductUpdate(DB, it.productId, it.updates || {}, has ? beforeMap.get(it.productId) : undefined)
     if (r.code === 0) updated++
     else failed.push({ id: it.productId, message: r.message })
   }
@@ -201,7 +242,7 @@ export async function batchUpdateProducts(DB, payload) {
 // 2026-09-18 双向迭代 R6：由「逐条 DELETE」改为「1 次存在性查询 + 1 次批量 DELETE」，
 // 语句数从 O(N) 降为常数（1 次存在性查询 + 1 次批量 DELETE），所以这里的预算是**绑定参数数**
 // 而不是查询数：SQLite SQLITE_MAX_VARIABLE_NUMBER 旧默认 999，N=200 ⇒ 每条语句 200 个参数，安全。
-// 与 BATCH_UPDATE_MAX=40 差 5 倍是有原因的，两处都不是拍的 —— 见各自注释与 docs/limit-provenance.md。
+// 与 BATCH_UPDATE_MAX=20 差 10 倍是有原因的，两处都不是拍的 —— 见各自注释与 docs/limit-provenance.md。
 export const BATCH_DELETE_MAX = 200
 export async function batchDeleteProducts(DB, payload) {
   const { productIds } = payload

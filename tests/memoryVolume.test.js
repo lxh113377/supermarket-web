@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { copyGateScripts } from './helpers/copyGateScripts.mjs'
+import { assertCliRan } from './helpers/cliLeg.js'
 import { evaluate, classify, V3_MIN_HEADROOM } from '../scripts/check-memory-volume.mjs'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -32,14 +33,14 @@ function repo(files, { git = true } = {}) {
   return dir
 }
 const runIn = (dir, args = []) => {
-  const r = spawnSync(process.execPath, [join(dir, 'scripts', GATE), ...args], { cwd: dir, encoding: 'utf8', timeout: 60_000 })
+  const r = assertCliRan(spawnSync(process.execPath, [join(dir, 'scripts', GATE), ...args], { cwd: dir, encoding: 'utf8', timeout: 60_000 }), { label: `memory-volume 合成仓 ${GATE}` })
   return { rc: r.status, out: `${r.stdout || ''}${r.stderr || ''}` }
 }
 const pad = (n, head = 'x') => `${head}\n` + 'a'.repeat(n)
 
 describe('memory-volume：超限必须点名 + 两种"零对象"不得同形', () => {
   it('真仓 --all：GATE-PASS 且超限为 0（本轮初跑时它就是红的，随后把两卷拆到 4KB 内）', () => {
-    const r = spawnSync(process.execPath, [SELF, '--all'], { cwd: REPO, encoding: 'utf8', timeout: 60_000 })
+    const r = assertCliRan(spawnSync(process.execPath, [SELF, '--all'], { cwd: REPO, encoding: 'utf8', timeout: 60_000 }), { label: 'memory-volume --all 真仓' })
     const out = `${r.stdout}${r.stderr}`
     expect(out, out.slice(-400)).toContain('GATE-PASS memory-volume')
     expect(out).toMatch(/超限 0/)

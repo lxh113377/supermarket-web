@@ -13,6 +13,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { evaluate, loadAll, dispatchSurface, PROBE_EXCEPTIONS } from '../scripts/check-registry-sync.mjs'
 import { copyGateScripts } from './helpers/copyGateScripts.mjs'
+import { assertCliRan } from './helpers/cliLeg.js'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SELF = join(REPO, 'scripts', 'check-registry-sync.mjs')
@@ -117,7 +118,7 @@ describe('例外册自身的两条防线（借 rust-lang/rust tidy 的口径）'
 
 describe('CLI 入口：真仓子进程 + 缺输入面 fail-closed', () => {
   it('① 真跑：GATE-PASS 且 6 条检查数对得上、rc=0', () => {
-    const r = spawnSync(process.execPath, [SELF], { cwd: REPO, encoding: 'utf8', timeout: 120_000 })
+    const r = assertCliRan(spawnSync(process.execPath, [SELF], { cwd: REPO, encoding: 'utf8', timeout: 120_000 }), { label: 'registry-sync 真跑 GATE-PASS' })
     expect(r.status).toBe(0)
     expect(r.stdout).toContain('GATE-PASS registry-sync')
     expect(r.stdout).toMatch(/检查 6\/6 通过，0 失败/)
@@ -129,14 +130,14 @@ describe('CLI 入口：真仓子进程 + 缺输入面 fail-closed', () => {
     const dir = mkdtempSync(join(tmpdir(), 'smreg-'))
     tmpDirs.push(dir)
     copyGateScripts(REPO, dir, 'check-registry-sync.mjs')
-    const r = spawnSync(process.execPath, [join(dir, 'scripts', 'check-registry-sync.mjs')], { cwd: dir, encoding: 'utf8', timeout: 120_000 })
+    const r = assertCliRan(spawnSync(process.execPath, [join(dir, 'scripts', 'check-registry-sync.mjs')], { cwd: dir, encoding: 'utf8', timeout: 120_000 }), { label: 'registry-sync 缺输入面假仓' })
     expect(r.status).toBe(2)
     const out = `${r.stderr}${r.stdout}`
     expect(out).toMatch(/registry-sync/)
     expect(out).toMatch(/backend\.js|api-contract/)
   })
   it('③ --json 通道：合法 JSON 且 rows 数为 6（门面行与机器输出同源）', () => {
-    const r = spawnSync(process.execPath, [SELF, '--json'], { cwd: REPO, encoding: 'utf8', timeout: 120_000 })
+    const r = assertCliRan(spawnSync(process.execPath, [SELF, '--json'], { cwd: REPO, encoding: 'utf8', timeout: 120_000 }), { label: 'registry-sync --json 通道' })
     expect(r.status).toBe(0)
     const j = JSON.parse(r.stdout)
     expect(j.rows).toHaveLength(6)

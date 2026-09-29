@@ -4,6 +4,43 @@
 
 ## [未发布]
 
+### 2026-09-30 追加七十（对标第五十六轮：把"缺的恰好是采购—库存—对账"从一句结论变成一张表）
+
+- **R56-H1｜性能维加"批次"这一层，立线条件改由判据自己算**：同日两批实测中位数差到 28%–41%
+  （admin FCP 1,513→1,935、LCP 1,953→2,762），把批次混在一起算中位数等于把时刻漂移洗成"稳定"。
+  `report-live-perf.mjs` 改为按 **页面×批次** 分组，样本三态分列（入统计/未采到/产物不符）并自检门面恒等式
+  （首版回推出"产物不符 −3"这种物理上不可能的数 ⇒ 整批被剔的组没进 groups，属判据自身缺陷，已修机制）；
+  `thresholds` 仍为 `null`，但理由从"只有一次分布"换成**判据现算的缺项**：名册两批 `fetchTime` 日期差 ≥1 天才许谈 budget，
+  否则具名印出缺哪一条（BUDGET 段）。新增 `cadence.maxBatchAgeDays=7` 时效腿——这条腿最大的风险不是判错，是没人喂样本。
+- **R56-H3｜新增取数器 `collect-live-perf.mjs`**：预飞按域名取状态码（本轮实测 `curl github.io=000` 而 `pages.dev=200`，
+  没有它"站点退化"与"本机不通"长得一模一样）+ 批次名防覆写基线 + 产物当场自证**不读 lighthouse 的 rc**
+  （12 次调用全部 rc=1 而 6/6 份产物完整，崩在 chrome-launcher 收尾 `destroyTmp` 的 EPERM）。
+  默认只出计划、`--run` 才打：首版裸调用实测 rc=1/219s 且真落 6 份盘，撞的正是"探针参数会写盘"那一类。
+- **R56-H2｜11 件裸 CLI 腿逐件清偿，`unguardedMax` 11→0（同一笔）**：`verify:cli-legs` 现算
+  `spawn 位点 72（带 timeout 63 / 不带 9）｜已接守卫 23｜欠账 0/0`。到 0 之后本件才是完整阻断闸——
+  任何新写的裸 CLI 腿都会让欠账 0→1 当场判红，唯一处置是接守卫，禁调高上限求绿。
+  能力探针类（如 `python --version` 的 null=二进制缺失）属合法分支、不得包。
+- **E7（第五十五轮登记的功能维缺口）｜库存流水表 `stock_movements` + 库存域**：`products.stock` 原先只是一个当前值，
+  出入库、盘点纠错、取消回补全都不可追溯。新表借同域三仓的现形形状（`opensourcepos` 的 `ospos_inventory`、
+  `grocy` 的 `stock_log`、`InvenTree` 的 `StockItemTracking`——三个"单店/库存"同类**每一个**都有流水），
+  并补上它们都没有的那一半：**写入即记账 + 不变式「有限库存商品 SUM(delta)==products.stock」由 `verify-backend` 的 L 组当场判**
+  （脱节即具名报出商品号；L19 故意造一次脱节、L20 还原后复绿，证明这把尺抓的是真脱节）。
+  单一写口 `lib/stock.js`（四个写手共用：建档/后台改数/下单占用/取消回补），新增 `/web getStockMovements`（只读视图）
+  与 `/web adjustStock`（增量语义、拒 `stock=-1` 的"不限售"商品、|delta|≤100000）。
+- **本轮连带改掉的两处"假腿"（都是实测逼出来的，不是顺手打扫）**：
+  ① `tests/limitProvenance.test.js` 的 L8 变异腿把 `BATCH_UPDATE_MAX=40` **连值一起**写进匹配串，
+  常量一改就 find 到 `undefined` 而 TypeError——腿死于夹具而不是死于被测对象，等于这条反例从此不存在；
+  改成按 `文件#形状#常量名` 前缀定位，并补 `expect(hit).toBeTruthy()` 让"前提不成立"显式报出来。
+  ② `verify-backend.mjs` 的 L7 名义上测"缺 productId"，实际 payload 给了 productId、漏了 delta，
+  真实返回是 `invalid_delta`——负测没有证明自己的前提；改成 `{ delta: 1 }` 让它真的走到那一支。
+- **两处必须同笔改的口径漂移**：`BATCH_UPDATE_MAX`/`BATCH_UPDATE_CHUNK` 由 40 降为 20（E7 后语句数变成 1+2n，
+  留 40 等于让"批量改 40 个商品的库存"在免费档下半途抛错，前半截已落库、流水只记一半——正是不变式要防的半程状态）；
+  `src/api/error-codes.ts` 与 `docs/error-codes.md` 同步补 `invalid_delta`/`invalid_kind`/`stock_untracked` 三码；
+  `docs/pii-inventory.md` 给 `stock_movements` 建 11 列覆盖表（`note` 是后台自由文本、按最坏情况记个人数据，
+  整表无删除通道这件事进「已知缺口」第 4 条而不是豁免掉）。
+- **验证**：`npm run verify` 全链（见本轮报告 §7 的逐腿读数）；`docs/sql-baseline.json` 与 `docs/d1-write-quota.json`
+  均由判据自己的 `--update-*` 腿重生，不手填。
+
 ### 2026-09-29 追加六十九（对标第五十五轮：把"量不动的那一维"量出来，顺手发现自己收的半轮是假的绿）
 
 - **轮初对账｜第五十四轮是**半轮收尾**，且记忆卷把它写成了已完成**：`memory/07-next-steps.md` 主卷与卷 97/98

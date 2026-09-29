@@ -43,13 +43,16 @@
 | image_too_large | input | 413 | false | 单张图片超 D1 单语句体积预算（`MAX_STATEMENT_PAYLOAD_CHARS` = 90,000 字符；第三十七轮按实测把 800KB/2MB 的假上限收敛成这一把尺） | 压小图片或减少张数 |
 | payload_too_large | input | 413 | false | 整条记录（含全部图片）序列化后超单语句预算——一条 INSERT = 一行 = 一份预算 | 减少张数或压小图片 |
 | quantity_exceeds_limit | input | 400 | false | 单行数量超产品上界 99（继承详情页在册硬顶；对标 `saleor/saleor` 站点默认 50、`medusajs/medusa` 只校库存） | 减少数量或拆成多单 |
-| batch_too_large | input | 400 | false | 批量条目数超该批预算（更新 40 / 删除 200，两者不同因） | 按上限分片 |
+| batch_too_large | input | 400 | false | 批量条目数超该批预算（更新 20 / 删除 200，两者不同因） | 按上限分片 |
 | invalid_action | input | 400 | false | action 名不存在 | 修调用方；这是契约错不是运行错 |
+| invalid_delta | input | 400 | false | `adjustStock` 的 delta 非整数或为 0（记 0 行会污染 SUM(delta)==stock 这条对账不变式） | 填非零整数增减量；同值不必提交 |
+| invalid_kind | input | 400 | false | `getStockMovements` 的 kind 筛选不在 `init/sale/void/adjust` 四个在册值里 | 按在册 kind 重查 |
 | product_not_found | state | 404 | false | 商品行不存在（下单引用了已删商品，或更新命中空集） | 刷新商品列表后重下 |
 | order_not_found | state | 404 | false | 订单行不存在 | 核对订单号 |
 | submission_not_found | state | 404 | false | 服务提交不存在或已被处理掉 | 刷新列表 |
 | product_disabled | state | 409 | false | 商品已下架 | 从购物车移除该商品 |
 | stock_insufficient | state | 409 | false | 守卫式扣减有任一条 0 变更（库存不足） | 减数量或去掉该项后重下 —— **禁止静默本地兜底** |
+| stock_untracked | state | 409 | false | 对 `stock=-1`（不限售）的商品调 `adjustStock`：这类商品没有账面，记了流水也没有可对的上界 | 先在商品编辑里填入实际库存，把该品纳入有限库存管理 |
 | invalid_transition | state | 409 | false | 状态机不允许的迁移（如 completed → paid） | 刷新后按当前状态操作 |
 | concurrent_update | state | 409 | false | 乐观锁抢占失败（有人先改过同一单） | 重新读取后再操作 |
 | auth_failed | auth | 401 | false | 未带密钥或密钥不匹配任何档位 | 回登录页输密钥 |

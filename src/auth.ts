@@ -68,10 +68,11 @@ export async function deleteProduct(productId: string): Promise<{ code: number; 
 }
 
 // 批量商品更新（items 逐条更新，支持每组不同 updates）；返回服务端成功/失败明细
-// 分片大小必须等于服务端 BATCH_UPDATE_MAX（40）：那边按 D1 免费档「每调用 50 查询」推导，
+// 分片大小必须等于服务端 BATCH_UPDATE_MAX（第五十六轮 E7 起为 20）：那边按 D1 免费档「每调用 50 查询」
+// 推导，且库存流水进来后**每件最多 2 条语句**（UPDATE + 流水 INSERT）⇒ 1+2n ≤ 50-9 ⇒ n ≤ 20。
 // 这里只是把一次多选拆成若干次合法请求。由 tests/batchChunkContract.test.js 钉住两侧一致
 // （形态沿用 src/utils/spec-options.ts 与 orders.js 的口味分隔符双写 + 契约测试先例）。
-export const BATCH_UPDATE_CHUNK = 40
+export const BATCH_UPDATE_CHUNK = 20
 
 export async function batchUpdateProducts(items: { productId: string; updates: Record<string, unknown> }[]): Promise<{ code: number; message?: string; data?: BatchMutationResult } | { ok: true }> {
   if (!IS_CLOUD) {

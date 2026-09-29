@@ -13,6 +13,7 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync, cpSync, readFileSync, ex
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { assertCliRan } from './helpers/cliLeg.js'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SCRIPT = join(REPO, 'scripts', 'verify_images.py')
@@ -69,10 +70,10 @@ function face({ orders = [1, 2, 3], images = { 1: webp(), 2: webp(), 3: webp() }
  * 现网面由下面 `describe('R50-H1 现网面')` 用本地桩服务器单独驱动（env 传 `VERIFY_IMAGES_LIVE_URL`）。
  */
 const run = (dir, env = {}) =>
-  spawnSync(pythonBin, ['scripts/verify_images.py'], {
+  assertCliRan(spawnSync(pythonBin, ['scripts/verify_images.py'], {
     cwd: dir, encoding: 'utf8', timeout: 60_000,
     env: { ...process.env, VERIFY_IMAGES_LIVE: 'off', ...env },
-  })
+  }), { label: 'verify_images.py 子进程' })
 
 describe('verify:images 的四档退出码（判据自己必须会红）', () => {
   it('前置自证：本机有可用的 python3 系解释器（这条门禁已接进 verify 链与 CI，缺解释器就是红，不许静默跳过）', () => {

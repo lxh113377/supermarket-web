@@ -13,15 +13,17 @@ const ev = (over = {}) => evaluate({ tables: real.tables, rows: baseRows, exempt
   mdText: real.mdText, aiSlice: real.aiSlice, difySlice: real.difySlice, ...over })
 
 describe('分母自证（判据的人口由 schema 得出，不靠人记）', () => {
-  it('正向：解析到 9 张表、47 列行、3 张豁免；真仓 12 条判据全绿', () => {
-    expect(real.tables.size).toBe(9)
-    expect(real.rows.length).toBe(47)
+  it('正向：解析到 10 张表、58 列行、3 张豁免；真仓 12 条判据全绿', () => {
+    // 分母 9→10 张表 / 47→58 列：第五十六轮 E7 加 `stock_movements`（11 列整张进覆盖表，
+    // 含自由文本 note，所以是覆盖而不是豁免）。本行数值由解析器当场给出，判据不抄第二份清单。
+    expect(real.tables.size).toBe(10)
+    expect(real.rows.length).toBe(58)
     expect(real.exempt.size).toBe(3)
     const failed = ev().filter((v) => !v.ok).map((v) => `${v.id} ${v.detail}`)
     expect(failed).toEqual([])
     expect(ev().map((v) => v.id)).toEqual(['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9', 'P10', 'P11', 'P12'])
   })
-  it('归因纠正：schema.sql 单独也建了全部 9 张表 —— 第一版漏表是我 grep 窗口截断，不是文件范围', () => {
+  it('归因纠正：schema.sql 单独也建了全部 10 张表 —— 第一版漏表是我 grep 窗口截断，不是文件范围', () => {
     const onlySchema = parseSchemaTables([{ rel: 'db/schema.sql', sql: readFileSync('db/schema.sql', 'utf8') }])
     expect([...onlySchema.keys()].sort()).toEqual([...real.tables.keys()].sort())
     // 全量文件仍是必要设计：迁移可以建出 schema.sql 尚未回填的表，那种表躲不过本判据
@@ -119,10 +121,14 @@ describe('P8/P9 出境凭据与无通道挂账', () => {
       .find((v) => v.id === 'P9').detail).toContain('已知缺口')
   })
   it('反例：缺口节点名了 ai_calls 但漏了 rate_limits ⇒ P9 只点名漏的那张', () => {
-    const md = real.mdText.replace(/`rate_limits\.bucket` 里的 IP 无清理通道/, 'X').replace(/`rate_limits\.bucket`/, 'X')
+    // 两条 replace 都必须**全局**：上一版无 /g，只抹掉第一次出现。第五十六轮 E7 之后
+    // stock_movements 那条缺口在散文里又提了一次 rate_limits ⇒ 非全局版抹不干净，P9 照样点名不到，
+    // 这条反例就此变成"测的是夹具里剩下的那句提及"而不是"测 P9 有没有牙齿"（实测 expected true to be false）。
+    const md = real.mdText.replace(/`rate_limits\.bucket` 里的 IP 无清理通道/g, 'X').replace(/`rate_limits\.bucket`/g, 'X')
+      .replace(/rate_limits/g, 'X')
     const v = evaluate({ tables: real.tables, rows: baseRows, exempt: real.exempt, exportCols: real.exportCols, mdText: md })
       .find((x) => x.id === 'P9')
-    expect(v.ok).toBe(false)
+    expect(v.ok, '缺口节点里已无 rate_limits 字样，P9 却放行 ⇒ 这条反例没有对象了').toBe(false)
     expect(v.detail).toContain('rate_limits')
     expect(v.detail).not.toContain('ai_calls')
   })

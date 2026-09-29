@@ -18,6 +18,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { evaluate, collect, collectRegistered, collectCovered, isGateLike, parseRegistry, probeDenominator, testFace, verdictOf, REGISTRY } from '../scripts/check-cli-entrypoints.mjs'
 import { classifyRisk, probeSafeEvidence } from '../scripts/lib/preflight.mjs'
+import { assertCliRan } from './helpers/cliLeg.js'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SCRIPTS = join(REPO, 'scripts')
@@ -41,9 +42,9 @@ function probe(script, { cwd = REPO } = {}) {
   // 子进程预算必须**小于**调用它的 it() 的天花板：首版给 spawnSync 60s、却没给 it() 抬 timeout，
   // 于是 85 个文件并行时 check-licenses 从 1.2s 涨到 5s+ ⇒ vitest 先 5s 判超时，
   // 报的是"Test timed out"而不是任何真实结论（把自己的测量天花板当成被测对象的失败）。
-  const r = spawnSync(process.execPath, [join(SCRIPTS, script)], {
+  const r = assertCliRan(spawnSync(process.execPath, [join(SCRIPTS, script)], {
     cwd, encoding: 'utf8', timeout: 20_000,
-  })
+  }), { label: `cli-legs probe ${script}` })
   return { rc: r.status, out: `${r.stdout || ''}${r.stderr || ''}` }
 }
 
@@ -79,7 +80,7 @@ describe('入口探针：每条门禁的 CLI 路径必须真跑得通', () => {
   it('探针本身有牙齿：植入一个必然失败的门禁 ⇒ 必须被测出 rc!=0', () => {
     // 缺了这条，"全绿"可能只是因为探针根本没跑东西（零输入不得 PASS 的入口版）
     const dir = tmpRepo({ 'scripts/always-fail.mjs': 'console.log("boom")\nprocess.exit(3)\n' })
-    const r = spawnSync(process.execPath, [join(dir, 'scripts', 'always-fail.mjs')], { encoding: 'utf8', timeout: 20_000 })
+    const r = assertCliRan(spawnSync(process.execPath, [join(dir, 'scripts', 'always-fail.mjs')], { encoding: 'utf8', timeout: 20_000 }), { label: 'cli-legs always-fail 植入探针' })
     expect(r.status).toBe(3)
     expect(r.stdout).toContain('boom')
   }, 30_000)
@@ -545,7 +546,7 @@ ${riskRows}
     })
 
     it('真入口回执：本仓当场跑 `check-cli-entrypoints.mjs` ⇒ rc=0 且门面行自报 rc=（调用方能不解析文案就分档）', () => {
-      const r = spawnSync(process.execPath, ['scripts/check-cli-entrypoints.mjs'], { cwd: REPO, encoding: 'utf8', timeout: 60_000 })
+      const r = assertCliRan(spawnSync(process.execPath, ['scripts/check-cli-entrypoints.mjs'], { cwd: REPO, encoding: 'utf8', timeout: 60_000 }), { label: 'cli-legs check-cli-entrypoints 真面' })
       expect(r.status, `真面应当全绿，实测 rc=${r.status}：${String(r.stdout).split(/\r?\n/).slice(-1)}`).toBe(0)
       expect(r.stdout).toMatch(/GATE-PASS cli-entrypoints :: .*｜rc=0$/m)
     })
@@ -711,7 +712,7 @@ describe('缺输入面探针：探针分母（门禁类 + 非门禁可安全 spa
 
   for (const r of denom) {
     it(`${r.script} 在没有输入面的目录里：非 0 退出 + 首行是人话诊断`, () => {
-      const res = spawnSync(process.execPath, [join(dir, 'scripts', r.script)], { cwd: dir, encoding: 'utf8', timeout: 60_000 })
+      const res = assertCliRan(spawnSync(process.execPath, [join(dir, 'scripts', r.script)], { cwd: dir, encoding: 'utf8', timeout: 60_000 }), { label: `缺输入面探针 ${r.script}` })
       const out = `${res.stdout || ''}${res.stderr || ''}`
       const first = out.trim().split(/\r?\n/)[0] || '(无输出)'
       expect(res.status, `${r.script} 缺输入面却返回 0（把"没扫到"当成"扫过且清白"）：${first}`).not.toBe(0)
@@ -723,10 +724,10 @@ describe('缺输入面探针：探针分母（门禁类 + 非门禁可安全 spa
   it('探针有牙齿：植入"缺输入仍 exit 0"与"直接崩栈"两种假门禁 ⇒ 同一规则都必须抓住', () => {
     const openScript = join(dir, 'scripts', 'planted-fail-open.mjs')
     writeFileSync(openScript, "console.log('[planted] 0 个对象，全部通过')\n")
-    expect(spawnSync(process.execPath, [openScript], { cwd: dir, encoding: 'utf8', timeout: 20_000 }).status).toBe(0)
+    expect(assertCliRan(spawnSync(process.execPath, [openScript], { cwd: dir, encoding: 'utf8', timeout: 20_000 }), { label: '植入 fail-open 假门禁' }).status).toBe(0)
     const crashScript = join(dir, 'scripts', 'planted-crash.mjs')
     writeFileSync(crashScript, 'nopeNotDefined.x()\n')
-    const r = spawnSync(process.execPath, [crashScript], { cwd: dir, encoding: 'utf8', timeout: 20_000 })
+    const r = assertCliRan(spawnSync(process.execPath, [crashScript], { cwd: dir, encoding: 'utf8', timeout: 20_000 }), { label: '植入崩栈假门禁' })
     const first = `${r.stdout}${r.stderr}`.trim().split(/\r?\n/)[0]
     expect(r.status).not.toBe(0)
     expect(first).toMatch(SHELL_RE)
@@ -741,13 +742,13 @@ describe('缺输入面探针：探针分母（门禁类 + 非门禁可安全 spa
     expect(mutated, '变异锚点已失效（check-licenses 改形，夹具必须同步）').not.toBe(src)
     writeFileSync(target, mutated)
     try {
-      const r = spawnSync(process.execPath, [target], { cwd: dir, encoding: 'utf8', timeout: 60_000 })
+      const r = assertCliRan(spawnSync(process.execPath, [target], { cwd: dir, encoding: 'utf8', timeout: 60_000 }), { label: 'check-licenses 变异体' })
       expect(r.status, '摘掉零分母收口后探针仍判非 0 ⇒ 探针没在看这件事').toBe(0)
       expect(`${r.stdout}${r.stderr}`).toContain('全部 MIT/BSD/Apache/ISC 类白名单')
     } finally {
       writeFileSync(target, src) // 还原：后面的用例还要跑原始副本
     }
-    const back = spawnSync(process.execPath, [target], { cwd: dir, encoding: 'utf8', timeout: 60_000 })
+    const back = assertCliRan(spawnSync(process.execPath, [target], { cwd: dir, encoding: 'utf8', timeout: 60_000 }), { label: 'check-licenses 还原复跑' })
     expect(back.status, '还原后必须重新 fail-closed（证明上面那个 0 是变异造成的，不是环境噪声）').not.toBe(0)
   }, 90_000)
 })
@@ -779,8 +780,8 @@ describe('零分母探针：输入面齐、内容全 0 字节时，同一分母�
   })('')
 
   const denom = probeDenominator()
-  const runIn = (script) => spawnSync(process.execPath, [join(skeleton, 'scripts', script)],
-    { cwd: skeleton, encoding: 'utf8', timeout: 60_000 })
+  const runIn = (script) => assertCliRan(spawnSync(process.execPath, [join(skeleton, 'scripts', script)],
+    { cwd: skeleton, encoding: 'utf8', timeout: 60_000 }), { label: `零分母探针 ${script}` })
 
   it('骨架仓真的建起来了（有 src/functions/docs，且它们全是 0 字节）', () => {
     // 不证这一条，下面的"22 条全红"可能只是因为骨架是空的目录、判据在测不存在面（上一轮已测过）
@@ -835,7 +836,7 @@ describe('preflight 出口件：bail / requireInputs / requireParams / requireJs
     "if (what === 'json') requireJson('probe', rest)",
     "console.log('PASSED-THROUGH')",
   ].join('\n'))
-  const go = (...args) => spawnSync(process.execPath, [driver, ...args], { encoding: 'utf8', timeout: 20_000 })
+  const go = (...args) => assertCliRan(spawnSync(process.execPath, [driver, ...args], { encoding: 'utf8', timeout: 20_000 }), { label: `preflight 出口件 ${args[0]}` })
 
   for (const [what, badArg, goodArg] of [['bail', '就是少了它', null], ['inputs', join(dir, 'nope.sql'), join(dir, 'driver.mjs')], ['params', 'NO_SUCH_ENV_AT_ALL', 'PATH']]) {
     it(`${what}：缺 ⇒ 首行是 [probe] 环境不满足 且 rc=2${goodArg ? '；齐 ⇒ 放行' : '（bail 没有"齐"这一侧）'}`, () => {
@@ -844,7 +845,7 @@ describe('preflight 出口件：bail / requireInputs / requireParams / requireJs
       expect(bad.stderr).toContain('[probe] 环境不满足')
       expect(bad.stderr).toContain('rc=2')
       if (!goodArg) return
-      const good = spawnSync(process.execPath, [driver, what, goodArg], { encoding: 'utf8', timeout: 20_000 })
+      const good = assertCliRan(spawnSync(process.execPath, [driver, what, goodArg], { encoding: 'utf8', timeout: 20_000 }), { label: `preflight 放行 ${what}` })
       expect(good.stdout).toContain('PASSED-THROUGH')
       expect(good.status).toBe(0)
     })
@@ -869,8 +870,8 @@ describe('preflight 出口件：bail / requireInputs / requireParams / requireJs
  */
 describe('scan-secrets：扫到了 / 没得扫 / 暂存区为空，三种输出必须不同', () => {
   const git = (dir, args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8', timeout: 30_000 })
-  const run = (dir, args = []) => spawnSync(process.execPath, [join(SCRIPTS, 'scan-secrets.mjs'), ...args],
-    { cwd: dir, encoding: 'utf8', timeout: 60_000 })
+  const run = (dir, args = []) => assertCliRan(spawnSync(process.execPath, [join(SCRIPTS, 'scan-secrets.mjs'), ...args],
+    { cwd: dir, encoding: 'utf8', timeout: 60_000 }), { label: 'scan-secrets 子进程' })
   const out = (r) => `${r.stdout || ''}${r.stderr || ''}`
 
   it('暂存区有文件 ⇒ rc=0 且印出"已读 N 个文件"（N≥1）', () => {

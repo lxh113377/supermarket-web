@@ -321,3 +321,47 @@ describe('A9 数据轨：行值逐字节还原 + WHERE 必须打得到行', () =
     expect(probs.join('\n')).toContain('不是同一次变更')
   })
 })
+
+describe('A8 结构轨的「整表回滚」形态（第五十六轮 E7 加）', () => {
+  // 为什么单独立一轨：建表类迁移删的是**一张表 + 它的索引**，
+  // 旧轨只认「删一列」和「删一个索引」，数据轨只认单语句 UPDATE 改名 ——
+  // 三条路都装不下它，于是新回滚件只能"不登记然后被 A8 判红"，或"塞进数据轨被它拒收"。
+  const TBL_SCHEMA = `
+CREATE TABLE IF NOT EXISTS widgets (_id TEXT PRIMARY KEY, name TEXT DEFAULT '');
+CREATE TABLE IF NOT EXISTS stock_note (_id TEXT PRIMARY KEY, n INTEGER DEFAULT 0);
+CREATE INDEX IF NOT EXISTS idx_stock_note_n ON stock_note (n);
+`
+  const FORWARD = `
+CREATE TABLE IF NOT EXISTS stock_note (_id TEXT PRIMARY KEY, n INTEGER DEFAULT 0);
+CREATE INDEX IF NOT EXISTS idx_stock_note_n ON stock_note (n);
+INSERT INTO stock_note (_id, n) VALUES ('a', 1);
+`
+  const ROLLBACK = `
+DROP INDEX IF EXISTS idx_stock_note_n;
+DROP TABLE IF EXISTS stock_note;
+`
+  const objs = [{ table: 'stock_note' }, { table: 'stock_note', index: 'idx_stock_note_n' }]
+  const call = (over = {}) => structuralRollbackTrip({
+    schemaSql: TBL_SCHEMA, rollbackText: ROLLBACK, forwardText: FORWARD, objects: objs, label: 'A8 t', ...over,
+  })
+
+  it('正例：删表 + 删索引，再由配对正向件前滚回基线 ⇒ 零问题', () => {
+    expect(call()).toEqual([])
+  })
+
+  it('反例（假回滚）：回滚件没真的删掉那张表 ⇒ 必须判红，不许因为"索引删了"就算过', () => {
+    const r = call({ rollbackText: 'DROP INDEX IF EXISTS idx_stock_note_n;' })
+    expect(r.length).toBeGreaterThan(0)
+    expect(r.join('\n')).toContain('执行后表 stock_note 仍存在')
+  })
+
+  it('反例（清单与正向件对不上）：声明了表对象但配对件里没有 CREATE TABLE ⇒ 数量不符判红', () => {
+    const r = call({ forwardText: 'CREATE INDEX IF NOT EXISTS idx_stock_note_n ON stock_note (n);' })
+    expect(r.join('\n')).toMatch(/TABLE \d+\/1/)
+  })
+
+  it('反例（清单与真相源脱节）：声明要删的表根本不在基线里 ⇒ 判红而不是"没东西可删所以通过"', () => {
+    const r = call({ objects: [{ table: 'no_such_table' }] })
+    expect(r.join('\n')).toContain('不在基线真相源里')
+  })
+})

@@ -9,12 +9,24 @@ import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { createMeteredD1, runInSqlScope } from './lib/metered-d1.mjs'
 import { shapeOf } from './lib/response-shape.mjs'
-import { requireInputs, requireJson } from './lib/preflight.mjs'
+import { requireInputs, requireJson, bail } from './lib/preflight.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
 requireInputs('verify-backend', [join(root, 'db', 'schema.sql'), join(root, 'db', 'seed.sql'), join(root, 'functions', 'lib', 'backend.js')])
 requireJson('verify-backend', [join(root, 'package.json')])
+
+// LEDGER_CHECK_SQL 与生产侧共用同一句话（判据里另写一份 SQL＝两套口径，本仓的教义不允许）。
+// 但**必须动态 import、且排在 preflight 之后**：tests/cliEntrypoints 的两把探针会把本件拷进
+// ①没有 functions/ 的目录 ②所有输入都是 0 字节的骨架目录里跑；顶部静态 import 会让 ESM 解析器
+// 在 requireInputs 之前就先撞上，甩出来的是 `node:internal/modules/...` 崩栈而不是自家诊断
+// （第五十六轮 E7 加这行时实测两条探针同时判红，把"停在门口说人话"的契约破掉了）。
+// 现在两种缺件都落到 bail() 同一条 rc=2 出口 —— 「取不到对象」绝不折算成"没有脱节"。
+const stockModule = await import(pathToFileURL(join(root, 'functions', 'lib', 'stock.js')).href).catch(() => null)
+const LEDGER_CHECK_SQL = stockModule?.LEDGER_CHECK_SQL
+if (!LEDGER_CHECK_SQL) {
+  bail('verify-backend', 'functions/lib/stock.js 未提供 LEDGER_CHECK_SQL（缺文件或空文件）——对账尺没有对象，拒绝判"库存流水与快照未脱节"')
+}
 
 const db = new DatabaseSync(':memory:')
 db.exec(readFileSync(join(root, 'db', 'schema.sql'), 'utf8'))
@@ -584,6 +596,109 @@ ok(pubSub.code === 0 && (pubSub.data?.id || pubSub.data?._id), `/pub createSubmi
 const imgsViaWeb = await handleAdmin(env, 'getSubmissionImages', 'test-key-123', { submissionId: pubSub.data?.id || pubSub.data?._id })
 ok(imgsViaWeb.code === 0 && Array.isArray(imgsViaWeb.data?.images), `getSubmissionImages 返回 images 数组 (${JSON.stringify(imgsViaWeb.data?.images)})`)
 await handleAdmin(env, 'deleteSubmission', 'test-key-123', { submissionId: pubSub.data?.id || pubSub.data?._id })
+
+// ---------- L 组：库存流水（第五十六轮 E7）——写入即记账 + 不变式对账 ----------
+// 立这组的由头：对标同域三仓（opensourcepos/opensourcepos 的 ospos_inventory、grocy/grocy 的 stock_log、
+// inventree/InvenTree 的 StockItemTracking）后发现它们**共同**不做的一件事是"按流水回算快照"——
+// 流水只当报表用，快照与流水脱节没人发现。本仓既然补了流水，就把不变式一起补上：
+// 有限库存商品 SUM(delta) === products.stock，不限售项 SUM 必须为 0。
+// 这条判据在三个参照仓里都不存在，是本轮唯一"比对手多"的功能面，所以它必须有活体断言。
+const ledRows = (productId) => db.prepare(
+  'SELECT kind, delta, refType, refId, actor FROM stock_movements WHERE productId = ? ORDER BY id ASC',
+).all(productId)
+const ledSum = (productId) => Number(db.prepare(
+  'SELECT COALESCE(SUM(delta),0) AS s FROM stock_movements WHERE productId = ? AND voided = 0',
+).get(productId).s)
+const ledStock = (productId) => Number(db.prepare('SELECT stock FROM products WHERE _id = ?').get(productId).stock)
+
+const ledProd = await handleAdmin(env, 'createProduct', 'test-key-123', { name: '流水测试牛奶', price: 6, stock: 5 })
+const ledId = ledProd.data?._id
+ok(!!ledId, 'L0 createProduct 建出带库存(5)的商品')
+ok(JSON.stringify(ledRows(ledId)) === JSON.stringify([{ kind: 'init', delta: 5, refType: 'ledger', refId: '', actor: 'admin' }]),
+  `L1 建档即建账：新品带一条 init/+5（实得 ${JSON.stringify(ledRows(ledId))}）`)
+
+await handleAdmin(env, 'updateProduct', 'test-key-123', { productId: ledId, stock: 3 })
+ok(ledStock(ledId) === 3 && ledSum(ledId) === 3, `L2 绝对值入口也留痕：5→3 记 -2（实得 sum=${ledSum(ledId)}）`)
+ok(ledRows(ledId).at(-1).kind === 'adjust' && ledRows(ledId).at(-1).delta === -2,
+  `L2b 那一行的形状 kind=adjust/delta=-2（实得 ${JSON.stringify(ledRows(ledId).at(-1))}）`)
+
+const ledNoop = await handleAdmin(env, 'updateProduct', 'test-key-123', { productId: ledId, stock: 3 })
+ok(ledNoop.code === 0 && ledRows(ledId).length === 2, `L3 同值更新不得记 0 行流水（实得 ${ledRows(ledId).length} 行）`)
+
+const ledUp = await handleAdmin(env, 'adjustStock', 'test-key-123', { productId: ledId, delta: 4, note: '到货 4 件' })
+ok(ledUp.code === 0 && ledUp.data.after === 7 && ledSum(ledId) === 7,
+  `L4 adjustStock +4 ⇒ 账面 7 且流水合计 7（实得 ${JSON.stringify(ledUp.data)}）`)
+const ledDown = await handleAdmin(env, 'adjustStock', 'test-key-123', { productId: ledId, delta: -10 })
+ok(ledDown.code === -1 && ledDown.errorCode === 'stock_insufficient' && ledStock(ledId) === 7,
+  `L5 调整到负数被拒且账面不动（实得 ${ledDown.errorCode}/${ledStock(ledId)}）`)
+const ledZero = await handleAdmin(env, 'adjustStock', 'test-key-123', { productId: ledId, delta: 0 })
+ok(ledZero.code === -1 && ledZero.errorCode === 'invalid_delta', `L6 delta=0 直接拒（记 0 行会污染对账；实得 ${ledZero.errorCode}）`)
+const ledMiss = await handleAdmin(env, 'adjustStock', 'test-key-123', { delta: 1 })
+ok(ledMiss.code === -1 && ledMiss.errorCode === 'missing_product_id', `L7 缺 productId 拒（实得 ${ledMiss.errorCode}）`)
+const ledGhost = await handleAdmin(env, 'adjustStock', 'test-key-123', { productId: 'p_ghost', delta: 1 })
+ok(ledGhost.code === -1 && ledGhost.errorCode === 'product_not_found', `L8 商品不存在拒（实得 ${ledGhost.errorCode}）`)
+
+// 不限售项（stock=-1）没有账面可对 ⇒ 必须明确拒绝，而不是"成功了但没记账"
+const ledFree = await handleAdmin(env, 'createProduct', 'test-key-123', { name: '流水测试不限售', price: 2 })
+const ledFreeId = ledFree.data?._id
+const ledFreeAdj = await handleAdmin(env, 'adjustStock', 'test-key-123', { productId: ledFreeId, delta: 5 })
+ok(ledFreeAdj.code === -1 && ledFreeAdj.errorCode === 'stock_untracked' && ledRows(ledFreeId).length === 0,
+  `L9 不限售项拒绝记账且不留幽灵行（实得 ${ledFreeAdj.errorCode}/${ledRows(ledFreeId).length} 行）`)
+await handleAdmin(env, 'updateProduct', 'test-key-123', { productId: ledFreeId, stock: 6 })
+ok(ledSum(ledFreeId) === 6 && ledRows(ledFreeId).at(-1).delta === 6,
+  `L10 -1→6 记成"开跟踪"+6，合计与账面重新对齐（实得 sum=${ledSum(ledFreeId)}）`)
+await handleAdmin(env, 'updateProduct', 'test-key-123', { productId: ledFreeId, stock: -1 })
+ok(ledSum(ledFreeId) === 0 && ledStock(ledFreeId) === -1,
+  `L11 6→-1 记 -6 清零 ⇒ 不限售项合计恒为 0（实得 sum=${ledSum(ledFreeId)}）`)
+
+// 下单/取消这条最热的路径必须留痕，否则流水页缺了最大的一类变动
+db.prepare("DELETE FROM rate_limits WHERE bucket LIKE 'rate:write:%'").run()
+const ledOrder = await handlePublic(env, 'createOrder', { roomNumber: 'L1', items: [{ productId: ledId, quantity: 2 }] })
+const ledOrderId = ledOrder.data?.id
+ok(ledOrder.code === 0 && ledStock(ledId) === 5, `L12 下单扣减生效（实得 stock=${ledStock(ledId)}）`)
+const ledSale = ledRows(ledId).at(-1)
+ok(ledSale.kind === 'sale' && ledSale.delta === -2 && ledSale.refId === ledOrderId && ledSale.refType === 'order',
+  `L13 下单留一行 sale/-2 且 refId 指得回这张单（实得 ${JSON.stringify(ledSale)}）`)
+const ledCancel = await handleAdmin(env, 'updateOrderStatus', 'test-key-123', { orderId: ledOrderId, status: 'cancelled' })
+ok(ledCancel.code === 0 && ledRows(ledId).at(-1).kind === 'void' && ledRows(ledId).at(-1).delta === 2
+  && ledSum(ledId) === ledStock(ledId),
+  `L14 取消回补记 void/+2，合计仍等于账面（实得 sum=${ledSum(ledId)} stock=${ledStock(ledId)}）`)
+
+// 只读视图：分页 + 按类型筛 + 非法筛值必须有机器码
+const ledList = await handleAdmin(env, 'getStockMovements', 'test-key-123', { productId: ledId, limit: 2 })
+ok(ledList.code === 0 && Array.isArray(ledList.data.items) && ledList.data.items.length === 2
+  && ledList.data.total >= 5 && ledList.data.limit === 2,
+  `L15 流水分页返回 items/total/limit（实得 total=${ledList.data?.total} 页长 ${ledList.data?.items?.length}）`)
+ok(ledList.data.items.every((r) => r.productName === '流水测试牛奶'), 'L15b 视图带商品名（后台列表不靠二次查商品）')
+const ledFilter = await handleAdmin(env, 'getStockMovements', 'test-key-123', { kind: 'sale' })
+ok(ledFilter.code === 0 && ledFilter.data.items.every((r) => r.kind === 'sale'), 'L16 按 kind 过滤只剩该类型')
+const ledBadFilter = await handleAdmin(env, 'getStockMovements', 'test-key-123', { kind: 'bogus' })
+ok(ledBadFilter.code === -1 && ledBadFilter.errorCode === 'invalid_kind', `L17 非法 kind 带机器码拒绝（实得 ${ledBadFilter.errorCode}）`)
+
+// 不变式收口：跑完上面所有写路径之后，全库不得有一件商品脱节
+const ledBad = db.prepare(LEDGER_CHECK_SQL).all()
+ok(ledBad.length === 0, `L18 不变式 SUM(delta)==stock 对全部商品成立（脱节 ${ledBad.length} 件：${JSON.stringify(ledBad.slice(0, 3))}）`)
+// 反向腿：手工造一次脱节，判据必须抓得到（否则 L18 只是"恰好为空"，不是"判得动"）
+db.prepare('UPDATE products SET stock = stock + 1 WHERE _id = ?').run(ledId)
+const ledCaught = db.prepare(LEDGER_CHECK_SQL).all()
+ok(ledCaught.length === 1 && ledCaught[0].productId === ledId,
+  `L19 变异体：改一件快照 ⇒ 对账当场点名该件（实得 ${JSON.stringify(ledCaught.map((r) => r.productId))}）`)
+db.prepare('UPDATE products SET stock = stock - 1 WHERE _id = ?').run(ledId)
+ok(db.prepare(LEDGER_CHECK_SQL).all().length === 0, 'L20 还原后不变式复绿（证明 L19 抓的是真脱节）')
+// 批量入口的预读路径：一次批量里混带库存与不带库存的件
+const ledBatch = await handleAdmin(env, 'batchUpdateProducts', 'test-key-123', {
+  items: [{ productId: ledId, updates: { stock: 9 } }, { productId: ledFreeId, updates: { price: 3 } }],
+})
+ok(ledBatch.code === 0 && ledBatch.data.updated === 2 && ledSum(ledId) === 9 && ledStock(ledId) === 9,
+  `L21 批量改库存走预读路径且记账（实得 sum=${ledSum(ledId)}）`)
+const ledBatchOver = await handleAdmin(env, 'batchUpdateProducts', 'test-key-123', {
+  items: Array.from({ length: 21 }, () => ({ productId: ledId, updates: { price: 1 } })),
+})
+ok(ledBatchOver.code === -1 && ledBatchOver.errorCode === 'batch_too_large',
+  `L22 批量上限 20 生效（E7 重推的预算，实得 ${ledBatchOver.errorCode}）`)
+await handleAdmin(env, 'deleteProduct', 'test-key-123', { productId: ledId })
+await handleAdmin(env, 'deleteProduct', 'test-key-123', { productId: ledFreeId })
+ok(db.prepare(LEDGER_CHECK_SQL).all().length === 0, 'L23 删商品后不变式仍闭合（流水行留作历史，不随商品删）')
 
 // ---------- C1：单次调用 SQL 语句数基线（只降不升）----------
 const SQL_BASELINE_PATH = join(root, 'docs', 'sql-baseline.json')

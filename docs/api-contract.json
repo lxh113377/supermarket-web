@@ -65,6 +65,16 @@
           "cacheKey": null,
           "rateBucket": null
         },
+        "getStockMovements": {
+          "write": false,
+          "cacheKey": null,
+          "rateBucket": null
+        },
+        "adjustStock": {
+          "write": true,
+          "cacheKey": null,
+          "rateBucket": null
+        },
         "stalePendingReport": {
           "write": false,
           "cacheKey": null,
@@ -222,6 +232,7 @@
       "batchDeleteProducts",
       "createOrder",
       "recalculateOrders",
+      "adjustStock",
       "addReview",
       "addPublicReview",
       "seedReviews",

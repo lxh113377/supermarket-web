@@ -17,6 +17,7 @@ import {
   evaluate, deriveEntry, apiActions, CONTRACT, API_CONTRACT,
 } from '../scripts/api-response-contract.mjs'
 import { shapeOf } from '../scripts/lib/response-shape.mjs'
+import { assertCliRan } from './helpers/cliLeg.js'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SELF_SCRIPT = join(REPO, 'scripts', 'api-response-contract.mjs')
@@ -29,10 +30,10 @@ const api = apiActions(REPO)
 const recDir = mkdtempSync(join(tmpdir(), 'smrec-'))
 tmpDirs.push(recDir)
 const RECORDING = join(recDir, 'shapes.json')
-const rec = spawnSync(process.execPath, [BACKEND_RUNNER], {
+const rec = assertCliRan(spawnSync(process.execPath, [BACKEND_RUNNER], {
   cwd: REPO, encoding: 'utf8', timeout: 120_000,
   env: { ...process.env, RESPONSE_CONTRACT_OUT: RECORDING },
-})
+}), { label: 'api-response-contract 取录制(verify-backend)' })
 if (rec.status !== 0) throw new Error(`取录制失败 rc=${rec.status}: ${String(rec.stderr).slice(-300)}`)
 
 const clone = (o) => JSON.parse(JSON.stringify(o))
@@ -60,10 +61,10 @@ function fakeRepo(contractObj) {
   if (contractObj) writeFileSync(join(dir, CONTRACT), JSON.stringify(contractObj, null, 2) + '\n')
   return dir
 }
-const runIn = (dir, inPath = RECORDING) => spawnSync(
+const runIn = (dir, inPath = RECORDING) => assertCliRan(spawnSync(
   process.execPath, [join(dir, 'scripts', 'api-response-contract.mjs')], {
     cwd: dir, encoding: 'utf8', timeout: 120_000, env: { ...process.env, RESPONSE_CONTRACT_IN: inPath },
-  })
+  }), { label: 'api-response-contract 假仓子进程' })
 
 describe('shapeOf / deriveEntry：形状口径本身', () => {
   it('正向：信封键、data 形态、顶层键都排序稳定（契约文件要可 diff）', () => {
@@ -166,7 +167,7 @@ describe('V1~V6 双向变异', () => {
 
 describe('真入口与真流量（子进程）', () => {
   it('真仓跑真流量：GATE-PASS 且六条检查数对得上', () => {
-    const r = spawnSync(process.execPath, [SELF_SCRIPT], { cwd: REPO, encoding: 'utf8', timeout: 120_000 })
+    const r = assertCliRan(spawnSync(process.execPath, [SELF_SCRIPT], { cwd: REPO, encoding: 'utf8', timeout: 120_000 }), { label: 'api-response-contract 真仓真流量' })
     const out = `${r.stdout}${r.stderr}`
     expect(r.status, out.slice(-800)).toBe(0)
     expect(out).toContain('GATE-PASS response-contract')

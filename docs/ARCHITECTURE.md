@@ -13,8 +13,8 @@ flowchart LR
   end
   subgraph Cloudflare
     P[Pages<br/>supermarket-web.pages.dev<br/>静态管理后台 + 顾客端镜像]
-    F[Pages Functions<br/>/web 管理 31 action<br/>/pub 公开 9 action<br/>/_health 探活]
-    D[(D1 SQLite<br/>products/orders/reviews/<br/>submissions/security_events/<br/>rate_limits/ai_calls)]
+    F[Pages Functions<br/>/web 管理 33 action<br/>/pub 公开 9 action<br/>/_health 探活]
+    D[(D1 SQLite 10 张表<br/>products/orders/reviews/<br/>submissions/stock_movements/<br/>categories/security_events/<br/>rate_limits/ai_calls/<br/>schema_migrations)]
     KV[(Workers KV<br/>限流桶 + 60s 只读缓存)]
   end
   A[管理后台<br/>/#/admin 双密钥角色] -->|adminKey 会话| F

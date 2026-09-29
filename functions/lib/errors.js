@@ -45,6 +45,8 @@ export const ERRORS = {
   image_too_large: { kind: 'input', status: 413, retryable: false },
   payload_too_large: { kind: 'input', status: 413, retryable: false },
   quantity_exceeds_limit: { kind: 'input', status: 400, retryable: false },
+  invalid_delta: { kind: 'input', status: 400, retryable: false },
+  invalid_kind: { kind: 'input', status: 400, retryable: false },
   batch_too_large: { kind: 'input', status: 400, retryable: false },
   invalid_action: { kind: 'input', status: 400, retryable: false },
 
@@ -54,6 +56,7 @@ export const ERRORS = {
   submission_not_found: { kind: 'state', status: 404, retryable: false },
   product_disabled: { kind: 'state', status: 409, retryable: false },
   stock_insufficient: { kind: 'state', status: 409, retryable: false },
+  stock_untracked: { kind: 'state', status: 409, retryable: false },
   invalid_transition: { kind: 'state', status: 409, retryable: false },
   concurrent_update: { kind: 'state', status: 409, retryable: false },
 

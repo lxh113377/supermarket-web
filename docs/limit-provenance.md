@@ -37,7 +37,7 @@
 | functions/lib/actions/products.js | 分页 | 1000 | perf | 全量取商品 1000 行：店内 SKU 量级（实测 54）20 倍余量，1000 行窄字段远低于 100 KB/语句 |
 | functions/lib/actions/products.js | 分页 | 200 | perf | 分类下商品预览 200：后台单分类可见上界，超出即应搜索而非继续翻 |
 | functions/lib/actions/products.js | 截断型 | 20 | product | 口味 label 截 20 字：SPEC_OPTION_LIMIT=20 管个数、20 字管单条宽度，两者合起来让后台口味 chips 不换行 |
-| functions/lib/actions/products.js | 常量 | BATCH_UPDATE_MAX=40 | platform | 本轮由 200 改为按 d1_queries_per_invocation_free 推导：本 action 语句数 = 1 + n（第十四轮实测斜率 1），40 => 41 条 < 50，留 9 条给鉴权/限流/审计；前端 BATCH_UPDATE_CHUNK 必须等值，由 tests/batchChunkContract.test.js 钉住 |
+| functions/lib/actions/products.js | 常量 | BATCH_UPDATE_MAX=20 | platform | 按 d1_queries_per_invocation_free 推导：本 action 语句数 = 1 + 2n（第五十六轮 E7 起每件最多两条 —— UPDATE + 改到 stock 时的那条流水 INSERT），20 => 41 条 < 50，留 9 条给鉴权/限流/审计；前端 BATCH_UPDATE_CHUNK 必须等值，由 tests/batchChunkContract.test.js 钉住。**本轮由 40 降为 20**：40 在 1+2n 下会到 81 条，直接撞 D1 免费档每调用 50 查询 |
 | functions/lib/actions/reviews.js | 分页 | 1000 | perf | 评价全量导出 1000 条：与商品导出同族上界 |
 | functions/lib/actions/reviews.js | 分页 | 500 | product | 单商品评价展示 500：顾客端评价区上限，超出走「没有更多」 |
 | functions/lib/actions/reviews.js | 截断型 | 20 | schema | 评价用户名截 20：微信昵称常见长度上限 |
@@ -50,7 +50,7 @@
 | functions/lib/actions/submissions.js | 分页 | 500 | product | 服务申请列表展示 500：后台一屏可滚上限，超出需筛选 |
 | functions/lib/actions/submissions.js | 截断型 | 200 | schema | 表单备注类字段截 200：与 orders.remark 同族（TEXT 无列宽约束） |
 | functions/lib/actions/submissions.js | 截断型 | 50 | schema | 联系方式/姓名等短字段截 50：与 orders.wechat 同族 |
-| functions/lib/actions/products.js | 常量 | BATCH_DELETE_MAX=200 | platform | 删除件语句数是常数（1 存在性 + 1 批量删），受的是 sqlite_bound_params（999 绑定参数/语句）：N=200 => 单语句 200 参数，余量充分。与上面 40 不同值是有原因的，不是笔误 |
+| functions/lib/actions/products.js | 常量 | BATCH_DELETE_MAX=200 | platform | 删除件语句数是常数（1 存在性 + 1 批量删），受的是 sqlite_bound_params（999 绑定参数/语句）：N=200 => 单语句 200 参数，余量充分。与上面 20 不同值是有原因的，不是笔误 |
 | functions/lib/dify.js | 截断型 | 3 | product | 给 Dify 的规则问答取前 3 条命中：提示词实测够用的最小值 |
 | functions/lib/dify.js | 截断型 | 5 | product | 给 Dify 的商品候选取前 5 条：导购一轮推荐的产品上界 |
 | functions/lib/security.js | 保留期 | 90 | product | security_events 保留 90 天后裁剪：审计留痕窗口为安全侧拍定，配合 5% 概率裁剪控表体积（2026-08-28 注释） |
@@ -58,8 +58,12 @@
 | functions/lib/security.js | 截断型 | 500 | schema | detail 列截 500：审计明细上界，防一条异常长串把表撑大（TEXT 无列宽约束） |
 | functions/lib/security.js | 截断型 | 64 | schema | keyFingerprint 相关串截 64：哈希/uuid 形态长度，与 orders.requestId 同族 |
 | functions/lib/security.js | 截断型 | 8 | schema | 结果码/前缀类短字段截 8 字：与同文件 detail 截 500、fingerprint 截 64 同族，审计表列宽由应用层自定 |
+| functions/lib/stock.js | 截断型 | 200 | schema | 流水 note 截 200：与 orders.remark / submissions 备注同族（stock_movements.note 是 TEXT，无列宽约束，长度由应用层定） |
+| functions/lib/stock.js | 截断型 | 32 | schema | 流水 actor 截 32：调用方只会是 admin/pub/system 与后台账号短标识，32 够放且防止把任意串塞进对账依据列 |
+| functions/lib/stock.js | 截断型 | 64 | schema | 流水 refId 截 64：存 o_/p_ 前缀单号（genId 产物），与 orders.requestId、security.keyFingerprint 的 64 同族 |
+| functions/lib/actions/stock.js | 截断型 | 200 | schema | adjustStock 入口对 payload.note 先截 200 再交给 normalizeMovement：与 lib/stock.js 那把同名尺同值，两处都要有是因为**入口收敛防的是超长串进 errors/审计日志**，写入侧那把防的是进库；删任一侧另一侧就独自承担 |
 
-| src/auth.ts | 常量 | BATCH_UPDATE_CHUNK=40 | platform | 前端批量改价分片大小，必须等于服务端 BATCH_UPDATE_MAX=40（那边按 d1_queries_per_invocation_free=50 推导：语句数 1+n ⇒ 41<50）；两侧等值由 tests/batchChunkContract.test.ts 钉住 |
+| src/auth.ts | 常量 | BATCH_UPDATE_CHUNK=20 | platform | 前端批量改价分片大小，必须等于服务端 BATCH_UPDATE_MAX=20（那边按 d1_queries_per_invocation_free=50 推导：第五十六轮 E7 起语句数 1+2n ⇒ 41<50）；两侧等值由 tests/batchChunkContract.test.ts 钉住。**本轮随服务端由 40 降为 20**，不同笔就会造成前端一次请求打爆服务端预算 |
 | src/components/admin/ProductInlineEditForm.tsx | 截断型 | 9 | product | 商品图册保存前只提交前 9 张：一屏约 3×3，再多没人翻到。**第三十五轮起服务端 createProduct/updateProduct 对 >9 直接拒（too_many_images）**，前端截断不再独自承担上限 |
 | functions/lib/actions/submissions.js | 拒绝型 | 5 | product | 第三十五轮补的服务端条数 cap，与 ServiceFormPage 的 ≤5 同值（此前只有前端有 cap，直接 POST 可塞任意多张）。不用 d1_statement_bytes 反推：线上实测单条提交 images 最大 442KB（本文件 :37 注释）仍写成功 ⇒ 100KB 只管语句文本、不含绑定参数，拿它当图片上限会得出错误结论 |
 | functions/lib/actions/products.js | 拒绝型 | 9 | product | 第三十五轮补：与 ProductInlineEditForm 的 slice(0,9) 同值。服务端从"只查 scheme"升到"也查条数"，两处出口（createProduct/updateProduct）同笔加，缺一侧就会被另一侧绕过 |
@@ -104,5 +108,5 @@
 - 当前档位登记：**Free** ⇒ D1「每调用查询数」预算取 `d1_queries_per_invocation_free = 50`。
 - 为什么必须登记：Free 50 与 Paid 1000 差 20 倍，同一个上限在一个档位下安全、在另一个档位下必然半途抛错。
 - 本仓无 Cloudflare 凭据 ⇒ 判不出实际档位，按**最坏情况（Free）**设防；改档位时须同步复核 
-  `BATCH_UPDATE_MAX`（当前 40 由 50 推导）与所有 `platform` 类登记行。
+  `BATCH_UPDATE_MAX`（当前 20 由 50 推导，语句数口径 1+2n）与所有 `platform` 类登记行。
 - 未登记本节 ⇒ `npm run verify:limits` 的 C6 判红（引用了档位相关事实却不写取哪个数）。

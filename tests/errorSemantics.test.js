@@ -52,8 +52,9 @@ describe('E3 登记册：解析与双向差分', () => {
   const rows = parseRegistry(readFileSync(REG, 'utf8'))
 
   // 分母 33 → 35：第三十七轮新增 payload_too_large 与 quantity_exceeds_limit（两个都要具名登记，不接受复用别人的码）
-    it('正向：真仓登记册零差异，分母由表自身给出（35 行）', () => {
-    expect(rows.size).toBe(35)
+  // 分母 35 → 38：第五十六轮 E7 库存域新增 invalid_delta / invalid_kind / stock_untracked
+    it('正向：真仓登记册零差异，分母由表自身给出（38 行）', () => {
+    expect(rows.size).toBe(38)
     expect(diffRegistry(DECLARED, ERRORS, rows)).toEqual({ miss: [], extra: [], mismatch: [], stub: [] })
   })
   it('反例 a：文档少一行 ⇒ miss 点名', () => {

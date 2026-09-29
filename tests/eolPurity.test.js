@@ -14,13 +14,14 @@ import { spawnSync } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { evaluate } from '../scripts/check-eol-purity.mjs'
+import { assertCliRan } from './helpers/cliLeg.js'
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const SELF = join('scripts', 'check-eol-purity.mjs')
 
-const run = (args = [], cwd = REPO) => spawnSync(process.execPath, [SELF, ...args], {
+const run = (args = [], cwd = REPO) => assertCliRan(spawnSync(process.execPath, [SELF, ...args], {
   cwd, encoding: 'utf8', timeout: 120_000,
-})
+}), { label: `check-eol-purity ${args.join(' ') || '真面'}` })
 
 /** 造一份合成仓：只有 .gitattributes + 一个 .py + 一个 .webp，够判 E1/E2/E3 三条腿。 */
 const entry = (path, binary, iEol = 'i/lf') => ({ path, binary, iEol })
@@ -61,8 +62,8 @@ describe('check-eol-purity 的入口通道（真跑 + 三档相位）', () => {
   it('属性表**被 git 解析生效**的行为回执：真面 E1 绿，且 `git check-attr` 对 .webp 回 binary、对 .py 回 eol=lf', () => {
     // 「写了 .gitattributes」不等于「git 按它办」—— 被 info/attributes 覆盖、模式写错都会让表变成装饰。
     // 所以这里问 git 本人，而不是再解析一遍我自己写的表（一处一判）。
-    const attrs = spawnSync('git', ['-C', REPO, 'check-attr', 'binary', 'text', 'eol', '--',
-      'public/images/1.webp', 'scripts/verify_images.py'], { encoding: 'utf8', timeout: 30_000 })
+    const attrs = assertCliRan(spawnSync('git', ['-C', REPO, 'check-attr', 'binary', 'text', 'eol', '--',
+      'public/images/1.webp', 'scripts/verify_images.py'], { encoding: 'utf8', timeout: 30_000 }), { label: 'git check-attr 属性生效回执' })
     expect(attrs.status, attrs.stderr).toBe(0)
     const out = attrs.stdout.replace(/\r\n/g, '\n')
     expect(out).toMatch(/1\.webp: binary: set/)

@@ -24,6 +24,7 @@ import { getReviews, addReview, getAllReviews, deleteReview, seedReviews } from 
 import { createSubmission, getSubmissions, getSubmissionImages, updateSubmissionStatus, deleteSubmission } from './actions/submissions.js'
 import { adminAiAdvice, pubAiChat } from './actions/ai.js'
 import { getDashboardStats } from './actions/stats.js'
+import { getStockMovements, adjustStock } from './actions/stock.js'
 import { fail } from './errors.js'
 import { kvCacheGetJSON, kvCacheSet, invalidatePublicCatalog, invalidateDashboard, invalidateAiAdvice, AI_ADVICE_CACHE_KEY, DASHBOARD_CACHE_PREFIX } from './cache.js'
 
@@ -37,6 +38,7 @@ const ADMIN_WRITE_ACTIONS = new Set([
   'createProduct', 'updateProduct', 'deleteProduct',
   'batchUpdateProducts', 'batchDeleteProducts',
   'createOrder', 'recalculateOrders',
+  'adjustStock',
   'addReview', 'addPublicReview', 'seedReviews',
   'deleteOrder', 'updateOrderStatus',
   'deleteReview', 'createSubmission', 'updateSubmissionStatus', 'deleteSubmission',
@@ -52,7 +54,7 @@ const ADMIN_WRITE_ACTIONS = new Set([
 const ADMIN_READ_ACTIONS = new Set([
   'login', 'verifyKey', 'getProducts', 'stalePendingReport', 'getOrders', 'getOrder',
   'getPublicProducts', 'getPublicCategories', 'getAllReviews', 'getReviews', 'getOrderStatus',
-  'getSubmissions', 'getSubmissionImages', 'aiAdvice', 'getDashboardStats',
+  'getSubmissions', 'getSubmissionImages', 'aiAdvice', 'getDashboardStats', 'getStockMovements',
 ])
 
 // 会影响看板聚合结果的写操作（2026-09-18 R6）：成功后必须让看板缓存即时失效，
@@ -115,6 +117,9 @@ export async function handleAdmin(env, action, adminKey, payload = {}, request =
       case 'updateOrderStatus': result = await updateOrderStatus(DB, payload); break
       case 'createOrder': { const r = await createOrder(DB, payload); if (r.code === 0) maybeNotifyNewOrder(env, r, payload, notifyWaitUntil); result = r; break }
       case 'recalculateOrders': result = await recalculateOrders(DB); break
+      // E7 库存域：流水只读视图（只读密钥可用，因为它不改任何状态）+ 手工调整（写，进审计与失效集合）
+      case 'getStockMovements': result = await getStockMovements(DB, payload); break
+      case 'adjustStock': result = await adjustStock(DB, payload); break
       // 超时未支付单盘点（只读，对标第二轮 A5）：不进 ADMIN_WRITE_ACTIONS，只读密钥也可查
       case 'stalePendingReport': result = await stalePendingReport(DB, payload); break
       case 'getOrders': result = await getOrders(DB, payload); break
@@ -177,7 +182,7 @@ export async function handleAdmin(env, action, adminKey, payload = {}, request =
     result = fail('internal_error', '服务暂时不可用，请稍后重试')
   }
   // M1：商品/分类写操作成功后失效公共目录 KV 缓存（顾客端立即看到新数据）
-  if (result.code === 0 && ['createProduct', 'updateProduct', 'deleteProduct', 'batchUpdateProducts', 'batchDeleteProducts'].includes(action)) {
+  if (result.code === 0 && ['createProduct', 'updateProduct', 'deleteProduct', 'batchUpdateProducts', 'batchDeleteProducts', 'adjustStock'].includes(action)) {
     await invalidatePublicCatalog(env)
   }
   // R6：看板缓存写失效（与目录缓存同处收口，保证"改完立刻看到"）。

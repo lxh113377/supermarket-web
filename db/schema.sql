@@ -123,3 +123,29 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
   appliedAt  TEXT NOT NULL,
   note       TEXT DEFAULT ''
 );
+
+-- 库存流水（第五十六轮 E7，借同域三仓的现形形状：opensourcepos 的 ospos_inventory、
+-- grocy 的 stock_log、InvenTree 的 StockItemTracking —— 三个"单店/库存"同类**每一个**都有流水，
+-- 而本仓原先只有 products.stock 这一个当前值，出入库与盘点纠错不可追溯）。
+-- 口径：delta 有符号（出为负）；kind ∈ init|sale|void|adjust；refType ∈ ledger|order|manual；
+-- 不变式「有限库存商品 SUM(delta) == products.stock」由 scripts/verify-backend.mjs 的 L 组断言盯住
+-- ——三个参照仓都不按流水回算快照，这一半是本仓自己加的。
+-- 建账与回滚：db/migrate-stock-movements.sql / db/rollback-stock-movements.sql
+CREATE TABLE IF NOT EXISTS stock_movements (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  productId TEXT NOT NULL,
+  delta     INTEGER NOT NULL,
+  kind      TEXT NOT NULL,
+  refType   TEXT DEFAULT '',
+  refId     TEXT DEFAULT '',
+  actor     TEXT DEFAULT '',
+  note      TEXT DEFAULT '',
+  voided    INTEGER DEFAULT 0,
+  voidedAt  TEXT,
+  createdAt TEXT NOT NULL
+);
+
+-- 流水页与按商品对账两条路径各一条索引（对齐 grocy：只索引 商品×时间 与 类型×时间 两向）
+CREATE INDEX IF NOT EXISTS idx_stock_movements_product_ts ON stock_movements (productId, createdAt);
+CREATE INDEX IF NOT EXISTS idx_stock_movements_kind_ts ON stock_movements (kind, createdAt);
+

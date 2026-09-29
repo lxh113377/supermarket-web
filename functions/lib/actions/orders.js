@@ -1,6 +1,7 @@
 // 订单域 handlers（从 backend.js 拆出，逻辑零改动）
 
 import { qAll, qFirst, qRun, qBatch, jparse, nowISO, genId, insert } from '../db.js'
+import { insertMovements } from '../stock.js'
 import { isSafeImageUrl } from '../security.js'
 import { fail } from '../errors.js'
 import { MAX_STATEMENT_PAYLOAD_CHARS } from '../shared.js'
@@ -168,11 +169,15 @@ export async function createOrder(DB, payload) {
   }
 
   const stockItems = verified.filter((it) => Number(byId.get(it.productId).stock) >= 0)
-  const stockErr = await reserveStock(DB, stockItems)
+  // E7：单号在扣库存**之前**生成，好让流水的 refId 指得到这张单。
+  // 原先是 insert 时才 genId ⇒ 流水只能记空号，对账时查不到"这次扣减属于哪一单"。
+  // 落库失败时这个号随单一起作废，不会留下悬空引用（下面那条回补路径会记 kind='void'）。
+  const orderId = genId('o_')
+  const stockErr = await reserveStock(DB, stockItems, { orderId })
   if (stockErr) return stockErr
   const ts = nowISO()
   const doc = {
-    _id: genId('o_'), roomNumber: room, items: verified,
+    _id: orderId, roomNumber: room, items: verified,
     wechat: wechatNorm, remark: remarkNorm,
     paymentScreenshot: shot,
     totalAmount: totalRounded, status: 'pending', createdAt: ts, updatedAt: ts,
@@ -182,7 +187,7 @@ export async function createOrder(DB, payload) {
     await insert(DB, 'orders', doc)
   } catch (e) {
     // 落库失败必须回补本请求已占用的库存，否则失败一次就凭空少一份可售库存
-    if (stockItems.length) await releaseStock(DB, stockItems)
+    if (stockItems.length) await releaseStock(DB, stockItems, { orderId, actor: 'system' })
     const msg = e instanceof Error ? e.message : String(e)
     if (key && /UNIQUE constraint failed/i.test(msg) && /idempotencyKey/i.test(msg)) {
       // 并发窗口：另一请求已用同一把 key 落库，把那张单返回给本调用方
@@ -198,7 +203,11 @@ export async function createOrder(DB, payload) {
 // 库存占用：N 条守卫式 UPDATE（WHERE stock>=qty）合成**一次** batch 往返（对标第十四轮 D1 batch）。
 // 0 变更=库存不足——注意 batch 只在语句**执行失败**时整批回滚，0 变更不是失败，
 // 所以不足那条之前的已成功扣减仍需用**再一次** batch 补偿（往返 N+1 → 最坏 2，happy path 1）。
-export async function reserveStock(DB, items) {
+//
+// 第五十六轮 E7：扣减成功后补一行流水（kind='sale'，delta 为负）。
+// 为什么不同批插流水：同上一条"0 变更不是失败"的语义 —— 把 INSERT 混进守卫 UPDATE 的那一批，
+// 扣减失败的那件商品照样会留下流水，账面与流水当场脱节。宁可多一次往返（+1），换可对账。
+export async function reserveStock(DB, items, ref = {}) {
   if (!items.length) return null
   const ts = nowISO()
   const stmts = items.map((it) => DB.prepare(
@@ -207,20 +216,37 @@ export async function reserveStock(DB, items) {
   const results = await qBatch(DB, stmts)
   const bad = results.findIndex((r) => !r.meta?.changes)
   if (bad >= 0) {
-    if (bad > 0) await releaseStock(DB, items.slice(0, bad))
+    if (bad > 0) await releaseStock(DB, items.slice(0, bad), ref)
     return fail('stock_insufficient', `库存不足: ${items[bad].name}`)
   }
+  await insertMovements(DB, items.map((it) => ({
+    productId: it.productId, delta: -Math.trunc(Number(it.quantity) || 0),
+    kind: 'sale', refType: 'order', refId: ref.orderId || '', actor: ref.actor || 'pub',
+  })))
   return null
 }
 
-// 库存释放（取消订单回补）：一次 batch 回补，仅回补在售管理的有限库存（stock>=0），不限售项不动
-export async function releaseStock(DB, items) {
+// 库存释放（取消订单/删除单/落库失败回补）：一次 batch 回补，仅回补在售管理的有限库存（stock>=0），不限售项不动。
+// E7 前置那次 IN 查询是必须的：流水只对"真的动了账面"的商品记，不限售项在 SQL 里被 CASE 跳过，
+// 在 JS 里也必须跳过，否则记出去的 +delta 没有对应的快照变化，不变式当场就破。
+export async function releaseStock(DB, items, ref = {}) {
   if (!items.length) return
+  const ids = items.map((it) => it.productId).filter(Boolean)
+  if (!ids.length) return
+  const ph = ids.map(() => '?').join(',')
+  const rows = await qAll(DB, `SELECT _id, stock FROM products WHERE _id IN (${ph})`, ids)
+  const tracked = new Set(rows.filter((r) => Number(r.stock) >= 0).map((r) => r._id))
+  const list = items.filter((it) => tracked.has(it.productId))
+  if (!list.length) return
   const ts = nowISO()
-  const stmts = items.map((it) => DB.prepare(
+  const stmts = list.map((it) => DB.prepare(
     `UPDATE products SET stock = CASE WHEN stock >= 0 THEN stock + ? ELSE stock END, updatedAt = ? WHERE _id = ?`,
   ).bind(it.quantity, ts, it.productId))
   await qBatch(DB, stmts)
+  await insertMovements(DB, list.map((it) => ({
+    productId: it.productId, delta: Math.trunc(Number(it.quantity) || 0),
+    kind: 'void', refType: 'order', refId: ref.orderId || '', actor: ref.actor || 'admin',
+  })))
 }
 
 export async function deleteOrder(DB, payload) {
@@ -232,7 +258,7 @@ export async function deleteOrder(DB, payload) {
   await qRun(DB, `DELETE FROM orders WHERE _id = ?`, [orderId])
   if (cur && !['cancelled', 'completed'].includes(cur.status)) {
     const items = jparse(cur.items, [])
-    if (items.length) await releaseStock(DB, items)
+    if (items.length) await releaseStock(DB, items, { orderId, actor: 'admin' })
   }
   return { code: 0 }
 }
@@ -296,10 +322,10 @@ export async function updateOrderStatus(DB, payload) {
     return fail('invalid_transition', `不允许的状态流转: ${cur.status} → ${status}`)
   const items = jparse(cur.items, [])
   // 取消 = 释放本单占用的有限库存（不限售项由 releaseStock 内 CASE 条件天然跳过）
-  if (status === 'cancelled' && items.length) await releaseStock(DB, items)
+  if (status === 'cancelled' && items.length) await releaseStock(DB, items, { orderId, actor: 'admin' })
   // 误取消恢复（cancelled→pending）= 重新占用；库存已被别人占走则拒绝恢复，状态不动
   if (cur.status === 'cancelled' && status === 'pending' && items.length) {
-    const err = await reserveStock(DB, items)
+    const err = await reserveStock(DB, items, { orderId, actor: 'admin' })
     if (err) return err
   }
   // 乐观锁（对标 litemall OrderUtil.updateWithOptimisticLocker / Medusa updateWithOptimisticLocker）：
@@ -309,7 +335,7 @@ export async function updateOrderStatus(DB, payload) {
     [status, nowISO(), orderId, cur.status])
   if (!res.meta?.changes) {
     // 抢占失败时，本请求刚为"误取消恢复"扣下的库存必须回补，否则凭空少一份可售库存
-    if (cur.status === 'cancelled' && status === 'pending' && items.length) await releaseStock(DB, items)
+    if (cur.status === 'cancelled' && status === 'pending' && items.length) await releaseStock(DB, items, { orderId, actor: 'system' })
     return fail('concurrent_update', '订单已被他人更新，请刷新后重试')
   }
   return { code: 0 }

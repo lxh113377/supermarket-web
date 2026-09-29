@@ -16,6 +16,7 @@ import {
   stableText, TS_SENTINEL,
 } from '../scripts/check-judge-side-effects.mjs'
 import { describeDrift, formatDrift } from '../scripts/lib/drift-shape.mjs'
+import { assertCliRan } from './helpers/cliLeg.js'
 
 const ROOT = resolve(fileURLToPath(import.meta.url), '../..')
 const SCRIPT = join('scripts', 'check-judge-side-effects.mjs')
@@ -195,13 +196,13 @@ describe('证据新鲜度（S6）——"在册"不等于"仍成立"', () => {
   it('期限可由调用方覆写（禁把 14 天写成不可改的常量；非法值当场 rc=2 而不是静默退回默认）', () => {
     const reg = { ...base, observed_utc: new Date(Date.now() - 40 * DAY).toISOString() }
     expect(state(evaluate({ candidates: CAND, results: RES, registry: reg, entryMd: MERGED_MD, now: Date.now(), maxAgeDays: 60 }).rows, 'S6').ok).toBe(true)
-    const bad = spawnSync(process.execPath, [SCRIPT, '--max-age-days', 'abc'], { cwd: ROOT, encoding: 'utf8', timeout: 120_000 })
+    const bad = assertCliRan(spawnSync(process.execPath, [SCRIPT, '--max-age-days', 'abc'], { cwd: ROOT, encoding: 'utf8', timeout: 120_000 }), { label: 'judge-side-effects --max-age-days 非法值' })
     expect(bad.status, `${bad.stdout}${bad.stderr}`.slice(-400)).toBe(2)
     expect(`${bad.stderr}`).toContain('需要一个非负数字')
   })
 
   it('缩面档拒绝 --update（用偏样重写全量册 + 刷新时刻 = 冒充刚核过）', () => {
-    const r = spawnSync(process.execPath, [SCRIPT, '--blind-only', '--update'], { cwd: ROOT, encoding: 'utf8', timeout: 120_000 })
+    const r = assertCliRan(spawnSync(process.execPath, [SCRIPT, '--blind-only', '--update'], { cwd: ROOT, encoding: 'utf8', timeout: 120_000 }), { label: 'judge-side-effects 缩面拒绝 --update' })
     expect(r.status, `${r.stdout}${r.stderr}`.slice(-400)).toBe(2)
     expect(`${r.stderr}`).toContain('缩面')
   })
@@ -263,7 +264,7 @@ describe('两把字节尺（幂等生成器的形状）', () => {
 
 describe('入口通道真跑（--fixture / --inject-red / 缺输入面）', () => {
   const cli = (args) => {
-    const r = spawnSync(process.execPath, [SCRIPT, ...args], { cwd: ROOT, encoding: 'utf8', timeout: 120_000 })
+    const r = assertCliRan(spawnSync(process.execPath, [SCRIPT, ...args], { cwd: ROOT, encoding: 'utf8', timeout: 120_000 }), { label: `judge-side-effects 入口 ${args.join(' ')}` })
     return { rc: r.status, out: `${r.stdout || ''}${r.stderr || ''}` }
   }
   it('喂全绿合成回执 ⇒ rc=0 且门面行印回执数与改写面', () => {

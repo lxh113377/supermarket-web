@@ -12,6 +12,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync, readFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { assertCliRan } from './helpers/cliLeg.js'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SCRIPT = join(REPO, 'scripts', 'check-staged-syntax.mjs')
@@ -21,7 +22,7 @@ const dirs = []
 function gitRepo(files) {
   const dir = mkdtempSync(join(tmpdir(), 'stagedsyn-'))
   dirs.push(dir)
-  const git = (args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8' })
+  const git = (args) => assertCliRan(spawnSync('git', args, { cwd: dir, encoding: 'utf8' }), { label: `staged-syntax git ${args[0]}` })
   expect(git(['init', '-q', '.']).status, '夹具建不起来（git 不可用）').toBe(0)
   git(['config', 'user.email', 'fixture@example.invalid'])
   git(['config', 'user.name', 'fixture'])
@@ -36,7 +37,7 @@ function gitRepo(files) {
 
 // 用**绝对路径**起脚本：合成仓里没有 scripts/ 副本（除了变异那条腿自己拷），
 // 拿相对路径 spawn 会得到"文件不存在 rc=1"，然后被读成"判据判红了"。
-const run = (cwd) => spawnSync(process.execPath, [SCRIPT], { cwd, encoding: 'utf8', timeout: 90_000 })
+const run = (cwd) => assertCliRan(spawnSync(process.execPath, [SCRIPT], { cwd, encoding: 'utf8', timeout: 90_000 }), { label: 'staged-syntax 判据子进程' })
 
 describe('check-staged-syntax：暂存区语法闸', () => {
   it('正向：暂存面全是合法 JS ⇒ rc=0，且门面行印出"判了几个/盲区几个"', () => {
@@ -62,7 +63,7 @@ describe('check-staged-syntax：暂存区语法闸', () => {
     const r = run(dir)
     expect(r.status, `暂存的是好版本，工作树的在途改动不该算本次提交的错：${r.stdout}`).toBe(0)
     // 反向半边：把工作树那份也 add 上去 ⇒ 同一文件立刻必须红（证明上面那个 0 不是"根本没读到文件"）
-    expect(spawnSync('git', ['add', '--', 'mine.mjs'], { cwd: dir, encoding: 'utf8' }).status).toBe(0)
+    expect(assertCliRan(spawnSync('git', ['add', '--', 'mine.mjs'], { cwd: dir, encoding: 'utf8' }), { label: 'staged-syntax git add 坏版本' }).status).toBe(0)
     const again = run(dir)
     expect(again.status, '把坏版本加进暂存区后必须翻红').toBe(1)
     expect(again.stdout).toContain('FAIL mine.mjs')
@@ -98,12 +99,12 @@ describe('check-staged-syntax：暂存区语法闸', () => {
     expect(mutated, '变异锚点已失效（脚本改形，夹具必须同步）').not.toBe(src)
     writeFileSync(inRepo, mutated, 'utf8')
     try {
-      const r = spawnSync(process.execPath, ['scripts/check-staged-syntax.mjs'], { cwd: dir, encoding: 'utf8', timeout: 90_000 })
+      const r = assertCliRan(spawnSync(process.execPath, ['scripts/check-staged-syntax.mjs'], { cwd: dir, encoding: 'utf8', timeout: 90_000 }), { label: 'staged-syntax 变异体(摘判定)' })
       expect(r.status, '摘掉判定之后仍判红 ⇒ 这条腿没打在被告分支上').toBe(0)
       expect(r.stdout).toContain('GATE-PASS')
     } finally {
       writeFileSync(inRepo, src, 'utf8')
-      const back = spawnSync(process.execPath, ['scripts/check-staged-syntax.mjs'], { cwd: dir, encoding: 'utf8', timeout: 90_000 })
+      const back = assertCliRan(spawnSync(process.execPath, ['scripts/check-staged-syntax.mjs'], { cwd: dir, encoding: 'utf8', timeout: 90_000 }), { label: 'staged-syntax 还原复跑' })
       expect(back.status, '还原后必须重新判红（证明那个 0 是变异造成的）').toBe(1)
     }
   })

@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { copyGateScripts } from './helpers/copyGateScripts.mjs'
+import { assertCliRan } from './helpers/cliLeg.js'
 import { evaluate, synthesizeDump, DRILL_PASSPHRASE } from '../scripts/restore-drill.mjs'
 import { encryptBuffer } from '../scripts/backup-crypto.mjs'
 
@@ -18,7 +19,7 @@ const tmpDirs = []
 afterAll(() => { for (const d of tmpDirs) rmSync(d, { recursive: true, force: true }) })
 const tmp = () => { const d = mkdtempSync(join(tmpdir(), 'smrd-')); tmpDirs.push(d); return d }
 const run = (args = [], cwd = REPO) => {
-  const r = spawnSync(process.execPath, [SELF, ...args], { cwd, encoding: 'utf8', timeout: 120_000 })
+  const r = assertCliRan(spawnSync(process.execPath, [SELF, ...args], { cwd, encoding: 'utf8', timeout: 120_000 }), { label: `restore-drill ${args.join(' ') || '默认'}` })
   return { rc: r.status, out: `${r.stdout || ''}${r.stderr || ''}` }
 }
 const row = (rows, id) => rows.find((r) => r.id === id)
@@ -27,7 +28,7 @@ describe('合成 dump 的结构（先证明对象是真的，再谈加解密）'
   it('schema + seed 合成的 dump 含全部建表语句与逐行 INSERT，且注释是 SQL 的 --（本轮两次栽在 # 与 MySQL 的 SET 上）', () => {
     const dump = synthesizeDump(readFileSync(join(REPO, 'db', 'schema.sql'), 'utf8'), readFileSync(join(REPO, 'db', 'seed.sql'), 'utf8'))
     const tables = [...readFileSync(join(REPO, 'db', 'schema.sql'), 'utf8').matchAll(/CREATE TABLE IF NOT EXISTS "?([a-z_]+)"?/gi)].map((m) => m[1])
-    expect(tables.length, '真相源表数').toBe(9)
+    expect(tables.length, '真相源表数（第五十六轮 E7 起含 stock_movements）').toBe(10)
     for (const t of tables) expect(dump.includes(`INSERT INTO "${t}"`) || dump.includes(`CREATE TABLE IF NOT EXISTS ${t}`), `dump 里没有表 ${t}`).toBe(true)
     expect(dump).not.toMatch(/^#/)
     expect(dump).not.toContain('SET FOREIGN_KEY_CHECKS')
@@ -103,7 +104,7 @@ describe('CLI 真跑（子进程 + 退出码矩阵）', () => {
   it('缺输入面：只有脚本、没有 db/ 的假仓 ⇒ rc=2 且点名取不到（不得静默 0）', () => {
     const dir = tmp()
     copyGateScripts(REPO, dir, 'restore-drill.mjs', 'backup-crypto.mjs', 'verify-backup-restore.mjs')
-    const r = spawnSync(process.execPath, [join(dir, 'scripts', 'restore-drill.mjs')], { cwd: dir, encoding: 'utf8', timeout: 120_000 })
+    const r = assertCliRan(spawnSync(process.execPath, [join(dir, 'scripts', 'restore-drill.mjs')], { cwd: dir, encoding: 'utf8', timeout: 120_000 }), { label: 'restore-drill 缺输入面假仓' })
     expect(r.status, `${r.stdout}${r.stderr}`).toBe(2)
     expect(`${r.stderr}${r.stdout}`).toMatch(/schema|seed/)
   })

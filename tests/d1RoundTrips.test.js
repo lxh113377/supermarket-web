@@ -182,11 +182,14 @@ describe('度量工具本体（mock 的 batch 语义）', () => {
 })
 
 describe('真链路实测（两条尺必须给出不同答案）', () => {
-  it('createOrder：往返斜率 0，语句斜率 1 —— 只看任一条尺都会漏', async () => {
+  it('createOrder：往返斜率 0，语句斜率 2 —— 只看任一条尺都会漏', async () => {
     const { rows } = await measure()
     const order = rows.find((r) => r.name === 'P:createOrder')
     expect(order.rtSlope).toBe(0)
-    expect(order.stSlope).toBe(1)
+    // 语句斜率 1 → 2（第五十六轮 E7）：每件商品现在是「守卫式 UPDATE + 一条流水 INSERT」。
+    // 两半都各自合成一次 batch ⇒ 往返斜率仍是 0 —— 这正是本判据存在的理由：配额看语句、延迟看往返，
+    // 只盯一条尺会把"记账量翻倍而延迟没变"这件事整个读丢。
+    expect(order.stSlope).toBe(2)
     expect(order.point[0].statements).toBeLessThan(order.point[1].statements)
   })
 

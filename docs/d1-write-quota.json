@@ -1,6 +1,6 @@
 {
   "note": "本件由 `node scripts/check-d1-roundtrips.mjs --update-write-quota` 生成；A9 拿它与当场实测双向对账，手改即红。峰值口径 = 各 action 两端规模里较大者。",
-  "generatedUtc": "2026-09-27T20:53:31.496Z",
+  "generatedUtc": "2026-09-29T16:46:04.868Z",
   "daily_rows_written_free": 100000,
   "daily_rows_read_free": 5000000,
   "source": "cloudflare/cloudflare-docs src/content/partials/workers/d1-pricing.mdx:7-8（本机 gh api contents 现取 @2026-09-28T01:41:11Z）；强制执行见 src/content/changelog/d1/2026-09-01-d1-free-tier-limit-enforcement.mdx:9",
@@ -8,12 +8,12 @@
   "callsPerDayAtPeak": 4761,
   "rows_read_measurable_local": false,
   "remote_usage": "VERIFIED",
-  "remote_usage_at": "2026-09-27T20:52:08.423Z",
+  "remote_usage_at": "2026-09-27T20:54:05.587Z",
   "remote_usage_max_age_days": 7,
-  "remote_usage_why": "回执 graphql+wrangler 通道取到读数 @2026-09-27T20:52:08.423Z（窗口 2026-09-27T00:00:00Z .. 2026-09-28T00:00:00Z，按 00:00 UTC 日界）",
+  "remote_usage_why": "回执 graphql+wrangler 通道取到读数 @2026-09-27T20:54:05.587Z（窗口 2026-09-27T00:00:00Z .. 2026-09-28T00:00:00Z，按 00:00 UTC 日界）",
   "remote_usage_receipt": "docs/d1-remote-usage.json",
   "actions": {
-    "P:createOrder": 11,
+    "P:createOrder": 21,
     "A:batchUpdateProducts": 11,
     "A:batchDeleteProducts": 1,
     "A:seedReviews": 21
