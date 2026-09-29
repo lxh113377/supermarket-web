@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @probe-safe: 骨架实测 rc=2 / 0.124s（账本缺失即在门口判 UNVERIFIED），默认面 rc=0 / 0.108s；以 PATH 前置假 `gh`（命中即写日志并 exit 127）复跑默认面 ⇒ 假 gh 零调用（@2026-09-29 本机），`gh api` 只在显式 `--remote` 分支才走
 /**
  * 逃生门计量对账（第五十三轮 E3 / 内层 R53-H5）
  *
@@ -23,6 +24,7 @@
  *     所以 sha 只做"格式合规"（40 位十六进制）+ 可解析性**建议级**读数。
  */
 import { readFileSync, existsSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
@@ -79,6 +81,61 @@ export function evaluate({ lines, facePresent = true }) {
   return { rows, rc: bad ? 1 : 0, stats: { records: recs.length, bad, genesis, bypass: recs.length - genesis, face: 'present' } }
 }
 
+/**
+ * 纯函数：从账本行里取出**绕过**记录的 head_sha（`kind:"genesis"` 的起始行不是绕过，不参与远端对账）。
+ * 坏行在这里静默跳过是安全的：那些行已由 `evaluate` 的 H2/H3/H5 具名判红，本函数只负责喂给远端腿。
+ */
+export function bypassHeads(lines = []) {
+  const out = []
+  lines.forEach((text, i) => {
+    if (!text || !text.trim()) return
+    let o = null
+    try { o = JSON.parse(text) } catch { return }
+    if (!o || typeof o !== 'object' || Array.isArray(o) || o.kind === 'genesis') return
+    const h = String(o.head_sha ?? '').trim()
+    if (SHA_RE.test(h)) out.push({ line: i + 1, head: h, branch: String(o.branch ?? '').trim() })
+  })
+  return out
+}
+
+/**
+ * 第五十四轮 R54-H3：绕过**之后**远端到底绿没绿 —— report-only，永不改退出码。
+ *
+ * 为什么不能进阻断链：这一腿要联网查 run，网络不通时它会把一次正常的提交判红，而本地没有任何
+ * 可自愈的处置（户内规⑩：一次正常提交变不了绿的判据没资格当闸）。所以第五十三轮把它记成
+ * "没判的半边"；本轮补的是**取证通道**而不是闸：查得到就逐条点名，查不到就印 UNVERIFIED，
+ * 两种形态都不影响 `verify:escape-hatch` 的 rc。
+ *
+ * `fetchRuns(sha)` 由调用方注入 ⇒ 夹具喂合成 payload，绝不在测试里联网。
+ *   返回数组        ⇒ 参与对账
+ *   返回 null       ⇒ 取数失败（gh 不可用 / 网络 / rc≠0）
+ *   抛异常          ⇒ 同上，状态记 UNVERIFIED 并带上原因
+ */
+export function remoteRows(records = [], fetchRuns = () => null) {
+  return records.map((rec) => {
+    let runs = null
+    let why = ''
+    try { runs = fetchRuns(rec.head) } catch (e) { why = `${e.name || 'Error'}: ${e.message}` }
+    const short = rec.head.slice(0, 7)
+    if (runs === null || runs === undefined) {
+      return { id: `R#${rec.line}`, state: 'UNVERIFIED', ok: false, unverified: true,
+        detail: `#${rec.line} head=${short} ⇒ 远端取不到${why ? `（${why}）` : ''}；**这不等于没回绿**，也不等于没绕过` }
+    }
+    if (!Array.isArray(runs) || runs.length === 0) {
+      return { id: `R#${rec.line}`, state: 'NOTFOUND', ok: false, unverified: true,
+        detail: `#${rec.line} head=${short} ⇒ 该 sha 名下没有任何 run（分支被删/sha 不属于本仓/浅克隆外推）` }
+    }
+    const done = runs.filter((r) => (r.status || '') === 'completed')
+    const failed = done.filter((r => (r.conclusion || '') === 'failure'))
+    const passed = done.filter((r) => (r.conclusion || '') === 'success')
+    const running = runs.length - done.length
+    const state = failed.length ? 'RED' : (running > 0 ? 'PENDING' : (passed.length > 0 ? 'GREEN' : 'OTHER'))
+    return { id: `R#${rec.line}`, state, ok: state === 'GREEN', unverified: false,
+      detail: `#${rec.line} head=${short} branch=${rec.branch || '?'}｜run ${runs.length} 条：success ${passed.length}／failure ${failed.length}／未结束 ${running}`
+        + (failed.length ? `（${failed.map((f) => f.name || '?').slice(0, 3).join(', ')}）` : '') }
+  })
+}
+
 function selftest() {
   const good = JSON.stringify({ utc: '2026-01-01T00:00:00Z', base_sha: 'a'.repeat(40), head_sha: 'b'.repeat(40), branch: 'main', reason: '基座判红且不可自愈，本笔正是那条修复，只能叠加推送', actor: 'tester' })
   const cases = [
@@ -99,8 +156,45 @@ function selftest() {
     if (!ok) bad += 1
     console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${note}`)
   }
-  console.log(`[verify:escape-hatch] 自证 ${cases.length - bad}/${cases.length}${bad ? ' ⇒ 有腿没咬住' : ''}`)
-  return bad ? 1 : 0
+  // —— R54-H3 的远端腿：fetchRuns 一律注入合成 payload，**自证面里不许联网**。
+  const rec = (head) => [{ line: 1, head, branch: 'main' }]
+  const remoteCases = [
+    ['⑦ 远端正向：sha 名下有 success run ⇒ 状态 GREEN 且印出 matched/passed 两个计数',
+      () => { const x = remoteRows(rec('b'.repeat(40)), () => [{ name: 'CI', status: 'completed', conclusion: 'success' }]); return x[0].state === 'GREEN' && /run 1 条：success 1/.test(x[0].detail) }, true],
+    ['⑧ 远端反例：同 sha 有一条 failure ⇒ RED 并点名是哪个 job/workflow',
+      () => { const x = remoteRows(rec('b'.repeat(40)), () => [{ name: 'CI', status: 'completed', conclusion: 'success' }, { name: 'D1 Daily Backup', status: 'completed', conclusion: 'failure' }]); return x[0].state === 'RED' && x[0].detail.includes('D1 Daily Backup') }, true],
+    ['⑨ 远端零输入：fetchRuns 返回 null ⇒ UNVERIFIED，**措辞必须两边都不下**（既不说绿也不说没绕）',
+      () => { const x = remoteRows(rec('b'.repeat(40)), () => null); return x[0].state === 'UNVERIFIED' && x[0].unverified === true && x[0].detail.includes('不等于没回绿') }, true],
+    ['⑩ 远端形态：run 还在跑 ⇒ PENDING（不得提前判绿，也不得判红）',
+      () => { const x = remoteRows(rec('b'.repeat(40)), () => [{ name: 'CI', status: 'in_progress', conclusion: '' }]); return x[0].state === 'PENDING' }, true],
+    ['⑪ 变异体面：恒 GREEN 的实现会在⑧上翻红 ⇒ 若有人把状态改成写死，这条自证当场抓到',
+      () => { const x = remoteRows(rec('b'.repeat(40)), () => [{ name: 'x', status: 'completed', conclusion: 'failure' }]); return x[0].state !== 'GREEN' }, true],
+  ]
+  let rbad = 0
+  for (const [label, check] of remoteCases) {
+    let ok = false
+    let note = ''
+    try { ok = check() === true } catch (e) { ok = false; note = `（崩：${e.message}）` }
+    if (!ok) rbad += 1
+    console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${note}`)
+  }
+  const total = cases.length + remoteCases.length
+  console.log(`[verify:escape-hatch] 自证 ${total - bad - rbad}/${total}（账本 ${cases.length - bad}/${cases.length}・远端腿 ${remoteCases.length - rbad}/${remoteCases.length}）${bad + rbad ? ' ⇒ 有腿没咬住' : ''}`)
+  return (bad + rbad) ? 1 : 0
+}
+
+/** 取该 sha 名下的 run 列表；任何一步不成都返回 null（⇒ 上层记 UNVERIFIED，不猜结论）。 */
+function ghRuns(sha) {
+  const url = spawnSync('git', ['remote', 'get-url', 'origin'], { cwd: ROOT, encoding: 'utf8', timeout: 20_000 })
+  if (url.status !== 0) return null
+  const m = /github\.com[:/]([^/]+)\/([^/.]+?)(?:\.git)?$/.exec((url.stdout || '').trim())
+  if (!m) return null
+  const r = spawnSync('gh', ['api',
+    `repos/${m[1]}/${m[2]}/actions/runs?head_sha=${encodeURIComponent(sha)}&per_page=50`,
+    '--jq', '[.workflow_runs[] | {name, status, conclusion}]'],
+  { cwd: ROOT, encoding: 'utf8', timeout: 60_000 })
+  if (r.status !== 0) return null
+  try { return JSON.parse(r.stdout) } catch { return null }
 }
 
 function main(argv = process.argv.slice(2)) {
@@ -120,7 +214,14 @@ function main(argv = process.argv.slice(2)) {
   const r = evaluate({ lines: text === null ? [] : text.split(/\r?\n/), facePresent: text !== null })
   for (const row of r.rows) console.log(`${row.ok ? 'PASS' : (row.unverified ? 'UNVERIFIED' : 'FAIL')}  ${row.id} :: ${row.detail}`)
   console.log(`[verify:escape-hatch] verdict=${r.rc === 1 ? 'RED' : (r.rc === 2 ? 'UNVERIFIED' : 'GREEN')} rc=${r.rc}｜面=${r.stats.face}｜记录 ${r.stats.records} 条（绕过 ${r.stats.bypass ?? 0} / 起始 ${r.stats.genesis ?? 0}）｜不合规 ${r.stats.bad}｜检查 ${r.rows.length}/${r.rows.length}`)
-  console.log('  未判的半边（不得当成已判）：绕过之后远端有没有回绿（要联网查 run，接进阻断链即不可自愈）；sha 在浅克隆里能否解出（CI fetch-depth=1）。')
+  console.log('  未判的半边（不得当成已判）：绕过之后远端有没有回绿——离线面判不了，取证通道是 `--remote`（report-only，见下）；另 sha 在浅克隆里能否解出（CI fetch-depth=1）也不判。')
+  if (argv.includes('--remote')) {
+    const heads = bypassHeads(text === null ? [] : text.split(/\r?\n/))
+    console.log(`[report:escape-hatch-remote] report-only（**不改 rc，也不进阻断链**）：账本里 ${heads.length} 条绕过记录待对账`)
+    for (const row of remoteRows(heads, ghRuns)) console.log(`  ${row.state}  ${row.id} :: ${row.detail}`)
+    console.log('  为什么不做成闸：这条腿要联网，网络不通时它会把一次正常提交判红，而本机没有任何可自愈的处置（户内规⑩）。')
+    console.log('  为什么仍值得跑：第五十二轮那次绕过，"绕过之后到底绿没绿"当时是**没人查过**的——本行把"查一次"变成一条命令。')
+  }
   return r.rc
 }
 

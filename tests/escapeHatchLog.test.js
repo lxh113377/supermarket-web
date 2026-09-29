@@ -6,6 +6,7 @@
 // @vitest-environment node
 import { describe, it, expect, afterAll } from 'vitest'
 import { spawnSync } from 'node:child_process'
+import { assertCliRan } from './helpers/cliLeg.js'
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -18,13 +19,21 @@ const dirs = []
 afterAll(() => { for (const d of dirs) rmSync(d, { recursive: true, force: true }) })
 const fresh = () => { const d = mkdtempSync(join(tmpdir(), 'eh53-')); dirs.push(d); return d }
 const GOOD = { base: '4'.repeat(40), head: '9'.repeat(40), branch: 'main', actor: 'fixture', reason: '合成面上的合规记录，长度已过 20 字下限' }
-const run = (args) => spawnSync(process.execPath, [SELF, ...args], { cwd: REPO, encoding: 'utf8', timeout: 60_000 })
+const run = (args) => {
+  const r = spawnSync(process.execPath, [SELF, ...args], { cwd: REPO, encoding: 'utf8', timeout: 60_000 })
+  return assertCliRan(r, { label: `verify:escape-hatch ${args.join(' ')}`, budgetMs: 60_000 })
+}
 
 describe('verify:escape-hatch（逃生门计量）', () => {
   it('入口真跑：--selftest 必须被子进程跑起来并印出 6/6（只 import 纯函数不算覆盖）', () => {
     const r = run(['--selftest'])
     expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0)
-    expect(r.stdout).toContain('[verify:escape-hatch] 自证 6/6')
+    const m = /自证 (\d+)\/(\d+)（账本 (\d+)\/(\d+)・远端腿 (\d+)\/(\d+)）/.exec(r.stdout)
+    expect(m, `自证汇总行形状不对：${r.stdout.split('\n').slice(-1)[0]}`).toBeTruthy()
+    expect(Number(m[1]), '总通过数必须等于总分母').toBe(Number(m[2]))
+    expect(Number(m[3]) + Number(m[5]), '分母恒等式：账本条数 + 远端腿条数 = 总条数').toBe(Number(m[2]))
+    expect(Number(m[4]), '账本腿不得掉档（第五十三轮为 6 条）').toBeGreaterThanOrEqual(6)
+    expect(Number(m[6]), '远端腿不得掉档（第五十四轮为 5 条）').toBeGreaterThanOrEqual(5)
     expect(r.stderr, `判据不该抛异常：${r.stderr.slice(0, 140)}`).not.toMatch(/Traceback/)
   })
 
@@ -100,6 +109,53 @@ describe('verify:escape-hatch（逃生门计量）', () => {
     expect(threw2, '理由太短必须被拒').toBeTruthy()
     expect(existsSync(join(d, '.ci')), '目录已建也不算失败痕迹，但内容不得变').toBe(true)
     expect(readFileSync(w.path, 'utf8')).toBe(before)
+  })
+
+  it('R54-H3 远端腿（纯函数 + 注入，**夹具里绝不联网**）：四种状态各自归位，且恒 GREEN 的实现会被反例翻红', async () => {
+    const { remoteRows, bypassHeads } = await import('../scripts/check-escape-hatch-log.mjs')
+    const REC = [{ line: 1, head: 'b'.repeat(40), branch: 'main' }]
+    const g = remoteRows(REC, () => [{ name: 'CI', status: 'completed', conclusion: 'success' }])
+    expect(g[0].state).toBe('GREEN')
+    expect(g[0].detail, '结论行必须带 matched/passed 计数（判据≠覆盖率）').toMatch(/run 1 条：success 1/)
+    const bad = remoteRows(REC, () => [{ name: 'CI', status: 'completed', conclusion: 'failure' }])
+    expect(bad[0].state).toBe('RED')
+    const none = remoteRows(REC, () => null)
+    expect(none[0].state).toBe('UNVERIFIED')
+    expect(none[0].unverified, '取不到必须是未验证位，不得复用 ok=false 当"判红"').toBe(true)
+    expect(none[0].detail).toContain('不等于没回绿')
+    const empty = remoteRows(REC, () => [])
+    expect(empty[0].state).toBe('NOTFOUND')
+    const pend = remoteRows(REC, () => [{ name: 'CI', status: 'in_progress', conclusion: '' }])
+    expect(pend[0].state).toBe('PENDING')
+    // 变异体面：把状态写死成 GREEN 的实现，必须在 bad/pend 两条上翻红
+    expect([bad[0].state, pend[0].state], '若有人把 state 写死，这两条就不再互异').not.toEqual(['GREEN', 'GREEN'])
+    // bypassHeads 必须把 genesis 行剔掉（起始行不是绕过，去查它的 run 是给自己造第三条腿）
+    const lines = [JSON.stringify({ ...GOOD, head_sha: 'c'.repeat(40), kind: 'genesis' }),
+      JSON.stringify({ ...GOOD, head_sha: 'd'.repeat(40) }), '{ 坏行不管它，H2 已判红']
+    const heads = bypassHeads(lines)
+    expect(heads.length, '两条合法记录里只有一条是绕过').toBe(1)
+    expect(heads[0].head).toBe('d'.repeat(40))
+  })
+
+  it('R54-H3 接线边界：远端腿**只能落在 report: 前缀下**——链、CI、verify:* 别名里都不得出现 --remote（联网判据当闸＝不可自愈）', () => {
+    const pkg = JSON.parse(readFileSync(join(REPO, 'package.json'), 'utf8'))
+    const ci = readFileSync(join(REPO, '.github', 'workflows', 'ci.yml'), 'utf8')
+    expect(String(pkg.scripts.verify), 'verify 链不得带 --remote').not.toContain('--remote')
+    expect(ci, 'CI 不得带 --remote').not.toContain('--remote')
+    for (const [k, v] of Object.entries(pkg.scripts)) {
+      if (String(v).includes('--remote')) {
+        expect(k, `带 --remote 的别名只许住在 report: 命名空间下（发现 ${k}）`).toMatch(/^report:/)
+      }
+    }
+    expect(pkg.scripts['report:escape-hatch-remote'], '没挂别名＝这条腿只有写过它的人会用（半成品）')
+      .toContain('check-escape-hatch-log.mjs --remote')
+  })
+
+  it('真面回执：账本里的绕过记录确有 1 条可对账（这条腿在真盘上跑过，不是只活在合成 payload 里）', () => {
+    const text = readFileSync(join(REPO, '.ci', 'escape-hatch.jsonl'), 'utf8').split(/\r?\n/).filter((l) => l.trim())
+    const heads = text.map((l) => JSON.parse(l)).filter((o) => o.kind !== 'genesis')
+    expect(heads.length, '本轮之前那次真实绕过必须在账上（回溯补记也算）').toBeGreaterThanOrEqual(1)
+    for (const h of heads) expect(String(h.head_sha)).toMatch(/^[0-9a-f]{7,40}$/)
   })
 
   it('接线回归：别名直指本脚本、verify 链收它、CI 里确有这一步（两跳核，不按别名假判缺口）', () => {

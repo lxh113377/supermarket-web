@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { copyGateScripts } from './helpers/copyGateScripts.mjs'
+import { assertCliRan } from './helpers/cliLeg.js'
 import { evaluate, extractCommands, collectDocs, readAliases, renderGateTable, syncGateTable, registryBody, normalizeEol } from '../scripts/check-doc-commands.mjs'
 
 const ROOT = resolve(fileURLToPath(import.meta.url), '../..')
@@ -137,6 +138,7 @@ describe('文档命令对账 · 反向对账与生成物', () => {
 describe('入口通道真跑（只 import 纯函数不算跑过入口）', () => {
   const cli = (args, env = {}) => {
     const r = spawnSync(process.execPath, [SCRIPT, ...args], { cwd: ROOT, encoding: 'utf8', env: { ...process.env, ...env }, timeout: 120_000 })
+    assertCliRan(r, { label: `check:doc-commands ${args.join(' ')}`, budgetMs: 120_000 })
     return { rc: r.status, out: `${r.stdout || ''}${r.stderr || ''}` }
   }
   const f = (name, obj) => { const p = join(DIR, name); writeFileSync(p, JSON.stringify(obj), 'utf8'); return p }

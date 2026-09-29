@@ -126,6 +126,7 @@ G11 认的是"已证明停在门口"这个整词，不是子串 —— 否则 �
 | check-d1-remote-usage.mjs | network-fetch, wrangler, writes-artifacts | ❌ **没停在门口**（本条否证了我给它写的初稿"缺登记册即 rc=2"）：无 flag 骨架**实测 rc=0 / 7.7s** —— CF GraphQL 与 `wrangler d1 info` 各真打了一遍，只因不带 `--write` 才没落盘 ⇒ 探针跑它等于测 Cloudflare 可用性，永不进自动面。判据本体由 `tests/d1RemoteUsage.test.js` 注入读数覆盖（U5 三向的四种出口各有断言） |
 | api-response-contract.mjs | writes-artifacts | ❌ 不声明停在门口：**读侧骨架实测 rc=0 / 0.3s**（它就是 `verify:response` 每轮真跑的那条，也是 PROBED 成员）。`writes-artifacts` 只在显式 `--write`（= `gen:response-contract` 别名）时成立。本轮 R42-H2 把"目标是表达式/常量"的形态认出来之后它才入表 ⇒ 此前它挂"零风险"是**漏登**，不是它变危险了 |
 | check-catalog-facts.mjs | network-fetch | ✅ 已证明停在门口：rc=2 / 1s（缺 `db/seed.sql`）；`--live` 才走 fetch ⇒ 回到分母 |
+| check-escape-hatch-log.mjs | gh-cli | ✅ 已证明停在门口：账本缺失时骨架**实测 rc=2 / 0.124s**（判 UNVERIFIED 即 bail），真仓默认面**实测 rc=0 / 0.108s**；用 PATH 前置假 `gh`（被调即写日志并 exit 127）复跑默认面 ⇒ **假 gh 零调用**（@2026-09-29 本机）⇒ `gh api` 只在显式 `--remote`（= `report:escape-hatch-remote` 别名）分支才走，探针跑默认面不碰网络。它同时是 PROBED 成员（`verify:escape-hatch` 每轮真跑） |
 | check-functions-build.mjs | wrangler | ✅ 已证明停在门口：rc=2 / 0s（缺 `node_modules/wrangler`）；esbuild 冷编译实测 9.0s 在其后。门禁类，CI 必跑 |
 | check-live-shape.mjs | network-fetch | ✅ 已证明停在门口：骨架实测 rc=2 / 0s（`existsSync(functions/_health.js)` 拦在 fetch 之前即 bail），线上请求在其后才走 ⇒ 回到分母。真仓实测 4s 回 HTTP=200；CI 里是 **advisory**（`continue-on-error`）——线上取不到判 UNREACHABLE 而不折算成通过 |
 | check-pr-has-tests.mjs | gh-cli | ❌ 未停在门口：无开放 PR 时按设计 rc=0（看守型）⇒ 探针的 rc≠0 断言对它不成立，永不进自动面；每轮 push main 在 `dispatch.yml:44` 真跑 |

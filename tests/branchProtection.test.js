@@ -4,6 +4,7 @@
 // @vitest-environment node
 import { describe, it, expect, afterAll } from 'vitest'
 import { spawnSync } from 'node:child_process'
+import { assertCliRan } from './helpers/cliLeg.js'
 import { mkdtempSync, rmSync, writeFileSync, readFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
@@ -19,7 +20,7 @@ mkdirSync(join(tmp, 'scripts'), { recursive: true })
 const run = (recording, script = SELF) => {
   const f = join(tmp, 'in.json')
   writeFileSync(f, JSON.stringify(recording))
-  const r = spawnSync(process.execPath, [script], { cwd: REPO, encoding: 'utf8', timeout: 60_000, env: { ...process.env, BRANCH_PROTECTION_JSON: f } })
+  const r = assertCliRan(spawnSync(process.execPath, [script], { cwd: REPO, encoding: 'utf8', timeout: 60_000, env: { ...process.env, BRANCH_PROTECTION_JSON: f } }), { label: `branchProtection run ${script}` })
   return { rc: r.status, out: `${r.stdout || ''}${r.stderr || ''}` }
 }
 

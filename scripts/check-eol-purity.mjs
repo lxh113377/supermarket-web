@@ -99,7 +99,8 @@ function blobBytes(entries) {
  * 纯判据。E4（工作树侧）只报不判：别人正在改的文件不该被我的闸连坐
  * （既有规：断言范围==爆炸半径）。
  */
-export function evaluate({ attrText, attrPresent, entries, blobs, blobFailures = [], worktreeCrlf = 0, worktreeTotal = 0 }) {
+export function evaluate({ attrText, attrPresent, entries, blobs, blobFailures = [], worktreeCrlf = 0, worktreeTotal = 0,
+  worktreeGitCrlf = null, autocrlf = '', editorconfigText = '', editorconfigPresent = false }) {
   const rows = []
   const push = (id, ok, detail, unverified = false, advisory = false) => rows.push({ id, ok, unverified, advisory, detail })
 
@@ -146,12 +147,34 @@ export function evaluate({ attrText, attrPresent, entries, blobs, blobFailures =
       + (channelsAgree ? ' ⇒ 两侧一致' : ` ⇒ **不一致**（只 git 知道 ${onlyGit.length} 件: ${onlyGit.slice(0, 4).join(', ')}；只我知道 ${onlyMine.length} 件: ${onlyMine.slice(0, 4).join(', ')}）`)
       + (closed ? '' : ' ⇒ **恒等式不成立**，本面少扫了东西，任何"零命中"都不作数'))
 
-  // E4：工作树侧只报。真判它 = 把并行会话的在途改动算成我的红（既有规：断言范围==爆炸半径）。
-  // 它必须是 **advisory 且不计入相位** —— 上一版把 unverified 置 true，于是 selftest 的
-  // "全绿正例"被这条**只报不判**的行判成 UNVERIFIED（判据自己造出一条永不消失的未验证）。
+  // —— 三把尺分档印（第五十四轮：同一件事有三种量法，混在一行就会被读成"这一维没人管"或"这一维能拦"）。
+  // 尺①blob 侧＝E2/E3（拦提交）；尺②字节含 CR 的检出面＝E4（只报）；尺③git 工作树行尾口径＝E6（只报）。
+  // E4/E6 真判它 = 把并行会话的在途改动、把每台机器的 core.autocrlf 算成我的红（既有规：断言范围==爆炸半径；
+  // 且本机实测过：归一后 blob 逐件相同而 status 仍报脏 ⇒ 拿它当闸＝要求提交一笔不存在的改动，不可自愈）。
   push('E4', true,
-    `工作树（advisory，不判、不计相位）：${worktreeCrlf}/${worktreeTotal} 件检出仍含 CRLF`
-      + ' —— 那是本机 core.autocrlf 的历史检出；blob 侧已由 E2+E3 双通道判过，新检出按 eol=lf 出 LF',
+    `尺②检出字节面（advisory・**拦提交=否**）：${worktreeCrlf}/${worktreeTotal} 件磁盘字节含 CRLF`
+      + '（其中含二进制里合法的 `0D0A`，本尺与 blob 侧不同口径，不可相加）',
+    false, true)
+
+  // E5＝写侧两处声明必须同向。这是**可自愈**的一条（改任一处即绿），所以它有资格拦提交；
+  // 读不到任何一侧 ⇒ UNVERIFIED，不得判"一致"（盲区≠零）。
+  const attrDeclares = hasAutoLf ? 'lf' : null
+  const ecMatch = /^\s*end_of_line\s*=\s*(\w+)\s*$/m.exec(editorconfigText || '')
+  const ecDeclares = editorconfigPresent ? (ecMatch ? ecMatch[1].toLowerCase() : null) : null
+  push('E5',
+    editorconfigPresent && attrPresent && !!attrDeclares && !!ecDeclares && attrDeclares === ecDeclares,
+    `尺⓪写侧声明：.gitattributes=${attrPresent ? (attrDeclares ?? '未声明 eol（只有 linguist 类规则）') : '文件不存在'}`
+      + ` ⇄ .editorconfig=${editorconfigPresent ? (ecDeclares ?? '**没有 end_of_line 键**') : '文件不存在'}`
+      + (!editorconfigPresent || !attrPresent || !attrDeclares || !ecDeclares
+        ? ' ⇒ 至少一侧读不到声明，**不判"一致"**'
+        : (attrDeclares === ecDeclares ? ' ⇒ 同向（编辑器与 git 往同一个方向写）' : ' ⇒ **矛盾**：两侧会把同一件写成不同行尾')),
+    !editorconfigPresent || !attrPresent || !attrDeclares || !ecDeclares,
+    false)
+
+  push('E6', true,
+    `尺③git 工作树行尾口径（advisory・**拦提交=否**）：${worktreeGitCrlf === null ? '取数失败（`git ls-files --eol` 没跑成）' : `w/crlf ${worktreeGitCrlf} 件`}`
+      + `｜本机 core.autocrlf=${autocrlf || '(未设置)'}`
+      + (worktreeGitCrlf > 0 ? ' —— 本机是 CRLF 检出机器：任何"把工作树归一成 LF"的动作都会让 status 报脏而 blob 未变' : ''),
     false, true)
 
   const failed = rows.filter((r) => r.ok === false && !r.unverified)
@@ -175,37 +198,79 @@ function worktreeStats() {
   return { crlf, total }
 }
 
+function worktreeGitEolCount() {
+  // `git ls-files --eol -z` 的一条记录是 `i/… w/… attr/…\t<路径>\0`：**属性面在第一个 TAB 之前**，
+  // 所以按 TAB 切只能切出「信息串 + 路径」两段（上一轮我切成三段 ⇒ 取错列，造出"仍为 1 件"的假 0）。
+  const r = git(['ls-files', '--eol', '-z'])
+  if (r.status !== 0) return null
+  let crlf = 0
+  for (const rec of r.stdout.toString('utf8').split('\0')) {
+    if (!rec) continue
+    const info = rec.split('\t')[0] || ''
+    const w = info.split(' ').find((tok) => tok.startsWith('w/'))
+    if (w === 'w/crlf' || w === 'w/mixed') crlf += 1
+  }
+  return crlf
+}
+
+function autocrlfValue() {
+  const r = git(['config', '--get', 'core.autocrlf'])
+  return r.status === 0 ? r.stdout.toString('utf8').trim() : ''
+}
+
 function selftest() {
   const mk = (paths, binarySet, crlfSet = new Set()) => paths.map((p) => ({
     path: p, binary: binarySet.has(p), iEol: binarySet.has(p) ? 'i/-text' : (crlfSet.has(p) ? 'i/crlf' : 'i/lf'),
   }))
   const ATTR_OK = '* text=auto eol=lf\n*.webp binary\n'
+  // E5 的两侧声明：默认给"同向的一份"，好让其余用例的 want/got 只归因到自己那条腿。
+  const EC_OK = 'root = true\n[*]\nend_of_line = lf\n'
+  const ec = (text = EC_OK, present = true) => ({ editorconfigText: text, editorconfigPresent: present })
   const blobsOf = (obj) => new Map(Object.entries(obj))
   const cases = []
   const add = (name, want, got) => cases.push({ name, want, got, ok: want === got })
 
-  const clean = evaluate({ attrText: ATTR_OK, attrPresent: true,
+  const clean = evaluate({ attrText: ATTR_OK, attrPresent: true, ...ec(),
     entries: mk(['a.js', 'b.webp'], new Set(['b.webp'])), blobs: blobsOf({ 'a.js': Buffer.from('x\n') }) })
   add('正例：文本 blob 全 LF + 二进制在册 ⇒ GREEN', 'GREEN', clean.verdict)
 
-  const dirty = evaluate({ attrText: ATTR_OK, attrPresent: true,
+  const dirty = evaluate({ attrText: ATTR_OK, attrPresent: true, ...ec(),
     entries: mk(['a.js', 'b.webp'], new Set(['b.webp'])), blobs: blobsOf({ 'a.js': Buffer.from('x\r\n') }) })
   add('漏报侧：文本 blob 带 CRLF ⇒ RED', 'RED', dirty.verdict)
 
-  const noAttr = evaluate({ attrText: '', attrPresent: false,
+  const noAttr = evaluate({ attrText: '', attrPresent: false, ...ec(),
     entries: mk(['a.js'], new Set()), blobs: blobsOf({ 'a.js': Buffer.from('x\n') }) })
   add('边界：属性表不存在 ⇒ UNVERIFIED（不得读成"没有规则也没事"）', 'UNVERIFIED', noAttr.verdict)
 
-  const unruled = evaluate({ attrText: ATTR_OK, attrPresent: true,
+  const unruled = evaluate({ attrText: ATTR_OK, attrPresent: true, ...ec(),
     entries: mk(['a.js', 'c.png'], new Set(['c.png'])), blobs: blobsOf({ 'a.js': Buffer.from('x\n') }) })
   add('漏报侧：git 判成二进制但名单里没有 .png ⇒ RED', 'RED', unruled.verdict)
 
-  const halfRead = evaluate({ attrText: ATTR_OK, attrPresent: true,
+  const halfRead = evaluate({ attrText: ATTR_OK, attrPresent: true, ...ec(),
     entries: mk(['a.js', 'b.js'], new Set()), blobs: blobsOf({ 'a.js': Buffer.from('x\n') }) })
   add('边界：一件 blob 没取到 ⇒ UNVERIFIED，不得凭"另一件干净"判 GREEN', 'UNVERIFIED', halfRead.verdict)
 
-  const empty = evaluate({ attrText: ATTR_OK, attrPresent: true, entries: [], blobs: new Map() })
+  const empty = evaluate({ attrText: ATTR_OK, attrPresent: true, ...ec(), entries: [], blobs: new Map() })
   add('零分母：一个跟踪件都没有 ⇒ 不许 PASS（E3 恒等式先塌）', 'RED', empty.verdict)
+
+  // —— E5（写侧声明同向）三条：误报侧 / 漏报侧 / 零输入侧，缺一即这条腿没被测到。
+  const conflict = evaluate({ attrText: ATTR_OK, attrPresent: true, entries: mk(['a.js'], new Set()),
+    blobs: blobsOf({ 'a.js': Buffer.from('x\n') }), ...ec('root = true\n[*]\nend_of_line = crlf\n') })
+  add('漏报侧：.gitattributes 说 lf 而 .editorconfig 说 crlf ⇒ RED（两侧会把同一件写成不同行尾）', 'RED', conflict.verdict)
+
+  const noEcFile = evaluate({ attrText: ATTR_OK, attrPresent: true, entries: mk(['a.js'], new Set()),
+    blobs: blobsOf({ 'a.js': Buffer.from('x\n') }), ...ec('', false) })
+  add('零输入：.editorconfig 不存在 ⇒ UNVERIFIED（读不到声明不得判"一致"）', 'UNVERIFIED', noEcFile.verdict)
+
+  const noKey = evaluate({ attrText: ATTR_OK, attrPresent: true, entries: mk(['a.js'], new Set()),
+    blobs: blobsOf({ 'a.js': Buffer.from('x\n') }), ...ec('root = true\n[*]\ncharset = utf-8\n') })
+  add('边界：文件在但没有 end_of_line 键 ⇒ UNVERIFIED（缺席的键不算矛盾、算没读到）', 'UNVERIFIED', noKey.verdict)
+
+  // 变异体：把 E5 的判据摘掉（恒 ok=true）必须让"矛盾"那条腿翻绿 ⇒ 证明这条腿真的有牙齿。
+  const mutated = evaluate({ attrText: ATTR_OK, attrPresent: true, entries: mk(['a.js'], new Set()),
+    blobs: blobsOf({ 'a.js': Buffer.from('x\n') }), ...ec('root = true\n[*]\nend_of_line = crlf\n') })
+  const e5 = mutated.rows.find((r) => r.id === 'E5')
+  add('变异体面：E5 在矛盾输入上必须是 ok=false（若哪天被改成恒 ok，此断言即红）', false, !!e5 && e5.ok)
 
   for (const c of cases) console.log(`${c.ok ? 'ok  ' : 'FAIL'} ${c.name} [want=${c.want} got=${c.got}]`)
   const bad = cases.filter((c) => !c.ok).length
@@ -228,13 +293,20 @@ function main() {
   }
   const { map: blobs, failures } = blobBytes(entries)
   const wt = worktreeStats()
+  const ecPresent = existsSync(join(ROOT, '.editorconfig'))
+  const ecText = ecPresent ? readFileSync(join(ROOT, '.editorconfig'), 'utf8') : ''
   const out = evaluate({ attrText, attrPresent: present, entries,
-    blobs: blobs || new Map(), blobFailures: failures, worktreeCrlf: wt.crlf, worktreeTotal: wt.total })
+    blobs: blobs || new Map(), blobFailures: failures, worktreeCrlf: wt.crlf, worktreeTotal: wt.total,
+    worktreeGitCrlf: worktreeGitEolCount(), autocrlf: autocrlfValue(),
+    editorconfigText: ecText, editorconfigPresent: ecPresent })
   for (const r of out.rows) {
     console.log(`${r.unverified ? 'UNVERIFIED' : (r.ok ? 'PASS  ' : 'FAIL  ')} ${r.id} :: ${r.detail}`)
   }
   const texts = entries.filter((e) => !e.binary).length
-  console.log(`[verify:eol] verdict=${out.verdict} rc=${out.rc}｜跟踪 ${entries.length}（文本 ${texts} / 二进制 ${entries.length - texts}）｜检查 ${out.rows.length}/${out.rows.length}`)
+  const blocking = out.rows.filter((r) => !r.advisory).map((r) => r.id).join(',')
+  const reportOnly = out.rows.filter((r) => r.advisory).map((r) => r.id).join(',')
+  console.log(`[verify:eol] verdict=${out.verdict} rc=${out.rc}｜跟踪 ${entries.length}（文本 ${texts} / 二进制 ${entries.length - texts}）`
+    + `｜检查 ${out.rows.length}/${out.rows.length}｜拦提交=${blocking}｜只报不拦=${reportOnly}`)
   return out.rc
 }
 

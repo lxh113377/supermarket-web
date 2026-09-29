@@ -1,9 +1,9 @@
 {
   "$comment": "分项体积预算名册 —— `npm run report:item-budgets`（scripts/report-item-budgets.mjs）的判据输入。与 docs/size-budget.json 类聚合预算（scripts/check-bundle-size.mjs 的 firstLoadJs/firstLoadCss/largestChunk）互补：那件判首屏合计，本件判单个 chunk。第一版**不进 `npm run verify`**，接闸与否看下一轮实测误报数。",
   "unit": "gzipBytes",
-  "match": "对 dist/assets/ 下的**文件名**做 glob 匹配（只支持 `*`）；一件只认名册里第一条命中的规则 ⇒ 规则之间不要重叠。登记规则：第五十三轮起「实测 ≥ 6,000B gz 的件全部在册」（五十轮为 ≥10,000B），未达线者由判据以 `no-budget` 点名（不判合格），最大未登记件会出现在报告里。",
+  "match": "对 dist/assets/ 下的**文件名**做 glob 匹配（只支持 `*`）；一件只认名册里第一条命中的规则 ⇒ 规则之间不要重叠。登记规则：第五十五轮起「实测 ≥ 2,500B gz 的件全部在册」（第五十三轮 ≥6,000B ⇒ 第五十四轮 ≥3,500B ⇒ 本轮 ≥2,500B；门槛每降一档都由 `--enumerate <minBytes>` 腿现算件数，禁手抄清单），未达线者由判据以 `no-budget` 点名（不判合格），最大未登记件会出现在报告里。",
   "provenance": {
-    "measuredBy": "npx vite build --outDir dist（2026-09-29 03:4x 内层 HEAD 8053c1e，gzipSync 逐件实测 62 件）；E5 补登记的 7 件取同一次构建读数",
+    "measuredBy": "npx vite build --outDir dist-r55 --emptyOutDir（2026-09-29 14:57 本机，内层 HEAD 6d714ac + 第五十四轮未入库改动，gzipSync 逐件实测 62 件、合计 370.5KB gz）；R54-H2 补登记的 6 件取 04:1x 那次构建读数；R55-H2 补登记的 3 件取上面这次构建、由 `report:item-budgets --enumerate 2500` 现算得「>=2500B 的未登记件数：3 / 未登记 39 / 62」",
     "rule": "budget = 实测 ×1.10 向上取整到 100B ⇒ 每项都有 ≥10% 余量（零余量地板＝冻结增长，见户内「Ratchet floors need headroom」）",
     "warning": "下面每项的 measuredAtBuild 是**取证注记字符串**，不是判据输入：判据不得读它，读它=把某一台机器某一次构建的产物当基准（随工作树变的量，第一次接 CI 就会自判红）"
   },
@@ -126,8 +126,71 @@
       "budget": 6800,
       "measuredAtBuild": "6,138B gz",
       "note": "顾客端「我的」页（github.io 侧）"
+    },
+    {
+      "id": "echarts-create-dimensions",
+      "pattern": "createDimensions-*.js",
+      "budget": 6200,
+      "measuredAtBuild": "5,576B gz（2026-09-29 04:1x 实测）",
+      "note": "第五十四轮 R54-H2 补登记：未登记尾部最大的一件（原 ≥6,000B 门槛看不见它）"
+    },
+    {
+      "id": "app-index-chunk",
+      "pattern": "index-*.js",
+      "budget": 5900,
+      "measuredAtBuild": "5,359B gz（同上）",
+      "note": "入口 JS 块；与 index-*.css 同族不同件。任何把公共代码请进入口的改动先顶穿这条"
+    },
+    {
+      "id": "echarts-install-datazoom-slider",
+      "pattern": "installDataZoomSlider-*.js",
+      "budget": 5800,
+      "measuredAtBuild": "5,242B gz（同上）",
+      "note": "echarts 插件安装块；深路径按需注册失效时会膨胀的是这类 install* 件"
+    },
+    {
+      "id": "echarts-core",
+      "pattern": "core-*.js",
+      "budget": 4300,
+      "measuredAtBuild": "3,868B gz（同上）",
+      "note": "echarts 核心块"
+    },
+    {
+      "id": "echarts-install-common",
+      "pattern": "installCommon-*.js",
+      "budget": 4300,
+      "measuredAtBuild": "3,852B gz（同上）",
+      "note": "echarts common 安装块（引入它等于放弃按需注册）"
+    },
+    {
+      "id": "service-form-page",
+      "pattern": "ServiceFormPage-*.js",
+      "budget": 4200,
+      "measuredAtBuild": "3,763B gz（同上）",
+      "note": "管理后台服务登记表单页（唯一进名册的业务页路由块，其余 <3,500B）"
+    },
+    {
+      "id": "echarts-datazoom-inside",
+      "pattern": "installDataZoomInside-*.js",
+      "budget": 3300,
+      "measuredAtBuild": "2,988B gz（2026-09-29 14:57 本机 dist-r55 实测）",
+      "note": "echarts dataZoom inside 组件的独立按需块。它是「深路径按需注册」还能不能再瘦的信号块：一旦有人把 dataZoom 加回 barrel 引入，膨胀的是这块而不是 vendor 主块"
+    },
+    {
+      "id": "local-store-chunk",
+      "pattern": "localStore-*.js",
+      "budget": 3100,
+      "measuredAtBuild": "2,813B gz（同上）",
+      "note": "顾客端本地存储层（演示模式/离线兜底的数据出入口）。本地演示模式整体降级时这块是被绕过的对象，尺寸变化即说明有人把逻辑搬进了主路径"
+    },
+    {
+      "id": "order-confirm-page",
+      "pattern": "OrderConfirmPage-*.js",
+      "budget": 3100,
+      "measuredAtBuild": "2,777B gz（同上）",
+      "note": "顾客端下单确认页路由块。名册里第二条业务页路由块：门槛从 ≥3,500B 降到 ≥2,500B 后它才进入视野（第五十四轮的旧门槛下它属于「最大未登记件」却从不被判定）"
     }
   ],
-  "noBudgetMax": 45,
-  "noBudgetMaxNote": "未登记件数上限（第五十二轮立地板 52（真面 52/62），第五十三轮 E5 补登记 7 件后下调到 45（当场实测 45/62））。**只准降不准升**：升=新增 chunk 家族却没进名册，处置只能是「补登记（带当次实测时刻）」或「复用既有 pattern」，禁把地板调高求绿。降的过程＝E5 的收敛进度，所以这一项同时是欠账计数器和收敛台账。取数面由 scripts/report-item-budgets.mjs 现场枚举 dist/assets 得出，禁手抄清单。"
+  "noBudgetMax": 36,
+  "noBudgetMaxNote": "未登记件数上限（第五十二轮 52 ⇒ 第五十三轮补 7 件到 45 ⇒ 第五十四轮 R54-H2 补 6 件到 39 ⇒ 本轮 R55-H2 补 3 件到 36，四次都是**补登记与降地板同一笔提交**）。**只准降不准升**：升=新增 chunk 家族却没进名册，处置只能是「补登记（带当次实测时刻）」或「复用既有 pattern」，禁把地板调高求绿。门槛每降一档前先跑 `node scripts/report-item-budgets.mjs --enumerate <minBytes>` 现算件数——第五十四轮那次「>=3,500B 恰为 6 件」是临时管道算的、算完即失，本轮把它固化成一条腿，换门槛不再需要重新拼管道。剩余 36 件全部 <2,500B gz；「最大未登记件」由判据 ADVISORY 行现印，本行不写死（写死就随下一次构建漂移）。取数面由判据现场枚举 dist/assets 得出，禁手抄清单。"
 }

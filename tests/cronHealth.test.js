@@ -7,6 +7,7 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
 import { spawnSync } from 'node:child_process'
+import { assertCliRan } from './helpers/cliLeg.js'
 import { writeFileSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -26,7 +27,7 @@ function cli(args, env = {}) {
   const e = { ...process.env, ...env }
   delete e.GITHUB_REPOSITORY
   delete e.CRON_HEALTH_REPO
-  const r = spawnSync(process.execPath, [SCRIPT, ...args], { cwd: ROOT, encoding: 'utf8', env: e, timeout: 60_000 })
+  const r = assertCliRan(spawnSync(process.execPath, [SCRIPT, ...args], { cwd: ROOT, encoding: 'utf8', env: e, timeout: 60_000 }), { label: `cronHealth ${SCRIPT} ${args.join(' ')}` })
   return { rc: r.status, out: `${r.stdout || ''}${r.stderr || ''}` }
 }
 const GREEN_FIXTURE = () => ({

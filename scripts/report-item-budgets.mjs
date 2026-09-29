@@ -14,6 +14,7 @@
  *
  *   node scripts/report-item-budgets.mjs                     # 真面：读 dist/assets + docs/item-budgets.json
  *   node scripts/report-item-budgets.mjs --dist <dir> --roster <file>
+ *   node scripts/report-item-budgets.mjs --enumerate <minBytes>   # 枚举腿：未登记面里 gz>=门槛 的件数（现算，不手抄）
  *   node scripts/report-item-budgets.mjs --selftest          # 判据自证（六条合成面，双向）
  *
  * 三挡退出码（与户内 M4 口径一致，崩溃不得混进任何一挡）：
@@ -155,6 +156,28 @@ function main() {
     return 2
   }
   const r = evaluate({ assets, roster })
+  // 枚举腿（第五十五轮 R55-H2）：「下一档门槛还能收几件」由工具现算，不由人手抄清单。
+  // 之所以要有这条腿：第五十四轮补登记时那个「>=3500B 的未登记件数：6」是一次性算出来的，
+  // 算完就没了 ⇒ 下一轮若想换门槛只能自己再拼一遍管道，而管道最容易数错分母（户内 G14 同族）。
+  // 只在显式给出整数门槛时走这一支，纯报告模式 rc=0，不改判定、不动地板。
+  const eIdx = argv.indexOf('--enumerate')
+  if (eIdx >= 0) {
+    const minB = Number(argv[eIdx + 1])
+    if (!Number.isInteger(minB) || minB < 0) {
+      console.log('[report:item-budgets] UNVERIFIED `--enumerate` 需要一个非负整数门槛（单位 B, gz）⇒ 参数不全时不据"没算出来"下结论')
+      return 2
+    }
+    if (r.rc === 2) {
+      console.log(`[report:item-budgets] UNVERIFIED 没有对象可判，枚举无从起：${r.why}`)
+      return 2
+    }
+    const nb = r.rows.filter((x) => x.state === 'no-budget' && x.size >= minB).sort((a, b) => b.size - a.size)
+    const k1 = (n) => (n / 1024).toFixed(1)
+    console.log(`枚举 未登记且 gz>=${minB}B 的件数：${nb.length}（未登记总数 ${r.stats.unjudged}/${r.stats.total}，门槛以下 ${r.stats.unjudged - nb.length} 件）`)
+    for (const x of nb) console.log(`  ${x.id}  ${x.size}B（${k1(x.size)}KB gz）`)
+    return 0
+  }
+
   // 未登记面的地板（名册项 noBudgetMax，只准降不准升）：判据读**名册里的这个数**，不在代码里写死（第二真相源）。
   // 缺失 ⇒ 判 UNVERIFIED：把「没人立过上限」读成「上限无穷、自动通过」是户内 G14 的反面。
   const cap = roster.noBudgetMax

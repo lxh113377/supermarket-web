@@ -15,6 +15,7 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
 import { spawnSync } from 'node:child_process'
+import { assertCliRan } from './helpers/cliLeg.js'
 import { readFileSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -27,9 +28,9 @@ const SAMPLES = 6
 
 function emitPeaksOnce(dir, i) {
   const f = join(dir, `peaks-${i}.json`)
-  const r = spawnSync(process.execPath, [RUNNER, '--emit-peaks', f], {
+  const r = assertCliRan(spawnSync(process.execPath, [RUNNER, '--emit-peaks', f], {
     cwd: REPO, encoding: 'utf8', timeout: 120_000, env: { ...process.env, SQL_PEAK_SAMPLES: '1' },
-  })
+  }), { label: `sqlAttribution 采样轮 ${i}` })
   if (r.status !== 0) throw new Error(`采样轮 ${i} 跑挂 rc=${r.status}: ${String(r.stderr).slice(-200)}`)
   return JSON.parse(readFileSync(f, 'utf8'))
 }

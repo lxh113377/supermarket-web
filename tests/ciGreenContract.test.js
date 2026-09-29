@@ -7,6 +7,7 @@
 import { describe, it, expect, afterAll } from 'vitest'
 import { readFileSync, existsSync, mkdirSync, writeFileSync, rmSync, mkdtempSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
+import { assertCliRan } from './helpers/cliLeg.js'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -146,6 +147,7 @@ function offlineEnv(extra = {}) {
 function runCli({ script = CLI, input = '', env = {}, cwd = REPO } = {}) {
   const r = spawnSync(process.execPath, [script, 'origin', 'https://example.invalid/repo.git'],
     { input, env: offlineEnv(env), cwd, encoding: 'utf8', timeout: 20_000 })
+  assertCliRan(r, { label: `ci-green-contract ${script}`, budgetMs: 20_000 })
   return { rc: r.status, out: `${r.stdout || ''}${r.stderr || ''}` }
 }
 

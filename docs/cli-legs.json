@@ -1,0 +1,12 @@
+{
+  "$comment": "CLI 腿欠账上限册 —— `npm run verify:cli-legs`（scripts/check-cli-leg-coverage.mjs）的判据输入。它不判「谁写得好看」，只判一件事：把 `spawnSync(..., {timeout})` 的空输出当结论的那类文件还剩几件。",
+  "unit": "count of .test.js files",
+  "unguardedMax": 11,
+  "capNote": "第五十五轮装账并按实测收了两档：AST 现算 58 个 .test.js 中「含带 timeout 的 spawn 位点且未接 assertCliRan/requireCliRan」的文件 首装 15 件 ⇒ 本轮把 4 件单位点文件（backupCrypto／branchProtection／cronHealth／sqlAttribution）接上守卫后现算 11 件。**只准降不准升**，且**降欠账与降上限必须同一笔提交**（先降上限会当场自判红，先降欠账不改上限则是把尺放宽一格——与 docs/item-budgets.json 的 noBudgetMax 同规）。升=新写了一条裸 CLI 腿却不接守卫，处置只能是给那个文件接守卫，禁调高上限求绿。既存 11 件是欠账不是豁免，逐件清偿登记在 R56；降到 0 之后本件才配当完整阻断闸。位点数与名单由判据每次现印，本行不写死（写死就随下一次改码漂移）。",
+  "provenance": {
+    "why_ast_not_grep": "本轮先用文本级检测器勘察过一次：它对 `function probe(script, { cwd = REPO } = {})` 这类带解构默认值的签名整片失明，把 `cliEntrypoints.test.js`（AST 现算 24 个 spawn 位点）判成「无包装器」。与户内「抽取器整片丢字符」「计数分母禁由 grep 命中数得出」同族 ⇒ 本件的采集面与计数面一律走 @babel/parser；解析失败的文件踢出分母并具名点名，不得读成「没有裸腿」。",
+    "guard_authority": "tests/helpers/cliLeg.js（第五十四轮 R54-H4 交付）",
+    "firstInstall": "15 件（2026-09-29 15:1x 本机 AST 现算，同轮即收到 11）；provenance 里的历史值只作注记，判据不读它"
+  },
+  "measuredAt": "2026-09-29T15:0x+08:00（本机 dist 无关，取 tests/ 源码面）"
+}

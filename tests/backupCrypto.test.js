@@ -4,6 +4,7 @@
 // @vitest-environment node
 import { describe, it, expect, afterAll } from 'vitest'
 import { spawnSync } from 'node:child_process'
+import { assertCliRan } from './helpers/cliLeg.js'
 import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -18,9 +19,9 @@ const SELF = join(REPO, 'scripts', 'backup-crypto.mjs')
 const tmpDirs = []
 afterAll(() => { for (const d of tmpDirs) rmSync(d, { recursive: true, force: true }) })
 const tmp = () => { const d = mkdtempSync(join(tmpdir(), 'smbk-')); tmpDirs.push(d); return d }
-const cli = (args, env = {}) => spawnSync(process.execPath, [SELF, ...args], {
+const cli = (args, env = {}) => assertCliRan(spawnSync(process.execPath, [SELF, ...args], {
   cwd: REPO, encoding: 'utf8', env: { ...process.env, ...env }, timeout: 120_000,
-})
+}), { label: `backupCrypto cli ${args.join(' ')}` })
 const PLAIN = Buffer.from('INSERT INTO products VALUES(1);\n-- 超市全库导出\n'.repeat(40))
 
 describe('容器格式与密码学口径', () => {

@@ -1,0 +1,32 @@
+{
+  "$comment": "现网运行时性能名册 —— `npm run report:live-perf`（scripts/report-live-perf.mjs）的输入。它记的是「该量哪几个页面、每次至少要几份样本」，不是阈值。",
+  "unit": "毫秒（Lighthouse audits.*.numericValue）；cumulative-layout-shift 为无量纲分数",
+  "tagDerivation": "样本文件名 `<tag>-s<n>.json`，tag 取第一个 `-s` 之前的整段 ⇒ tag 自身不得含 `-s`（如 `server` 这种名字要改成 `srv`），否则会被切成空串。本轮两个 tag 由 .lighthouse/ 里的实际文件名反推，不是先起名再造文件。",
+  "pages": [
+    {
+      "tag": "admin",
+      "url": "https://supermarket-web.pages.dev/",
+      "expectUrlIncludes": "supermarket-web.pages.dev",
+      "minSamples": 3,
+      "why": "管理后台首页（Cloudflare Pages + Functions + D1）。它同时是 API 同源，所以 server-response-time 这一格量的就是 Functions 冷启 + D1 往返，是「后台打开卡不卡」的直接对应量"
+    },
+    {
+      "tag": "customer",
+      "url": "https://lxh113377.github.io/",
+      "expectUrlIncludes": "lxh113377.github.io",
+      "minSamples": 3,
+      "why": "微信顾客端（GitHub Pages 静态托管 + 跨源调 pages.dev 的 /pub）。这一页是真实用户的主入口，首屏快慢直接决定下单转化，也是双前端里唯一走 GitHub CDN 的一支"
+    }
+  ],
+  "thresholds": null,
+  "thresholdNote": "**本轮有意不立阈值**（第五十五轮 R55-H1）。立线要两侧边界值实测依据（户内 M4：阈值必须能失败、且给出「应过最低分 / 应拒最高分」），而本轮只有一次同机同日的采样分布（admin 的 speed-index 4,580→20,707B 差 4.5×，全靠 3 份样本才看得见）。R56 的动作是「跨日再采一次，看两日的中位数差多大」，有了这个数才配写 budget。在那之前本判据只判**产物面完整性与分布形状**，绝不印「达标/不达标」。",
+  "sampling": {
+    "command": "CHROME_PATH='<Edge 的 msedge.exe>' npx --no-install lighthouse <url> --only-categories=performance --output=json --output-path=.lighthouse/<tag>-s<n>.json --chrome-flags=\"--headless=new --no-sandbox --disable-dev-shm-usage\" --max-wait-for-load=45000 --quiet",
+    "formFactor": "mobile（顾客端主场景是微信内浏览器，两页同形态才可比）",
+    "throttlingMethod": "simulate（Lighthouse 默认 simulated 节流；这是「模拟 4G」口径，不是真实弱网实测，报数时必须带上这一句）",
+    "chrome_note": "本机无 Chrome（`command -v chrome` 无、Program Files 下无 Chrome 目录），用 Edge 137 作 Chromium 载体；`npx --no-install lighthouse --version` = 13.5.0，`command -v lighthouse` = NO（只有 npx 解析得到）",
+    "rc_note": "实测 6 次 lighthouse 全部 **rc=1 但产物完整**：崩在 chrome-launcher 收尾的 `destroyTmp`（EPERM 删不掉 %TEMP%\\lighthouse.*），发生在 JSON 已写盘之后 ⇒ **rc 不是这一维的判决**，判决取「产物可解析 + 含 first-contentful-paint + runtimeError=none」。本判据因此不读 lighthouse 的 rc，只读产物；把 rc=1 直接当「测失败」会误杀 6/6 份有效样本",
+    "gitignored": ".lighthouse/ 是产物面、不入版本库（判据读不到就判 UNVERIFIED，绝不折算成「现网很快」）"
+  },
+  "measuredAt": "2026-09-29T06:49Z–06:52Z（本机，6 份样本 fetchTime 见判据输出）"
+}

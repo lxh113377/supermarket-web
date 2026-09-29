@@ -45,3 +45,6 @@ playwright-report-visual/
 
 # vitest 派生缓存（第八轮 verify 跑出来的，勿入库）
 .vitest/
+
+# Lighthouse 现网性能样本（第五十五轮 R55-H1；产物面不入版本库，判据读不到即判 UNVERIFIED）
+.lighthouse/

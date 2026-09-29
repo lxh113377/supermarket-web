@@ -156,6 +156,13 @@ jobs:
       - name: CLI entrypoint real-run gate
         run: npm run verify:entrypoints
 
+      # 对标第五十五轮 R55-H3：把 `spawnSync(..., {timeout})` 的空输出当结论的那类文件还剩几件。
+      # 分母由 AST 现取（文本级检测器对带解构默认值的签名整片失明，本轮一手：它把 24 位点的文件判成"无包装器"）；
+      # 风险位点只算**带 timeout** 的 spawn（不带 timeout 产不出 `status===null`，算进去就是虚报欠账）。
+      # 上限册 docs/cli-legs.json 的 `unguardedMax` 只准降不准升 ⇒ 新增一条裸腿当场判红，既存欠账逐轮清偿。
+      - name: CLI leg guard coverage gate (npm run verify:cli-legs)
+        run: npm run verify:cli-legs
+
       # 对标第四十三轮 R43-H1：文档里印的命令有没有跟真相源对过账（别名册 ⇄ package.json ⇄ 盘上文件）。
       # 立它的事实：`docs/implementation-plan-2026-08-08.md` 里三条 `npm run predeploy` 是 CloudBase 时代的
       # 死命令，盘上 61 个别名根本没有它 —— 而此前任何门禁都不读文档正文。历史面走"带到期时刻的归档面"，

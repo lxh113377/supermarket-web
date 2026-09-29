@@ -271,7 +271,11 @@ function main() {
       : '[liveness] FAIL ⇒ 备份不可依赖。两条出路见 .github/workflows/d1-backup.yml 顶部注释；要显式接受"暂时不备份"就设仓库变量 BACKUP_SKIP_OK=true（会降为 WARN，但别再让它沉默）')
     process.exit(1)
   }
-  console.log(`[liveness] OK 最近一次可核对备份：run ${good.id}（${good.createdAt}，artifact=${good.artifactCount}）`)
+  // 输出必须与 mode 对齐（第四十三轮 R43-H1）：presence 模式**不要求产物**，
+  // 却一直在印"最近一次可核对备份" —— 那是把没断言的东西说成断言过（判据匹配描述而不是行为）。
+  console.log(mode === 'presence'
+    ? `[liveness] OK 调度层存活：最近一次成功 run = run ${good.id}（${good.createdAt}，event=${good.event || '-'}，artifact=${good.artifactCount}）`
+    : `[liveness] OK 最近一次可核对备份：run ${good.id}（${good.createdAt}，artifact=${good.artifactCount}）`)
 }
 
 if (process.argv[1] && resolve(process.argv[1]).toLowerCase() === fileURLToPath(import.meta.url).toLowerCase()) {

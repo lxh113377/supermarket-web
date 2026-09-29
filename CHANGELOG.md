@@ -4,6 +4,91 @@
 
 ## [未发布]
 
+### 2026-09-29 追加六十九（对标第五十五轮：把"量不动的那一维"量出来，顺手发现自己收的半轮是假的绿）
+
+- **轮初对账｜第五十四轮是**半轮收尾**，且记忆卷把它写成了已完成**：`memory/07-next-steps.md` 主卷与卷 97/98
+  都写着"四件 H1–H4 + 报告在 `deliverables/…第五十四轮….md`"，实测 `ls deliverables | grep 五十四` = **0 命中**、
+  内层 `git status --porcelain` = **19 项未入库**（13 `M` + 6 `??`）、`git log` 仍停在 `6d714ac`（第五十三轮末笔）。
+  一手复算：`npm test` 回 **3 files / 6 tests 红**，三根因全部是"收尾欠的三步"而不是判据坏 ——
+  ① `check-cli-entrypoints` **G9 派生风险 23 ⇄ 登记 22**：R54 给 `check-escape-hatch-log.mjs` 加了 `--remote`
+  （源码里出现 `spawnSync('gh', …)`）⇒ 危险特征有了、风险表没跟上；
+  ② `check:doc-commands --check` **台账漂移**（aliases 66→67 / mentions 235→236 / claim 220→221，R54 加了别名没重生册）；
+  ③ `verify:pointers` **P2 外层指针断更 1 轮**。⇒ 三条都在本轮补完（本仓自己的判据早就把这件事写在脸上，
+  只是没人跑测试就来写"已完成"）。
+- **R55-H1（高）｜运行时性能这一维第一次有数，并且变成一条常驻腿**：连续五轮拿"无可比口径"结案的那一维，
+  本轮实测**跑得动**——本机无 Chrome，用 Edge 作 Chromium 载体（`CHROME_PATH` 指 msedge.exe、
+  `npx --no-install lighthouse` = 13.5.0），两个现网页面各 3 份样本共 6 份全部含 `first-contentful-paint`、
+  `runtimeError=none`。新增 `scripts/report-live-perf.mjs`（+ `docs/live-perf.json` 名册 + `tests/livePerf.test.js`）：
+  只读产物、**不联网、不进 CI**，判"产物面完整性 + 分布形状"，**有意不立阈值**（`thresholds: null`——立线要两侧边界值，
+  同一天一次分布不够）。读数（mobile + simulate 节流，UTC 06:49–06:52）：管理端 FCP 中位 **1,513ms**（[1,507..2,183]）、
+  LCP **1,953ms**、CLS **0**、TBT **201.5ms**、speed-index **4,606**；顾客端 FCP **1,442ms**、LCP **1,692ms**、
+  TBT 中位 **0**、speed-index **4,196**。**同机同站倍差 admin/speed-index 4.52×、admin/TBT 2.02×** ⇒
+  单样本会把这件事完全藏掉，这也是"先不立阈值"的证据。一条必须写的读法：**6 次 lighthouse 全部 rc=1 而产物完整**
+  （崩在 chrome-launcher 收尾 `destroyTmp` 的 EPERM，发生在 JSON 落盘之后）⇒ 把 rc 当判决会误杀 6/6 份有效样本，
+  所以本判据不读 rc 只读产物。
+- **R55-H2（中）｜未登记尾部 39→36，并把"换门槛"从一次性管道固化成腿**：`report-item-budgets.mjs` 新增
+  `--enumerate <minBytes>`（第五十四轮那个"≥3,500B 恰为 6 件"是临时管道算的、算完即失）。真面现算
+  `>=2500B 的未登记件数：3` ⇒ 补登记 3 件（`installDataZoomInside` 2,988B／`localStore` 2,813B／
+  `OrderConfirmPage` 2,777B，预算 ×1.10 取整）与 `noBudgetMax` **39→36 同一笔**；改完复跑 `--enumerate 2500` 回 **0 件**
+  ⇒ "≥2,500B 全部在册"这条登记规则当场成立，而不是写在文档里等人信。
+- **R55-H3（中）｜CLI 腿欠账：先量分母，再装闸**。文本级检测器勘察**失败在前**：它对
+  `function probe(script, { cwd = REPO } = {})` 这类带解构默认值的签名整片失明，把 `cliEntrypoints.test.js`
+  （AST 现算 24 个 spawn 位点）判成"无包装器"⇒ 本件的采集面与计数面一律走 `@babel/parser`。
+  新增 `scripts/check-cli-leg-coverage.mjs`（+ `docs/cli-legs.json` + `tests/cliLegCoverage.test.js`，接进 `npm run verify`）：
+  风险位点=**options 里带 `timeout`** 的 spawn 调用（不带 timeout 产不出 `status===null`，算进分母就是虚报欠账），
+  恒等式 `total == with_timeout + without` 不闭合即红、解析失败踢出分母并具名点名。
+  真面：`采集 58 个 .test.js（解析失败 0）｜spawn 位点 68（带 timeout 59 / 不带 9）｜已接守卫 9｜欠账 11/11`。
+  首装 15 件 ⇒ 本轮接 4 件（backupCrypto／branchProtection／cronHealth／sqlAttribution）⇒ **11**，降欠账与降上限同一笔。
+  同轮把 `tests/cliLegGuard.test.js` 里写死的"四个用它的文件"名单改成**磁盘现算 + 与判据 `--json` 双向差集**
+  （R54 交付守卫后那份名单当场落后，是标准死豁免）。
+- **本轮自己踩的四条（都留下了机器面）**：
+  ① **"备份"第一次是假的**——`git archive $(git write-tree)` 取的是**索引**，未跟踪的 6 件（含 `.editorconfig`、
+  `tests/helpers/cliLeg.js`）根本不在里面，逐字节载回断言当场 `ROUNDTRIP-DIFF restored=` 空 ⇒ 改成按
+  `git status --porcelain -z` 显式清单打包，19/19 全等才算数（户内「未验证的备份只是希望」）。
+  ② **判据把自己的输入当成被审对象**——`report:live-perf` 首跑把同目录的 `roster.json` 读成"野标签样本"判红；
+  修法是按 `<tag>-s<n>.json` 命名式筛样本，**跳过必须点名**（否则下轮多放一个 json 就静默少算一份）。
+  ③ **恒真断言**：`cliLegGuard` 初稿写了 `expect(x).toBe(cond ? a : a)` 这种永不失败的形状，被自己下一条用例否证后删掉。
+  ④ **Edit 把 `.gitignore` 两行粘成一行**（`coverage/` + `test-results/` → `coverage/test-results/`），
+  `git diff --numstat` 回 `3 0`（本应只加不删）当场暴露、`git checkout --` 复原后改用追加。
+  ⑤ 反斜杠第三次咬人：`node -e` 里的 `\\/` 被 bash 吃掉致 `SyntaxError`——跨 shell 传含反斜杠的 JS 必须先落文件。
+- **接线与档位**：`verify:cli-legs` 进 `npm run verify`（只读 tests/ 源码面，CI 可复现）；`report:live-perf` **不进链也不进 CI**
+  （读的是不入版本库的本机产物，塞进链里每轮只会 rc=2，那是把"这台机器今天没测"混进门禁结论——与
+  `report:item-budgets` 只挂 CI 同理）。`.lighthouse/` 入 `.gitignore`。`check-cli-entrypoints` 读数：
+  入口 51→**53**、门禁类 34→**35**（子进程真跑 31→**32**）、探针分母 44→**46**、G9 派生⇄登记 **23⇄23**、G11 **12⇄12**，
+  `14/14 通过 rc=0`。
+- **仍挂账（登记 R56）**：既存 11 件裸 CLI 腿逐件清偿｜跨日再采一次性能以便立阈值｜sm/ 图片与 CDN 可达性｜
+  `D1 Daily Backup` 缺 `CF_D1_BACKUP_TOKEN` 的既定红（用户侧动作，挂到 2026-10-12）。
+
+### 2026-09-29 追加六十八（对标第五十四轮：把"写侧声明"补上，把量不动的那半停下）
+
+- **R54-H1｜`verify:eol` 三把尺分档印 + `.editorconfig` 写侧声明**（内层 卷 96）。一手事实：参照仓根面当次实测
+  （`gh api repos/<R>/contents` 与逐仓退出码）——`webiny/webiny-js`、`biomejs/biome` 用 `* text=auto eol=lf`，
+  `medusajs/medusa`、`saleor/saleor` 的 `.gitattributes` **只有 linguist 类规则、根本没有 eol 归一**，
+  `.editorconfig` 五家里只有 2 家有（saleor 243B／biome 362B，均含 `end_of_line = lf`）⇒ "同类都这么干"这句
+  在取证前是假的，取证后本仓补的是**少数派里对自己有效的那一件**而不是照抄。判据侧：E1/E2/E3 拦提交、
+  新增 **E5（`.gitattributes` ⇄ `.editorconfig` 声明必须同向，可自愈 ⇒ 有资格当闸）**拦提交、
+  E4（检出字节含 CR）与新增 **E6（git `w/crlf` 口径 + 本机 `core.autocrlf` 值）只报不拦**；
+  结论行加印 `拦提交=E1,E2,E3,E5｜只报不拦=E4,E6`，读者不必自己数行。自证 6→10 条（E5 正/反/零输入/变异体面各一条）。
+  真面读数：`跟踪 742（文本 493／二进制 249）｜w/crlf 178 件｜core.autocrlf=true`。
+- **R54-H4｜CLI 腿必须先自证"跑成了"**：新增 `tests/helpers/cliLeg.js` 的 `assertCliRan(r, {label, budgetMs})`，
+  `status===null`（超时/被信号杀）时抛具名 `[cli-leg-timeout]` 并印 signal/预算/stdout 字节数，
+  **绝不把空 stdout 交回内容断言**。起因是上一轮那条 flake：并行负载打断 20s 预算 ⇒
+  `expected '' to contain 'branch=main'`，单跑却 28/28 绿。四个用子进程的测试文件（ciGreenContract / itemBudgets /
+  escapeHatchLog / docCommands）全部接线，并由 `tests/cliLegGuard.test.js` 钉住两向：
+  `rc=0 且 stdout 为空`**不得**抛（空输出在 status 存在时是合法结论）、`rc=1` 不得抛（守卫不是"任何非 0 都拒"）。
+- **R54-H2｜未登记尾部从 45 件压到 39 件，登记与降地板同一笔提交**：登记门槛 ≥6,000B gz 降到 **≥3,500B**
+  （旧门槛下最大未登记件 5,576B 永远看不见＝把尾部交给一条不判的 ADVISORY）。补 6 件
+  （`createDimensions/index/installDataZoomSlider/core/installCommon/ServiceFormPage`，预算＝当次实测 ×1.10 上取整到 100B），
+  `noBudgetMax` 45 → 39。真面：`登记 23 条（匹配 23／死条目 0）｜62 件（判 23／未登记 39）｜地板 39/39｜已判体积 327.3/370.5KB gz`。
+- **R54-H3｜逃生门补上"绕过之后远端绿没绿"的取证通道，但**只做 report-only**：
+  `node scripts/check-escape-hatch-log.mjs --remote`（别名 `report:escape-hatch-remote`）按账本里的绕过记录查
+  `head_sha` 名下的 run，五态 `GREEN/RED/PENDING/NOTFOUND/UNVERIFIED`，永不改退出码——
+  联网判据当闸就是"一次正常提交变不了绿"（户内规⑩）。`fetchRuns` 注入 ⇒ 自证与夹具**全程不联网**。
+  首跑就答上了一个上一轮没人查过的问题：第五十二轮那次绕过的 `head=3c8df89` 名下 **3 条 run 全 success**。
+  接线边界由夹具反向钉住：`--remote` 只许住在 `report:` 前缀下，`verify` 链、CI、`verify:*` 别名里出现即红。
+- **本轮未做（不当成做完）**：E6 D1 语义等价第二通道仍需人工只读探针；E7 CHANGELOG 分节、E8 对外待办入口未动；
+  运行时性能（LCP/TTI、接口延迟）本轮仍无基准——本轮把"不可比"改成了**诚实缺口 + 取证路径**，不是拿免责声明结案。
+
 ### 2026-09-29 追加六十七（对标第五十三轮：护栏自己说的话是不是真的）
 
 - **E1｜台账漂移从"只报"升为"拦"**（内层 R53-H4）。一手对照（本轮 03:36，在 `git archive HEAD` 的一次性检出里把

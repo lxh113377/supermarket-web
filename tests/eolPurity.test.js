@@ -25,12 +25,19 @@ const run = (args = [], cwd = REPO) => spawnSync(process.execPath, [SELF, ...arg
 /** 造一份合成仓：只有 .gitattributes + 一个 .py + 一个 .webp，够判 E1/E2/E3 三条腿。 */
 const entry = (path, binary, iEol = 'i/lf') => ({ path, binary, iEol })
 const ATTR = '* text=auto eol=lf\n*.webp binary\n'
+// E5 比的是**两处写侧声明**是否同向，所以夹具默认带一份"同向的" .editorconfig，
+// 让其余各条腿的 want/got 只归因到自己那条（否则整面会被 E5 判成 UNVERIFIED，红因全在夹具）。
+const EC = 'root = true\n[*]\nend_of_line = lf\n'
+const ec = (text = EC, present = true) => ({ editorconfigText: text, editorconfigPresent: present })
 
 describe('check-eol-purity 的入口通道（真跑 + 三档相位）', () => {
-  it('--selftest 必须真跑出 6/6（判据自带正例/反例/边界，不许恒绿）', () => {
+  it('--selftest 必须真跑且**全部通过**（判据自带正例/反例/边界，不许恒绿）', () => {
     const r = run(['--selftest'])
     expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0)
-    expect(r.stdout).toMatch(/\[GATE:eol-selftest-pass\] 6\/6/)
+    const m = /\[GATE:eol-selftest-pass\] (\d+)\/(\d+)/.exec(r.stdout)
+    expect(m, `汇总行形状不对：${r.stdout.split('\n').slice(-1)[0]}`).toBeTruthy()
+    expect(Number(m[1]), '通过数必须等于分母（自相矛盾的 6/10 不算绿）').toBe(Number(m[2]))
+    expect(Number(m[2]), '判别条数不许低于第五十四轮的 10 条（掉档＝有人删腿不删账）').toBeGreaterThanOrEqual(10)
     expect(r.stdout).not.toContain('FAIL ')
   })
 
@@ -67,7 +74,8 @@ describe('check-eol-purity 的入口通道（真跑 + 三档相位）', () => {
 })
 
 describe('evaluate() 的相位与分母（本轮两个自伤形状的常驻回归）', () => {
-  const clean = { attrText: ATTR, attrPresent: true, blobs: new Map([['a.py', Buffer.from('x\n')]]),
+  const clean = { attrText: ATTR, attrPresent: true, ...ec(),
+    blobs: new Map([['a.py', Buffer.from('x\n')]]),
     entries: [entry('a.py', false), entry('b.webp', true, 'i/-text')] }
 
   it('坑①回归：E4 只报不判 ⇒ 全绿面必须 GREEN，且 E4 不得进 unver', () => {
@@ -93,7 +101,44 @@ describe('evaluate() 的相位与分母（本轮两个自伤形状的常驻回�
   })
 
   it('零分母：entries 为空 ⇒ 不许 PASS（恒等式先塌，空集 ≠ 干净）', () => {
-    const out = evaluate({ attrText: ATTR, attrPresent: true, entries: [], blobs: new Map() })
+    const out = evaluate({ attrText: ATTR, attrPresent: true, ...ec(), entries: [], blobs: new Map() })
     expect(out.verdict).toBe('RED')
+  })
+
+  // —— 第五十四轮 R54-H1：三把尺分档印 + 写侧声明这条**可自愈**的闸。
+  it('E5 是**拦提交**的一条（advisory=false）：两处声明矛盾 ⇒ RED 且逐处点名', () => {
+    const out = evaluate({ ...clean, ...ec('root = true\n[*]\nend_of_line = crlf\n') })
+    expect(out.verdict, out.rows.map((r) => `${r.id}=${r.ok}/${r.unverified}`).join(' ')).toBe('RED')
+    const e5 = out.rows.find((r) => r.id === 'E5')
+    expect(e5.advisory, 'E5 若被降成 advisory，就等于把这条闸摘掉而没人看得见').toBe(false)
+    expect(e5.detail).toContain('矛盾')
+    expect(e5.detail).toContain('crlf')
+  })
+
+  it('E5 零输入：.editorconfig 读不到 ⇒ UNVERIFIED，**不得**读成"没有声明也就没有矛盾"（盲区≠零）', () => {
+    const out = evaluate({ ...clean, ...ec('', false) })
+    expect(out.verdict).toBe('UNVERIFIED')
+    expect(out.rc).toBe(2)
+    expect(out.rows.find((r) => r.id === 'E5').detail).toContain('不判"一致"')
+  })
+
+  it('E4/E6 必须**只报不拦**（本机是 CRLF 检出机器：拿工作树当闸＝要求提交一笔不存在的改动）', () => {
+    const out = evaluate({ ...clean, worktreeCrlf: 268, worktreeTotal: 742, worktreeGitCrlf: 178, autocrlf: 'true' })
+    expect(out.verdict).toBe('GREEN')
+    for (const id of ['E4', 'E6']) {
+      const r = out.rows.find((x) => x.id === id)
+      expect(r.advisory, `${id} 必须是 advisory`).toBe(true)
+      expect(r.detail).toContain('拦提交=否')
+    }
+    expect(out.rows.find((r) => r.id === 'E6').detail).toContain('w/crlf 178 件')
+    expect(out.rows.find((r) => r.id === 'E6').detail).toContain('core.autocrlf=true')
+  })
+
+  it('真面输出必须把"哪些拦提交、哪些只报"写进结论行（读者不必自己数行）', () => {
+    const r = run()
+    const m = /拦提交=([\w,]+)｜只报不拦=([\w,]+)/.exec(r.stdout)
+    expect(m, `结论行缺分档段：${r.stdout.split('\n').slice(-1)[0]}`).toBeTruthy()
+    expect(m[1].split(',')).toEqual(['E1', 'E2', 'E3', 'E5'])
+    expect(m[2].split(',')).toEqual(['E4', 'E6'])
   })
 })

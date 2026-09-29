@@ -6,6 +6,7 @@
 // @vitest-environment node
 import { describe, it, expect, afterAll } from 'vitest'
 import { spawnSync } from 'node:child_process'
+import { assertCliRan } from './helpers/cliLeg.js'
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
@@ -35,7 +36,10 @@ function roster(items, extra = {}) {
   writeFileSync(p, typeof items === 'string' ? items : JSON.stringify({ items, noBudgetMax: 999, ...extra }, null, 2), 'utf8')
   return p
 }
-const run = (args, env) => spawnSync(process.execPath, [SELF, ...args], { encoding: 'utf8', timeout: 60_000, env: { ...process.env, ...env } })
+const run = (args, env) => {
+  const r = spawnSync(process.execPath, [SELF, ...args], { encoding: 'utf8', timeout: 60_000, env: { ...process.env, ...env } })
+  return assertCliRan(r, { label: `report:item-budgets ${args.join(' ')}`, budgetMs: 60_000 })
+}
 
 describe('report:item-budgets（分项预算，第一版 advisory 不进阻断链）', () => {
   it('入口真跑：--selftest 必须被子进程跑起来并印出判别条数（6/6）', () => {
