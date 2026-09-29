@@ -4,6 +4,25 @@
 
 ## [未发布]
 
+### 2026-09-30 追加七十二（安全修复：CI 状态脚本失败时把 PAT 明文打进输出）
+
+- **现象（一手，本轮实测）**：跑 `node scripts/ci-status.mjs` 遇一次代理抖动，终端里直接出现
+  `Error: Command failed: curl … -H Authorization: Bearer ghp_…`——**一枚可用 PAT 的明文**。
+  根因不是"打印没脱敏"，而是 token **进了 argv**：`execFileSync` 失败时 Node 把整条命令连参数写进
+  `error.message`；而 argv 不只影响日志，同机其他进程也能读到进程参数 ⇒ 只在打印层脱敏不够。
+- **修法**：敏感的 `Authorization` 头改走 `curl --config -`（配置从 **stdin** 读，stdin 不进进程参数），
+  argv 里只剩非敏感参数；失败时走本件自己的四态出口 `fail(…, 4)`（取不到数据），
+  不再让 Node 把 argv 连栈一起甩出来；并对 `error.message` 再做一次 token 替换做纵深防御。
+- **回归件**：`tests/ciStatusRedaction.test.js`，形状是"对照 + 被测"——
+  腿⓪ 用**老办法**（token 进 argv）跑一次必死 curl，断言假 token **确实出现在** error.message 里
+  （证明泄漏面可观察，否则下面的"没出现"是空跑）；腿① 同条件下跑 ci-status，断言假 token 不在任何输出里；
+  腿② 断言失败语义是 rc=4 + 首行自家诊断；腿③ 用"能走到 curl 失败面"证明假 token 真进了流程。
+  假 token 由临时 `git` 垫片注入（不碰真凭据管理器），全程只断言"在/不在"，不打印值。
+  本文件按本仓规矩接了 `assertCliRan`（`verify:cli-legs` 现算 62 个 .test.js / 位点 74 / 守卫 24 / 欠账 0/0）。
+- **善后（需用户执行）**：那枚 PAT 已进过终端与对话记录 ⇒ 按凭据纪律**建议撤销并重发**
+  （GitHub → Settings → Developer settings → Personal access tokens → Revoke）。
+  本轮已实测：仓库跟踪面（`git grep`）与 `_backup/` 日志里 **0 命中**，即它没有落进任何被提交的文件。
+
 ### 2026-09-30 追加七十一（对标第五十七轮：把上一轮"登记过"的那条判据缺陷真落地，落地时又照出自己两处假绿）
 
 - **R57-H1 未执行，且原因被钉成机器口径**：判据的"日"取 `fetchTime` 的 **UTC 日期**，本地 02:28 采的一批写的是

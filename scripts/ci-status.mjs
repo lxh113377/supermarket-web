@@ -57,12 +57,29 @@ function token() {
   }
 }
 
+function redact(s, tok) {
+  return tok ? String(s).split(tok).join('[REDACTED-PAT]') : String(s)
+}
+
 function gh(path, tok) {
-  const args = ['-s', '--max-time', '30', '-w', '\n%{http_code}']
+  // ⚠️ token 一律**不进 argv**（第五十七轮一手实测的泄漏）：`execFileSync` 失败时 Node 会把整条命令
+  //   连同参数写进 `error.message`，于是 `-H "Authorization: Bearer ghp_…"` 的明文 PAT 直接落到
+  //   终端 / 日志 / 对话里 —— 一次代理抖动就足够。argv 不只影响日志，同机其他进程也能读到进程参数，
+  //   所以"只在打印时脱敏"是不够的，得从**进 argv 这一步**就不放进去。
+  //   正解 = 敏感项走 `--config -`（curl 从 stdin 读配置，stdin 不进进程参数），argv 只剩非敏感参数；
+  //   再对 error.message 做一次脱敏作为纵深防御（防未来有人把 token 拼回别处）。
+  const args = ['-s', '--max-time', '30', '-w', '\n%{http_code}', '--config', '-']
   if (proxy && proxy !== 'none') args.push('--proxy', proxy)
-  args.push('-H', `Authorization: Bearer ${tok}`, '-H', 'Accept: application/vnd.github+json',
-    `https://api.github.com${path}`)
-  const raw = execFileSync('curl', args, { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 })
+  args.push(`https://api.github.com${path}`)
+  const cfg = `header = "Accept: application/vnd.github+json"\nheader = "Authorization: Bearer ${tok}"\n`
+  let raw
+  try {
+    raw = execFileSync('curl', args, { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, input: cfg })
+  } catch (e) {
+    // 走本件自己的四态出口（rc=4 取不到数据），而不是让 Node 把整条 argv 连栈一起甩出来：
+    // 未捕获时打印的就是 `Error: Command failed: curl …`，那正是泄漏面。
+    fail('curl 调 GitHub API 失败（代理/网络问题，非结论）：' + redact(e && e.message ? e.message : e, tok), 4)
+  }
   const nl = raw.lastIndexOf('\n')
   const body = raw.slice(0, nl)
   const code = Number(raw.slice(nl + 1))
