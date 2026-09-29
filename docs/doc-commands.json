@@ -1,7 +1,7 @@
 {
   "schema": "chaoshi-doc-commands-v1",
   "note": "由 `node scripts/check-doc-commands.mjs --update` 生成。⚠️ counts 是**本次观测的 as-of 快照**（配套字段 observed_utc），不是现值：没有任何判据读它，引用时**禁止当现值用**，要现值请当场跑 `node scripts/check-doc-commands.mjs` 读它的输出行。archive_faces 是人填的\"历史归档面\"声明，--update 保留已填值；每条必须带 exempt_until（到期即重新按现行主张判，历史不是永久豁免）。D2 拿它与真实别名/文件面对账，改文档不改册不会红，改册不改文档会红。",
-  "observed_utc": "2026-09-29T20:05:10.074Z",
+  "observed_utc": "2026-09-29T20:12:09.881Z",
   "counts": {
     "docs": 29,
     "aliases": 70,

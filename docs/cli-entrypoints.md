@@ -76,7 +76,6 @@
 | 脚本 | 为什么还没有子进程夹具 |
 | --- | --- |
 | check-pr-has-tests.mjs | 要 `gh pr list`（网络+鉴权），且它是**看守型**：按头注设计永远 exit 0（骨架里实测 rc=0、1s，无开放 PR 时打"这不是通过，是空集"）⇒ 探针的 rc≠0 断言对它天然不成立。每轮 push main 时在 `dispatch.yml:44` 以真命令跑过（不在 PR job 里，本轮更正此行的旧说法） |
-| ci-status.mjs | 线上只读查询，**通道是 curl 不是 gh**（本机 node fetch 不走系统代理，见其头注；本轮更正旧说法）。骨架里实测 9s 并打印真 run 36299454141 ⇒ 跑它等于测 GitHub 可用性，不是测代码 |
 | gen-api-doc.mjs | 每次运行**改写** `docs/API.md`（=受版本控制的产物），spawn 会弄脏工作树；漂移已由 `verify:contract` 双向对账兜住。本轮补 `requireJson`+结构校验：缺契约从裸栈 `node:fs:441` 改为 rc=2，实测骨架里不留 `docs/`。同族的 `api-response-contract.mjs --write` 也会改写基准，故只挂 `--write` 别名进登记面，其读侧（`verify:response`）已在 PROBED 里真跑 |
 | local-api-stub.mjs | 常驻 HTTP 服务：本轮在骨架里实测**真监听 :5182，`timeout 30` 才杀掉（rc=124）**。它由 `test:stub` 的 Playwright 链以真进程拉起（e2e 覆盖入口） |
 | migrate.mjs | 会 `d1 execute --remote` **写线上库**（迁移/基线），夹具侧绝不能碰真库；骨架里实测 rc=1（"未找到本地 wrangler…先 npm ci"）；迁移正确性由 `verify:migrate-replay` 在一次性内存 SQLite 里重放同一套迁移 |
