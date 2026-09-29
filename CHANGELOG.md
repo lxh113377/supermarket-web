@@ -40,9 +40,15 @@
   是新增的地板腿当场抓出来的，已修正顺序并给三挡零输入腿补 `stderr 不含 Traceback`。
 - **文档追上真相源**：README 的 vitest 文件数 109 → **110**；另一处写死的"盘上 64 个别名"改成
   **指回现值命令**（读 `npm run check:doc-commands` 输出的 aliases）——写死即第二真相源，那句 64 已落后两轮。
-- **本轮仍未做（不得当成做完）**：E4 行尾归一（`git ls-files --eol` 全量实测 `i/crlf=0 / w/crlf=172 / attr/unset=0`，
-  其中 171 件工作树与 HEAD 一致、可直接重取）排在业务改动之后单独一笔；E6 D1 语义等价第二通道需只读远端探针
-  （风险分类禁 spawn ⇒ 只能人工执行并记时刻）；E7 CHANGELOG 分节、E8 对外待办入口为低优先。
+- **E4 本轮做了实验并判"不升档"**（改判，不是没做）：171 件工作树归一成 LF 后，`git hash-object` 与 HEAD blob **逐件相同**、
+  `git cat-file --filters` 读回磁盘字节 CR=0，而 `git status` / `git diff-files` / `update-index --really-refresh` 三路仍把
+  每一件报成 ` M` —— 根因是系统级 `core.autocrlf=true`（`C:/Program Files/Git/etc/gitconfig`，没改它）。
+  ⇒ 工作树面在本机不是**稳定表示**，拿它当阻断闸等于要求"提交一笔并不存在的改动"才能变绿（户内规⑩：不可自愈没资格当闸）。
+  已按 sha 逐件回灌：状态回到只剩他人在途那 1 件、`w/crlf` 172、**零提交**。下一轮改为"三把尺分档各印各的"（R54-H1）。
+  同轮另记一条 flake：全链跑时 `变异体 M2` 报过 `expected '' to contain 'branch=main'`，单跑 28/28、下一次全链 110/110 均绿
+  ⇒ 是 20 秒 `runCli` 超时被当成"判据给出空结论"，已登记 R54-H4（`status===null` 必须具名 TIMEOUT 并印出预算）。
+- **本轮仍未做（不得当成做完）**：E6 D1 语义等价第二通道需只读远端探针（风险分类禁 spawn ⇒ 只能人工执行并记时刻）；
+  E7 CHANGELOG 分节、E8 对外待办入口为低优先。
   另有一处**对上一轮自身的纠正**：第五十二轮写的"实测仍为 1 件 w/crlf"是我把 `git ls-files --eol` 按 TAB 拆列拆错
   造出的**假 0**（真实形态是 `i/lf w/crlf attr/text eol=lf` + TAB + 路径，属性面在第一个 TAB **之前**）
   ⇒ 真值 172 件，差 171 倍；同一轮还把 E4 的 268（字节含 CR 口径，含 249 个二进制里合法的 `0D0A`）

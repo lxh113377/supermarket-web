@@ -29,3 +29,5 @@
 > 顺手抓出 `verify_images.py` 两处判据自己崩了却报红的缺陷（`sm_missing = sm_invalid = []` 别名 / `sm_orphans` 未绑定）·
 > 分项体积预算 `npm run report:item-budgets`（advisory 第一版，不进阻断链）。
 > 当时的 P0（R53-H1 接线 + 地板）已于第五十三轮执行完毕，见本卷上方读数与主卷新一轮 P0。
+
+> 本轮补记（E4 试过并回退、假红归因、两条复发的已知坑）全部迁至**卷 95**。
