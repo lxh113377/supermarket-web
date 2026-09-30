@@ -49,6 +49,7 @@
 | `npm run verify:licenses` | check-licenses.mjs |
 | `npm run verify:limits` | check-limit-provenance.mjs |
 | `npm run verify:migrate-replay` | verify-migrate-replay.mjs |
+| `npm run verify:openapi` | gen-openapi.mjs |
 | `npm run verify:parity` | verify-release-parity.mjs |
 | `npm run verify:pii` | check-pii-inventory.mjs |
 | `npm run verify:pointers` | check-memory-pointer-sync.mjs |

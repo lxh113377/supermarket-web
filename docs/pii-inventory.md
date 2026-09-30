@@ -113,6 +113,15 @@
 | voidedAt | 运营 | admin | 否 | 无自动清理 | 无通道 | 否 | 作废时刻，随 voided 存在 |
 | createdAt | 派生 | admin | 否 | 无自动清理 | 无通道 | 否 | 记账时刻；与 refId 合起来可落到某单的下单时间，与 orders.createdAt 同为作息画像素材，故不标运营 |
 
+## 覆盖表：order_discounts
+
+| 列 | 类别 | 可见性 | 出境 | 保留 | 删除通道 | 进导出 | 依据 |
+|---|---|---|---|---|---|---|---|
+| orderId | 派生 | admin | 否 | 无自动清理 | 无通道 | 否 | 存 `orders._id`（H-58-1 满减轨 `getOrders` 的 LEFT JOIN 键，见 `actions/orders.js:422`）；顺此外键可直接 JOIN 到 roomNumber/items ⇒ 按派生登记；`deleteOrder` 只删 orders 本表（`actions/orders.js:314`），本表行删单后成孤儿，无任何清理通道 |
+| discountAmount | 运营 | admin | 否 | 无自动清理 | 无通道 | 是 | H-58-1 起 CSV「优惠」列每单首行即本列（`OrdersTab.tsx:143` 表头「优惠」）；单笔减免金额数字，随孤儿行残留但本身不指向人，故进导出标"是"而类别只标运营 |
+| promotionId | 运营 | admin | 否 | 无自动清理 | 无通道 | 否 | 命中的档位 `_id`（种子默认 `promo_default`），纯商家配置键；取值出自 promotions 表，不含顾客输入 |
+| createdAt | 派生 | admin | 否 | 无自动清理 | 无通道 | 否 | 落行时刻与订单 createdAt 同刻；与 orderId 同行即可落到某单的下单时刻，与 orders.createdAt 同为作息画像素材，故不标运营；随孤儿行残留 |
+
 ## 表级豁免（整张表不含个人数据，必须写为什么）
 
 | 表 | 豁免理由 |
@@ -120,6 +129,7 @@
 | categories | 商家自维护的商品分类目录（`_id/name/type/order/subcategories`），五个列全部来自后台录入，无任何顾客输入 |
 | products | 商品目录 16 列均为商家自填；`image`/`images` 存的是本仓自产 webp 资产路径，不含人像 —— 若日后把顾客实拍接进此表，本行立刻失效，必须转覆盖表 |
 | schema_migrations | 迁移账本四列（`name/checksum/appliedAt/note`），由 `scripts/migrate.mjs` 自己写，内容全是文件名与校验和 |
+| promotions | 商家自配的满减档位表七列（`_id/name/threshold/discount/enabled/createdAt/updatedAt`），值全部来自后台种子与管理端配置，无任何顾客输入；顾客侧只读到"优惠了几元"的结果数，档位本身不对顾客可见 |
 
 ## 出境面（谁真的离开本系统）
 
@@ -129,9 +139,10 @@
 P8 的判据是双向的：有列标"是"就必须给行号凭据；一列都没有，则本节的零出境声明必须点名 `pubAiChat`
 ——否则"把出境列全标否"就能自动变绿。
 
-## 已知缺口（本册自己承认的四笔账，不豁免掉）
+## 已知缺口（本册自己承认的五笔账，不豁免掉）
 
 1. **只剩一条真出境路径**：`actions/ai.js` 的 `pubAiChat` 用 `pub-<ip 前 40 位>` 当第三方用户标识送进 Dify（顾客提问文本本身出境是产品目的，登记于此的是那个 IP 派生标识）。上一轮记在这里的第二条（"aiAdvice 把 wechat/remark 带进 Dify"）**已被本轮实测推翻并更正**：那几个值只存在于 aiAdvice 的 orders 投影里，`buildAdviceInput`/`ruleAdvice` 一个都没引用，请求体只带聚合量 ⇒ 不是出境，是**白读**。白读同样不该留着：它把个人数据多搬进一次冷启动 isolate 的内存/日志面，而且是"哪天有人顺手 `JSON.stringify(orders30)`"就真出境的引信。本轮把投影收到 3 列（items/totalAmount/createdAt），由 **P12** 双向互锁（多一列白读=红，引用了却没投影=红），并有夹具证明收敛前后两份分析输入**逐字节相同**（`tests/aiContract.test.js`「出境面收敛」）。
 2. **`rate_limits.bucket` 里的 IP 无清理通道**：正解是按 `resetAt` 删除窗口早已结束的桶，与 `security_events` 同型；但清理属会减少现存数据量的通道，须先登记分母再开。
 3. **`ai_calls` 全表无保留无删除**：只写不读，量级小；仍登记为待办而不是豁免，因为"以后会有人读它"是迟早的事。
 4. **`stock_movements` 整张表无删除通道（第五十六轮 E7 起）**：它是 `products.stock` 的对账依据，删一行就等于把「SUM(delta)==stock」这条不变式的证据抹掉，所以写入侧只有软作废（`voided`/`voidedAt`）而没有硬删。代价如实登记：`note` 是后台自由文本、可能含供应商姓名或电话，一旦写错**没有任何人工清除路径**，只能再记一行说明——这与 `rate_limits.bucket`（第 2 条）是同一类"知道该有清理通道但还没开"的账。开清理通道前必须先按户内规矩登记分母（会减少现存数据量的通道不得先动手）。
+5. **`order_discounts` 删单后成孤儿（第五十八轮 P2 满减轨引入即欠账，R58-H1 收尾补登记）**：`deleteOrder`（`actions/orders.js:308-320`）只 `DELETE FROM orders`，不带 `order_discounts` 联删 ⇒ 订单删掉后优惠行永久残留（含可 JOIN 回 roomNumber 的 `orderId`）。修法是给 `deleteOrder` 加联删一行（或随单软作废），改前本条保持挂账；修时须同步跑 `verify:migrate-replay`（改写侧）与本判据复验。

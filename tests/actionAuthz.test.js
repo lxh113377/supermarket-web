@@ -149,13 +149,15 @@ describe('B7 新增表默认落进业务面（fail-closed 的那一半）', () =
     const v = evaluate(src)
     expect(RED(v, 'B2')).toHaveLength(1)
     // 业务 6 → 7：第五十六轮 E7 的 stock_movements 有 handler 写它 ⇒ 默认落进业务面（fail-closed 生效的读数）
-    expect(v.find((x) => x.id === 'B7').detail).toContain('业务 7')
+    // 业务 7 → 8：第五十八轮 P2 的 promotions / order_discounts 真表进业务面（R58-H1 收尾把期望跟上；
+    // M11 的合成 promotions 已与真表同名，B2 照样判红 —— 判的是"未进白名单且有写方"，不是"表新不新"）
+    expect(v.find((x) => x.id === 'B7').detail).toContain('业务 8')
   })
 
   it('纯函数面：businessTables 只按白名单分流，不认表名的字面含义', () => {
     const { all, business } = businessTables(BASE.schemaSql)
-    expect(all.size).toBe(10)
-    expect([...business].sort()).toEqual(['categories', 'orders', 'products', 'reviews', 'stock_movements', 'submissions'])
+    expect(all.size).toBe(12)
+    expect([...business].sort()).toEqual(['categories', 'order_discounts', 'orders', 'products', 'promotions', 'reviews', 'stock_movements', 'submissions'])
     expect(business.has('security_events')).toBe(false)
   })
 

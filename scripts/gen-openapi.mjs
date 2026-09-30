@@ -8,11 +8,24 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { bail, requireInputs } from './lib/preflight.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const IN = path.join(root, 'docs', 'api-contract.json')
 const OUT = path.join(root, 'docs', 'openapi.json')
 const write = process.argv.includes('--write')
+
+// fail-closed（第二十五轮口径）：缺输入面/零分母输入走 rc=2 人话诊断，不许甩裸栈，更不许印 OK
+requireInputs('gen-openapi', [IN])
+let j
+try {
+  j = JSON.parse(await readFile(IN, 'utf8'))
+} catch {
+  bail('gen-openapi', `读不懂 ${IN}（空文件或坏 JSON），无法派生`)
+}
+if (!j || typeof j !== 'object' || !j.endpoints || !Object.keys(j.endpoints).length) {
+  bail('gen-openapi', `${IN} 里没有 endpoints（零分母输入无法派生，判"环境不满足"而非"通过"）`)
+}
 
 function actionOp(endpoint, action, meta) {
   return {
@@ -44,7 +57,6 @@ function actionOp(endpoint, action, meta) {
   }
 }
 
-const j = JSON.parse(await readFile(IN, 'utf8'))
 const paths = {}
 for (const ep of Object.keys(j.endpoints || {})) {
   const actions = j.endpoints[ep].actions || {}

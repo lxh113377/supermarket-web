@@ -28,7 +28,7 @@ describe('合成 dump 的结构（先证明对象是真的，再谈加解密）'
   it('schema + seed 合成的 dump 含全部建表语句与逐行 INSERT，且注释是 SQL 的 --（本轮两次栽在 # 与 MySQL 的 SET 上）', () => {
     const dump = synthesizeDump(readFileSync(join(REPO, 'db', 'schema.sql'), 'utf8'), readFileSync(join(REPO, 'db', 'seed.sql'), 'utf8'))
     const tables = [...readFileSync(join(REPO, 'db', 'schema.sql'), 'utf8').matchAll(/CREATE TABLE IF NOT EXISTS "?([a-z_]+)"?/gi)].map((m) => m[1])
-    expect(tables.length, '真相源表数（第五十六轮 E7 起含 stock_movements）').toBe(10)
+    expect(tables.length, '真相源表数（第五十六轮 E7 起含 stock_movements；第五十八轮 P2 起含 promotions/order_discounts）').toBe(12)
     for (const t of tables) expect(dump.includes(`INSERT INTO "${t}"`) || dump.includes(`CREATE TABLE IF NOT EXISTS ${t}`), `dump 里没有表 ${t}`).toBe(true)
     expect(dump).not.toMatch(/^#/)
     expect(dump).not.toContain('SET FOREIGN_KEY_CHECKS')
