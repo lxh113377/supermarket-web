@@ -16,6 +16,7 @@ export default function PaymentPage() {
 
   const orderId = state?.orderId || sessionStorage.getItem('sm_payment_order') || ''
   const totalAmount = state?.totalAmount || parseFloat(sessionStorage.getItem('sm_payment_amount') || '0')
+  const discountAmount = state?.discountAmount || 0
   useEffect(() => {
     if (orderId) sessionStorage.setItem('sm_payment_order', orderId)
     if (totalAmount) sessionStorage.setItem('sm_payment_amount', String(totalAmount))
@@ -103,6 +104,9 @@ export default function PaymentPage() {
             <div className="text-center w-full max-w-sm animate-fade-in-up flex flex-col items-center">
               {totalAmount > 0 && (
                 <p className="text-xl font-bold text-gray-900 mb-1.5">{formatYuan(totalAmount)}</p>
+              )}
+              {discountAmount > 0 && (
+                <p className="text-xs text-green-600 mb-1.5" role="status">满减已优惠 {formatYuan(discountAmount)}</p>
               )}
               <div className="w-full bg-amber-50 border border-amber-200/80 rounded-xl px-3 py-2 mb-2">
                 <p className="text-amber-700 text-xs font-medium">

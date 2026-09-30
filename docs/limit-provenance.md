@@ -107,6 +107,6 @@
 
 - 当前档位登记：**Free** ⇒ D1「每调用查询数」预算取 `d1_queries_per_invocation_free = 50`。
 - 为什么必须登记：Free 50 与 Paid 1000 差 20 倍，同一个上限在一个档位下安全、在另一个档位下必然半途抛错。
-- 本仓无 Cloudflare 凭据 ⇒ 判不出实际档位，按**最坏情况（Free）**设防；改档位时须同步复核 
+- 本仓无 Cloudflare 凭据 ⇒ 判不出实际档位，按**最坏情况（Free）**设防；改档位时须同步复核
   `BATCH_UPDATE_MAX`（当前 20 由 50 推导，语句数口径 1+2n）与所有 `platform` 类登记行。
 - 未登记本节 ⇒ `npm run verify:limits` 的 C6 判红（引用了档位相关事实却不写取哪个数）。

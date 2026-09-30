@@ -260,6 +260,15 @@ export function judge({ files, schemaSql, extraFiles = [] }) {
         { table: 'stock_movements', index: 'idx_stock_movements_kind_ts' },
       ],
     },
+    // 2026-09-30 对标 P2 满减闭环：删 promotions（含其索引）+ order_discounts
+    'rollback-promotions.sql': {
+      forward: 'migrate-promotions.sql',
+      objects: [
+        { table: 'promotions' },
+        { table: 'promotions', index: 'idx_promotions_enabled' },
+        { table: 'order_discounts' },
+      ],
+    },
   }
   const ROLLBACK_DATA = {
     'rollback-rename-order20.sql': { forward: 'adhoc-rename-order20.sql' },

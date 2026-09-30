@@ -3,7 +3,7 @@
   "peakStatements": {
     "P:getPublicCategories": 1,
     "P:getPublicProducts": 1,
-    "P:createOrder": 7,
+    "P:createOrder": 8,
     "A:getOrder": 1,
     "A:getOrders": 1,
     "A:updateOrderStatus": 6,
@@ -40,7 +40,7 @@
     "A:getPublicCategories": 1,
     "A:getReviews": 1,
     "A:addPublicReview": 2,
-    "A:createOrder": 4,
+    "A:createOrder": 5,
     "P:aiChat": 3,
     "A:getSubmissionImages": 1,
     "A:adjustStock": 4,

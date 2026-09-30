@@ -9,6 +9,7 @@ export default function OrderSuccessPage() {
   const room = state?.room || ''
   const orderId = state?.orderId || ''
   const totalAmount = state?.totalAmount || 0
+  const discountAmount = state?.discountAmount || 0
   // 第十八轮：`localFallback` 这个字段自写下起从未被本组件读过 ——
   // 顾客在"后端不服务"时拿到的仍是这张「下单成功！请完成支付」，
   // 而这张单只存在于他自己浏览器的 localStorage 里，商家侧查不到。
@@ -64,6 +65,9 @@ export default function OrderSuccessPage() {
           {totalAmount > 0 && (
             <p className={`text-sm text-brand-600 font-semibold ${building || room ? 'mt-2' : ''}`}>{formatYuan(totalAmount)}</p>
           )}
+          {discountAmount > 0 && (
+            <p className="text-xs text-green-600 mt-1" role="status">满减已优惠 {formatYuan(discountAmount)}</p>
+          )}
           {orderId && (
             <p className="text-xs text-gray-400 mt-3 font-mono break-all">订单号：{orderId}</p>
           )}
@@ -71,7 +75,7 @@ export default function OrderSuccessPage() {
 
         <div className="space-y-3 animate-fade-in-up stagger-3">
           <button
-            onClick={() => navigate('/payment', { state: { orderId, totalAmount } })}
+            onClick={() => navigate('/payment', { state: { orderId, totalAmount, discountAmount } })}
             className="btn-primary w-full py-4 rounded-2xl text-base shadow-elevated"
           >
             去支付

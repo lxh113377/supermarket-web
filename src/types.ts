@@ -76,6 +76,10 @@ export interface Order {
   roomNumber: string
   items: OrderItem[]
   totalAmount?: number
+  /** 满减优惠额（服务端 order_discounts 明细；无优惠时 0 或缺省） */
+  discountAmount?: number
+  /** 命中促销规则 id（无优惠时 '' 或缺省） */
+  promotionId?: string
   status: 'pending' | 'paid' | 'delivering' | 'completed' | 'cancelled'
   wechat?: string
   remark?: string

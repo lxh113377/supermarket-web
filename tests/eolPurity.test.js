@@ -30,6 +30,10 @@ const ATTR = '* text=auto eol=lf\n*.webp binary\n'
 // 让其余各条腿的 want/got 只归因到自己那条（否则整面会被 E5 判成 UNVERIFIED，红因全在夹具）。
 const EC = 'root = true\n[*]\nend_of_line = lf\n'
 const ec = (text = EC, present = true) => ({ editorconfigText: text, editorconfigPresent: present })
+// —— E7/E8（第五十八轮 R58-H5 落子时补）：evaluate() 现在要求这两维也有输入面。
+// 桩只给"全真"的解析结果（真解析路径由真面覆盖），声明键默认与夹具文本对齐。
+const RES_STUB = () => ({ charset: 'utf-8', indent_style: 'space', insert_final_newline: 'true', trim_trailing_whitespace: 'true' })
+const res = (decl = ['end_of_line']) => ({ resolveProps: RES_STUB, resolveNote: 'test 内联桩', declaredKeys: decl })
 
 describe('check-eol-purity 的入口通道（真跑 + 三档相位）', () => {
   it('--selftest 必须真跑且**全部通过**（判据自带正例/反例/边界，不许恒绿）', () => {
@@ -75,7 +79,7 @@ describe('check-eol-purity 的入口通道（真跑 + 三档相位）', () => {
 })
 
 describe('evaluate() 的相位与分母（本轮两个自伤形状的常驻回归）', () => {
-  const clean = { attrText: ATTR, attrPresent: true, ...ec(),
+  const clean = { attrText: ATTR, attrPresent: true, ...ec(), ...res(),
     blobs: new Map([['a.py', Buffer.from('x\n')]]),
     entries: [entry('a.py', false), entry('b.webp', true, 'i/-text')] }
 
@@ -117,7 +121,7 @@ describe('evaluate() 的相位与分母（本轮两个自伤形状的常驻回�
   })
 
   it('E5 零输入：.editorconfig 读不到 ⇒ UNVERIFIED，**不得**读成"没有声明也就没有矛盾"（盲区≠零）', () => {
-    const out = evaluate({ ...clean, ...ec('', false) })
+    const out = evaluate({ ...clean, ...ec('', false), declaredKeys: null })
     expect(out.verdict).toBe('UNVERIFIED')
     expect(out.rc).toBe(2)
     expect(out.rows.find((r) => r.id === 'E5').detail).toContain('不判"一致"')
@@ -135,11 +139,23 @@ describe('evaluate() 的相位与分母（本轮两个自伤形状的常驻回�
     expect(out.rows.find((r) => r.id === 'E6').detail).toContain('core.autocrlf=true')
   })
 
+  it('E7 漏报侧：缺末行换行 ⇒ RED 且点名 insert_final_newline', () => {
+    const out = evaluate({ ...clean, blobs: new Map([['a.py', Buffer.from('x')]]) })
+    expect(out.verdict).toBe('RED')
+    expect(out.rows.find((r) => r.id === 'E7').detail).toContain('insert_final_newline')
+  })
+
+  it('E8 漏报侧：声明了没人核的键 ⇒ RED 且点名该键', () => {
+    const out = evaluate({ ...clean, declaredKeys: ['end_of_line', 'max_line_length'] })
+    expect(out.verdict).toBe('RED')
+    expect(out.rows.find((r) => r.id === 'E8').detail).toContain('max_line_length')
+  })
+
   it('真面输出必须把"哪些拦提交、哪些只报"写进结论行（读者不必自己数行）', () => {
     const r = run()
     const m = /拦提交=([\w,]+)｜只报不拦=([\w,]+)/.exec(r.stdout)
     expect(m, `结论行缺分档段：${r.stdout.split('\n').slice(-1)[0]}`).toBeTruthy()
-    expect(m[1].split(',')).toEqual(['E1', 'E2', 'E3', 'E5'])
+    expect(m[1].split(',')).toEqual(['E1', 'E2', 'E3', 'E5', 'E7', 'E8'])
     expect(m[2].split(',')).toEqual(['E4', 'E6'])
   })
 })

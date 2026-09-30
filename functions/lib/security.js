@@ -126,11 +126,15 @@ async function logSecurityEvent(DB, { ip = '', action = '', result = '', keyFing
   }
 }
 
-// 图片串 scheme 白名单：仅允许 data:image/(jpeg|png|webp|gif);base64 或 https 受信 URL。
+// 图片串 scheme 白名单：仅允许 data:image/(jpeg|png|webp|gif);base64 或 https 受信 URL，
+// 或 R2 对象键引用 `r2:<key>`（2026-09-30 对标 P2 R2 就绪：key 为不透明串，只允许安全字符，
+// 不解析为 URL ⇒ javascript:/data:text/html 等注入向量仍被拒；渲染侧由前端 resolveReviewImages
+// 用可信基址拼接，基址未配置时原样透传不渲染）。
 // 阻止 javascript:/data:text/html 等注入向量（渲染侧未来改动也不会变成 XSS）。
 export function isSafeImageUrl(url) {
   if (typeof url !== 'string' || !url) return false
   if (/^data:image\/(jpeg|png|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(url)) return true
+  if (/^r2:(?!.*\.\.)[A-Za-z0-9/_.-]{1,128}$/.test(url)) return true
   try {
     const u = new URL(url)
     return u.protocol === 'https:' && !!u.hostname

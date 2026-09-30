@@ -16,7 +16,7 @@ function throwCloudReadError(where: string, detail: string): never {
 
 // 创建订单（走 API，服务端重算金额，防客户端篡改）
 // requestId：本次下单意图的幂等键，仅传输不入库（服务端折成 idempotencyKey 落列）
-export async function createOrder(order: Record<string, unknown>): Promise<{ id: string; localFallback?: boolean; demo?: boolean; deduplicated?: boolean }> {
+export async function createOrder(order: Record<string, unknown>): Promise<{ id: string; localFallback?: boolean; demo?: boolean; deduplicated?: boolean; totalAmount?: number; discountAmount?: number; promotionId?: string }> {
   const clean = pickOrderFields(order)
   const requestId = typeof order.requestId === 'string' ? order.requestId.slice(0, 64) : ''
   if (!IS_CLOUD) {
@@ -26,7 +26,7 @@ export async function createOrder(order: Record<string, unknown>): Promise<{ id:
     return { id: addLocalOrder(clean)._id, demo: true }
   }
   try {
-    const result = await publicCall<{ id: string; deduplicated?: boolean }>('createOrder', requestId ? { ...clean, requestId } : clean)
+    const result = await publicCall<{ id: string; deduplicated?: boolean; totalAmount?: number; discountAmount?: number; promotionId?: string }>('createOrder', requestId ? { ...clean, requestId } : clean)
     if (result.code !== 0) {
       // 第十八轮分流：服务端**活着**且明确"这一单我不收"（库存不足 / 已下架 / 限流 / 鉴权失败）时
       // 不许本地兜底。兜底 = 顾客看到「下单成功！请完成支付」而商家侧根本没有这张单，
@@ -42,7 +42,14 @@ export async function createOrder(order: Record<string, unknown>): Promise<{ id:
       }
       throw new Error(result.message || '创建订单失败')
     }
-    return { id: result.data?.id ?? '', deduplicated: Boolean(result.data?.deduplicated) }
+    return {
+      id: result.data?.id ?? '',
+      deduplicated: Boolean(result.data?.deduplicated),
+      // 服务端实付价（满减后）；演示/兜底路径无服务端计价时调用方回落本地小计
+      totalAmount: typeof result.data?.totalAmount === 'number' ? result.data.totalAmount : undefined,
+      discountAmount: typeof result.data?.discountAmount === 'number' ? result.data.discountAmount : 0,
+      promotionId: typeof result.data?.promotionId === 'string' ? result.data.promotionId : '',
+    }
   } catch (e) {
     if (e instanceof OrderRejectedError) throw e
     console.warn('[db] cloud createOrder failed, using local fallback:', e instanceof Error ? e.message : String(e))

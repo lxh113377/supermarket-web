@@ -203,8 +203,8 @@ describe('复制与导出', () => {
     const bytes = new Uint8Array(await blob.arrayBuffer())
     expect([bytes[0], bytes[1], bytes[2]]).toEqual([0xef, 0xbb, 0xbf])
     const csv = await blob.text()
-    expect(csv).toContain('房间号,商品,口味,数量,单价,小计,状态,时间')
-    expect(csv).toContain('可乐(500ml)  x2,,2,3.50,7.00,待支付')
+    expect(csv).toContain('房间号,商品,口味,数量,单价,小计,优惠,状态,时间')
+    expect(csv).toContain('可乐(500ml)  x2,,2,3.50,7.00,0.00,待支付')
     expect(parents).toHaveLength(1)
     expect(parents[0]).toBe(document.body) // 点击时仍在文档内（Firefox 判据）
     expect(spy).toHaveBeenCalledTimes(1)
@@ -253,10 +253,53 @@ describe('口味（从订单快照 spec 拆出来给后台看）', () => {
     setup([flavored()])
     fireEvent.click(screen.getByRole('button', { name: 'CSV' }))
     const csv = await (createObjectURL.mock.calls[0][0] as Blob).text()
-    expect(csv).toContain('乐事薯片(40g)  x2,黄瓜味,2,2.66,5.32,待支付')
-    expect(csv).toContain('有糖可乐(罐装330ml)  x1,,1,3.50,3.50,待支付')
+    expect(csv).toContain('乐事薯片(40g)  x2,黄瓜味,2,2.66,5.32,0.00,待支付')
+    expect(csv).toContain('有糖可乐(罐装330ml)  x1,,1,3.50,3.50,0.00,待支付')
     vi.advanceTimersByTime(1000)
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:flavor')
+    spy.mockRestore()
+    vi.useRealTimers()
+  })
+})
+
+describe('满减优惠（P2 后端已落地，管理端此前不可见）', () => {
+  // 老单无 discountAmount 字段 → 按 0 处理，界面不凭空长徽标
+  it('无优惠单不显示徽标，复制文本无优惠行', async () => {
+    setup([mkOrder(1)])
+    expect(screen.queryByText(/已优惠/)).toBeNull()
+  })
+
+  it('有优惠单行内显示徽标，复制文本带优惠行', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    setup([mkOrder(1, { discountAmount: 2 } as Partial<Order>)])
+    expect(screen.getByText(/已优惠/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '复制' }))
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1))
+    expect(writeText.mock.calls[0][0] as string).toContain('优惠：')
+  })
+
+  it('CSV：优惠只在每单首行填值，其余行 0.00（防汇总多计）', async () => {
+    vi.useFakeTimers()
+    const createObjectURL = vi.fn(() => 'blob:disc')
+    URL.createObjectURL = createObjectURL
+    URL.revokeObjectURL = vi.fn()
+    const spy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    setup([mkOrder(9, {
+      roomNumber: '39栋-901',
+      discountAmount: 3,
+      items: [
+        { productId: 'p001', name: '可乐', spec: '500ml', price: 3.5, quantity: 2 },
+        { productId: 'p002', name: '薯片', spec: '40g', price: 2.66, quantity: 1 },
+      ],
+    } as unknown as Partial<Order>) as Order])
+    fireEvent.click(screen.getByRole('button', { name: 'CSV' }))
+    const csv = await (createObjectURL.mock.calls[0][0] as Blob).text()
+    const lines = csv.split('\r\n')
+    expect(lines[0]).toContain('优惠')
+    expect(lines[1]).toContain(',3.00,待支付')
+    expect(lines[2]).toContain(',0.00,待支付')
+    vi.advanceTimersByTime(1000)
     spy.mockRestore()
     vi.useRealTimers()
   })

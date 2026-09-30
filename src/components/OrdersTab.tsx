@@ -114,14 +114,17 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
   }
 
   const copyOrder = (order: Order) => {
-    const text = `房间号：${order.roomNumber}\n${order.items.map(i => i.name + (i.spec ? '(' + i.spec + ')' : '') + ' x' + i.quantity + ' ¥' + formatPrice((i.price ?? 0) * i.quantity)).join('\n')}\n合计：${formatYuan(order.totalAmount ?? 0)}\n状态：${orderStatusLabel(order.status)}`
+    const discount = order.discountAmount ?? 0
+    const text = `房间号：${order.roomNumber}\n${order.items.map(i => i.name + (i.spec ? '(' + i.spec + ')' : '') + ' x' + i.quantity + ' ¥' + formatPrice((i.price ?? 0) * i.quantity)).join('\n')}\n合计：${formatYuan(order.totalAmount ?? 0)}${discount > 0 ? `\n优惠：${formatYuan(discount)}` : ''}\n状态：${orderStatusLabel(order.status)}`
     navigator.clipboard.writeText(text).then(() => setNotice('已复制到剪贴板'))
   }
 
   const exportCSV = (): void => {
     const statusLabel = orderStatusLabel
-    const rows = orders.flatMap(o =>
-      o.items.map(i => {
+    // 对标 mall/medusa 的按筛导出：导出当前筛选结果而非全量（此前用 orders 全量，搜“黄瓜味”导出仍是全表）
+    // 优惠列只在每单首行填订单级 discountAmount，其余行填 0.00——逐行重复会导致汇总时多计
+    const rows = filtered.flatMap(o =>
+      o.items.map((i, idx) => {
         // 口味单列：老大要能在表格里直接按口味透视，混在「商品」列里就得手工拆
         const { base, flavor } = splitOrderSpec(i.spec)
         return [
@@ -131,17 +134,18 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
           String(i.quantity),
           formatPrice(i.price ?? 0),
           formatPrice((i.price ?? 0) * i.quantity),
+          idx === 0 ? formatPrice(o.discountAmount ?? 0) : formatPrice(0),
           statusLabel(o.status),
           new Date(o.createdAt).toLocaleString(),
         ]
       })
     )
-    const csv = buildCsvText(['房间号', '商品', '口味', '数量', '单价', '小计', '状态', '时间'], rows)
+    const csv = buildCsvText(['房间号', '商品', '口味', '数量', '单价', '小计', '优惠', '状态', '时间'], rows)
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `orders_${new Date().toISOString().slice(0, 10)}.csv`
+    a.download = `orders_${filter !== 'all' ? filter + '_' : ''}${new Date().toISOString().slice(0, 10)}.csv`
     // 必须先挂进 DOM 再点击：Firefox 对游离节点不触发下载（Chrome/Safari 不校验）
     a.style.display = 'none'
     document.body.appendChild(a)
@@ -261,7 +265,11 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
           </div>
           {/* 管理端行内布局：手机端纵向堆叠，sm 以上左右分列（原实现挤在一行、金额与操作互相挤压） */}
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-            <span className="text-brand-600 font-bold">{formatYuan(order.totalAmount ?? 0)}</span>
+            <span className="text-brand-600 font-bold">{formatYuan(order.totalAmount ?? 0)}
+              {(order.discountAmount ?? 0) > 0 && (
+                <span className="ml-1.5 text-[11px] font-medium text-green-700 bg-green-50 rounded px-1 py-px">已优惠 {formatYuan(order.discountAmount ?? 0)}</span>
+              )}
+            </span>
             <div className="flex items-center gap-2">
               <select
                 aria-label={`订单 ${order.roomNumber} 的状态`}

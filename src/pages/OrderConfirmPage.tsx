@@ -76,7 +76,10 @@ export default function OrderConfirmPage() {
         requestId: requestKey.current,
       })
       clearCart()
-      navigate('/order-success', { state: { building: building.trim(), room: room.trim(), orderId: result.id, localFallback: result.localFallback, demo: result.demo, totalAmount } })
+      // 实付价以服务端为准（满减后）；演示/兜底无服务端计价时回落本地小计
+      const payable = typeof result.totalAmount === 'number' ? result.totalAmount : totalAmount
+      const discount = typeof result.discountAmount === 'number' ? result.discountAmount : 0
+      navigate('/order-success', { state: { building: building.trim(), room: room.trim(), orderId: result.id, localFallback: result.localFallback, demo: result.demo, totalAmount: payable, discountAmount: discount } })
     } catch (err) {
       // 业务拒绝（服务端活着且明确不收这单）与传输故障的文案必须分开：
       // 前者的正确动作是"改数量/换商品/稍后再试"，后者才是"稍后重试"。

@@ -4,6 +4,35 @@
 
 ## [未发布]
 
+### 2026-09-30 追加七十四（对标第五十八轮：管理端满减可见 + E7/E8 落地收尾）
+
+- **做了什么**：①管理端 `OrdersTab` 补满减可见：行内金额旁"已优惠"徽标（无优惠单不渲染）、
+  复制文本追加优惠行、CSV 新增"优惠"列（每单仅首行填订单级优惠、余行 0.00，防汇总多计）；
+  `tests/ordersTab.test.tsx` 新增 3 条（无优惠不长徽标/有优惠复制带行/CSV 首行规则）；
+  ②E7/E8 落地收尾：43 件行尾违规机械修复（39 件补末行换行 + 4 件去行尾空格，零语义改动）、
+  `check-eol-purity.mjs` 自检补 E7/E8 双红例（12/12）、`tests/eolPurity.test.js` 夹具同步输入面并补双红例（14/14）。
+- **为什么**：P2 满减后端落地后管理端不可见（顾客页可见、管理页不可见的不对称）；
+  E7/E8 腿已合入但自检与测试夹具未随动（5 红），属"新尺无反例"的同一形态。
+- **验证证据**：`verify:eol` 8/8 GREEN（含自检 12/12）；`verify:contract` 47/47；`verify:migrate-replay` 全绿；
+  `verify:backend` 185/185；oxlint 0 warn；`tsc` 双配置 0 错；
+  定向 vitest：ordersTab+promotion 26/26、orderFlow+stale 12/12、eolPurity 14/14（修复前 5 红）。
+  未部署（线上迁移+部署待用户拍板）。
+
+### 2026-09-30 追加七十三（对标 P2：满减促销最小闭环 + 订单按筛导出 + 库存汇总条）
+
+- **做了什么**：①满减最小闭环：`promotions` + `order_discounts` 新表（`db/migrate-promotions.sql`，
+  无裸 ALTER，种子默认关闭），服务端按下单小计自动选最优启用档并落明细行，读侧（getOrders/getOrderById/
+  幂等命中）LEFT JOIN 带出，`recalculateOrders` 满减感知；顾客端下单链路改取服务端实付价并展示"满减已优惠"
+  （成功页/支付页；演示与兜底路径回落本地小计）；②`OrdersTab` 导出改用当前筛选结果；
+  ③`ProductsTab` 库存汇总提醒条；④`scripts/gen-openapi.mjs` 由契约派生 `docs/openapi.json`（42 operations）；
+  ⑤`docs/adr/0006-event-bus-rfc.md` 事件总线 RFC；⑥R2 就绪切片：白名单接 `r2:<key>`（禁 `..` 穿越），
+  `resolveReviewImages` 按 `VITE_R2_PUBLIC_BASE` 拼接，未配则透传（后端尚不产出该引用）。
+- **为什么**：对标 mall/medusa 促销与按筛导出；本仓原先无优惠能力、无汇总视角。默认关闭⇒存量行为零变化。
+- **验证证据**：`verify-backend` 185/185（SQL 峰值基线 P:createOrder 7→8、A:createOrder 4→5 同笔登记）；
+  `verify:migrate-replay` 全绿（含新回滚件往返）；`api-response-contract` 6/6（已重生）；
+  `check-d1-roundtrips` 25/25；`tests/promotion.test.js` 4/4；oxlint 0 warn；`tsc --noEmit` 0 错。
+  未部署（线上迁移+部署待用户拍板，见交付报告）。
+
 ### 2026-09-30 追加七十二（安全修复：CI 状态脚本失败时把 PAT 明文打进输出）
 
 - **现象（一手，本轮实测）**：跑 `node scripts/ci-status.mjs` 遇一次代理抖动，终端里直接出现
@@ -1470,7 +1499,7 @@
 - **R15-H1 新门禁 `npm run verify:authz`（纯静态、零凭据、判据核心不碰磁盘）**：业务表面 ← `db/schema.sql` 全部表 − 具名副作用表白名单（`rate_limits` 限流 / `security_events` 审计（含 auth_failed，写它正是鉴权失败时的行为）/ `ai_calls` 观测 / `schema_migrations` 账本，逐条带 why）；业务写 action 集 ← `backend.js` 的 switch 路由 → 处理函数 → AST 可达 SQL 命中的表；与从源码里解析出的 `ADMIN_WRITE_ACTIONS` 做**双向差集**。B1 三面非空／B2 漏登即红／B3 死项即红／B4·B4b `/pub` 业务写须逐条具名允许且清单不得潜伏死项／B5 `/pub` 路由集 ⇄ `PUBLIC_ACTIONS` 集相等／B6 副作用表白名单须真实且逐条有因／B7 未归类新表默认落进业务面（fail-closed 的那一半）。
 - **现状结论（如实）**：**16 个业务写 ⇄ 16 条登记，双向相等 ⇒ 当前没有活漏洞**，本轮补的是"保持正确的机制"，不是修一个正在漏的门。这一点写进判据输出行，避免下一轮把它读成"已修缺陷"。
 - **变异首跑抓到判据自身两个洞（`tests/actionAuthz.test.js` 14 条）**：① **插值表名的写会隐身** —— `writtenTables` 先把模板各段用 `@` 拼起来、再判 `text` 里有没有 `${`，标记被自己抹掉了 ⇒ `DELETE FROM ${t}` 这类动态表名的写**逃过业务面**；现改判"quasis 段数 > 1 即为插值"并记 `@dyn`（真仓里的 `INSERT INTO ${table}` 由 `insert(DB,'orders',…)` 的字面量参数规则覆盖，故现状不变）。② **变异必须自证落盘** —— 三处 `String.replace` 因 **CRLF** 静默空转，判据不红被读成"机制没问题"；现统一在 `loadSources()` 入口把四路源码 `
- → 
+ →
 `（本仓 `core.autocrlf=true`，未被我改的文件在盘上是 CRLF、我写的是 LF，判据不能依赖行尾形态），测试侧加 `patch()`：替换未命中即抛，禁止"没改到"冒充"没毛病"。
 - **可反证性**：判据核心 `evaluate({schemaSql, backendSrc, securitySrc, files}, opts)` 是纯函数，源码由 `loadSources()` 注入 ⇒ 变异在内存里做，不往受管根写临时文件（R249）。夹具含"只读 handler 被加了 DELETE"“新表 promotions + 写它的 handler""PUBLIC_ACTIONS 少一项""清单里塞死项""幽灵副作用表""原因太短""switch 取数链断了"七类反例，各绑一条判据 id，并有"真仓全绿"对照。
 - **默认方向扳正（本轮真正的安全收益，不只是加判据）**：新增 `ADMIN_READ_ACTIONS` 穷举表（15 项），只读档的判定式由 `ADMIN_WRITE_ACTIONS.has(action)` 改为 **`!ADMIN_READ_ACTIONS.has(action)`**。差别在漏登后果：旧写法"没登记 = 只读密钥也能做"（默认允许），新写法"没登记 = 谁都做不了"（默认拒绝）。依据为当日取证原文：OWASP Top 10 A01:2021 **"Except for public resources, deny by default."** 与 **"Accessing API with missing access controls for POST, PUT and DELETE."**；ASVS 5.0.0 **8.2.1** "function-level access is restricted to consumers with **explicit permissions**"、4.0.3 **4.1.5** "access controls **fail securely**"；Directus 文档 **"All public permissions are off by default."**；Spring 文档 **"Denying the request by default is a healthy security practice since it turns the set of rules into an allow list."**

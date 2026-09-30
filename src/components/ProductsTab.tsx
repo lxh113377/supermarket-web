@@ -68,6 +68,19 @@ export default function ProductsTab({ products, categories, onDataChange }: {
       .join(' · ')
   ), [subIndex])
 
+  // 对标 medusa 库存模块：管理端此前只有行内缺货/低库存徽标，无汇总视角。
+  // 纯前端派生（不限售 stock=-1/undefined 不计），零后端改动。
+  const stockSummary = useMemo(() => {
+    let out = 0
+    let low = 0
+    for (const p of products) {
+      if (typeof p.stock !== 'number' || p.stock < 0) continue
+      if (p.stock === 0) out += 1
+      else if (p.stock <= 5) low += 1
+    }
+    return { out, low }
+  }, [products])
+
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds(prev => {
       const next = new Set(prev)
@@ -188,6 +201,11 @@ export default function ProductsTab({ products, categories, onDataChange }: {
       )}
 
       {/* 分类筛选 */}
+      {(stockSummary.out > 0 || stockSummary.low > 0) && (
+        <div className="px-3 py-2 rounded-xl text-xs bg-amber-50 border border-amber-100 text-amber-700" role="status">
+          库存提醒：缺货 {stockSummary.out} · 低库存(≤5) {stockSummary.low}（不限售商品不计）
+        </div>
+      )}
       <div className="flex gap-1.5 flex-wrap" role="group" aria-label="按分类筛选">
         {[{ id: '', label: '全部' }, ...categories.map(c => ({ id: c.type, label: c.name }))].map(f => (
           <button

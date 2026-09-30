@@ -22,9 +22,21 @@ export function fileExt(type: string): string {
   return 'jpg'
 }
 
-// 评价图片走 base64 dataURL：前端直接渲染，无需云端解析（cloud:// 临时 URL 机制已随迁移废弃）
+// 评价图片走 base64 dataURL：前端直接渲染，无需云端解析（cloud:// 临时 URL 机制已随迁移废弃）。
+// R2 就绪（2026-09-30 对标 P2）：`r2:<key>` 引用在配置了 VITE_R2_PUBLIC_BASE 的构建里拼成可渲染地址；
+// 未配置时原样透传（后端尚不产出 r2: 引用，行为与旧版一致）。
+// 基址每次调用现取（而非常量冻结）：构建期烘焙值在模块加载时已定，测试可用 stubEnv 覆盖。
+export function r2PublicBase(): string {
+  const raw = (import.meta.env.VITE_R2_PUBLIC_BASE || '') as string
+  return raw.replace(/\/+$/, '')
+}
+
 export async function resolveReviewImages(images: string[]): Promise<string[]> {
-  return images
+  const base = r2PublicBase()
+  if (!base) return images
+  return images.map((img) =>
+    typeof img === 'string' && img.startsWith('r2:') ? `${base}/${img.slice(3)}` : img,
+  )
 }
 
 // 上传：将压缩后的 Blob 转为 base64 dataURL（不再依赖云存储直传）

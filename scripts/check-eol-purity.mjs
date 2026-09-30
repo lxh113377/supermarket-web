@@ -16,6 +16,18 @@
  *   所以本判据同时核三件事：属性表在册且被 git 解析生效（E1）、文本 blob 零 CRLF（E2）、
  *   分母闭合 text + binary == 全跟踪数（E3，防"少扫一面"被读成"扫过且干净"）。
  *
+ * 第五十八轮 R58-H5（本轮新增 E7/E8）：`.editorconfig` 声明了 6 条规则，而本件此前只核其中 1 条
+ * （`end_of_line`，走 E2/E5）。剩下 5 条是**写了没人兑现的声明**——第五十七轮对标取数时看到参照仓
+ * 的真实差距不在 star 数，在"声明有没有回执"：`InvenTree`/`saleor`/`erpnext` 都带着 formatter
+ * 或 pre-commit 把这些声明变成会红的东西。本轮当盘实测（529 个文本 blob，index 侧）：
+ *   `charset=utf-8` 0 件违例、`indent_style=space` 0 件（无一行制表符缩进）、
+ *   `insert_final_newline` **39 件缺末行换行**、`trim_trailing_whitespace` **4 件 6 处**、
+ *   `indent_size=2` 2006 行首空格为奇数（其中 2006 的大头在 .js/.ts 的模板串与对齐续行里）。
+ *   ⇒ 前三条零成本就能有回执，第四条机械补齐后拦提交，第五条**本仓没有 formatter**，
+ *   拿正则去核会把内容当版式改，所以它进 E8 的豁免册并写明撤销条件，而不是假装核过。
+ * E8 是"声明面 ⇄ 回执面"的双向差集：新加一条没人核的声明 ⇒ 红；核了一条没人声明的 ⇒ 也红
+ * （既有规「声明了却没人填的桶 = 该形态永久失明」）。
+ *
  * 退出码：0=GREEN / 1=判红 / 2=取不到 git 现场（环境未验，不得与"判红"或"通过"混写）。
  */
 import { spawnSync } from 'node:child_process'
@@ -96,11 +108,50 @@ function blobBytes(entries) {
 }
 
 /**
+ * E8 的两本册子。**BACKED**＝本件的哪条腿在核这条声明；**EXEMPT**＝声明了但本轮判不了，且写明为什么、
+ * 以及满足什么条件可以撤除。两本都必须具名，因为 E8 拿它们做**双向差集**：
+ * 声明面有、两本册子都没有 ⇒ 红（这条声明从此没人兑现，正是"登记一条缺陷不等于那条缺陷有反例"的同一形态）；
+ * 册子里有、声明面没有 ⇒ 也红（要么回执成了死代码，要么声明被人删掉而回执还留着）。
+ */
+const BACKED = {
+  end_of_line: 'E2（blob 零 CRLF）+ E5（与 .gitattributes 同向）',
+  charset: 'E7（TextDecoder fatal 解码每个文本 blob）',
+  indent_style: 'E7（无一行以制表符缩进）',
+  insert_final_newline: 'E7（blob 末字节 == 0x0A，空件豁免）',
+  trim_trailing_whitespace: 'E7（无一行以空格/制表符收尾）',
+}
+const EXEMPT = {
+  indent_size: '本仓没有 formatter（工具链只有 oxlint，它报问题不改版式）。按"首空格数 % 2"核会命中 2006 行'
+    + '模板字符串与对齐续行——那是**内容**不是版式，判红等于逼着改散文。撤除条件：接入任一 formatter'
+    + '（biome/prettier）并把它的产物作为这条的回执来源。',
+}
+
+/**
+ * 取"声明面"＝`.editorconfig` 里**逐字出现过**的键（不分 section，取并集）。
+ * 这里刻意不用 editorconfig 库的解析结果当声明面：库按规范会把 `tab_width` 从 `indent_size` 派生出来，
+ * 派生键不是人的声明，拿它做分母就多出一条永远没人填的账。逐行扫字面键是 10 行的事，
+ * 而"这条规则到底适不适用这个文件"那种真正的解析（glob + 继承）交给库，见 main() 里的 resolveProps。
+ */
+export function declaredKeysFrom(text) {
+  const keys = new Set()
+  for (const raw of String(text || '').split(/\r?\n/)) {
+    const line = raw.trim()
+    if (!line || line.startsWith('#') || line.startsWith(';') || line.startsWith('[')) continue
+    const eq = line.indexOf('=')
+    if (eq < 1) continue
+    const k = line.slice(0, eq).trim().toLowerCase()
+    if (k !== 'root') keys.add(k)
+  }
+  return [...keys].sort()
+}
+
+/**
  * 纯判据。E4（工作树侧）只报不判：别人正在改的文件不该被我的闸连坐
  * （既有规：断言范围==爆炸半径）。
  */
 export function evaluate({ attrText, attrPresent, entries, blobs, blobFailures = [], worktreeCrlf = 0, worktreeTotal = 0,
-  worktreeGitCrlf = null, autocrlf = '', editorconfigText = '', editorconfigPresent = false }) {
+  worktreeGitCrlf = null, autocrlf = '', editorconfigText = '', editorconfigPresent = false,
+  resolveProps = null, declaredKeys = null, resolveNote = '' }) {
   const rows = []
   const push = (id, ok, detail, unverified = false, advisory = false) => rows.push({ id, ok, unverified, advisory, detail })
 
@@ -177,6 +228,78 @@ export function evaluate({ attrText, attrPresent, entries, blobs, blobFailures =
       + (worktreeGitCrlf > 0 ? ' —— 本机是 CRLF 检出机器：任何"把工作树归一成 LF"的动作都会让 status 报脏而 blob 未变' : ''),
     false, true)
 
+  // —— E7：把 `.editorconfig` 里其余四条声明逐件落成**字节回执**。
+  // 取数面与 E2 同一份 index 侧 blob（不另开一次取数），判据因此能拦住"这笔提交正在修它"的那一笔。
+  // 每条规则只对**解析结果里真声明了它**的文件生效（逐件解析由库做，含 section 继承与 glob），
+  // 一件都解析不到 ⇒ 这一维没有分母 ⇒ UNVERIFIED，不得读成"没解析到＝没违例"（既有规：量不到不得折算成达标）。
+  const truthy = (v) => v === true || v === 'true'
+  const ruleChecked = { charset: 0, indent_style: 0, insert_final_newline: 0, trim_trailing_whitespace: 0 }
+  const ruleHits = { charset: [], indent_style: [], insert_final_newline: [], trim_trailing_whitespace: [] }
+  const unresolved = []
+  let propsOK = 0
+  let emptyExempt = 0
+  if (typeof resolveProps === 'function') {
+    for (const e of texts) {
+      let props = null
+      try { props = resolveProps(e.path) } catch { props = null }
+      if (!props || typeof props !== 'object') { unresolved.push(e.path); continue }
+      propsOK += 1
+      const b = blobs.get(e.path)
+      if (b === undefined) continue // blob 取不到由 E2/E3 点名，这里不重复报同一件事
+      if (b.length === 0) { emptyExempt += 1; continue } // 空件不补换行（`.gitkeep` 一类占位）
+      const s = b.toString('utf8')
+      if (String(props.charset || '').toLowerCase() === 'utf-8') {
+        ruleChecked.charset += 1
+        try { new TextDecoder('utf-8', { fatal: true }).decode(b) } catch { ruleHits.charset.push(e.path) }
+      }
+      if (props.indent_style === 'space') {
+        ruleChecked.indent_style += 1
+        if (/^ *\t/m.test(s)) ruleHits.indent_style.push(e.path)
+      }
+      if (truthy(props.insert_final_newline)) {
+        ruleChecked.insert_final_newline += 1
+        if (b[b.length - 1] !== 0x0a) ruleHits.insert_final_newline.push(e.path)
+      }
+      if (truthy(props.trim_trailing_whitespace)) {
+        ruleChecked.trim_trailing_whitespace += 1
+        if (s.split('\n').some((l) => /[ \t]+\r?$/.test(l))) ruleHits.trim_trailing_whitespace.push(e.path)
+      }
+    }
+  }
+  const e7NoInput = typeof resolveProps !== 'function' || propsOK === 0
+  // 四条规则的件数全为 0 ⇒ "核了 0 件、违例 0 件"不是干净，是没人给它分母（零分母不得判绿）。
+  const e7NoDenom = Object.values(ruleChecked).reduce((a, k) => a + k, 0) === 0
+  const e7Bad = unresolved.length > 0
+  const e7HitKeys = Object.keys(ruleHits).filter((k) => ruleHits[k].length)
+  push('E7', !e7NoInput && !e7NoDenom && !e7Bad && e7HitKeys.length === 0,
+    e7NoInput
+      ? `逐件解析取不到（${resolveNote || 'resolveProps 没接上或一件都没解析出'}）⇒ 这一维本轮没有分母，**不判"没有违例"**`
+      : `按件解析后核 4 条声明：`
+        + Object.keys(ruleChecked).map((k) => `${k} 核 ${ruleChecked[k]} 件 → ${ruleHits[k].length} 违例`).join('、')
+        + `｜空件豁免 ${emptyExempt} 件`
+        + (e7NoDenom ? ' ⇒ **四条规则一条都没有对象**（声明没落到任何跟踪件上），不读成"全绿"' : '')
+        + (e7HitKeys.length ? `｜违例点名：${e7HitKeys.map((k) => `${k}=${ruleHits[k].slice(0, 6).join(' ')}${ruleHits[k].length > 6 ? `…共 ${ruleHits[k].length} 件` : ''}`).join(' ')}` : '')
+        + (e7Bad ? `｜${unresolved.length} 件解析不到适用规则 ⇒ 分母不完整（${unresolved.slice(0, 4).join(' ')}）` : ''),
+    e7NoInput || e7NoDenom || e7Bad)
+
+  // —— E8：声明面 ⇄ 回执面差集。**只拦正向**那一侧——声明了却没人核＝假保证（本轮的原始缺陷形状）。
+  // 反向（回执在册而声明已无）只是多一段死代码，判红会把"别人删掉一行声明"变成我的生产红
+  // （既有规：断言范围==爆炸半径），所以反向进 detail **只报不拦**。
+  const declared = Array.isArray(declaredKeys) ? declaredKeys : []
+  const e8NoInput = !editorconfigPresent || !Array.isArray(declaredKeys) || declared.length === 0
+  const unbacked = declared.filter((k) => !BACKED[k] && !EXEMPT[k])
+  const ghostBacked = Object.keys(BACKED).filter((k) => !declared.includes(k))
+  const deadExempt = Object.keys(EXEMPT).filter((k) => !declared.includes(k))
+  push('E8', !e8NoInput && unbacked.length === 0,
+    e8NoInput
+      ? `.editorconfig ${editorconfigPresent ? '存在但读不出声明键' : '不存在'} ⇒ 声明面为空，差集没有分母（空集 ≠ 已核）`
+      : `声明面 ${declared.length} 条（${declared.join(', ')}）⇄ 回执面 ${Object.keys(BACKED).length} 条 + 豁免 ${Object.keys(EXEMPT).length} 条`
+        + `｜**未核**：${unbacked.length ? `**${unbacked.join(', ')}**（加一条声明就得给它一条回执，或写明豁免理由进 EXEMPT）` : '无'}`
+        + `｜本轮豁免：${Object.keys(EXEMPT).filter((k) => declared.includes(k)).join(', ') || '无'}`
+        + `｜反向差集（只报不拦）：回执在册而声明已无 ${ghostBacked.length ? `**${ghostBacked.join(', ')}**` : '无'}`
+        + `；豁免在册而声明已无 ${deadExempt.length ? `**${deadExempt.join(', ')}**（那这条豁免也该删）` : '无'}`,
+    e8NoInput)
+
   const failed = rows.filter((r) => r.ok === false && !r.unverified)
   const unver = rows.filter((r) => r.unverified && !r.advisory)
   const verdict = failed.length ? 'RED' : (unver.length ? 'UNVERIFIED' : 'GREEN')
@@ -226,45 +349,60 @@ function selftest() {
   // E5 的两侧声明：默认给"同向的一份"，好让其余用例的 want/got 只归因到自己那条腿。
   const EC_OK = 'root = true\n[*]\nend_of_line = lf\n'
   const ec = (text = EC_OK, present = true) => ({ editorconfigText: text, editorconfigPresent: present })
+  // —— E7/E8（第五十八轮 R58-H5 落子时补）：evaluate() 现在要求这两维也有输入面。
+  // 自检夹具若不给 resolver/declaredKeys，E7/E8 会判 UNVERIFIED 而不是"没违例"——
+  // 那正是本件要消灭的"零分母当干净"。桩只给"全真"的解析结果（真解析路径由真面覆盖），
+  // 声明键与夹具文本的 end_of_line 对齐；noEcFile/noKey 两个零输入用例见各自的 decl。
+  const RES_STUB = () => ({ charset: 'utf-8', indent_style: 'space', insert_final_newline: 'true', trim_trailing_whitespace: 'true' })
+  const res = (decl = ['end_of_line']) => ({ resolveProps: RES_STUB, resolveNote: 'selftest 内联桩', declaredKeys: decl })
   const blobsOf = (obj) => new Map(Object.entries(obj))
   const cases = []
   const add = (name, want, got) => cases.push({ name, want, got, ok: want === got })
 
-  const clean = evaluate({ attrText: ATTR_OK, attrPresent: true, ...ec(),
+  const clean = evaluate({ attrText: ATTR_OK, attrPresent: true, ...ec(), ...res(),
     entries: mk(['a.js', 'b.webp'], new Set(['b.webp'])), blobs: blobsOf({ 'a.js': Buffer.from('x\n') }) })
   add('正例：文本 blob 全 LF + 二进制在册 ⇒ GREEN', 'GREEN', clean.verdict)
 
-  const dirty = evaluate({ attrText: ATTR_OK, attrPresent: true, ...ec(),
+  const dirty = evaluate({ attrText: ATTR_OK, attrPresent: true, ...ec(), ...res(),
     entries: mk(['a.js', 'b.webp'], new Set(['b.webp'])), blobs: blobsOf({ 'a.js': Buffer.from('x\r\n') }) })
   add('漏报侧：文本 blob 带 CRLF ⇒ RED', 'RED', dirty.verdict)
 
-  const noAttr = evaluate({ attrText: '', attrPresent: false, ...ec(),
+  const noAttr = evaluate({ attrText: '', attrPresent: false, ...ec(), ...res(),
     entries: mk(['a.js'], new Set()), blobs: blobsOf({ 'a.js': Buffer.from('x\n') }) })
   add('边界：属性表不存在 ⇒ UNVERIFIED（不得读成"没有规则也没事"）', 'UNVERIFIED', noAttr.verdict)
 
-  const unruled = evaluate({ attrText: ATTR_OK, attrPresent: true, ...ec(),
+  const unruled = evaluate({ attrText: ATTR_OK, attrPresent: true, ...ec(), ...res(),
     entries: mk(['a.js', 'c.png'], new Set(['c.png'])), blobs: blobsOf({ 'a.js': Buffer.from('x\n') }) })
   add('漏报侧：git 判成二进制但名单里没有 .png ⇒ RED', 'RED', unruled.verdict)
 
-  const halfRead = evaluate({ attrText: ATTR_OK, attrPresent: true, ...ec(),
+  const halfRead = evaluate({ attrText: ATTR_OK, attrPresent: true, ...ec(), ...res(),
     entries: mk(['a.js', 'b.js'], new Set()), blobs: blobsOf({ 'a.js': Buffer.from('x\n') }) })
   add('边界：一件 blob 没取到 ⇒ UNVERIFIED，不得凭"另一件干净"判 GREEN', 'UNVERIFIED', halfRead.verdict)
 
-  const empty = evaluate({ attrText: ATTR_OK, attrPresent: true, ...ec(), entries: [], blobs: new Map() })
+  const empty = evaluate({ attrText: ATTR_OK, attrPresent: true, ...ec(), ...res(), entries: [], blobs: new Map() })
   add('零分母：一个跟踪件都没有 ⇒ 不许 PASS（E3 恒等式先塌）', 'RED', empty.verdict)
 
   // —— E5（写侧声明同向）三条：误报侧 / 漏报侧 / 零输入侧，缺一即这条腿没被测到。
   const conflict = evaluate({ attrText: ATTR_OK, attrPresent: true, entries: mk(['a.js'], new Set()),
-    blobs: blobsOf({ 'a.js': Buffer.from('x\n') }), ...ec('root = true\n[*]\nend_of_line = crlf\n') })
+    blobs: blobsOf({ 'a.js': Buffer.from('x\n') }), ...ec('root = true\n[*]\nend_of_line = crlf\n'), ...res() })
   add('漏报侧：.gitattributes 说 lf 而 .editorconfig 说 crlf ⇒ RED（两侧会把同一件写成不同行尾）', 'RED', conflict.verdict)
 
   const noEcFile = evaluate({ attrText: ATTR_OK, attrPresent: true, entries: mk(['a.js'], new Set()),
-    blobs: blobsOf({ 'a.js': Buffer.from('x\n') }), ...ec('', false) })
+    blobs: blobsOf({ 'a.js': Buffer.from('x\n') }), ...ec('', false), ...res(null) })
   add('零输入：.editorconfig 不存在 ⇒ UNVERIFIED（读不到声明不得判"一致"）', 'UNVERIFIED', noEcFile.verdict)
 
   const noKey = evaluate({ attrText: ATTR_OK, attrPresent: true, entries: mk(['a.js'], new Set()),
-    blobs: blobsOf({ 'a.js': Buffer.from('x\n') }), ...ec('root = true\n[*]\ncharset = utf-8\n') })
+    blobs: blobsOf({ 'a.js': Buffer.from('x\n') }), ...ec('root = true\n[*]\ncharset = utf-8\n'), ...res(['charset']) })
   add('边界：文件在但没有 end_of_line 键 ⇒ UNVERIFIED（缺席的键不算矛盾、算没读到）', 'UNVERIFIED', noKey.verdict)
+
+  // —— E7/E8（第五十八轮 R58-H5）：新腿上线当轮必须有自己的红例（既有规 E3 纪律）。
+  const noNewline = evaluate({ attrText: ATTR_OK, attrPresent: true, ...ec(), ...res(),
+    entries: mk(['a.js'], new Set()), blobs: blobsOf({ 'a.js': Buffer.from('x') }) })
+  add('漏报侧：E7 缺末行换行 ⇒ RED 且点名 insert_final_newline', 'RED', noNewline.verdict)
+
+  const unbacked = evaluate({ attrText: ATTR_OK, attrPresent: true, ...ec(), ...res(['end_of_line', 'max_line_length']),
+    entries: mk(['a.js'], new Set()), blobs: blobsOf({ 'a.js': Buffer.from('x\n') }) })
+  add('漏报侧：E8 声明了没人核的键 ⇒ RED 且点名该键', 'RED', unbacked.verdict)
 
   // 变异体：把 E5 的判据摘掉（恒 ok=true）必须让"矛盾"那条腿翻绿 ⇒ 证明这条腿真的有牙齿。
   const mutated = evaluate({ attrText: ATTR_OK, attrPresent: true, entries: mk(['a.js'], new Set()),
@@ -278,7 +416,25 @@ function selftest() {
   return bad ? 1 : 0
 }
 
-function main() {
+/**
+ * 逐件解析 `.editorconfig` 的适用规则。用库而不是自己扫 `[*]`：
+ * 手搓只认全局节，将来有人加 `[*.py] indent_size = 4`，`[*]` 的答案会**悄悄盖过**它，
+ * 判据照样绿——那正是本件要消灭的形状。
+ * **动态 import**：本脚本在 `verify:entrypoints` 的探针面上会在"没有 node_modules 的骨架"里被跑一次，
+ * 静态 import 会先抛 MODULE_NOT_FOUND、把"缺输入面要说人话"这条契约破掉（第五十六轮同一形状的教训）。
+ */
+async function loadResolver() {
+  let mod = null
+  try {
+    mod = await import('editorconfig')
+  } catch (e) {
+    return { resolver: null, note: `载 editorconfig 库失败：${String(e && e.message || e).slice(0, 90)}` }
+  }
+  if (typeof mod.parseSync !== 'function') return { resolver: null, note: '库载上了但没有 parseSync' }
+  return { resolver: (rel) => mod.parseSync(resolve(ROOT, rel)), note: '' }
+}
+
+async function main() {
   if (process.argv.includes('--selftest')) return selftest()
   const present = existsSync(join(ROOT, ATTR))
   const attrText = present ? readFileSync(join(ROOT, ATTR), 'utf8') : ''
@@ -295,10 +451,12 @@ function main() {
   const wt = worktreeStats()
   const ecPresent = existsSync(join(ROOT, '.editorconfig'))
   const ecText = ecPresent ? readFileSync(join(ROOT, '.editorconfig'), 'utf8') : ''
+  const { resolver, note } = await loadResolver()
   const out = evaluate({ attrText, attrPresent: present, entries,
     blobs: blobs || new Map(), blobFailures: failures, worktreeCrlf: wt.crlf, worktreeTotal: wt.total,
     worktreeGitCrlf: worktreeGitEolCount(), autocrlf: autocrlfValue(),
-    editorconfigText: ecText, editorconfigPresent: ecPresent })
+    editorconfigText: ecText, editorconfigPresent: ecPresent,
+    resolveProps: resolver, resolveNote: note, declaredKeys: ecPresent ? declaredKeysFrom(ecText) : null })
   for (const r of out.rows) {
     console.log(`${r.unverified ? 'UNVERIFIED' : (r.ok ? 'PASS  ' : 'FAIL  ')} ${r.id} :: ${r.detail}`)
   }
@@ -314,5 +472,5 @@ function main() {
 // `import.meta.url === 'file://' + argv[1]` 在 Windows 上**永远不成立**（盘符/斜杠/百分号编码都不同），
 // 那样写会让整脚本变成"跑了、退出码 0、什么都没判"的假通过 —— 本轮第一次就踩到了这个形状。
 if (process.argv[1] && resolve(process.argv[1]) === resolve(join(ROOT, 'scripts', 'check-eol-purity.mjs'))) {
-  process.exit(main())
+  process.exit(await main())
 }

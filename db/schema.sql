@@ -149,3 +149,22 @@ CREATE TABLE IF NOT EXISTS stock_movements (
 CREATE INDEX IF NOT EXISTS idx_stock_movements_product_ts ON stock_movements (productId, createdAt);
 CREATE INDEX IF NOT EXISTS idx_stock_movements_kind_ts ON stock_movements (kind, createdAt);
 
+-- 满减促销（2026-09-30 对标 P2 最小闭环）：见 db/migrate-promotions.sql
+-- 订单侧优惠不进 orders 列（禁裸 ALTER），单立 order_discounts 表（一单一档）。
+CREATE TABLE IF NOT EXISTS promotions (
+  _id       TEXT PRIMARY KEY,
+  name      TEXT DEFAULT '',
+  threshold REAL DEFAULT 0,
+  discount  REAL DEFAULT 0,
+  enabled   INTEGER DEFAULT 0,
+  createdAt TEXT,
+  updatedAt TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_promotions_enabled ON promotions (enabled);
+CREATE TABLE IF NOT EXISTS order_discounts (
+  orderId        TEXT PRIMARY KEY,
+  discountAmount REAL DEFAULT 0,
+  promotionId    TEXT DEFAULT '',
+  createdAt      TEXT
+);
+

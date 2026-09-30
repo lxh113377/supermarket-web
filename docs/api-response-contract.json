@@ -96,12 +96,16 @@
         "data"
       ],
       "keysAlways": [
+        "discountAmount",
         "id",
+        "promotionId",
         "totalAmount"
       ],
       "keysSeen": [
         "deduplicated",
+        "discountAmount",
         "id",
+        "promotionId",
         "totalAmount"
       ],
       "errEnvelopeAlways": [
@@ -643,11 +647,15 @@
         "data"
       ],
       "keysAlways": [
+        "discountAmount",
         "id",
+        "promotionId",
         "totalAmount"
       ],
       "keysSeen": [
+        "discountAmount",
         "id",
+        "promotionId",
         "totalAmount"
       ],
       "errEnvelopeAlways": [],
@@ -894,9 +902,11 @@
       "keysAlways": [
         "_id",
         "createdAt",
+        "discountAmount",
         "idempotencyKey",
         "items",
         "paymentScreenshot",
+        "promotionId",
         "remark",
         "roomNumber",
         "status",
@@ -907,9 +917,11 @@
       "keysSeen": [
         "_id",
         "createdAt",
+        "discountAmount",
         "idempotencyKey",
         "items",
         "paymentScreenshot",
+        "promotionId",
         "remark",
         "roomNumber",
         "status",
@@ -944,7 +956,9 @@
       "keysAlways": [
         "_id",
         "createdAt",
+        "discountAmount",
         "items",
+        "promotionId",
         "remark",
         "roomNumber",
         "status",
@@ -955,7 +969,9 @@
       "keysSeen": [
         "_id",
         "createdAt",
+        "discountAmount",
         "items",
+        "promotionId",
         "remark",
         "roomNumber",
         "status",

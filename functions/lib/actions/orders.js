@@ -103,6 +103,40 @@ function resolveOrderSpec(p, clientSpec) {
   return want && allowedOrderSpecs(p).has(want) ? want : base
 }
 
+// ── 满减促销最小闭环（2026-09-30 对标 P2）──
+// 对标 mall 的满减 / medusa 的 Promotion 模块：本项目只取"按下单小计自动选最优一档"。
+// 防御式读取：promotions 表不存在（迁移未执行的老库）⇒ 返回零优惠，行为与旧版一致。
+export async function bestPromotion(DB, subtotal) {
+  try {
+    const rows = await qAll(DB,
+      `SELECT _id, threshold, discount FROM promotions WHERE enabled = 1`)
+    let best = null
+    for (const r of rows) {
+      const th = Number(r.threshold) || 0
+      const dc = Number(r.discount) || 0
+      if (th <= 0 || dc <= 0) continue
+      if (subtotal >= th && (!best || dc > best.discountAmount)) {
+        best = { promotionId: r._id, discountAmount: Math.min(dc, subtotal) }
+      }
+    }
+    return best || { promotionId: '', discountAmount: 0 }
+  } catch {
+    return { promotionId: '', discountAmount: 0 }
+  }
+}
+
+// 订单优惠明细读取（order_discounts 新表轨；老库缺表⇒零优惠，与旧版一致）。
+export async function getDiscount(DB, orderId) {
+  try {
+    const r = await qFirst(DB,
+      `SELECT discountAmount, promotionId FROM order_discounts WHERE orderId = ?`, [orderId])
+    if (!r) return { discountAmount: 0, promotionId: '' }
+    return { discountAmount: Number(r.discountAmount) || 0, promotionId: r.promotionId || '' }
+  } catch {
+    return { discountAmount: 0, promotionId: '' }
+  }
+}
+
 export async function createOrder(DB, payload) {
   const { roomNumber, items, wechat, remark, paymentScreenshot } = payload
   if (!roomNumber || !Array.isArray(items) || !items.length) return fail('invalid_order_payload', '订单数据不完整')
@@ -153,19 +187,31 @@ export async function createOrder(DB, payload) {
     return fail('payload_too_large', `订单数据过大（序列化 ${payloadChars} 字符 > 预算 ${MAX_STATEMENT_PAYLOAD_CHARS}）：请压小付款截图`)
   }
   const totalRounded = Math.round(total * 100) / 100
+  // 满减（2026-09-30 P2）：服务端按小计自动选最优启用档；默认种子关闭⇒discount 0，老行为不变。
+  // 指纹沿用折后总额（totalRounded 被下面覆盖为实付）：同一载荷在促销开关前后 90s 内复下，
+  // 会被视为不同单——这是刻意偏向"多收钱不如多记单"，与指纹注释的口味口径同方向。
+  const promo = await bestPromotion(DB, totalRounded)
+  const discountRounded = Math.round((promo.discountAmount || 0) * 100) / 100
+  const payableRounded = Math.round((totalRounded - discountRounded) * 100) / 100
   const fingerprint = orderFingerprint({
     roomNumber: room, wechat: wechatNorm, remark: remarkNorm,
-    totalAmount: totalRounded, items: verified, paymentScreenshot: shot,
+    totalAmount: payableRounded, items: verified, paymentScreenshot: shot,
   })
   const key = idempotencyKey(room, payload.requestId, fingerprint)
 
   // 幂等前置检查（在扣库存之前）：命中即直接复用既有单，本请求不动库存
   if (key) {
     const hit = await qFirst(DB, `SELECT _id, totalAmount FROM orders WHERE idempotencyKey = ?`, [key])
-    if (hit) return { code: 0, data: { id: hit._id, totalAmount: hit.totalAmount, deduplicated: true } }
+    if (hit) {
+      const d = await getDiscount(DB, hit._id)
+      return { code: 0, data: { id: hit._id, totalAmount: hit.totalAmount, ...d, deduplicated: true } }
+    }
   } else {
     const dup = await findByFingerprint(DB, { roomNumber: room, fingerprint })
-    if (dup) return { code: 0, data: { id: dup._id, totalAmount: dup.totalAmount, deduplicated: true } }
+    if (dup) {
+      const d = await getDiscount(DB, dup._id)
+      return { code: 0, data: { id: dup._id, totalAmount: dup.totalAmount, ...d, deduplicated: true } }
+    }
   }
 
   const stockItems = verified.filter((it) => Number(byId.get(it.productId).stock) >= 0)
@@ -180,11 +226,18 @@ export async function createOrder(DB, payload) {
     _id: orderId, roomNumber: room, items: verified,
     wechat: wechatNorm, remark: remarkNorm,
     paymentScreenshot: shot,
-    totalAmount: totalRounded, status: 'pending', createdAt: ts, updatedAt: ts,
+    totalAmount: payableRounded, status: 'pending', createdAt: ts, updatedAt: ts,
   }
   if (key) doc.idempotencyKey = key
   try {
     await insert(DB, 'orders', doc)
+    // 优惠明细只在有优惠时落行（order_discounts 新表轨；缺表老库上此句抛错⇒整体走下单失败？不：
+    // insert 目标表缺失会抛，包进 try 让外层统一回补库存并返回 order_create_failed，保持"要么全有要么全无"）。
+    if (discountRounded > 0) {
+      await qRun(DB,
+        `INSERT INTO order_discounts (orderId, discountAmount, promotionId, createdAt) VALUES (?, ?, ?, ?)`,
+        [orderId, discountRounded, promo.promotionId, ts])
+    }
   } catch (e) {
     // 落库失败必须回补本请求已占用的库存，否则失败一次就凭空少一份可售库存
     if (stockItems.length) await releaseStock(DB, stockItems, { orderId, actor: 'system' })
@@ -192,12 +245,15 @@ export async function createOrder(DB, payload) {
     if (key && /UNIQUE constraint failed/i.test(msg) && /idempotencyKey/i.test(msg)) {
       // 并发窗口：另一请求已用同一把 key 落库，把那张单返回给本调用方
       const hit = await qFirst(DB, `SELECT _id, totalAmount FROM orders WHERE idempotencyKey = ?`, [key])
-      if (hit) return { code: 0, data: { id: hit._id, totalAmount: hit.totalAmount, deduplicated: true } }
+      if (hit) {
+        const d = await getDiscount(DB, hit._id)
+        return { code: 0, data: { id: hit._id, totalAmount: hit.totalAmount, ...d, deduplicated: true } }
+      }
     }
     console.error('[orders] createOrder 落库失败，库存已回补:', msg)
     return fail('order_create_failed', '订单创建失败，请重试')
   }
-  return { code: 0, data: { id: doc._id, totalAmount: doc.totalAmount } }
+  return { code: 0, data: { id: doc._id, totalAmount: doc.totalAmount, discountAmount: discountRounded, promotionId: promo.promotionId } }
 }
 
 // 库存占用：N 条守卫式 UPDATE（WHERE stock>=qty）合成**一次** batch 往返（对标第十四轮 D1 batch）。
@@ -358,15 +414,41 @@ export async function recalculateOrders(DB) {
   const BATCH = 200
   let processed = 0, fixed = 0
   while (true) {
-    const rows = await qAll(DB, `SELECT _id, items, totalAmount FROM orders ORDER BY _id ASC LIMIT ? OFFSET ?`, [BATCH, processed])
+    // 优惠明细同批 LEFT JOIN 带出（order_discounts 新表轨；缺表老库上 JOIN 抛错⇒整批走外层失败，
+    // 与 createOrder 的 fail-closed 同方向；生产按"先迁移后部署"顺序不会走到该分支）。
+    const rows = await qAll(DB,
+      `SELECT o._id, o.items, o.totalAmount,
+              COALESCE(d.discountAmount, 0) AS discountAmount, COALESCE(d.promotionId, '') AS promotionId
+       FROM orders o LEFT JOIN order_discounts d ON d.orderId = o._id
+       ORDER BY o._id ASC LIMIT ? OFFSET ?`, [BATCH, processed])
     if (!rows.length) break
     const pending = []
     for (const o of rows) {
       const items = jparse(o.items, [])
       const total = items.reduce((s, it) => s + (Number(it.price) || 0) * (Number(it.quantity) || 0), 0)
-      const rounded = Math.round(total * 100) / 100
-      if (o.totalAmount == null || Math.abs(Number(o.totalAmount) - rounded) > 0.01) {
-        pending.push({ _id: o._id, total: rounded })
+      const subtotal = Math.round(total * 100) / 100
+      // 满减感知（2026-09-30 P2）：按下单时锁定的 promotionId 重算；规则已关/门槛不满足⇒优惠归零。
+      // 无 promotionId 的历史单走老口径（折后==小计），存量行为不变。
+      let expectTotal = subtotal
+      let expectDiscount = 0
+      let expectPid = ''
+      const pid = typeof o.promotionId === 'string' ? o.promotionId : ''
+      if (pid) {
+        try {
+          const rule = await qFirst(DB, `SELECT threshold, discount, enabled FROM promotions WHERE _id = ?`, [pid])
+          const th = Number(rule?.threshold) || 0
+          const dc = Number(rule?.discount) || 0
+          if (rule?.enabled === 1 && th > 0 && dc > 0 && subtotal >= th) {
+            expectDiscount = Math.min(dc, subtotal)
+            expectTotal = Math.round((subtotal - expectDiscount) * 100) / 100
+            expectPid = pid
+          }
+        } catch { /* 促销表缺失的老库：回落老口径 */ }
+      }
+      const rounded = expectTotal
+      if (o.totalAmount == null || Math.abs(Number(o.totalAmount) - rounded) > 0.01
+        || Math.abs((Number(o.discountAmount) || 0) - expectDiscount) > 0.01) {
+        pending.push({ _id: o._id, total: rounded, discount: expectDiscount, pid: expectPid })
       }
     }
     for (let i = 0; i < pending.length; i += RECALC_CHUNK) {
@@ -383,6 +465,17 @@ export async function recalculateOrders(DB) {
         `UPDATE orders SET totalAmount = CASE _id ${cases} ELSE totalAmount END, updatedAt = ? WHERE _id IN (${inPh})`,
         params,
       )
+      // 优惠明细同批 UPSERT（多行 VALUES 单语句，无优惠的单也写 0 行占位⇒读侧 LEFT JOIN 永远有数可对；
+      // 无修正的批次不执行本句，语句峰值基线不受影响）。
+      const dvals = chunk.map(() => '(?, ?, ?, ?)').join(', ')
+      const dparams = []
+      for (const p of chunk) dparams.push(p._id, p.discount, p.pid, now)
+      await qRun(
+        DB,
+        `INSERT INTO order_discounts (orderId, discountAmount, promotionId, createdAt) VALUES ${dvals}
+         ON CONFLICT(orderId) DO UPDATE SET discountAmount = excluded.discountAmount, promotionId = excluded.promotionId`,
+        dparams,
+      )
       fixed += chunk.length
     }
     processed += rows.length
@@ -397,12 +490,14 @@ export async function getOrders(DB, payload) {
   // 增量模式（管理端轮询）：since = ISO 时间串，只拉 updatedAt 大于该值的订单（含新建+状态变更），
   // 按 updatedAt ASC 排序保证游标单调推进；无 since 时维持原行为（createdAt DESC 分页）。
   const since = typeof payload.since === 'string' && payload.since ? payload.since : null
-  const orderByCol = since ? 'updatedAt' : 'createdAt'
-  const whereClause = since ? 'WHERE updatedAt > ?' : ''
+  const orderByCol = since ? 'o.updatedAt' : 'o.createdAt'
+  const whereClause = since ? 'WHERE o.updatedAt > ?' : ''
   const params = since ? [since, pageSize + 1, (page - 1) * pageSize] : [pageSize + 1, (page - 1) * pageSize]
   const rows = await qAll(DB,
-    `SELECT _id, roomNumber, items, totalAmount, status, createdAt, wechat, remark, updatedAt
-     FROM orders ${whereClause} ORDER BY ${orderByCol} ${since ? 'ASC' : 'DESC'} LIMIT ? OFFSET ?`,
+    `SELECT o._id, o.roomNumber, o.items, o.totalAmount, o.status, o.createdAt, o.wechat, o.remark, o.updatedAt,
+            COALESCE(d.discountAmount, 0) AS discountAmount, COALESCE(d.promotionId, '') AS promotionId
+     FROM orders o LEFT JOIN order_discounts d ON d.orderId = o._id
+     ${whereClause} ORDER BY ${orderByCol} ${since ? 'ASC' : 'DESC'} LIMIT ? OFFSET ?`,
     params)
   const hasMore = rows.length > pageSize
   const data = (hasMore ? rows.slice(0, pageSize) : rows)
@@ -411,7 +506,9 @@ export async function getOrders(DB, payload) {
 }
 
 export async function getOrderById(DB, orderId) {
-  const row = await qFirst(DB, `SELECT * FROM orders WHERE _id = ?`, [orderId])
+  const row = await qFirst(DB,
+    `SELECT o.*, COALESCE(d.discountAmount, 0) AS discountAmount, COALESCE(d.promotionId, '') AS promotionId
+     FROM orders o LEFT JOIN order_discounts d ON d.orderId = o._id WHERE o._id = ?`, [orderId])
   if (!row) return null
   return { ...row, items: jparse(row.items, []), paymentScreenshot: row.paymentScreenshot || '' }
 }

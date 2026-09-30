@@ -1,0 +1,1656 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "supermarket-web action API",
+    "version": "1"
+  },
+  "paths": {
+    "/web::login": {
+      "post": {
+        "operationId": "admin_login",
+        "summary": "/web action=login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "login"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "管理密钥（/pub 不需要）"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": false
+      }
+    },
+    "/web::verifyKey": {
+      "post": {
+        "operationId": "admin_verifyKey",
+        "summary": "/web action=verifyKey",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "verifyKey"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "管理密钥（/pub 不需要）"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": false
+      }
+    },
+    "/web::getProducts": {
+      "post": {
+        "operationId": "admin_getProducts",
+        "summary": "/web action=getProducts",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "getProducts"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "管理密钥（/pub 不需要）"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": false
+      }
+    },
+    "/web::createProduct": {
+      "post": {
+        "operationId": "admin_createProduct",
+        "summary": "/web action=createProduct",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "createProduct"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "管理密钥（/pub 不需要）"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": true
+      }
+    },
+    "/web::updateProduct": {
+      "post": {
+        "operationId": "admin_updateProduct",
+        "summary": "/web action=updateProduct",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "updateProduct"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "管理密钥（/pub 不需要）"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": true
+      }
+    },
+    "/web::deleteProduct": {
+      "post": {
+        "operationId": "admin_deleteProduct",
+        "summary": "/web action=deleteProduct",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "deleteProduct"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "管理密钥（/pub 不需要）"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": true
+      }
+    },
+    "/web::batchUpdateProducts": {
+      "post": {
+        "operationId": "admin_batchUpdateProducts",
+        "summary": "/web action=batchUpdateProducts",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "batchUpdateProducts"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "管理密钥（/pub 不需要）"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": true
+      }
+    },
+    "/web::batchDeleteProducts": {
+      "post": {
+        "operationId": "admin_batchDeleteProducts",
+        "summary": "/web action=batchDeleteProducts",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "batchDeleteProducts"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "管理密钥（/pub 不需要）"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": true
+      }
+    },
+    "/web::deleteOrder": {
+      "post": {
+        "operationId": "admin_deleteOrder",
+        "summary": "/web action=deleteOrder",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "deleteOrder"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "管理密钥（/pub 不需要）"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": true
+      }
+    },
+    "/web::updateOrderStatus": {
+      "post": {
+        "operationId": "admin_updateOrderStatus",
+        "summary": "/web action=updateOrderStatus",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "updateOrderStatus"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "管理密钥（/pub 不需要）"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": true
+      }
+    },
+    "/web::createOrder": {
+      "post": {
+        "operationId": "admin_createOrder",
+        "summary": "/web action=createOrder",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "createOrder"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "管理密钥（/pub 不需要）"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": true
+      }
+    },
+    "/web::recalculateOrders": {
+      "post": {
+        "operationId": "admin_recalculateOrders",
+        "summary": "/web action=recalculateOrders",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "recalculateOrders"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "管理密钥（/pub 不需要）"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": true
+      }
+    },
+    "/web::getStockMovements": {
+      "post": {
+        "operationId": "admin_getStockMovements",
+        "summary": "/web action=getStockMovements",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "getStockMovements"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "管理密钥（/pub 不需要）"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": false
+      }
+    },
+    "/web::adjustStock": {
+      "post": {
+        "operationId": "admin_adjustStock",
+        "summary": "/web action=adjustStock",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "adjustStock"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "管理密钥（/pub 不需要）"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": true
+      }
+    },
+    "/web::stalePendingReport": {
+      "post": {
+        "operationId": "admin_stalePendingReport",
+        "summary": "/web action=stalePendingReport",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "stalePendingReport"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "管理密钥（/pub 不需要）"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": false
+      }
+    },
+    "/web::getOrders": {
+      "post": {
+        "operationId": "admin_getOrders",
+        "summary": "/web action=getOrders",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "getOrders"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "管理密钥（/pub 不需要）"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": false
+      }
+    },
+    "/web::getOrder": {
+      "post": {
+        "operationId": "admin_getOrder",
+        "summary": "/web action=getOrder",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "getOrder"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "管理密钥（/pub 不需要）"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": false
+      }
+    },
+    "/web::getPublicProducts": {
+      "post": {
+        "operationId": "admin_getPublicProducts",
+        "summary": "/web action=getPublicProducts",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "getPublicProducts"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "管理密钥（/pub 不需要）"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": false,
+        "x-cache-key": "cache:public:products"
+      }
+    },
+    "/web::getPublicCategories": {
+      "post": {
+        "operationId": "admin_getPublicCategories",
+        "summary": "/web action=getPublicCategories",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "getPublicCategories"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "管理密钥（/pub 不需要）"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": false,
+        "x-cache-key": "cache:public:categories"
+      }
+    },
+    "/web::getAllReviews": {
+      "post": {
+        "operationId": "admin_getAllReviews",
+        "summary": "/web action=getAllReviews",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "getAllReviews"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "管理密钥（/pub 不需要）"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": false
+      }
+    },
+    "/web::getReviews": {
+      "post": {
+        "operationId": "admin_getReviews",
+        "summary": "/web action=getReviews",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "getReviews"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "管理密钥（/pub 不需要）"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": false
+      }
+    },
+    "/web::getOrderStatus": {
+      "post": {
+        "operationId": "admin_getOrderStatus",
+        "summary": "/web action=getOrderStatus",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "getOrderStatus"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "管理密钥（/pub 不需要）"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": false
+      }
+    },
+    "/web::addPublicReview": {
+      "post": {
+        "operationId": "admin_addPublicReview",
+        "summary": "/web action=addPublicReview",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "addPublicReview"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "管理密钥（/pub 不需要）"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": true
+      }
+    },
+    "/web::addReview": {
+      "post": {
+        "operationId": "admin_addReview",
+        "summary": "/web action=addReview",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "addReview"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "管理密钥（/pub 不需要）"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": true
+      }
+    },
+    "/web::deleteReview": {
+      "post": {
+        "operationId": "admin_deleteReview",
+        "summary": "/web action=deleteReview",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "deleteReview"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "管理密钥（/pub 不需要）"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": true
+      }
+    },
+    "/web::seedReviews": {
+      "post": {
+        "operationId": "admin_seedReviews",
+        "summary": "/web action=seedReviews",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "seedReviews"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "管理密钥（/pub 不需要）"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": true
+      }
+    },
+    "/web::createSubmission": {
+      "post": {
+        "operationId": "admin_createSubmission",
+        "summary": "/web action=createSubmission",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "createSubmission"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "管理密钥（/pub 不需要）"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": true
+      }
+    },
+    "/web::getSubmissions": {
+      "post": {
+        "operationId": "admin_getSubmissions",
+        "summary": "/web action=getSubmissions",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "getSubmissions"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "管理密钥（/pub 不需要）"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": false
+      }
+    },
+    "/web::getSubmissionImages": {
+      "post": {
+        "operationId": "admin_getSubmissionImages",
+        "summary": "/web action=getSubmissionImages",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "getSubmissionImages"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "管理密钥（/pub 不需要）"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": false
+      }
+    },
+    "/web::updateSubmissionStatus": {
+      "post": {
+        "operationId": "admin_updateSubmissionStatus",
+        "summary": "/web action=updateSubmissionStatus",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "updateSubmissionStatus"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "管理密钥（/pub 不需要）"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": true
+      }
+    },
+    "/web::deleteSubmission": {
+      "post": {
+        "operationId": "admin_deleteSubmission",
+        "summary": "/web action=deleteSubmission",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "deleteSubmission"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "管理密钥（/pub 不需要）"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": true
+      }
+    },
+    "/web::aiAdvice": {
+      "post": {
+        "operationId": "admin_aiAdvice",
+        "summary": "/web action=aiAdvice",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "aiAdvice"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "管理密钥（/pub 不需要）"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": false,
+        "x-cache-key": "dynamic"
+      }
+    },
+    "/web::getDashboardStats": {
+      "post": {
+        "operationId": "admin_getDashboardStats",
+        "summary": "/web action=getDashboardStats",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "getDashboardStats"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "管理密钥（/pub 不需要）"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": false,
+        "x-cache-key": "dynamic"
+      }
+    },
+    "/pub::getPublicProducts": {
+      "post": {
+        "operationId": "public_getPublicProducts",
+        "summary": "/pub action=getPublicProducts",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "getPublicProducts"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "不需要"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": false,
+        "x-cache-key": "cache:public:products"
+      }
+    },
+    "/pub::getPublicCategories": {
+      "post": {
+        "operationId": "public_getPublicCategories",
+        "summary": "/pub action=getPublicCategories",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "getPublicCategories"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "不需要"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": false,
+        "x-cache-key": "cache:public:categories"
+      }
+    },
+    "/pub::getCatalogOrders": {
+      "post": {
+        "operationId": "public_getCatalogOrders",
+        "summary": "/pub action=getCatalogOrders",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "getCatalogOrders"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "不需要"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": false,
+        "x-cache-key": "cache:public:catalog-orders"
+      }
+    },
+    "/pub::createOrder": {
+      "post": {
+        "operationId": "public_createOrder",
+        "summary": "/pub action=createOrder",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "createOrder"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "不需要"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": true
+      }
+    },
+    "/pub::getReviews": {
+      "post": {
+        "operationId": "public_getReviews",
+        "summary": "/pub action=getReviews",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "getReviews"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "不需要"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": false
+      }
+    },
+    "/pub::getOrderStatus": {
+      "post": {
+        "operationId": "public_getOrderStatus",
+        "summary": "/pub action=getOrderStatus",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "getOrderStatus"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "不需要"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": false
+      }
+    },
+    "/pub::addPublicReview": {
+      "post": {
+        "operationId": "public_addPublicReview",
+        "summary": "/pub action=addPublicReview",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "addPublicReview"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "不需要"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": true
+      }
+    },
+    "/pub::createSubmission": {
+      "post": {
+        "operationId": "public_createSubmission",
+        "summary": "/pub action=createSubmission",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "createSubmission"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "不需要"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": true
+      }
+    },
+    "/pub::aiChat": {
+      "post": {
+        "operationId": "public_aiChat",
+        "summary": "/pub action=aiChat",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "aiChat"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "不需要"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": false,
+        "x-rate-bucket": "rate:ai:{ip}"
+      }
+    }
+  },
+  "components": {}
+}

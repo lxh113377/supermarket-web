@@ -20,6 +20,7 @@
 | `ORDER_WEBHOOK_URL` | secret | Pages → Variables and Secrets（第三方端点若含签名/token，整串按 secret 存） | **纯 no-op**：不发请求、不改订单状态、不消耗重试（`webhookTarget` 返回 null 即结束），下单照常成功 | 新订单外部通知投递地址（http/https only） |
 | `VITE_CB_API_BASE` | build | `.env` / CI 构建参数（`wrangler pages deploy` 前烘焙） | 前端 `IS_CLOUD=false`，后台静默降级「本地演示模式」——这正是历史上「线上看不到真实订单」的根因，故 CI 的 Build step 必须显式烘焙 | 管理 API 端点 `/web` |
 | `VITE_CB_PUBLIC_API_BASE` | build | 同上 | 同上（顾客端拿不到公开接口基址即走本地种子数据） | 公开 API 端点 `/pub` |
+| `VITE_R2_PUBLIC_BASE` | build | `.env` / CI 构建参数（R2 bucket 建好并配公网读后才填） | 原样透传 `r2:` 引用（评价图不断言渲染，后端仍只产出 base64/外链）；配后 `r2:<key>` 拼成可渲染地址 | 评价晒图 R2 对象公网基址（迁移就绪，bucket 未建前留空） |
 
 ## 为什么把「未配置时行为」写成硬判据
 
