@@ -79,10 +79,28 @@ export function redactFields(fields = {}) {
  * 关联标识：Pages Functions 拿得到边缘节点写的 `cf-ray`，优先复用它，
  * 于是「顾客报障截图上的时间」可以对着同一时刻的日志行查（对标 Stripe 的 request-id）。
  * 本地 wrangler / 单测环境没有这个头 —— 返回空串而不是编一个，避免把假 traceId 当线索。
+ *
+ * 出口一律过 `sanitizeTrace`：`x-request-id` 是**请求方自己就能写**的头，原样返回等于让
+ * 它决定日志字段与响应体的内容（第六十轮实测：5000 字头 ⇒ 5000 字 trace，绕开本文件
+ * 对其余每个字段都执行的 300 字截断）。收口放在这里而不是两个消费点各收一遍 ——
+ * 日志侧（buildRecord 的 trace）与响应侧（errors.js 的 withTrace）共用同一个生产者。
  */
 export function traceIdOf(request) {
   const h = request && typeof request.headers?.get === 'function' ? request.headers : null
-  return (h && (h.get('cf-ray') || h.get('x-request-id'))) || ''
+  return sanitizeTrace((h && (h.get('cf-ray') || h.get('x-request-id'))) || '')
+}
+
+/**
+ * 把外部可写的标识收成「可安全出现在一行 JSON 与一段响应体里」的形态：
+ * ① 洗 IP 形状（本文件对每个字符串字段执行的同一条口径，trace 不开例外）；
+ * ② 剔掉白名单 `[\w:.-]` 之外的字符（换行/引号/花括号/空格一律不留）；
+ * ③ 截到 64 字（cf-ray 实测形态 32hex-机场码 远小于此；与 orders.js 的 requestId 64 同族）。
+ * 顺序不可换：先洗 IP 再过白名单，`[ip]` 的方括号会被剔成 `ip` —— 单测按这个口径钉。
+ * 清洗后为空一律返回空串 ⇒ 日志与响应两端同时省略 trace 键，不留 `trace:""` 这种假关联。
+ */
+export function sanitizeTrace(raw) {
+  if (typeof raw !== 'string' && typeof raw !== 'number') return ''
+  return scrubIps(String(raw)).replace(/[^\w:.-]/g, '').slice(0, 64)
 }
 
 /**
@@ -98,7 +116,10 @@ export function buildRecord(level, mod, msg, fields = {}, at = new Date().toISOS
   const trace = fields && fields.trace !== undefined ? fields.trace : undefined
   const rest = { ...(fields || {}) }
   delete rest.trace
-  if (trace) rec.trace = String(trace)
+  // 出口自己再收一次：现存 4 个调用点都从 traceIdOf 拿值，但"trace 已 sanitize"这条
+  // 不变式若只活在生产者一侧，下一个调用点随手传个用户输入就能作废它 —— 与 msg/fields 同等待遇。
+  const safeTrace = sanitizeTrace(trace)
+  if (safeTrace) rec.trace = safeTrace
   for (const [k, v] of Object.entries(redactFields(rest))) {
     if (k === 'ts' || k === 'level' || k === 'mod' || k === 'msg') continue
     rec[k] = v

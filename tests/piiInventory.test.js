@@ -13,19 +13,21 @@ const ev = (over = {}) => evaluate({ tables: real.tables, rows: baseRows, exempt
   mdText: real.mdText, aiSlice: real.aiSlice, difySlice: real.difySlice, ...over })
 
 describe('分母自证（判据的人口由 schema 得出，不靠人记）', () => {
-  it('正向：解析到 12 张表、62 列行、4 张豁免；真仓 12 条判据全绿', () => {
+  it('正向：解析到 13 张表、70 列行、4 张豁免；真仓 12 条判据全绿', () => {
     // 分母 9→10 张表 / 47→58 列：第五十六轮 E7 加 `stock_movements`（11 列整张进覆盖表，
     // 含自由文本 note，所以是覆盖而不是豁免）。本行数值由解析器当场给出，判据不抄第二份清单。
     // 分母 10→12 张表 / 58→62 列 / 3→4 豁免：第五十八轮 P2 满减轨加 `order_discounts`（4 列进覆盖表，
     // orderId 删单成孤儿故缺口挂账）与 `promotions`（商家配置表进豁免）。R58-H1 收尾补登记。
-    expect(real.tables.size).toBe(12)
-    expect(real.rows.length).toBe(62)
+    // 分母 12→13 张表 / 62→70 列：第六十轮 M-59-1 加 `event_log`（8 列全进覆盖表，不走豁免——
+    // 豁免栏要的那句"整张表不含个人数据"对本表不成立，它每行都带可 JOIN 的 orderId）。
+    expect(real.tables.size).toBe(13)
+    expect(real.rows.length).toBe(70)
     expect(real.exempt.size).toBe(4)
     const failed = ev().filter((v) => !v.ok).map((v) => `${v.id} ${v.detail}`)
     expect(failed).toEqual([])
     expect(ev().map((v) => v.id)).toEqual(['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9', 'P10', 'P11', 'P12'])
   })
-  it('归因纠正：schema.sql 单独建出全部 12 张表（满减轨两表已回填，不再是"只活在迁移里"）', () => {
+  it('归因纠正：schema.sql 单独建出全部 13 张表（满减轨两表与 event_log 均已回填，不再是"只活在迁移里"）', () => {
     const onlySchema = parseSchemaTables([{ rel: 'db/schema.sql', sql: readFileSync('db/schema.sql', 'utf8') }])
     // 第一版漏表是我 grep 窗口截断，不是文件范围；R58-H1 核实：promotions/order_discounts
     // 已由第五十八轮回填进 schema.sql（migrate-promotions.sql 保留作迁移重放），故相等形仍然成立

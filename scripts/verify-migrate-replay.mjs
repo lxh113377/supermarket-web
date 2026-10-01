@@ -269,6 +269,14 @@ export function judge({ files, schemaSql, extraFiles = [] }) {
         { table: 'order_discounts' },
       ],
     },
+    // 第六十轮 M-59-1：整表回滚（删 event_log + 它的按单索引），与 stock-movements 同轨
+    'rollback-event-log.sql': {
+      forward: 'migrate-event-log.sql',
+      objects: [
+        { table: 'event_log' },
+        { table: 'event_log', index: 'idx_event_log_order_ts' },
+      ],
+    },
   }
   const ROLLBACK_DATA = {
     'rollback-rename-order20.sql': { forward: 'adhoc-rename-order20.sql' },

@@ -4,6 +4,37 @@
 
 ## [未发布]
 
+### 2026-10-02 追加七十九（第六十轮：事件总线第 3 步消费者 + 响应侧 trace 回报，并收口 trace 自身的卫生缺陷）
+
+- **做了什么**：① **M-59-1（挂账两轮的第 3 步）**：新增 `event_log` 表（`db/schema.sql` + `db/migrate-event-log.sql`
+  + `db/rollback-event-log.sql`）与消费者 `functions/lib/event_sink.js`，`/pub`、`/web` 在**响应定稿之后**
+  经 `scheduleSink(env, holdOpen)` 把本批 `drainEvents()` 逐条落库 —— 挂 `waitUntil` 上不占响应延迟，
+  D1 未绑定只 warn 并返回 `{stored:0,reason:'db_unbound'}`，落库抛错就地吞掉。列面只取 `events.js` 白名单
+  那 6 个字段（微信号/备注/房间号/付款截图从不进队列 ⇒ 本表天然无 PII 列，个人数据登记册无需加行）。
+  ② **M-59-2**：`functions/lib/errors.js` 新增 `withTrace()`，端点层给成功/失败信封**纯追加**条件键 `trace`；
+  无边缘头时该键整个不出现 ⇒ 本地与单测环境的响应逐字节不变（旧 bundle 只读 `code/errorCode/kind`）。
+  ③ **R60-1（本轮新发现，已修）**：`traceIdOf` 此前**原样返回** `cf-ray || x-request-id`，而 `x-request-id`
+  是请求方自己就能写的头 —— 加了 `sanitizeTrace`（先洗 IP 形状 → 剔 `[\w:.-]` 之外字符 → 截 64 字），
+  日志侧（`buildRecord`）与响应侧（`withTrace`）各过一道，生产者与出口两侧都不留裸值。
+- **为什么**：`emit()` 自第 2 步起只记内存队列、喊完即散，"某单经历过哪些事件"无处可查（对侧 grocy 的
+  `stock_log` / InvenTree 的 `StockItemTracking` 正是本仓缺的那一半：`stock_movements` 只记库存账）；
+  顾客报障只有一张截图，服务端日志却无任何可关联标识。trace 卫生这条由上一会话遗留的取证探针
+  `.tmp-trace-probe.mjs` 本轮实跑暴露：5000 字头 → 5000 字 trace，**绕开了本仓对每个日志字段都执行的
+  300 字截断**，且随 M-59-2 起这个裸值开始进**对外响应体**。
+- **假设被实测否证一条（记下来防复发）**：探针同时证伪了"换行可伪造出第二条日志"——`JSON.stringify`
+  把换行转义，实测行数恒为 1。活下来的缺陷是"无长度/字符上限 + 对外回显"，修的就只是这个，
+  没把没成立的那条写进理由充数。
+- **判据与登记随动（登记制四处点名，无一绕过）**：`verify:logs` L2 判红「漏登 `event_sink`」→ 补
+  `docs/logging.md` mod 行；`verify:limits` C2 判红「缺登记 `functions/lib/logger.js#截断型#64`」→ 补溯源行
+  （64 的对照量取本轮实测 `curl -I /_health` 回 `CF-RAY: a43d3ddddcb3d908-LAX` = 20 字，非"32hex"民俗）；
+  `verify:docs` 判红「README 写 119、真相源实测 121」→ 改文档追上真相源；`verify:migrate-replay` 的
+  回滚轨名册补 `rollback-event-log.sql`（结构轨 6 件 + 数据轨 2 件，A5 逐字段核对加列语句 6 条）。
+- **反例先红再绿**：新增 6 条 trace 卫生断言 + 4 条端点层 trace 断言，修前实测 5 红（含
+  `expected 'evil\n{"level":"info","msg":"x"}' to be ...`），其中「cf-ray 真实形态逐字通过」一条是**正例**，
+  防的是把正常线索一并改坏。`.tmp-trace-probe.mjs` 使命完成后走系统回收站通道退役（可还原）。
+- **验证**：`npm run verify` rc=0（121 测试文件全绿）；`verify:logs` 5/5；`verify:limits` 13/13；
+  `verify:migrate-replay` 基线可重建 + 前向迁移幂等 + 回滚往返闭合；`verify:backend` 与 `report:peers` 见轮末回执。
+
 ### 2026-10-01 追加七十八（第五十九轮：结构化日志出口 + 对标取证载体；对侧「维护状态」由转引改实测）
 
 - **做了什么**：①新增 `functions/lib/logger.js` —— `functions/` 里原有 **20 处** 裸 `console.error|warn`

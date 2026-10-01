@@ -16,8 +16,10 @@
 > 都有一等公民的日志层，本仓挂了六轮的「线上异常无据可查」缺的就是这一处出口。
 >
 > 日志形状（`functions/lib/logger.js`）：一行一条 JSON，固定头 `ts` / `level` / `mod` / `msg`，
-> 可选 `trace`（复用边缘节点 `cf-ray`），其余为调用方字段；PII 键的**值**换成 `[redacted]`、
-> **键保留**（让运维知道有该字段被拦而不是"这次恰好没有"）；字符串里的 IPv4/IPv6 形状一并洗成 `[ip]`。
+> 可选 `trace`（复用边缘节点 `cf-ray`，**过 `sanitizeTrace` 收口**：字符白名单 `[\w:.-]` + 64 字上限
+> + IP 形状洗白；`x-request-id` 属请求方可写头，故清洗后为空即不产该键），其余为调用方字段；
+> PII 键的**值**换成 `[redacted]`、**键保留**（让运维知道有该字段被拦而不是"这次恰好没有"）；
+> 字符串里的 IPv4/IPv6 形状一并洗成 `[ip]`。
 
 ## 裸 console 豁免表
 
@@ -37,6 +39,7 @@
 | rate | functions/lib/security.js | KV 限流故障回退 D1（回退本身是设计行为，记的是"KV 又坏了"） |
 | audit | functions/lib/security.js | `security_events` 写入/清理失败（审计面丢事件 = 事故，不是噪声） |
 | notify | functions/lib/notify.js | 新订单 webhook 未送达（warn）/ 调度异常被吞（error） |
+| event_sink | functions/lib/event_sink.js | 事件队列非空但 D1 未绑定（warn，整批丢弃）/ 事件落 `event_log` 失败（error，响应路径已定稿不受影响） |
 | dify | functions/lib/dify.js | AI 调用失败与熔断前异常（只记 scene 与错误名，Key 从不进 fields） |
 | ai_trace | functions/lib/ai_trace.js | `ai_calls` 埋点写入/统计失败（埋点丢了不影响主流程，但会失真） |
 | aiAdvice | functions/lib/actions/ai.js | 管理端 AI 建议生成失败 |

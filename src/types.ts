@@ -153,6 +153,10 @@ export interface ApiResult<T = unknown> {
   kind?: string
   retryable?: boolean
   retryAfterMs?: number
+  // 第六十轮 M-59-2：服务端回吐的关联标识（边缘 cf-ray 优先，清洗后 ≤64 字）。
+  // 条件键 —— 无边缘头（本地/单测）时整个不出现，故可选；今天**没有任何消费者读它**
+  // （实测 `grep -rn "\btrace\b" src/` 除本行外 0 命中），它的用途是下一轮把报障入口接到日志上。
+  trace?: string
   data?: T
   total?: number
   page?: number

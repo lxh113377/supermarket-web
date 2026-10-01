@@ -157,7 +157,9 @@ describe('B7 新增表默认落进业务面（fail-closed 的那一半）', () =
 
   it('纯函数面：businessTables 只按白名单分流，不认表名的字面含义', () => {
     const { all, business } = businessTables(BASE.schemaSql)
-    expect(all.size).toBe(12)
+    // 分母 12→13：第六十轮 M-59-1 的 `event_log` 进 schema；它走 INFRA_TABLES 豁免
+    // （写方是端点层 scheduleSink 而非 action），所以业务侧清单**不变**——这条断言判的就是这个区别。
+    expect(all.size).toBe(13)
     expect([...business].sort()).toEqual(['categories', 'order_discounts', 'orders', 'products', 'promotions', 'reviews', 'stock_movements', 'submissions'])
     expect(business.has('security_events')).toBe(false)
   })

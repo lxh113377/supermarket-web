@@ -33,6 +33,7 @@ export const INFRA_TABLES = [
   { table: 'security_events', why: '安全审计流水：含 auth_failed，写它正是鉴权失败时的行为，不能反过来要求写权限。' },
   { table: 'ai_calls', why: 'AI 调用追踪（延迟/成败/token）：aiAdvice/aiChat 的观测副作用，不改业务数据。' },
   { table: 'schema_migrations', why: '迁移账本：只有 scripts/migrate.mjs 写，不在 action 面内。' },
+  { table: 'event_log', why: '事件追溯流水（第六十轮 M-59-1）：写方是端点层 scheduleSink，在响应定稿后落库，不挂在任何 action 上 ⇒ 鉴权档位与它无关。豁免的是**鉴权面**，不是隐私面：本表列按 docs/pii-inventory.md 逐字登记（orderId/at/totalAmount 属派生）。' },
 ]
 
 // ── 公开通道（/pub）允许的业务写：同样是具名清单，新增即红 ─────────────────

@@ -16,7 +16,7 @@
 // "失败"读成"成功"（0 才是唯一成功值），那才是真的把缺陷修成事故。新字段一律纯追加。
 
 /** 失败大类 —— 决定调用方的处置动作，不是给人看的描述。 */
-import { logError } from './logger.js'
+import { logError, sanitizeTrace } from './logger.js'
 export const ERROR_KINDS = new Set(['input', 'state', 'auth', 'quota', 'platform'])
 
 /**
@@ -122,4 +122,21 @@ export function apiResponse(result, cors = {}) {
   const headers = { 'Content-Type': 'application/json', ...cors }
   if (!ok && status === 429) headers['Retry-After'] = retryAfterSeconds(result.retryAfterMs)
   return new Response(JSON.stringify(result), { status, headers })
+}
+
+/**
+ * 第六十轮 M-59-2：给响应纯追加 `trace`（关联标识，取自 cf-ray / x-request-id）。
+ * 空串即省略该键 —— 本地 wrangler / 单测环境没有边缘头时响应与此前逐字节一致；
+ * 旧 bundle 只读 code/errorCode/kind，多一个 trace 键零感知（文件头兼容性红线）。
+ * 挂在端点层（pub.js/web.js）而不是 handle 层：KV 缓存命中的是共享对象，
+ * spread 出新对象才不会把某次请求的 trace 写进缓存污染下一次。
+ * 值再过一道 `sanitizeTrace`：这是**响应体**（对外面），比日志侧更不能指望调用方自觉 ——
+ * 两个端点今天确实都从 traceIdOf 取值，但"回显给顾客端的字符串无上限"这个缺陷
+ * 只要有一次改成传别的来源就会当场成立，所以收口写在被调用的一侧而不是写在注释里。
+ */
+export function withTrace(result, trace) {
+  if (!result || typeof result !== 'object') return result
+  const safe = sanitizeTrace(trace)
+  if (!safe) return result
+  return { ...result, trace: safe }
 }

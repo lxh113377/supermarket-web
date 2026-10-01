@@ -93,3 +93,40 @@ describe('logger：trace 取自边缘节点而不是自己编', () => {
     expect(traceIdOf({})).toBe('')
   })
 })
+
+/**
+ * trace 卫生（第六十轮 R60-1）。
+ * 一手动因（本轮实跑上一会话遗留的 `.tmp-trace-probe.mjs` 取到的读数，不是假想）：
+ * `x-request-id` 是**请求方自己就能写**的头，旧 `traceIdOf` 原样返回 ⇒
+ *   · 5000 字的头 ⇒ trace 5000 字，绕开本文件对每个字段都执行的 300 字截断；
+ *   · `evil\n{"level":"info",...}` ⇒ 原样进串。探针同时**否证**了"能伪造出第二条日志"这个
+ *     假设（JSON.stringify 把换行转义，实测行数恒为 1）⇒ 活下来的缺陷是"无长度/字符上限"，
+ *     不是日志注入。修的是前者，不许把后者写进理由充数。
+ * 顺序口径：先洗 IP 形状再过白名单（`[ip]` 的方括号会被白名单剔掉，故期望值是 `r:ip` 而不是 `r:[ip]`）。
+ */
+describe('logger：trace 不接受请求方决定的长度与字符', () => {
+  it('cf-ray 真实形态逐字通过 —— 收口不许把正常线索改坏', () => {
+    // 形态取自本轮实测 `curl -I https://supermarket-web.pages.dev/_health` → `CF-RAY: a43d3ddddcb3d908-LAX`
+    expect(traceIdOf(req({ 'cf-ray': 'a43d3ddddcb3d908-LAX' }))).toBe('a43d3ddddcb3d908-LAX')
+  })
+  it('超长头截到 64 字（本文件里 trace 与 300 字同族，但要的是标识不是正文）', () => {
+    expect(traceIdOf(req({ 'x-request-id': 'A'.repeat(5000) }))).toBe('A'.repeat(64))
+  })
+  it('白名单剔掉控制符/引号/花括号：请求方决定不了日志字段的形状', () => {
+    const evil = 'evil' + String.fromCharCode(10) + '{"level":"info","msg":"x"}'
+    // 期望值取自**实测**而不是手算：逗号也被剔（不在 [\w:.-]），所以 info 与 msg 之间没有分隔符。
+    expect(traceIdOf(req({ 'x-request-id': evil }))).toBe('evillevel:infomsg:x')
+  })
+  it('整串都是非法字符 ⇒ 清洗后为空串 ⇒ 与"没有 cf-ray"同路径，日志不出 trace 键', () => {
+    const t = traceIdOf(req({ 'x-request-id': '/// <<<>>>' }))
+    expect(t).toBe('')
+    expect('trace' in buildRecord('error', 'pub', 'x', { trace: t }, AT)).toBe(false)
+  })
+  it('串内 IP 形状照本文件口径洗掉（trace 不是"唯一不洗的字段"）', () => {
+    expect(traceIdOf(req({ 'x-request-id': 'r:192.168.1.7' }))).toBe('r:ip')
+  })
+  it('非字符串头值（数组/对象）不得抛：降级空串', () => {
+    expect(traceIdOf({ headers: { get: () => ['a', 'b'] } })).toBe('')
+    expect(traceIdOf({ headers: { get: () => ({ a: 1 }) } })).toBe('')
+  })
+})

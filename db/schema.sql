@@ -168,3 +168,22 @@ CREATE TABLE IF NOT EXISTS order_discounts (
   createdAt      TEXT
 );
 
+-- 事件流水（第六十轮 M-59-1：事件总线第 3 步消费者落点）。
+-- 口径：只存 events.js 白名单里的 6 个字段（type/at/orderId/status/totalAmount/discountAmount），
+-- 微信号/备注/房间号/付款截图从不进队列，故本表天然无 PII 列（PII 登记册无需新增行）。
+-- 快照仍是各业务表自身；本表只做追溯（"某单经历过哪些事件"），不对任何业务状态回算。
+-- 建账与回滚：db/migrate-event-log.sql / db/rollback-event-log.sql
+CREATE TABLE IF NOT EXISTS event_log (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  type           TEXT NOT NULL,
+  at             TEXT NOT NULL,
+  orderId        TEXT NOT NULL,
+  status         TEXT DEFAULT '',
+  totalAmount    REAL DEFAULT 0,
+  discountAmount REAL DEFAULT 0,
+  createdAt      TEXT NOT NULL
+);
+
+-- 按单查某单事件时间线一条索引（唯一的读路径；报表式全表扫不在本轮范围）
+CREATE INDEX IF NOT EXISTS idx_event_log_order_ts ON event_log (orderId, at);
+

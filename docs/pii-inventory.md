@@ -122,8 +122,26 @@
 | promotionId | 运营 | admin | 否 | 无自动清理 | 无通道 | 否 | 命中的档位 `_id`（种子默认 `promo_default`），纯商家配置键；取值出自 promotions 表，不含顾客输入 |
 | createdAt | 派生 | admin | 否 | 无自动清理 | 无通道 | 否 | 落行时刻与订单 createdAt 同刻；与 orderId 同行即可落到某单的下单时刻，与 orders.createdAt 同为作息画像素材，故不标运营；随孤儿行残留 |
 
-## 表级豁免（整张表不含个人数据，必须写为什么）
+## 覆盖表：event_log
 
+> 第六十轮 M-59-1 新增（事件总线第 3 步消费者的落点）。整张表按**覆盖表**登记而不是走「表级豁免」：
+> 豁免栏要的是"整张表不含个人数据"这句**真话**，而本表每行都带 `orderId` ⇒ 顺键可 JOIN 到
+> `orders.roomNumber/items`，与 `stock_movements.refId`、`order_discounts.orderId` 同族，只能按「派生」逐列入账。
+> 反过来说，它比那两张表多一重性质：列面**逐字取自 `events.js` 的 6 字段白名单**，微信号/备注/房间号/
+> 付款截图连队列都进不去 ⇒ 本表没有任何自由文本列，写不出"内容由录入人决定"那一类最坏情况。
+
+| 列 | 类别 | 可见性 | 出境 | 保留 | 删除通道 | 进导出 | 依据 |
+|---|---|---|---|---|---|---|---|
+| id | 运营 | admin | 否 | 无自动清理 | 无通道 | 否 | 自增行号，本仓自产，不含任何顾客输入 |
+| type | 运营 | admin | 否 | 无自动清理 | 无通道 | 否 | 枚举 `events.js:KNOWN` 七个系统取值（order.created/status_changed/cancelled、product.stock_low/out、review.created、submission.created），白名单外的值 `emit()` 直接拒收，不是用户输入 |
+| at | 派生 | admin | 否 | 无自动清理 | 无通道 | 否 | 事件发生时刻，与 orderId 同行即落到"某人某单在某分钟做过什么" ⇒ 与 orders.createdAt 同为作息画像素材，不标运营 |
+| orderId | 派生 | admin | 否 | 无自动清理 | 无通道 | 否 | 存 `orders._id`（`o_` + 时间戳随机，号本身不含住址），顺此外键可直接 JOIN 到 roomNumber/items ⇒ 按派生登记；`emit()` 里 orderId 为空即 `{emitted:false,reason:'no_order'}`，本列 NOT NULL 与代码口径同向 |
+| status | 运营 | admin | 否 | 无自动清理 | 无通道 | 否 | 订单状态枚举快照（pending/paid/…），缺省 `'pending'` 由代码给；取值面在 `actions/orders.js` 不在顾客输入面 |
+| totalAmount | 派生 | admin | 否 | 无自动清理 | 无通道 | 否 | `events.js` 里经 `Number()` 兜底成 0 之后才入列的金额数字，本身不指向人；但与 orderId 同列即成为消费画像（与 orders.totalAmount 同口径），故标派生而不是运营 |
+| discountAmount | 运营 | admin | 否 | 无自动清理 | 无通道 | 否 | 同上但更弱：单笔减免额，与 order_discounts.discountAmount 同族标运营 |
+| createdAt | 派生 | admin | 否 | 无自动清理 | 无通道 | 否 | **落库**时刻（`drainAndStore` 单次批量共用一个值），与 `at` 的差即"事件在内存队列里滞留多久"；与 orderId 同行可下单时刻，故不标运营 |
+
+## 表级豁免（整张表不含个人数据，必须写为什么）
 | 表 | 豁免理由 |
 |---|---|
 | categories | 商家自维护的商品分类目录（`_id/name/type/order/subcategories`），五个列全部来自后台录入，无任何顾客输入 |
@@ -139,10 +157,11 @@
 P8 的判据是双向的：有列标"是"就必须给行号凭据；一列都没有，则本节的零出境声明必须点名 `pubAiChat`
 ——否则"把出境列全标否"就能自动变绿。
 
-## 已知缺口（本册自己承认的五笔账，不豁免掉）
+## 已知缺口（本册自己承认的六笔账，不豁免掉）
 
 1. **只剩一条真出境路径**：`actions/ai.js` 的 `pubAiChat` 用 `pub-<ip 前 40 位>` 当第三方用户标识送进 Dify（顾客提问文本本身出境是产品目的，登记于此的是那个 IP 派生标识）。上一轮记在这里的第二条（"aiAdvice 把 wechat/remark 带进 Dify"）**已被本轮实测推翻并更正**：那几个值只存在于 aiAdvice 的 orders 投影里，`buildAdviceInput`/`ruleAdvice` 一个都没引用，请求体只带聚合量 ⇒ 不是出境，是**白读**。白读同样不该留着：它把个人数据多搬进一次冷启动 isolate 的内存/日志面，而且是"哪天有人顺手 `JSON.stringify(orders30)`"就真出境的引信。本轮把投影收到 3 列（items/totalAmount/createdAt），由 **P12** 双向互锁（多一列白读=红，引用了却没投影=红），并有夹具证明收敛前后两份分析输入**逐字节相同**（`tests/aiContract.test.js`「出境面收敛」）。
 2. **`rate_limits.bucket` 里的 IP 无清理通道**：正解是按 `resetAt` 删除窗口早已结束的桶，与 `security_events` 同型；但清理属会减少现存数据量的通道，须先登记分母再开。
 3. **`ai_calls` 全表无保留无删除**：只写不读，量级小；仍登记为待办而不是豁免，因为"以后会有人读它"是迟早的事。
 4. **`stock_movements` 整张表无删除通道（第五十六轮 E7 起）**：它是 `products.stock` 的对账依据，删一行就等于把「SUM(delta)==stock」这条不变式的证据抹掉，所以写入侧只有软作废（`voided`/`voidedAt`）而没有硬删。代价如实登记：`note` 是后台自由文本、可能含供应商姓名或电话，一旦写错**没有任何人工清除路径**，只能再记一行说明——这与 `rate_limits.bucket`（第 2 条）是同一类"知道该有清理通道但还没开"的账。开清理通道前必须先按户内规矩登记分母（会减少现存数据量的通道不得先动手）。
 5. **`order_discounts` 删单后成孤儿（第五十八轮 P2 满减轨引入即欠账，R58-H1 收尾补登记）**：`deleteOrder`（`actions/orders.js:308-320`）只 `DELETE FROM orders`，不带 `order_discounts` 联删 ⇒ 订单删掉后优惠行永久残留（含可 JOIN 回 roomNumber 的 `orderId`）。修法是给 `deleteOrder` 加联删一行（或随单软作废），改前本条保持挂账；修时须同步跑 `verify:migrate-replay`（改写侧）与本判据复验。
+6. **`event_log` 既无保留期也无删除通道（第六十轮 M-59-1 引入即欠账，与第 5 条同族且更宽）**：`drainAndStore` 只 INSERT，`deleteOrder` 也不认这张表 ⇒ 一行订单事件永久残留，且**删单后其事件行全部成孤儿**（每单每次状态变更各一行，行数 ≥ 该单事件数，比 `order_discounts` 的"每单≤1 行"涨得快）。本条只登记不动手，两个理由：① 它是追溯面（"某单经历过哪些事件"就是这张表存在的目的），删规则没想清就会把功能删掉；② 户内规矩——**会减少现存数据量的通道须先登记分母再开**（第 2/4 条同因），正解是随 `deleteOrder` 联删 + 一个带 `--dry-run` 的按龄封顶通道，两步都要先接进判据面。开之前本条保持挂账，不得读成"量小所以没事"。

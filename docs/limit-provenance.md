@@ -35,6 +35,7 @@
 | functions/lib/actions/orders.js | 截断型 | 40 | schema | roomNumber 截 40：幂等键格式「房间号@reqId#指纹」，40 保证键长可控且容得下「楼-单元-房号」最长写法 |
 | functions/lib/actions/orders.js | 截断型 | 50 | schema | wechat 截 50：微信号官方上限 5~20 字符，50 给备注型长串留余量，防粘贴整段文本入库 |
 | functions/lib/actions/orders.js | 截断型 | 64 | schema | requestId 清洗后截 64：客户端给的是 uuid 形态，64 足够；同处已剔除非 [\w:.-] 字符，防用户输入直接进索引列 |
+| functions/lib/logger.js | 截断型 | 64 | self | trace 清洗后截 64 字：`x-request-id` 是**请求方自己就能写**的头，不设上限＝让请求决定日志行长度和响应体大小（第六十轮实测旧行为：5000 字头 → 5000 字 trace，绕开本文件 300 字那条对每个字段都执行的规矩）。取值上界对照：本轮实测 `curl -I https://supermarket-web.pages.dev/_health` 回 `CF-RAY: a43d3ddddcb3d908-LAX`（16hex-机场码 = 20 字），uuid 型 x-request-id = 36 字 ⇒ 64 留一倍以上余量，且与 orders.js 的 requestId 64 同族同值（两处共用同一字符白名单 [\w:.-]）。撤销条件：出现真实 trace 被截到 64 字导致对不上日志的样本 |
 | functions/lib/actions/products.js | 分页 | 1000 | perf | 全量取商品 1000 行：店内 SKU 量级（实测 54）20 倍余量，1000 行窄字段远低于 100 KB/语句 |
 | functions/lib/actions/products.js | 分页 | 200 | perf | 分类下商品预览 200：后台单分类可见上界，超出即应搜索而非继续翻 |
 | functions/lib/actions/products.js | 截断型 | 20 | product | 口味 label 截 20 字：SPEC_OPTION_LIMIT=20 管个数、20 字管单条宽度，两者合起来让后台口味 chips 不换行 |

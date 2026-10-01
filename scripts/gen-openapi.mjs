@@ -48,7 +48,10 @@ function actionOp(endpoint, action, meta) {
         }
       },
       responses: {
-        200: { description: '{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）' }
+        // trace 写在描述里而不是 schema 里：它是**条件键**（仅边缘节点给了 cf-ray/x-request-id 且清洗后非空才出现），
+        // 而本仓的响应形状契约由 wrapHandle 在 handle 层录制，结构性看不见端点层追加的这个键（钉它的腿是
+        // tests/traceEnvelope.test.js）。在这里补一句是为了让 43 份 operation 不再漏说一个会出现在线上的键。
+        200: { description: '{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）；有边缘 trace 时纯追加 trace 键（清洗后 ≤64 字，见 docs/logging.md）' }
       },
       'x-write': Boolean(meta.write),
       ...(meta.cacheKey ? { 'x-cache-key': meta.cacheKey } : {}),
