@@ -5,6 +5,7 @@
 //      ③ 规则版与在线版的真实占比一目了然（避免"以为在用 AI，其实一直在跑规则版"）。
 //
 // 铁律：留痕失败绝不影响主流程——可观测性优先级低于 AI 能力降级链，任何异常都只记日志。
+import { logError } from './logger.js'
 import { qAll, qRun } from './db.js'
 import { sha256Fingerprint } from './security.js'
 
@@ -50,7 +51,7 @@ export async function traceAiCall(DB, {
     )
     return ts
   } catch (e) {
-    console.error('[ai_trace] 写入失败（不影响主流程）', e)
+    logError('ai_trace', '写入失败（不影响主流程）', { err: e })
     return null
   }
 }
@@ -79,7 +80,7 @@ export async function aiCallStats(DB, limit = 20) {
       recent: rows,
     }
   } catch (e) {
-    console.error('[ai_trace] 统计失败', e)
+    logError('ai_trace', '统计失败', { err: e })
     return empty
   }
 }

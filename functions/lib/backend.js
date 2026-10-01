@@ -13,6 +13,7 @@
 //   actions/ai.js         AI 建议与导购
 //   backend.js            本文件：handleAdmin/handlePublic 路由 + 审计编排
 
+import { logError, traceIdOf } from './logger.js'
 import { checkRate, checkRateKV, getClientIp, sha256Fingerprint, logSecurityEvent,
   checkAuth, resolveRole, resolveCorsHeaders, PUBLIC_ACTIONS,
   RATE_LOGIN, RATE_PUBLIC_WRITE, RATE_AI, RATE_AI_ADVICE } from './security.js'
@@ -181,7 +182,7 @@ export async function handleAdmin(env, action, adminKey, payload = {}, request =
       default: result = fail('invalid_action', '未知操作')
     }
   } catch (e) {
-    console.error('[admin]', action, e)
+    logError('admin', '管理端 action 未捕获异常', { action, trace: traceIdOf(request), err: e })
     result = fail('internal_error', '服务暂时不可用，请稍后重试')
   }
   // M1：商品/分类写操作成功后失效公共目录 KV 缓存（顾客端立即看到新数据）
@@ -270,7 +271,7 @@ export async function handlePublic(env, action, payload = {}, request = null, no
       default: return fail('invalid_action', '未知操作')
     }
   } catch (e) {
-    console.error('[pub]', action, e)
+    logError('pub', '公开端 action 未捕获异常', { action, trace: traceIdOf(request), err: e })
     return fail('internal_error', '服务暂时不可用，请稍后重试')
   }
 }

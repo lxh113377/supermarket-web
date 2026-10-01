@@ -1,5 +1,6 @@
 // 订单域 handlers（从 backend.js 拆出，逻辑零改动）
 
+import { logError } from '../logger.js'
 import { qAll, qFirst, qRun, qBatch, jparse, nowISO, genId, insert } from '../db.js'
 import { insertMovements } from '../stock.js'
 import { isSafeImageUrl } from '../security.js'
@@ -275,7 +276,7 @@ export async function createOrder(DB, payload) {
         return { code: 0, data: { id: hit._id, totalAmount: hit.totalAmount, ...d, deduplicated: true } }
       }
     }
-    console.error('[orders] createOrder 落库失败，库存已回补:', msg)
+    logError('orders', 'createOrder 落库失败，库存已回补', { err: msg })
     return fail('order_create_failed', '订单创建失败，请重试')
   }
   return { code: 0, data: { id: doc._id, totalAmount: doc.totalAmount, discountAmount: discountRounded, promotionId: promo.promotionId } }

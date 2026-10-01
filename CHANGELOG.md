@@ -4,6 +4,29 @@
 
 ## [未发布]
 
+### 2026-10-01 追加七十八（第五十九轮：结构化日志出口 + 对标取证载体；对侧「维护状态」由转引改实测）
+
+- **做了什么**：①新增 `functions/lib/logger.js` —— `functions/` 里原有 **20 处** 裸 `console.error|warn`
+  （实测分布 11 个文件）一次性收进单一出口，产出一行一条 JSON（`ts/level/mod/msg` + 可选 `trace`，
+  trace 复用边缘节点 `cf-ray`，本地无该头时给空串而不编一个）；个人数据按键 redact、串里嵌的 IPv4/IPv6
+  一并洗成 `[ip]`（旧形态 `'[cache] put failed:', key` 会把 `rate:login:<ip>` 整串打进日志，而登记册
+  `bucket` 行自己写着「这列就是明文 IP」）。②新增 `scripts/check-logging.mjs` + `docs/logging.md` 登记册，
+  五腿接进 `npm run verify` 链：L1 裸 console 双向豁免、L2 mod 集合相等、L3 禁整包 payload/body/request、
+  L4 采集面与在册侧分母非零、L5 `PII_KEYS` ⇄ 个人数据登记册双向；`--selftest` 8 条含 5 条反例。
+  ③新增 `scripts/benchmark-peers.mjs` + `docs/benchmark-peers.json` 名册（H-59-2）：一条命令重取对方侧
+  六面事实（star/开refs/近30天提交/贡献者/最后push/最新release），取不到的面记 `null` 并点名，**禁折算成 0**。
+- **为什么**：「结构化日志 + 前端错误上报」这条在工作区台账挂了六轮，外审对标里 mall / medusa / erpnext /
+  saleor 四个同类都有一等公民日志层，本仓没有 ⇒ 线上异常无据可查。取证载体这条的动因更硬：第五十七、五十八
+  两轮的对方侧数字全部写作「转引」，两轮下来「mall 社区大、日更」被抄了两遍，而本轮实测它近 30 天默认分支
+  只有 2 次提交、最后 release 在 2024-03-01、非匿名贡献者列表仅 1 页 —— **没有载体时，"诚实标注转引"反而让
+  错误结论活得更久**。
+- **验证证据**：`verify:logs` 5/5（functions 22 件｜裸 console 4 处全在豁免表｜13 个 mod 双向相等｜
+  20 处 log 调用 0 处整包｜PII_KEYS 20 ⇄ 在册 16 + 补充 4）；`check-logging.mjs --selftest` 8/8；
+  `benchmark-peers.mjs --selftest` 8/8（含"全面 404 不得出现 0"与"`per_page=1` 里的 page= 不得当页号"两条反例，
+  后者是本轮正例当场抓出的真实缺陷：修前所有仓的贡献者数恒为 1）；`tests/logger.test.js` 10/10；
+  实测窗口起点 `2026-09-01T06:21:24Z`，我方近30天提交 **234**、medusa 224、erpnext 432、litemall 0、
+  ecommerce-react 0（台账落 `docs/benchmark-peers.last.json`，整体 `rc=2` 因 3 仓有不可得面，如实标 UNVERIFIED）。
+
 ### 2026-10-01 追加七十七（#26 替代处置：dispatch 改直调 REST，v9 问题灭根）
 
 - **做了什么**：`dispatch.yml` 的投递步由 `actions/github-script@v7` 改为 curl 直调

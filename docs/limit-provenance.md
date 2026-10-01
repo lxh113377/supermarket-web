@@ -27,6 +27,7 @@
 | functions/_health.js | 截断型 | 7 | perf | 探活响应只回短版本串：slice(0,7) 取 git 短 SHA 长度，避免把完整 SHA 或异常长值塞进高频探活响应体 |
 | functions/lib/actions/ai.js | 分页 | 2000 | perf | aiAdvice 全量取近 N 单做规则兜底分析：2000 = 店内订单量级（实测存量 49 单）约 40 倍余量，取「一次拿完且不打爆行数配额」的上界 |
 | functions/lib/actions/ai.js | 截断型 | 40 | product | 匿名访客标识 pub-<ip 前 40> ：Dify 侧只需稳定不冲突，40 容得下 IPv6 全文且远小于 Dify 字段上限 |
+| functions/lib/logger.js | 截断型 | 300 | self | 日志单字段收成 300 字：日志行的全部价值在于"一行一条、可被检索"，未截的 Error 整串会把一条记录撑成多行；`scrubValue` 里字符串/Error/序列化对象三支共用这一个上限（改一处即改全部）。撤销条件：出现"信息正好被截掉导致排障失败"的实例并附当场样本，届时调大而不是另开第二支上限 |
 | functions/lib/actions/orders.js | 常量 | BATCH=200 | perf | recalculateOrders 每页行数（while + LIMIT/OFFSET）：200 行 JSON items 远低于 d1_statement_bytes（100000 bytes/语句），再大就要担心单语句体积撞墙 |
 | functions/lib/actions/orders.js | 分页 | 10 | product | 90 s 去重窗内同房间最多取 10 张单做指纹比对：正常连点只产生 1~2 张，10 是同一房间短时间连点的经验上界 |
 | functions/lib/actions/orders.js | 分页 | 200 | perf | stalePendingReport 超时单盘点页大小 200：与 BATCH 同值同因，看板一次读完不触发二次分页 |

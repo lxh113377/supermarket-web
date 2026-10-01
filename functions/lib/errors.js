@@ -16,6 +16,7 @@
 // "失败"读成"成功"（0 才是唯一成功值），那才是真的把缺陷修成事故。新字段一律纯追加。
 
 /** 失败大类 —— 决定调用方的处置动作，不是给人看的描述。 */
+import { logError } from './logger.js'
 export const ERROR_KINDS = new Set(['input', 'state', 'auth', 'quota', 'platform'])
 
 /**
@@ -89,7 +90,7 @@ export function fail(errorCode, message, extra = {}) {
     // 未登记码降级成平台故障（500/platform），**不抛**：checkAuth / checkRate 的失败出口
     // 在 handleAdmin 的 try 之外，这里一抛就变成 Pages 未捕获异常（顾客拿到非 JSON 的 500 页），
     // 把"登记册脱节"这种可修的缺陷升级成"整条鉴权链不可用"。真防线在 CI 的 E2 双向对账。
-    console.error('[errors] 未登记的 errorCode:', errorCode)
+    logError('errors', '未登记的 errorCode', { errorCode })
     key = UNKNOWN_ERROR_CODE
     meta = ERRORS[key]
   }

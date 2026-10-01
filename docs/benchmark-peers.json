@@ -1,0 +1,18 @@
+{
+  "_why": "对标取证名册（第五十九轮）。57/58 两轮的对方侧数字全部写作「转引」——因为没有可重跑的载体，代理一不通就只能抄上一轮的表。这份名册 + scripts/benchmark-peers.mjs 就是那个载体：下一轮不带记忆的人跑一条命令即可重取全部对方侧事实。",
+  "_how": "node scripts/benchmark-peers.mjs",
+  "_naming": "一律 owner/name 全名（短名会同时造成解析失败与类别错判，见对标取证铁律）。",
+  "windowDays": 30,
+  "self": "lxh113377/supermarket-web",
+  "peers": [
+    { "repo": "macrozheng/mall", "kind": "电商-全功能标杆", "note": "SpringBoot+Vue，中文教程生态最大" },
+    { "repo": "medusajs/medusa", "kind": "电商-Headless 标杆", "note": "Node 模块化 + Workflow + 插件市场" },
+    { "repo": "linlinjava/litemall", "kind": "电商-同体量小店标杆", "note": "SpringBoot+Vue+微信小程序，体量最接近本项目" },
+    { "repo": "jgudo/ecommerce-react", "kind": "电商-同栈轻量前端", "note": "React+Redux+Firebase，无自建后端" },
+    { "repo": "saleor/saleor", "kind": "电商-GraphQL 标杆", "note": "Python + GraphQL，错误码与扩展点体系" },
+    { "repo": "frappe/erpnext", "kind": "ERP-同类目最大", "note": "Frappe/Python，含库存/采购/财务全链" },
+    { "repo": "inventree/InvenTree", "kind": "库存-同类目", "note": "Django+React，库存/供应商域与本项目采购缺口同题" },
+    { "repo": "grocy/grocy", "kind": "库存-个人级", "note": "PHP，个人家庭库存，弱网/单管理员场景同构" },
+    { "repo": "opensourcepos/opensourcepos", "kind": "POS-个人级", "note": "PHP POS，单店收银场景同构" }
+  ]
+}

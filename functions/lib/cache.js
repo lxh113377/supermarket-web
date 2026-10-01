@@ -3,6 +3,7 @@
 // KV 瞬时异常/未绑定（本地 mock）时优雅回落直查 DB，与限流降级链同构，不引入新绑定。
 // TTL 由调用方以秒传入；写操作后须 del 对应 key 保证即时失效。
 
+import { logError } from './logger.js'
 export function kvCacheGet(kv, key) {
   if (!kv || typeof kv.get !== 'function') return null
   return kv.get(key)
@@ -15,7 +16,7 @@ export async function kvCacheSet(env, key, value, ttlSeconds) {
     await kv.put(key, JSON.stringify(value), { expirationTtl: Math.max(1, ttlSeconds) })
   } catch (e) {
     // 缓存写失败不影响主链路（降级为直查 DB）
-    console.error('[cache] put failed:', key, e)
+    logError('cache', 'KV 写缓存失败（降级直查 DB）', { key, err: e })
   }
 }
 
@@ -38,7 +39,7 @@ export async function kvCacheDel(env, key) {
   try {
     await kv.delete(key)
   } catch (e) {
-    console.error('[cache] delete failed:', key, e)
+    logError('cache', 'KV 失效缓存失败', { key, err: e })
   }
 }
 

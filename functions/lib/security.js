@@ -1,6 +1,7 @@
 // 安全设施层（从 backend.js 拆出，逻辑零改动）：
 // 限流（KV→D1 降级链）、真实 IP、审计、图片/UGC 校验、鉴权角色、CORS 白名单
 
+import { logError } from './logger.js'
 import { qFirst, qRun, nowISO } from './db.js'
 import { fail } from './errors.js'
 
@@ -66,7 +67,7 @@ async function checkRate(DB, kv, key, windowMs, max) {
       return await checkRateKV(kv, key, windowMs, max)
     } catch (e) {
       // KV 限流失败（偶发瞬时异常）时优雅回退 D1，避免 1101 影响业务可用性
-      console.error('[rate] KV 限流失败，回退 D1:', e)
+      logError('rate', 'KV 限流失败，回退 D1', { err: e })
       return checkRateDB(DB, key, windowMs, max)
     }
   }
@@ -118,11 +119,11 @@ async function logSecurityEvent(DB, { ip = '', action = '', result = '', keyFing
       try {
         await qRun(DB, `DELETE FROM security_events WHERE ts < datetime('now', '-90 days')`)
       } catch (e2) {
-        console.error('[audit] prune old security_events failed:', e2)
+        logError('audit', '清理旧 security_events 失败', { err: e2 })
       }
     }
   } catch (e) {
-    console.error('[audit] logSecurityEvent failed:', e)
+    logError('audit', 'logSecurityEvent 失败', { err: e })
   }
 }
 

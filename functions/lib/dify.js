@@ -12,6 +12,7 @@
 //   - 未配置 → 全站自动规则版，功能不缺失
 
 // ── 统一失败标记（F7/F38）──
+import { logError } from './logger.js'
 export const DIFY_ERROR_PREFIX = '[DIFY_ERROR]'
 export const DIFY_UNAVAILABLE_TEXT = 'AI 服务暂不可用，已切换为演示模式，请稍后重试。'
 
@@ -22,7 +23,7 @@ export function isDifyError(text) {
 
 // 失败出口：服务端记日志（含场景，方便排障），对上层只返回脱敏标记串
 export function failMarker(scene) {
-  console.error(`[dify] 调用失败 scene=${scene}`)
+  logError('dify', '调用失败', { scene })
   return `${DIFY_ERROR_PREFIX} ${DIFY_UNAVAILABLE_TEXT}`
 }
 
@@ -109,7 +110,7 @@ export async function callDifyChat(env, query, user, conversationId = null) {
     return { source: 'dify', content: data.answer || '', conversationId: data.conversation_id || conversationId }
   } catch (err) {
     breaker.onFailure()
-    console.error(`[dify] chat scene=chat-${err?.name || 'err'}`, err)
+    logError('dify', 'chat 调用异常', { scene: `chat-${err?.name || 'err'}`, err })
     return { source: 'dify-error', content: failMarker('chat-exception'), conversationId }
   } finally {
     clearTimeout(timer)
@@ -148,7 +149,7 @@ export async function callDifyCompletion(env, prompt, user) {
     return { source: 'dify', content: data.answer || '' }
   } catch (err) {
     breaker.onFailure()
-    console.error(`[dify] completion scene=completion-${err?.name || 'err'}`, err)
+    logError('dify', 'completion 调用异常', { scene: `completion-${err?.name || 'err'}`, err })
     return { source: 'dify-error', content: failMarker('completion-exception') }
   } finally {
     clearTimeout(timer)

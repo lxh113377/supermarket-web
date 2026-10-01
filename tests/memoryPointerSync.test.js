@@ -32,6 +32,13 @@ describe('中文轮次解析（读不懂必须返回空，不得当 0）', () =>
     expect(roundsOf('## 2026-09-27 — 对标第三十~三十五轮（工作区级指针）')).toEqual([30, 35])
     expect(roundsOf('## 对标第三十二轮')).toEqual([32])
   })
+  it('第五十九轮反例：标题不带"对标"二字也必须入面（58/59 两轮就是这样整段躲过这条闸的）', () => {
+    expect(roundsOf('## 2026-10-01 — 第五十八轮续（R58-H1 落地：跨日采样 t1910）')).toEqual([58])
+    expect(roundsOf('## 2026-10-01 — 第五十九轮（对侧「维护状态」转引改实测）')).toEqual([59])
+    // 两种写法同时存在时都要收到，且不得因前缀可选而把"本轮/末轮"这类词读成轮次
+    expect(roundsOf('第五十七轮正文已迁至 part115')).toEqual([57])
+    expect(roundsOf('本轮 末轮 下一轮')).toEqual([])
+  })
   it('解析不了 ⇒ 空数组，不是 [0]', () => {
     expect(roundsOf('## 随便一行没有轮次')).toEqual([])
     expect(roundsOf('## 对标第X轮')).toEqual([])

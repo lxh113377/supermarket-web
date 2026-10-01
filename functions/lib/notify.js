@@ -12,6 +12,7 @@
 const WEBHOOK_TIMEOUT_MS = 4000
 
 /** 取有效投递地址；任何"不可用"形态统一返回 null，调用方据此 no-op，永不抛错。 */
+import { logError, logWarn } from './logger.js'
 export function webhookTarget(env) {
   const raw = typeof env?.ORDER_WEBHOOK_URL === 'string' ? env.ORDER_WEBHOOK_URL.trim() : ''
   if (!raw) return null
@@ -84,7 +85,7 @@ export function notifyNewOrder(order, env, waitUntil) {
     const task = deliverNewOrder(env, order).then((r) => {
       if (!r.delivered && r.reason !== 'not_configured') {
         // 只记结论，不记载荷：订单数据不进日志
-        console.warn(`[notify] 新订单通知未送达 order=${order?.id} reason=${r.reason}`)
+        logWarn('notify', '新订单通知未送达', { orderId: order?.id, reason: r.reason })
       }
       return r
     })
@@ -94,7 +95,7 @@ export function notifyNewOrder(order, env, waitUntil) {
     }
     return { scheduled: true, reason: 'detached' }
   } catch (e) {
-    console.error('[notify] 通知调度异常（已吞，不影响下单）:', e instanceof Error ? e.message : String(e))
+    logError('notify', '通知调度异常（已吞，不影响下单）', { err: e })
     return { scheduled: false, reason: 'schedule_failed' }
   }
 }

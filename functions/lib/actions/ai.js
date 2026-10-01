@@ -3,6 +3,7 @@
 // 2026-09-18 双向迭代 R4：两个场景的全部分支（rule / dify / dify-error）统一留痕，
 // 留痕失败不影响返回（见 ai_trace.js）。
 
+import { logError } from '../logger.js'
 import { qAll, jparse } from '../db.js'
 import { fail } from '../errors.js'
 import {
@@ -61,7 +62,7 @@ export async function adminAiAdvice(env, DB) {
     })
     return { code: 0, data: r }
   } catch (e) {
-    console.error('[aiAdvice]', e)
+    logError('aiAdvice', 'AI 建议生成失败', { err: e })
     await traceAiCall(DB, { scene, source: 'dify-error', ok: false, fallback: true, latencyMs: 0 })
     return { code: 0, data: { source: 'dify-error', content: DIFY_UNAVAILABLE_TEXT } }
   }
@@ -90,7 +91,7 @@ export async function pubAiChat(env, DB, payload, ip) {
     })
     return { code: 0, data: r }
   } catch (e) {
-    console.error('[aiChat]', e)
+    logError('aiChat', 'AI 对话失败', { err: e })
     await traceAiCall(DB, { scene, source: 'dify-error', ok: false, fallback: true, latencyMs: 0 })
     return { code: 0, data: { source: 'dify-error', content: DIFY_UNAVAILABLE_TEXT, conversationId } }
   }
