@@ -106,7 +106,10 @@ describe('logger：trace 取自边缘节点而不是自己编', () => {
  */
 describe('logger：trace 不接受请求方决定的长度与字符', () => {
   it('cf-ray 真实形态逐字通过 —— 收口不许把正常线索改坏', () => {
-    // 形态取自本轮实测 `curl -I https://supermarket-web.pages.dev/_health` → `CF-RAY: a43d3ddddcb3d908-LAX`
+    // 形态取自实测 `curl -I https://supermarket-web.pages.dev/_health` → `CF-RAY: a43d3ddddcb3d908-LAX`。
+    // 注：**Worker 侧收到的 cf-ray 不含机房后缀**（第六十轮线上实测：响应头 `-LAX`、同一请求体里
+    // trace 只有 16 字，而本地 sanitizeTrace('...-LAX') 原样保留 ⇒ 截断不发生在白名单）——
+    // 本条按**带后缀**的形态钉，是因为白名单必须对两种形态都放行，不是断言 Worker 一定看得到后缀。
     expect(traceIdOf(req({ 'cf-ray': 'a43d3ddddcb3d908-LAX' }))).toBe('a43d3ddddcb3d908-LAX')
   })
   it('超长头截到 64 字（本文件里 trace 与 300 字同族，但要的是标识不是正文）', () => {
