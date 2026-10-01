@@ -8,7 +8,7 @@ import { IconEmpty } from './Icons'
 import { formatPrice, formatYuan } from '../utils/format'
 import { splitOrderSpec } from '../utils/spec-options'
 import { orderStatusLabel, nextOrderStatuses, ORDER_STATUS_LABELS } from '../utils/orderStatus'
-import type { Order } from '../types'
+import type { Order, PromotionTier } from '../types'
 
 export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
   orders: Order[]
@@ -31,6 +31,24 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
   const [staleOpen, setStaleOpen] = useState(false)
   const [staleLoading, setStaleLoading] = useState(false)
 
+  // 满减档位只读视图（M-58-3 getPromotions）：档位定义 + 每档命中统计；纯展示无写入口。
+  // 只读密钥被拒/老库缺表⇒静默不展示（与 stale 面板同口径，不打断订单主操作）。
+  const [promos, setPromos] = useState<PromotionTier[] | null>(null)
+  const [promosOpen, setPromosOpen] = useState(false)
+  const [promosLoading, setPromosLoading] = useState(false)
+
+  const loadPromos = async () => {
+    setPromosLoading(true)
+    try {
+      const r = await adminCall<PromotionTier[]>('getPromotions', {})
+      setPromos(r.code === 0 && Array.isArray(r.data) ? r.data : null)
+    } catch {
+      setPromos(null)
+    } finally {
+      setPromosLoading(false)
+    }
+  }
+
   const loadStale = async () => {
     setStaleLoading(true)
     try {
@@ -43,7 +61,7 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
     }
   }
   useEffect(() => {
-    if (!loading && orders.length) void loadStale()
+    if (!loading && orders.length) { void loadStale(); void loadPromos() }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading])
 
@@ -198,6 +216,43 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
       </div>
       {notice && (
         <p role="status" aria-live="polite" className="text-xs text-gray-600 bg-brand-50 border border-brand-100 rounded-lg px-3 py-2">{notice}</p>
+      )}
+      {promos !== null && (
+        <div className="bg-emerald-50 border border-emerald-200/80 rounded-lg px-3 py-2">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <button
+              onClick={() => setPromosOpen(!promosOpen)}
+              aria-expanded={promosOpen}
+              className="text-xs text-emerald-800 font-medium underline-offset-2 hover:underline text-left"
+            >
+              {promosOpen ? '收起' : '展开'}满减档位 {promos.length} 档（启用 {promos.filter(p => p.enabled).length}）
+              {promos.length > 0 && ` · 累计命中 ${promos.reduce((s, p) => s + (p.hits?.orders ?? 0), 0)} 单`}
+            </button>
+            <button onClick={() => void loadPromos()} disabled={promosLoading} className="text-xs text-emerald-700 px-2 py-1 rounded border border-emerald-200 disabled:opacity-50">
+              {promosLoading ? '刷新中' : '刷新'}
+            </button>
+          </div>
+          {promosOpen && (
+            <div className="mt-2 space-y-1.5">
+              {promos.length === 0 && (
+                <p className="text-[11px] text-emerald-700">暂无满减档位（后端未配置或迁移未执行）</p>
+              )}
+              {promos.map((p) => (
+                <div key={p._id} className="flex items-center justify-between gap-2 bg-white/70 rounded px-2 py-1.5">
+                  <span className="text-xs text-gray-700 truncate min-w-0">
+                    满{formatYuan(p.threshold)}减{formatYuan(p.discount)}{p.name ? ` · ${p.name}` : ''}
+                  </span>
+                  <span className="text-[11px] text-gray-500 shrink-0">
+                    命中 {p.hits?.orders ?? 0} 单{Number(p.hits?.totalDiscount) > 0 && ` · 已让利 ${formatYuan(p.hits.totalDiscount)}`}
+                    <span className={`ml-1.5 px-1 py-px rounded ${p.enabled ? 'text-green-700 bg-green-100' : 'text-gray-500 bg-gray-100'}`}>
+                      {p.enabled ? '启用中' : '已停用'}
+                    </span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
       {stale && stale.count > 0 && (
         <div className="bg-amber-50 border border-amber-200/80 rounded-lg px-3 py-2">

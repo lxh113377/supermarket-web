@@ -668,6 +668,45 @@
         "x-write": false
       }
     },
+    "/web::getPromotions": {
+      "post": {
+        "operationId": "admin_getPromotions",
+        "summary": "/web action=getPromotions",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "getPromotions"
+                    ]
+                  },
+                  "adminKey": {
+                    "type": "string",
+                    "description": "管理密钥（/pub 不需要）"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{code,message,data} 纵深防御包；失败带 errorCode+kind（见 docs/error-codes.md）"
+          }
+        },
+        "x-write": false
+      }
+    },
     "/web::getPublicProducts": {
       "post": {
         "operationId": "admin_getPublicProducts",

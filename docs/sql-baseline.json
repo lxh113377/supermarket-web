@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-29T16:45:51.675Z",
+  "updatedAt": "2026-10-01T04:58:57.088Z",
   "peakStatements": {
     "P:getPublicCategories": 1,
     "P:getPublicProducts": 1,
@@ -16,6 +16,7 @@
     "A:updateProduct": 4,
     "A:stalePendingReport": 2,
     "P:stalePendingReport": 0,
+    "amortized:audit-retention-purge": 5,
     "A:seedReviews": 22,
     "A:getAllReviews": 1,
     "P:addPublicReview": 3,
@@ -30,6 +31,7 @@
     "A:recalculateOrders": 2,
     "P:getProducts": 0,
     "A:login": 3,
+    "A:getPromotions": 2,
     "A:aiAdvice": 6,
     "A:noSuchAction": 0,
     "A:verifyKey": 0,
@@ -44,7 +46,6 @@
     "P:aiChat": 3,
     "A:getSubmissionImages": 1,
     "A:adjustStock": 4,
-    "amortized:audit-retention-purge": 2,
     "A:getStockMovements": 2,
     "P:getCatalogOrders": 1
   },

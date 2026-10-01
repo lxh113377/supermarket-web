@@ -40,7 +40,7 @@ describe('OrderSuccessPage', () => {
   it('去支付带上订单号与金额；继续选购回首页', () => {
     render(<OrderSuccessPage />)
     fireEvent.click(screen.getByRole('button', { name: '去支付' }))
-    expect(m.navigate).toHaveBeenCalledWith('/payment', { state: { orderId: 'o_abc', totalAmount: 12.5 } })
+    expect(m.navigate).toHaveBeenCalledWith('/payment', { state: { orderId: 'o_abc', totalAmount: 12.5, discountAmount: 0 } })
     fireEvent.click(screen.getByRole('button', { name: '继续选购' }))
     expect(m.navigate).toHaveBeenCalledWith('/')
   })

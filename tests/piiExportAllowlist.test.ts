@@ -20,7 +20,7 @@ const CSV_LIB = readFileSync('src/utils/csv.ts', 'utf8').replace(/\r\n/g, '\n')
  * 允许出现在**对外文件**（CSV 下载、剪贴板）里的列。
  * 加一列的唯一正当路径：先确认它不是个人数据，再把名字写进这里并说明理由。
  */
-const EXPORT_HEADER_ALLOWLIST = ['房间号', '商品', '口味', '数量', '单价', '小计', '状态', '时间']
+const EXPORT_HEADER_ALLOWLIST = ['房间号', '商品', '口味', '数量', '单价', '小计', '优惠', '状态', '时间']
 
 /** 任何情况下都不许离开数据库的列（个人数据 / 支付凭证）。 */
 const NEVER_EXPORT = ['wechat', 'paymentScreenshot', '微信号', '截图', 'adminKey', 'idempotencyKey']

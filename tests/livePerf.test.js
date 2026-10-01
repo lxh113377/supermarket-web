@@ -41,8 +41,9 @@ const roster = (pages) => JSON.stringify({ pages })
  * ① 合成面驱动每条腿（缺 FCP / runtimeError / 样本不足 / 混视口 / 野标签 / 下界为 0）；
  * ② 真面两态都必须"说真话"：本机有样本 ⇒ 印分布；CI 干净检出没有 `.lighthouse/` ⇒ **必须 rc=2**
  *    而不是印一句"没数据"就走绿。断言按磁盘实况选期望档，两档都不许落进"沉默的 0"。
- * ③ 这一维**没有阈值**（docs/live-perf.json 的 `thresholds: null`），所以本文件也断言它没有：
- *    判据不许输出「达标/不达标」字样——那是把没立过的线当成测量结果。
+ * ③ 这一维**已有阈值**（R58-H1 立线：docs/live-perf.json 的 `thresholds` 非空，取值法见 thresholdNote）：
+ *    判据仍不输出「达标/不达标」——它只转述"线在哪"（lineSet），达标判断不在本判据内；
+ *    本文件锁住阈值的形状与取值（防偷改线），立线前提（两侧跨日）由判据 BUDGET 段自己算。
  * ④ R56 新增的两条都必须**成对**测：「同日两批不许当跨日」与「把日期挪开就得翻成条件成立」。
  *    只测拒侧的判据会让"立线"这件事对唯一受众永久不可达而全绿（户内「判据要双向」）。
  */
@@ -192,9 +193,30 @@ describe('现网性能读数腿：按 页面×批次 分组，判产物面与立
     expect(r.stdout).toContain('GROUP admin/d2')
   })
 
-  it('名册与判据同向：thresholds 仍是 null 且 cadence 已声明（有人偷偷写线要在这里现形）', () => {
+  it('名册与判据同向：thresholds 已立线（R58-H1 两侧具备）＋ 取值法可审计 ＋ cadence 已声明', () => {
     const rosterReal = JSON.parse(readFileSync(join(REPO, 'docs', 'live-perf.json'), 'utf8'))
-    expect(rosterReal.thresholds, '本轮仍未取得两侧边界分布 ⇒ 名册里不得出现阈值').toBeNull()
+    // 立线前提：判据 BUDGET 段已印两侧成立（2026-09-29 vs 2026-09-30，差 1 天），本断言只锁"写了线"这一事实
+    expect(rosterReal.thresholds, '两侧分布已具备 ⇒ 名册里必须有阈值（裸 null 会让 verdict 永远停在"未立"）').not.toBeNull()
+    const keys = Object.keys(rosterReal.thresholds).sort()
+    expect(keys).toEqual([
+      'cumulative-layout-shift',
+      'first-contentful-paint',
+      'largest-contentful-paint',
+      'server-response-time',
+      'speed-index',
+      'total-blocking-time',
+    ])
+    for (const k of keys) {
+      const max = rosterReal.thresholds[k]?.max
+      expect(Number.isFinite(max) && max > 0, `阈值 ${k}.max 必须是正数`).toBe(true)
+    }
+    // 取值法审计：历史批次中位数最大值 × 余量（TBT 跨日 100% 取 ×2，其余 ×1.5）向上取整后的值
+    expect(rosterReal.thresholds['first-contentful-paint'].max).toBe(3000)
+    expect(rosterReal.thresholds['largest-contentful-paint'].max).toBe(4500)
+    expect(rosterReal.thresholds['cumulative-layout-shift'].max).toBe(0.1)
+    expect(rosterReal.thresholds['total-blocking-time'].max).toBe(450)
+    expect(rosterReal.thresholds['speed-index'].max).toBe(7000)
+    expect(rosterReal.thresholds['server-response-time'].max).toBe(450)
     expect(Number(rosterReal.cadence?.maxBatchAgeDays), '取数节奏没声明 ⇒ 时效腿永不可达').toBeGreaterThan(0)
     expect(rosterReal.sampling.command).toBe('npm run collect:live-perf')
     const r = cli(['--selftest'])
