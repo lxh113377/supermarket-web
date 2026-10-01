@@ -3,6 +3,7 @@
  * 用 node:sqlite 真库 + schema.sql（非 stub）：不断言 stub 行为，只断言落库事实。
  * 口径：默认种子关闭⇒零优惠（老行为）；启用后按小计自动选最优档；recalculate 保持折后价。
  */
+// @vitest-environment node
 import { describe, it, expect } from 'vitest'
 import { DatabaseSync } from 'node:sqlite'
 import { readFileSync } from 'node:fs'

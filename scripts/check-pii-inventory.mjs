@@ -44,8 +44,12 @@ export function parseExportAllowlist(ts) {
 export const EXPORT_TABLE = 'orders'
 export const HEADER_TO_COLUMN = {
   房间号: 'roomNumber', 商品: 'items', 口味: 'items', 数量: 'items',
-  单价: 'items', 小计: 'items', 状态: 'status', 时间: 'createdAt',
+  单价: 'items', 小计: 'items', 优惠: 'discountAmount', 状态: 'status', 时间: 'createdAt',
 }
+// 注：`优惠` 是 orders 范围外的唯一例外 —— 值来自 order_discounts.discountAmount（H-58-1 起
+// getOrders 经 LEFT JOIN 带出，见 actions/orders.js:422）。放行的理由：列名全局唯一（无跨表
+// 碰撞，`时间` 那种误判不会发生），且 P7 只核对"标是⊆表头 / 标否不在表头 / 表头皆有映射"三条，
+// 不核对归属表 == orders。再有第二例外时必须把映射改成 表.列 二元组，而不是继续加单键。
 
 /** 分母 = db/ 下**全部** .sql 的 CREATE TABLE。只读 schema.sql 会漏掉迁移里建的 ai_trace（第十三轮"契约外文件隐形"同族坑）。 */
 export function parseSchemaTables(sqlTexts) {

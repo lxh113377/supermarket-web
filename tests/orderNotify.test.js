@@ -7,7 +7,8 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   webhookTarget, newOrderWebhookBody, deliverNewOrder, maybeNotifyNewOrder,
 } from '../functions/lib/notify.js'
-import { handlePublic } from '../functions/lib/backend.js'
+import { emit, drainEvents, ORDER_CREATED } from '../functions/lib/events.js'
+import { handlePublic, handleAdmin } from '../functions/lib/backend.js'
 import { fakeDb, fakeKv } from './helpers/fakeDb'
 
 const ok200 = { status: 200 }
@@ -124,8 +125,7 @@ describe('maybeNotifyNewOrder：三个"不该通知"的出口 + 一个该通知�
   })
 })
 
-describe('主链路不变量：端点挂了也不影响下单（真跑 handlePublic）', () => {
-  afterEach(() => { delete globalThis.__unhandled })
+describe('主链路不变量：端点挂了也不影响下单（真跑 handlePublic）', () => {  afterEach(() => { delete globalThis.__unhandled })
 
   const envWith = (webhook) => {
     const products = [{ _id: 'p_n', name: '通知测试汽水', spec: '500ml', price: 3, enabled: 1, subcategories: [], stock: 9 }]
@@ -154,5 +154,69 @@ describe('主链路不变量：端点挂了也不影响下单（真跑 handlePub
     const r = await handlePublic(envWith(null), 'createOrder', payload, null, null)
     expect(r.code).toBe(0)
     expect(globalThis.fetch).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * M-58-2 事件化（ADR-0006 第 2 步）：emit 纯函数 + 共享适配器接线。
+ * 断言三件事：① 未知类型/无单号拒绝（fail-closed）；② 载荷白名单外一律脱落
+ * （微信号/备注/截图/房间号进了也出不来）；③ 两出口（/pub 与 /web 代客下单）
+ * 走同一适配器 ⇒ 真新单两侧都落一条 order.created，重试/失败一条不落。
+ */
+describe('emit：纯内存队列，白名单载荷，未知类型与无单号拒绝', () => {
+  it('已知类型 + 有单号 ⇒ 入列；未知类型 / 无单号 ⇒ 拒绝且队列不变', () => {
+    drainEvents()
+    const ok = emit(ORDER_CREATED, { orderId: 'o_e1', status: 'pending', totalAmount: 20, discountAmount: 5 })
+    expect(ok.emitted).toBe(true)
+    expect(emit('order.bogus', { orderId: 'o_e1' })).toEqual({ emitted: false, reason: 'unknown_event' })
+    expect(emit(ORDER_CREATED, { status: 'pending' })).toEqual({ emitted: false, reason: 'no_order' })
+    expect(drainEvents()).toHaveLength(1)
+    expect(drainEvents()).toHaveLength(0)
+  })
+  it('白名单外字段一律脱落：微信号/备注/截图/房间号进队列前被剥掉', () => {
+    drainEvents()
+    emit(ORDER_CREATED, {
+      orderId: 'o_e2', totalAmount: 30,
+      wechat: 'wx_secret', remark: '放门口', paymentScreenshot: 'data:image/png;base64,AAAA',
+      roomNumber: '36栋-501', adminKey: 'k',
+    })
+    const [rec] = drainEvents()
+    expect(Object.keys(rec).sort()).toEqual(['at', 'discountAmount', 'orderId', 'status', 'totalAmount', 'type'].sort())
+    const json = JSON.stringify(rec)
+    for (const leak of ['wx_secret', '放门口', 'base64', '36栋-501', 'adminKey']) {
+      expect(json).not.toContain(leak)
+    }
+  })
+})
+
+describe('适配器接线：真新单落事件，重试与失败不落；/pub 与 /web 两出口同行为', () => {
+  const envNoHook = () => ({ DB: fakeDb({ products: [{ _id: 'p_n', name: '汽水', spec: '', price: 3, enabled: 1, subcategories: [], stock: 9 }] }), RATE_KV: fakeKv(), ADMIN_KEY: 'k', ADMIN_READONLY_KEY: 'r' })
+
+  it('/pub 真新单 ⇒ 队列里多一条 order.created（金额透传，无敏感字段）', async () => {
+    drainEvents()
+    const r = await handlePublic(envNoHook(), 'createOrder',
+      { roomNumber: 'E505', items: [{ productId: 'p_n', quantity: 1 }] }, null, null)
+    expect(r.code).toBe(0)
+    const evts = drainEvents()
+    expect(evts).toHaveLength(1)
+    expect(evts[0].type).toBe('order.created')
+    expect(evts[0].orderId).toBe(r.data.id)
+    expect(JSON.stringify(evts[0])).not.toContain('E505')
+  })
+  it('/web 代客下单同样落一条 order.created（两出口共用同一适配器）', async () => {
+    drainEvents()
+    const r = await handleAdmin(envNoHook(), 'createOrder', 'k',
+      { roomNumber: 'E506', items: [{ productId: 'p_n', quantity: 1 }] })
+    expect(r.code).toBe(0)
+    const evts = drainEvents()
+    expect(evts).toHaveLength(1)
+    expect(evts[0]).toMatchObject({ type: 'order.created', orderId: r.data.id, status: 'pending' })
+  })
+  it('幂等重试与失败 ⇒ 不落事件（与"不重复提醒"同条件，适配器层直测）', () => {
+    drainEvents()
+    expect(maybeNotifyNewOrder({}, { code: 0, data: { id: 'o_d', deduplicated: true } }, {}, null))
+      .toEqual({ scheduled: false, reason: 'not_a_new_order' })
+    expect(maybeNotifyNewOrder({}, { code: -1, message: '库存不足' }, {}, null).scheduled).toBe(false)
+    expect(drainEvents()).toHaveLength(0)
   })
 })

@@ -54,8 +54,8 @@ describe('OrdersTab 超时订单面板', () => {
     expect(await screen.findByText(/已传付款截图/)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '取消并释放库存' }))
     await waitFor(() => expect(mocks.updateOrderStatus).toHaveBeenCalledWith('o_stale1', 'cancelled'))
-    // 取消成功后重拉报表（初始 1 次 + 取消后 1 次）
-    await waitFor(() => expect(mocks.adminCall).toHaveBeenCalledTimes(2))
+    // 取消成功后重拉报表（初始 stale 1 次 + 档位 1 次 + 取消后 stale 1 次 = 3；M-58-3 起 mount 多一次 getPromotions）
+    await waitFor(() => expect(mocks.adminCall).toHaveBeenCalledTimes(3))
     expect(await screen.findByText('超时订单已取消并释放占用库存')).toBeTruthy()
   })
 

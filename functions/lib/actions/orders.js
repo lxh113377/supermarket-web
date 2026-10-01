@@ -125,6 +125,31 @@ export async function bestPromotion(DB, subtotal) {
   }
 }
 
+// 管理端促销档位只读视图（M-58-3：档位定义 + 每档命中统计；纯读，不进 DASHBOARD_WRITE_ACTIONS）。
+// 防御式：缺表老库⇒空档位零命中（页面展示"未配置满减"，不抛错，与旧版一致）。
+export async function getPromotions(DB) {
+  try {
+    const tiers = await qAll(DB,
+      `SELECT _id, name, threshold, discount, enabled, updatedAt FROM promotions ORDER BY threshold ASC`)
+    let hits = []
+    try {
+      hits = await qAll(DB,
+        `SELECT promotionId, COUNT(*) AS orders, COALESCE(SUM(discountAmount), 0) AS totalDiscount FROM order_discounts GROUP BY promotionId`)
+    } catch { hits = [] }
+    const byId = new Map(hits.map((h) => [h.promotionId, { orders: Number(h.orders) || 0, totalDiscount: Number(h.totalDiscount) || 0 }]))
+    return {
+      code: 0,
+      data: tiers.map((t) => ({
+        _id: t._id, name: t.name || '', threshold: Number(t.threshold) || 0,
+        discount: Number(t.discount) || 0, enabled: Number(t.enabled) === 1, updatedAt: t.updatedAt || '',
+        hits: byId.get(t._id) || { orders: 0, totalDiscount: 0 },
+      })),
+    }
+  } catch {
+    return { code: 0, data: [] }
+  }
+}
+
 // 订单优惠明细读取（order_discounts 新表轨；老库缺表⇒零优惠，与旧版一致）。
 export async function getDiscount(DB, orderId) {
   try {
