@@ -1072,6 +1072,26 @@
         "retryable"
       ]
     },
+    "/web getPromotions": {
+      "side": "/web",
+      "action": "getPromotions",
+      "calls": 2,
+      "dataKinds": [
+        "array"
+      ],
+      "envelopeAlways": [
+        "code",
+        "data"
+      ],
+      "envelopeSeen": [
+        "code",
+        "data"
+      ],
+      "keysAlways": [],
+      "keysSeen": [],
+      "errEnvelopeAlways": [],
+      "errEnvelopeSeen": []
+    },
     "/web getPublicCategories": {
       "side": "/web",
       "action": "getPublicCategories",

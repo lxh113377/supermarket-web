@@ -513,6 +513,16 @@ ok(roSeed.code === -1 && /只读/.test(roSeed.message || ''), '只读密钥种�
 const roRead = await handleAdmin(roEnv, 'getProducts', 'ro-key-456', {})
 ok(roRead.code === 0, '只读密钥读商品列表放行（读权限不受影响）')
 
+// ---------- 促销档位只读视图（M-58-3 getPromotions：档位定义 + 每档命中统计；纯读）----------
+const promos = await handleAdmin(env, 'getPromotions', 'test-key-123', {})
+ok(promos.code === 0 && Array.isArray(promos.data), 'getPromotions 返回档位数组（缺表老库回空数组，不抛错）')
+ok(promos.data.every((t) => typeof t._id === 'string' && typeof t.threshold === 'number'
+  && typeof t.discount === 'number' && typeof t.enabled === 'boolean'
+  && t.hits && typeof t.hits.orders === 'number' && typeof t.hits.totalDiscount === 'number'),
+  '档位行含定义（_id/threshold/discount/enabled）+ 命中统计（hits.orders/totalDiscount）')
+const promosRo = await handleAdmin(roEnv, 'getPromotions', 'ro-key-456', {})
+ok(promosRo.code === 0, '只读密钥可读促销档位（ADMIN_READ_ACTIONS 已登记，B8 穷举侧）')
+
 // ---------- 新修复：aiAdvice 独立限流（2026-09-23 P2 补齐）----------
 // 该 action 触发全量查询 + Dify 推理，原先无独立限流。RATE_AI_ADVICE = 60s / 10 次；
 // 第 11 次起应被拒。分桶 rate:aiadv:*，与公开 aiChat 的 rate:ai:* 互不影响。

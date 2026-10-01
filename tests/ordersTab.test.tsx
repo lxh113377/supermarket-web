@@ -304,3 +304,47 @@ describe('满减优惠（P2 后端已落地，管理端此前不可见）', () =
     vi.useRealTimers()
   })
 })
+
+describe('促销档位只读视图（M-58-3 getPromotions）', () => {
+  const tiers = [
+    { _id: 'p1', name: '开业满减', threshold: 50, discount: 5, enabled: true, updatedAt: 't', hits: { orders: 3, totalDiscount: 12 } },
+    { _id: 'p2', name: '大促', threshold: 100, discount: 15, enabled: false, updatedAt: 't', hits: { orders: 0, totalDiscount: 0 } },
+  ]
+  const mockPromos = (data: unknown) => {
+    m.adminCall.mockImplementation((action: string, _p: unknown) =>
+      action === 'getPromotions'
+        ? Promise.resolve({ code: 0, data })
+        : Promise.resolve({ code: 0, data: { thresholdMinutes: 60, count: 0, orders: [], stockReserved: [] } }))
+  }
+
+  it('有档位：汇总条展示档数/启用数/命中单数，展开后逐档可见定义与命中', async () => {
+    mockPromos(tiers)
+    setup()
+    await waitFor(() => expect(m.adminCall).toHaveBeenCalledWith('getPromotions', {}))
+    expect(screen.getByText(/满减档位 2 档/)).toBeTruthy()
+    fireEvent.click(screen.getByText(/满减档位 2 档/))
+    expect(screen.getByText(/满.*50.*减.*5/)).toBeTruthy()
+    expect(screen.getByText(/命中 3 单 · 已让利/)).toBeTruthy()
+    expect(screen.getByText('启用中')).toBeTruthy()
+    expect(screen.getByText('已停用')).toBeTruthy()
+  })
+
+  it('空档位：展示"暂无满减档位"，不展示汇总数字', async () => {
+    mockPromos([])
+    setup()
+    await waitFor(() => expect(m.adminCall).toHaveBeenCalledWith('getPromotions', {}))
+    fireEvent.click(screen.getByText(/满减档位 0 档/))
+    expect(screen.getByText(/暂无满减档位/)).toBeTruthy()
+  })
+
+  it('接口异常/只读被拒：静默不展示面板，不打断订单主操作', async () => {
+    m.adminCall.mockImplementation((action: string, _p: unknown) =>
+      action === 'getPromotions'
+        ? Promise.reject(new Error('403'))
+        : Promise.resolve({ code: 0, data: { thresholdMinutes: 60, count: 0, orders: [], stockReserved: [] } }))
+    setup()
+    await waitFor(() => expect(m.adminCall).toHaveBeenCalledWith('getPromotions', {}))
+    expect(screen.queryByText(/满减档位/)).toBeNull()
+    expect(screen.getByText(/36栋-101/)).toBeTruthy()
+  })
+})

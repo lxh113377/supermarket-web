@@ -4,6 +4,20 @@
 
 ## [未发布]
 
+### 2026-10-01 追加七十五（M-58-3 促销档位只读视图 + R58-H1 收尾随动）
+
+- **做了什么**：①新增只读 action `getPromotions`（档位定义 + 每档命中统计，缺表老库回空数组；
+  已进 `ADMIN_READ_ACTIONS`，不进 `DASHBOARD_WRITE_ACTIONS`）；`OrdersTab` 顶部内联档位条带
+  （档数/启用数/累计命中 + 逐档定义与命中明细，无弹窗）；②R58-H1 收尾随动：`docs/live-perf.json`
+  thresholds 立线（BUDGET 两侧成立）、满减两表 PII 登记（`order_discounts` 覆盖 + `promotions` 豁免 +
+  缺口第 5 条：`deleteOrder` 不联删致孤儿行）、`gen-openapi.mjs` 接探针并收成 fail-closed、
+  58 轮欠的期望数字追平（authz 业务 7→8/路由 33→34、单测文件数口径、allowlist「优惠」列）。
+- **为什么**：满减后端落地后管理端缺档位视角（此前只能逐单看徽标）；58 轮新端点/新表/新列的
+  登记与测试期望当时没跟上（定向单测掩盖，全量才暴露）。
+- **验证证据**：`npm run verify` 全绿（`verify:backend` 188/188，SQL 峰值 `A:getPromotions=2` 实测入册；
+  `verify:contract` 48/48；`verify:response` 6/6；`verify:authz` 10/10；`verify:entrypoints` 14/14）；
+  vitest 1641/1641；oxlint 0 warn；`tsc --noEmit` 0 错。未部署（上线待用户拍板）。
+
 ### 2026-09-30 追加七十四（对标第五十八轮：管理端满减可见 + E7/E8 落地收尾）
 
 - **做了什么**：①管理端 `OrdersTab` 补满减可见：行内金额旁"已优惠"徽标（无优惠单不渲染）、
