@@ -24,7 +24,8 @@
 - CI 回执：`ci-status` 120s 超时 + `gh run list` 无返回（GitHub 直连受限，与 58 轮 §9 同因）→ UNVERIFIED，不得写 CI 全绿；双仓 HEAD == 远端。
 - 下一轮 P0（2026-10-01 04:30 实测改写；R58-H1 三项已关闭：thresholds 对方 03:22 已立线且 CI 绿；
 CI 回执已回读 run36771213155/36771646776 双全绿；生产部署 CI deploy success 已自动发出 20:07Z）：
-① **D1 线上迁移 promotions 表**（备份→`migrate.mjs apply --remote`→复核）【重大：动线上生产，需用户拍板后按 chaoshi-web-deploy §4 执行】；
+① **D1 线上迁移 promotions 表**——已验证无需执行：`migrate.mjs status --remote` 显示 10/10 DONE（`migrate-promotions.sql` 应用于 09-30 18:02），
+远端实查 `promotions`/`order_discounts` 表在且默认档位 1 行；零待应用，故未跑 apply（最小生产接触）。
 ② 接手先判树归属（在途 5 文件：orders.js/backend.js/verify-backend.mjs/OrdersTab.tsx/types.ts，疑似 order_discounts 孤儿联删）；
 ③ 新性能批次到期再采（cadence 7 天，最新 t1910 = 09-30 UTC；github.io 本机 curl 000 系本机不通，非站点结论）。
 ## 更早轮次（第五十四轮及以前）的指针
