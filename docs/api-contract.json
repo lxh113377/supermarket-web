@@ -90,6 +90,11 @@
           "cacheKey": null,
           "rateBucket": null
         },
+        "getPromotions": {
+          "write": false,
+          "cacheKey": null,
+          "rateBucket": null
+        },
         "getPublicProducts": {
           "write": false,
           "cacheKey": "cache:public:products",

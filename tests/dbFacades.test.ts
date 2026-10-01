@@ -77,7 +77,9 @@ describe('db/orders 订单门面', () => {
 
   it('createOrder：云端成功 / 失败降级本地（localFallback 标记）', async () => {
     h.publicCall.mockResolvedValue({ code: 0, data: { id: 'o_1', deduplicated: false } })
-    expect(await createOrder({ roomNumber: '501', items: [] })).toEqual({ id: 'o_1', deduplicated: false })
+    // R58-H1：服务端实付价三件套（P2 再续跑①，src/db/orders.ts:45-52）—— mock 缺字段时
+    // totalAmount 回落 undefined（toEqual 视同缺键），discountAmount 归 0，promotionId 归 ''
+    expect(await createOrder({ roomNumber: '501', items: [] })).toEqual({ id: 'o_1', deduplicated: false, discountAmount: 0, promotionId: '' })
     h.publicCall.mockRejectedValue(new Error('offline'))
     const fb = await createOrder({ roomNumber: '502', items: [] })
     expect(fb.localFallback).toBe(true)

@@ -19,7 +19,7 @@ import { checkRate, checkRateKV, getClientIp, sha256Fingerprint, logSecurityEven
 import { getPublicProducts, getPublicCategories, getCatalogOrders, getProducts, createProduct, updateProduct,
   deleteProduct, batchUpdateProducts, batchDeleteProducts } from './actions/products.js'
 import { maybeNotifyNewOrder } from './notify.js'
-import { createOrder, deleteOrder, updateOrderStatus, recalculateOrders, getOrders, getOrderById, getOrderStatus, stalePendingReport } from './actions/orders.js'
+import { createOrder, deleteOrder, updateOrderStatus, recalculateOrders, getOrders, getOrderById, getOrderStatus, stalePendingReport, getPromotions } from './actions/orders.js'
 import { getReviews, addReview, getAllReviews, deleteReview, seedReviews } from './actions/reviews.js'
 import { createSubmission, getSubmissions, getSubmissionImages, updateSubmissionStatus, deleteSubmission } from './actions/submissions.js'
 import { adminAiAdvice, pubAiChat } from './actions/ai.js'
@@ -55,6 +55,7 @@ const ADMIN_READ_ACTIONS = new Set([
   'login', 'verifyKey', 'getProducts', 'stalePendingReport', 'getOrders', 'getOrder',
   'getPublicProducts', 'getPublicCategories', 'getAllReviews', 'getReviews', 'getOrderStatus',
   'getSubmissions', 'getSubmissionImages', 'aiAdvice', 'getDashboardStats', 'getStockMovements',
+  'getPromotions',
 ])
 
 // 会影响看板聚合结果的写操作（2026-09-18 R6）：成功后必须让看板缓存即时失效，
@@ -124,6 +125,8 @@ export async function handleAdmin(env, action, adminKey, payload = {}, request =
       case 'stalePendingReport': result = await stalePendingReport(DB, payload); break
       case 'getOrders': result = await getOrders(DB, payload); break
       case 'getOrder': result = { code: 0, data: await getOrderById(DB, payload.orderId) }; break
+      // M-58-3 促销档位只读视图（纯读：档位定义 + 每档命中统计；缺表老库回空数组）
+      case 'getPromotions': result = await getPromotions(DB); break
       case 'getPublicProducts': {
         // M1：公共商品走 KV 缓存（60s TTL）；命中直接返回，未命中查库后回填
         const cached = await kvCacheGetJSON(env, 'cache:public:products')

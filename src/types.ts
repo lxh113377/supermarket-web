@@ -67,6 +67,17 @@ export interface OrderItem {
 
 export type CartItem = OrderItem
 
+/** 满减档位（含命中统计；M-58-3 getPromotions 只读视图的行形状） */
+export interface PromotionTier {
+  _id: string
+  name: string
+  threshold: number
+  discount: number
+  enabled: boolean
+  updatedAt?: string
+  hits: { orders: number; totalDiscount: number }
+}
+
 export interface Cart {
   items: CartItem[]
 }
