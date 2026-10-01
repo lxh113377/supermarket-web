@@ -4,6 +4,15 @@
 
 ## [未发布]
 
+### 2026-10-01 追加七十七（#26 替代处置：dispatch 改直调 REST，v9 问题灭根）
+
+- **做了什么**：`dispatch.yml` 的投递步由 `actions/github-script@v7` 改为 curl 直调
+  `POST /repos/lxh113377/lxh113377.github.io/dispatches`（同 event_type/client_payload；
+  secret 只进 env）；#26（v9 升级）不再合入，关闭并注明被替代。
+- **为什么**：v9 曾合入又回退（假成功：run 绿但事件未投递）；钉死 v7 只能拖延，
+  dependabot 会反复推 v9。直调后该依赖消失，同类 PR 永不再来。
+- **验证证据**：本提交推送后 dispatch run 须 success 且 github.io 侧出现新 run（双端以此为据）。
+
 ### 2026-10-01 追加七十六（M-58-2 事件总线第一步：emit 纯函数 + 共享适配器接线）
 
 - **做了什么**：①新增 `functions/lib/events.js`：7 个领域事件名常量（ADR-0006 第 1 步）+

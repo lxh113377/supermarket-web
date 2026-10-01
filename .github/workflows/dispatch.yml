@@ -46,19 +46,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Dispatch deploy event to github.io
-        # 固定到提交 SHA（OpenSSF Pinned-Dependencies）：防止上游标签被移动导致供应链投毒
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        # 不再经 actions/github-script（v7 可用但 v9 实测假成功：workflow success 却不投递事件；
+        # dependabot 会反复推 v9，钉死 v7 只是拖延。改直调 REST：行为与原来逐字段一致，
+        # 少一个第三方 action 依赖，v9 问题从此无从复发。secret 只进 env，不进 argv/日志。
         env:
           DISPATCH_TOKEN: ${{ secrets.GH_DISPATCH_TOKEN }}
-        with:
-          github-token: ${{ secrets.GH_DISPATCH_TOKEN }}
-          script: |
-            if (!process.env.DISPATCH_TOKEN) {
-              core.setFailed('missing secret GH_DISPATCH_TOKEN (repo-scoped PAT for lxh113377.github.io)')
-            }
-            await github.rest.repos.createDispatchEvent({
-              owner: 'lxh113377',
-              repo: 'lxh113377.github.io',
-              event_type: 'supermarket-deploy',
-              client_payload: { ref: context.sha }
-            })
+        run: |
+          if [ -z "$DISPATCH_TOKEN" ]; then echo "missing secret GH_DISPATCH_TOKEN (repo-scoped PAT for lxh113377.github.io)" >&2; exit 1; fi
+          code=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $DISPATCH_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"event_type\":\"supermarket-deploy\",\"client_payload\":{\"ref\":\"$GITHUB_SHA\"}}" \
+            https://api.github.com/repos/lxh113377/lxh113377.github.io/dispatches)
+          echo "dispatch http=$code"
+          [ "$code" = "204" ]
