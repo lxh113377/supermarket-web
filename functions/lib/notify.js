@@ -99,14 +99,24 @@ export function notifyNewOrder(order, env, waitUntil) {
   }
 }
 
+import { emit, ORDER_CREATED } from './events.js'
+
 /**
  * 两个下单出口（/pub 顾客下单、/web 管理端代客下单）共用的适配器。
  * 刻意做成一个函数两处调用：只在"真的新建了一张单"时通知——
  * `deduplicated` 命中是同一张单的重试，再通知一次就是重复提醒。
+ * M-58-2 事件化：同 single place 顺手 emit order.created（两出口天然同行为）；
+ * emit 纯内存操作且全捕获，永不影响通知与下单主链路。
  */
 export function maybeNotifyNewOrder(env, result, payload, waitUntil) {
   const data = result?.code === 0 ? result.data : null
   if (!data || !data.id || data.deduplicated) return { scheduled: false, reason: 'not_a_new_order' }
+  try {
+    emit(ORDER_CREATED, {
+      orderId: data.id, status: 'pending',
+      totalAmount: data.totalAmount, discountAmount: data.discountAmount,
+    })
+  } catch { /* emit 永不影响主链路 */ }
   return notifyNewOrder({
     id: data.id,
     roomNumber: typeof payload?.roomNumber === 'string' ? payload.roomNumber.trim() : '',

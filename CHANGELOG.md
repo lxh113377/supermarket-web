@@ -4,6 +4,18 @@
 
 ## [未发布]
 
+### 2026-10-01 追加七十六（M-58-2 事件总线第一步：emit 纯函数 + 共享适配器接线）
+
+- **做了什么**：①新增 `functions/lib/events.js`：7 个领域事件名常量（ADR-0006 第 1 步）+
+  `emit(type,payload)` 纯函数（内存队列，白名单载荷 id/状态/金额，微信号/备注/截图/房间号一律脱落，
+  未知类型与无单号拒绝）；②`notify.js` 的 `maybeNotifyNewOrder`（两出口共用适配器）在真新单路径
+  顺手 emit（全捕获，永不影响下单）；投递复用既有 webhook，不新增外部依赖，KV/D1 均不动；
+  ③`tests/orderNotify.test.js` 增 5 条（emit 正反三态/白名单脱落/两出口各一条/幂等失败不落）。
+- **为什么**：对标 medusa 插件制的第一步（先立约不动行为）；此前"新订单发生"只有 webhook 一条出路，
+  后续看板失效/流水/通知各自为战（第二登记点问题）。
+- **验证证据**：`tests/orderNotify.test.js` 21/21；`verify:backend` 188/188；其余门禁（eol/entrypoints/
+  doc-commands/docs/contract/authz）定向全绿；oxlint 0 warn；`tsc` 0 错。未部署。
+
 ### 2026-10-01 追加七十五（M-58-3 促销档位只读视图 + R58-H1 收尾随动）
 
 - **做了什么**：①新增只读 action `getPromotions`（档位定义 + 每档命中统计，缺表老库回空数组；
