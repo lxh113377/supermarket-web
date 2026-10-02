@@ -222,7 +222,53 @@ export function evaluate({ files, max, all = true, added = null, partNumbers, de
   }
 }
 
-export function main({ dir = root, all = false } = {}) {
+/**
+ * 外层工作区记忆面（M-60-4 · 第六十四轮）。
+ * 一手实测：`超市/memory/07-next-steps.md` **44,794 B**，越过它自己文件头声明的
+ * `shell_max=40,960 B` 计 **3,834 B**；而本判据此前只扫 `memory/`（root 由脚本自身位置推导
+ * = `supermarket-web`）⇒ 同一条治理规矩在内层是闸、在外层是自觉。**尺子量不到的那一半才会烂** ——
+ * 外层正是 09-27 那次「5 轮静默断更」的宿主。
+ *
+ * 为什么是「把两侧分母都印进结论通道 + 不拦」，而不是加一条 V6 判红：
+ * 44 KB 该怎么拆（按轮次 vs 按主题）第六十轮明确写了「口径先定再动」，本轮没有定；
+ * 判红等于逼下一轮**猜一个拆法**，而猜错的拆比重演一次断更更贵。所以外层走 `report:*` 那一档
+ * （同 `docs/item-budgets.json` 第一版不进阻断链）：读数进 stdout 结论通道、越限另打一条 stderr WARN。
+ * 内层那把尺（V1~V5）一字未动，两侧各报各的分母，不互相顶替。
+ */
+export const OUTER_MEM_DEFAULT = join(root, '..', '超市', 'memory')
+export const SHELL_MAX_DEFAULT = 40_960
+
+/** 外层文件头自己写着 `shell_max=40,960B` ⇒ 优先读它，读不到才用代码默认（与 loadBudget 同一口径）。 */
+export function readShellMax(memDir) {
+  if (!memDir) return null
+  const p = join(memDir, MAIN_VOLUME)
+  if (!existsSync(p)) return null
+  const m = /shell_max\s*=\s*([\d][\d,_\s]*)\s*B/i.exec(readFileSync(p, 'utf8'))
+  if (!m) return null
+  const n = Number(m[1].replace(/[,_\s]/g, ''))
+  return Number.isFinite(n) && n > 0 ? { max: n, source: `${MAIN_VOLUME} 文件头 shell_max 声明` } : null
+}
+
+/**
+ * 三态：`over` / `ok` / `unavailable`。
+ * **unavailable 不得折成 ok**（户内：量不到不得折算成达标）。CI 的检出面里永远没有外层目录，
+ * 所以这一态在 CI 上是常态而不是故障。
+ */
+export function outerFaceReport({ memDir, size, shellMax, source }) {
+  const label = String(memDir || '(未给)').replace(/\\/g, '/')
+  if (size === null || size === undefined) {
+    return { state: 'unavailable', over: null, shellMax: null,
+      text: `外层面=${label}/${MAIN_VOLUME} 取不到 ⇒ unavailable（本仓检出面外，CI 恒为此态），不折算成"外层很干净"` }
+  }
+  const over = size - shellMax
+  return {
+    state: over > 0 ? 'over' : 'ok', over, shellMax, size,
+    text: `外层面=${label}/${MAIN_VOLUME} ${size}B / shell_max ${shellMax}B（来源：${source}）`
+      + ` ⇒ ${over > 0 ? `越限 ${over}B` : `余 ${-over}B`}`,
+  }
+}
+
+export function main({ dir = root, all = false, outerMemDir = OUTER_MEM_DEFAULT } = {}) {
   const { max, source } = loadBudget()
   const memDir = join(dir, 'memory')
   if (!existsSync(memDir)) bail('memory-volume', `取不到 ${memDir}`)
@@ -265,12 +311,31 @@ export function main({ dir = root, all = false } = {}) {
   }
   console.log(`[memory-volume] 阈值 ${max}B｜来源：${source}｜模式 ${all ? '--all 全量' : '仅暂存面'}`)
   if (excluded.length) console.log(`[memory-volume] 命中但按类排除（不判）：${excluded.join(' , ')}`)
+  const sm = readShellMax(outerMemDir)
+  const outerMainPath = join(outerMemDir || '', MAIN_VOLUME)
+  const outerSize = outerMemDir && existsSync(outerMainPath) ? statSync(outerMainPath).size : null
+  const outer = outerFaceReport({
+    memDir: outerMemDir, size: outerSize,
+    shellMax: sm ? sm.max : SHELL_MAX_DEFAULT,
+    source: sm ? sm.source : '代码默认 SHELL_MAX_DEFAULT（与 handoff.py DEFAULT_BUDGET.shell_max 同值）',
+  })
+  console.log(`[memory-volume] ${outer.text}`)
+  if (outer.state === 'over') {
+    console.error(`[memory-volume] WARN 外层面越 shell_max ${outer.over}B，但**不进本判据分母也不拦**：`
+      + `44KB 的拆法要先定口径（按轮次 vs 按主题），第六十轮明写「口径先定再动」；`
+      + `判红等于逼下一轮猜一个拆法。复算：wc -c < "${outerMainPath.replace(/\\/g, '/')}"`)
+  }
   // 未验证态不得印成 PASS：V4 在 --all 模式下"不判"，若复用 PASS 就会被读成"新卷余量已核过"。
   const unver = res.rows.filter((r) => r.status === 'UNVERIFIED').map((r) => r.id)
   for (const r of res.rows) console.log(`${r.status === 'UNVERIFIED' ? 'UNVERIFIED' : (r.pass ? 'PASS' : 'FAIL')} ${r.id} :: ${r.detail}`)
-  console.log(`${res.summary.mismatched === 0 ? 'GATE-PASS' : 'GATE-FAIL'} memory-volume :: 判 ${res.summary.n} 卷｜超限 ${res.summary.over}｜检查 ${res.summary.matched}/${res.summary.declared}${unver.length ? `｜未验证 ${unver.join(',')}` : ''}`)
+  console.log(`${res.summary.mismatched === 0 ? 'GATE-PASS' : 'GATE-FAIL'} memory-volume :: 判 ${res.summary.n} 卷｜超限 ${res.summary.over}｜检查 ${res.summary.matched}/${res.summary.declared}${unver.length ? `｜未验证 ${unver.join(',')}` : ''}｜外层面=${outer.state}（${outer.state === 'over' ? `越 ${outer.over}B` : outer.state === 'ok' ? `余 ${-outer.over}B` : '取不到'}）｜两侧分母各报各的`)
   return res.summary.mismatched === 0 ? 0 : 1
 }
 
 const isCli = !!process.argv[1] && resolve(process.argv[1]).toLowerCase() === fileURLToPath(import.meta.url).toLowerCase()
-if (isCli) process.exit(main({ dir: root, all: process.argv.includes('--all') }))
+const outerArg = (process.argv.find((a) => a.startsWith('--outer-memory=')) || '').split('=').slice(1).join('=')
+if (isCli) process.exit(main({
+  dir: root,
+  all: process.argv.includes('--all'),
+  ...(outerArg ? { outerMemDir: resolve(outerArg) } : {}),
+}))

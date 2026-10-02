@@ -14,7 +14,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { copyGateScripts } from './helpers/copyGateScripts.mjs'
 import { assertCliRan } from './helpers/cliLeg.js'
-import { evaluate, classify, V3_MIN_HEADROOM } from '../scripts/check-memory-volume.mjs'
+import { evaluate, classify, V3_MIN_HEADROOM, outerFaceReport, readShellMax, SHELL_MAX_DEFAULT } from '../scripts/check-memory-volume.mjs'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SELF = join(REPO, 'scripts', 'check-memory-volume.mjs')
@@ -383,5 +383,59 @@ describe('V3 三态（第五十轮 R50-H2②）：够写 / 贴死 / 没量到 �
     expect(after.out, after.out.slice(-400)).toMatch(/PASS V3/)
     // 摘掉那次比较后**整条闸必须变绿**：若仍判红，说明红因来自别处，这条腿就没打在被告分支上。
     expect(after.rc, '变异后仍判红 ⇒ 红因不是 V3 那次比较（同族：别人的红替它通过了断言）').toBe(0)
+  })
+})
+
+describe('外层面（M-60-4 · 第六十四轮）：内层那把尺一字不动，外层把读数印进结论通道', () => {
+  const mkOuter = (body) => {
+    const d = mkdtempSync(join(tmpdir(), 'smout-'))
+    tmpDirs.push(d)
+    writeFileSync(join(d, '07-next-steps.md'), body)
+    return d
+  }
+
+  it('三态各有独立形状，unavailable 绝不折成 ok（量不到 ≠ 达标）', () => {
+    const over = outerFaceReport({ memDir: '/x', size: 44_794, shellMax: 40_960, source: 's' })
+    const ok = outerFaceReport({ memDir: '/x', size: 40_000, shellMax: 40_960, source: 's' })
+    const na = outerFaceReport({ memDir: '/x', size: null, shellMax: 40_960, source: 's' })
+    expect([over.state, ok.state, na.state], '三态互不相同').toEqual(['over', 'ok', 'unavailable'])
+    expect([over.over, ok.over]).toEqual([3834, -960])
+    expect(na.text).toContain('不折算成')
+    expect(na.state === ok.state, '把 unavailable 读成 ok 就是本条要防的那件事').toBe(false)
+  })
+
+  it('shell_max 优先读外层文件头自己的声明，读不到才退代码默认', () => {
+    expect(readShellMax(mkOuter('x shell_max=40,960B 口径计量 y'))).toEqual({ max: 40960, source: '07-next-steps.md 文件头 shell_max 声明' })
+    expect(readShellMax(mkOuter('体量由 shell_max = 50,000 B 口径')).max).toBe(50000)
+    expect(readShellMax(mkOuter('本文件提到 shell_max= 但没有数值')), '写了 shell_max 却没数值 ⇒ null，不许猜一个数当阈值').toBeNull()
+    expect(readShellMax(join(tmpdir(), 'smout-does-not-exist-64')), '目录都不存在 ⇒ null').toBeNull()
+    expect(SHELL_MAX_DEFAULT).toBe(40_960)
+  })
+
+  it('入口真跑：外层越限时 gate 行带上外层状态 + stderr 打 WARN，但 rc 与不传该参数时相同（只报不拦）', () => {
+    const base = assertCliRan(spawnSync(process.execPath, [SELF, '--all'], { cwd: REPO, encoding: 'utf8', timeout: 60_000 }), { label: 'memory-volume --all 基线' })
+    const d = mkOuter(`# 07\n> shell_max=40,960B\n\n${'x'.repeat(45_000)}\n`)
+    const r = assertCliRan(spawnSync(process.execPath, [SELF, '--all', `--outer-memory=${d}`], { cwd: REPO, encoding: 'utf8', timeout: 60_000 }), { label: 'memory-volume --all 外层面 over' })
+    const out = `${r.stdout || ''}${r.stderr || ''}`
+    expect(base.status, base.stdout).toBe(0)
+    expect(r.status, `只报不拦：rc 不该被外层带跑\n${out.slice(-500)}`).toBe(base.status)
+    expect(out).toMatch(/外层面=over/)
+    expect(out).toContain('WARN 外层面越 shell_max')
+    expect(out).toContain('两侧分母各报各的')
+  })
+
+  it('外层目录取不到 ⇒ 印 unavailable，不印 ok（CI 检出面里没有外层，这是常态而不是故障）', () => {
+    const r = assertCliRan(spawnSync(process.execPath,
+      [SELF, '--all', `--outer-memory=${join(tmpdir(), 'smout-absent-64')}`], { cwd: REPO, encoding: 'utf8', timeout: 60_000 }), { label: 'memory-volume --all 外层面 unavailable' })
+    expect(r.stdout).toMatch(/外层面=unavailable/)
+    expect(r.stdout).not.toMatch(/外层面=ok/)
+  })
+
+  it('反向自证：内层 V1~V5 的判定不因外层加入而变（同一事实只许一处判）', () => {
+    const d = mkOuter('# 07\n> shell_max=40,960B\n\n随便\n')
+    const r = assertCliRan(spawnSync(process.execPath, [SELF, '--all', `--outer-memory=${d}`], { cwd: REPO, encoding: 'utf8', timeout: 60_000 }), { label: 'memory-volume --all 内层腿数不变' })
+    const ids = (r.stdout.match(/^(?:PASS|FAIL|UNVERIFIED) (V\d+b?) ::/gm) || []).map((s) => /^(\S+) (V\w+)/.exec(s)[2])
+    expect(['V1', 'V2', 'V2b', 'V3', 'V4', 'V5'].every((v) => ids.includes(v)), `内层腿缺件：${ids.join(', ')}`).toBe(true)
+    expect(ids.filter((v) => /^V/.test(v) && !['V1', 'V2', 'V2b', 'V3', 'V4', 'V5'].includes(v)), '外层不该伪装成一条 V 腿进分母').toEqual([])
   })
 })
