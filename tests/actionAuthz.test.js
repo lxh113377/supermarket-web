@@ -80,14 +80,16 @@ describe('B4/B4b 公开通道具名允许', () => {
 })
 
 describe('B8 只读穷举表（默认拒绝的落地面）', () => {
-  it('现状：穷举表 17 项、判定式已接线、读写两侧互斥且覆盖全部 34 条路由', () => {
+  it('现状：穷举表 18 项、判定式已接线、读写两侧互斥且覆盖全部 35 条路由', () => {
     // 15→16 项 / 31→33 条：第五十六轮 E7 库存域入册（getStockMovements 进只读穷举、
     // adjustStock 进写侧清单），两个数都由解析器从 backendSrc 当场给出，本行只是把"现状"钉住。
     // 16→17 项 / 33→34 条：M-58-3 getPromotions 只读视图入册（R58-H1 后续轮）。
+    // 17→18 项 / 34→35 条：M-59-1 getEventLog 只读入册（第六十二轮 event_log 落地后本行漏更新，
+    // 于 2026-10-02 由远端基线 run 36981602751 的 2 红反查补齐；写侧登记 17 条不变）。
     const v = evaluate(BASE)
     expect(RED(v, 'B8')).toEqual([])
     expect(RED(v, 'B8b')).toEqual([])
-    expect(v.find((x) => x.id === 'B8').detail).toContain('17 项')
+    expect(v.find((x) => x.id === 'B8').detail).toContain('18 项')
     expect(v.find((x) => x.id === 'B8').detail).toContain('接线=yes')
   })
 
@@ -166,7 +168,7 @@ describe('B7 新增表默认落进业务面（fail-closed 的那一半）', () =
 
   it('解析器自证：registered 与路由数从源码解析而来，不是抄的第二份清单', () => {
     const { routes, registered, publicActions } = parseBackend(BASE.backendSrc, BASE.securitySrc)
-    expect(routes.admin.size).toBe(34) // M-58-3 加 getPromotions 只读视图（33→34）
+    expect(routes.admin.size).toBe(35) // M-59-1 加 getEventLog 只读入册（34→35）
     expect(registered).toHaveLength(17)
     expect(publicActions.length).toBe(routes.public.size)
   })

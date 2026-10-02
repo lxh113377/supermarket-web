@@ -27,6 +27,16 @@
   `npm run typecheck` 零错；`npm run verify:eol` GREEN；`npm run verify:schema` 25/25；
   商品数据相关 5 个测试文件（catalogFacts / verifyImages / variants / localStore / productDetailVariants）全绿。
   写线上前已做 D1 全量备份 `_backup/d1-pre-2026-10-02-new-products.sql`（1.48 MB）。
+- **顺手修掉挡路的上轮遗留红（与本轮商品无关）**：push 被 pre-push 的 CI 全绿契约拦住
+  —— 远端基线 `650f248` 的 run `36981602751` 是红的（`build-and-test` → Test 2 failed，
+  deploy 因此 skipped）。下载该 job 日志定位到 `tests/actionAuthz.test.js` 两个"自证现状"用例
+  仍钉在**第六十二轮 event_log 落地之前**的数字：只读穷举表 17 项（现 18，getEventLog 入册）、
+  /web 路由 34 条（现 35）。已按 `node scripts/check-action-authz.mjs` 现读的权威值
+  （`/web 路由 35 个、只读禁用清单 17 条双向相等`）订正，写侧登记 17 条不动；改后 18/18 绿。
+- **本地全量 `npm test` 的 57 红已做 stash 对照，与本轮零相关**：把本轮改动 stash 后跑同一批文件，
+  失败数**一模一样**（2 files / 54 failed）；这批红是门禁脚本"空输入 fail-closed"类用例在本机沙箱
+  下 spawn/网络不可达所致（`[liveness]` 取不到 GitHub 备份窗口、`[catalog] fetch failed`），
+  同一批在 CI 上是绿的（基线 run 只有上面那 2 红）。故判定为**既存环境红，不阻塞本轮上线**。
 
 ### 2026-10-02 追加七十九（第六十轮：事件总线第 3 步消费者 + 响应侧 trace 回报，并收口 trace 自身的卫生缺陷）
 
