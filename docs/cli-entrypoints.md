@@ -111,6 +111,7 @@
 | verify_images.py | `python scripts/verify_images.py` | 别名 `verify:images`；实测 `node scripts/verify_images.py` ⇒ `ERR_UNKNOWN_FILE_EXTENSION` 裸栈（@2026-09-28 本机）；文件在盘且 `main()` 现返回三档 rc（0 全绿 / 1 缺失或无效 / 2 没有对象可判，合成面实测 4 档形态各跑过）；`verify` 聚合链引用 1 处 + `ci.yml` 引用 1 处（setup-python 后跑 `npm run verify:images`）⇒ 不进 node 面，改由 `npx vitest run tests/verifyImages.test.js` 覆盖 |
 
 ## 风险分类（默认不自动 spawn；标签由 `classifyRisk` 从源码推导；带 `@probe-safe` 声明且本表写"已证明停在门口"的才回到分母）
+| verify-event-sink-d1.mjs | wrangler | ⛔ 标签来自 `getPlatformProxy`（真起 workerd 运行时 + 读 `.dev.vars`），自动探针不 spawn；**但它不需要豁免证明**——两侧读数已由具名夹具 `tests/eventSinkD1.test.js` 子进程真跑：正例实测 rc=0 / 1.10s（`stored=1`、读回 `{"n":1,"total":12.5,"disc":2,"st":"paid"}`），反向腿（`--negative=missing-table`，跳过建表）实测 rc=1 / 1.12s 且红因点名 `no such table: event_log: SQLITE_ERROR`，`--selftest` rc=0 / 三档退出码 9/9。零触网：`persist:false` 走内存态，全文无 `--remote`/`database execute`；立件动因见本行右列所引第六十一轮判据缺陷（旧 §8 判据等真实订单流量 ⇒ 永不可主动闭合） |
 
 第三十二轮把这层判断交给**被试对象自述**（口径借 `golang/go` 的 `-short`：`testflag.go:67`
 "tell long-running tests to shorten their run time" —— 条件写在测试里，框架只做机械核对）。
