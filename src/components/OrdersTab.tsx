@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { updateOrderStatus, deleteOrder, adminCall } from '../auth'
-import { getAllOrders } from '../db'
+import { getAllOrders, getEventTimeline } from '../db'
+import type { OrderEventItem } from '../db/orders'
 import { buildCsvText } from '../utils/csv'
 import EmptyState from './EmptyState'
 import { SkeletonTable } from './Skeleton'
@@ -65,6 +66,46 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading])
 
+  // 订单事件时间线（getEventLog 只读）：逐单内联展开，不用弹窗/抽屉。
+  // 空态 → "暂无事件"；失败 → 行内错误 + 重试，不打断订单主操作。
+  const [tlOpen, setTlOpen] = useState<Record<string, boolean>>({})
+  const [tlEvents, setTlEvents] = useState<Record<string, OrderEventItem[]>>({})
+  const [tlLoading, setTlLoading] = useState<Record<string, boolean>>({})
+  const [tlError, setTlError] = useState<Record<string, string>>({})
+
+  const toggleTimeline = async (orderId: string) => {
+    const next = !tlOpen[orderId]
+    setTlOpen((m) => ({ ...m, [orderId]: next }))
+    if (!next || tlEvents[orderId] || tlLoading[orderId]) return
+    setTlLoading((m) => ({ ...m, [orderId]: true }))
+    setTlError((m) => ({ ...m, [orderId]: '' }))
+    try {
+      const events = await getEventTimeline(orderId)
+      setTlEvents((m) => ({ ...m, [orderId]: events }))
+    } catch (e) {
+      setTlError((m) => ({ ...m, [orderId]: e instanceof Error ? e.message : '加载失败' }))
+    } finally {
+      setTlLoading((m) => ({ ...m, [orderId]: false }))
+    }
+  }
+
+  const retryTimeline = async (orderId: string) => {
+    setTlEvents((m) => {
+      const n = { ...m }
+      delete n[orderId]
+      return n
+    })
+    setTlLoading((m) => ({ ...m, [orderId]: true }))
+    setTlError((m) => ({ ...m, [orderId]: '' }))
+    try {
+      const events = await getEventTimeline(orderId)
+      setTlEvents((m) => ({ ...m, [orderId]: events }))
+    } catch (e) {
+      setTlError((m) => ({ ...m, [orderId]: e instanceof Error ? e.message : '加载失败' }))
+    } finally {
+      setTlLoading((m) => ({ ...m, [orderId]: false }))
+    }
+  }
   const cancelStale = async (orderId: string) => {
     try {
       const res = await updateOrderStatus(orderId, 'cancelled')
@@ -337,6 +378,14 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
                 ))}
               </select>
               <button
+                onClick={() => void toggleTimeline(order._id)}
+                aria-expanded={Boolean(tlOpen[order._id])}
+                aria-label={`订单 ${order.roomNumber} 的事件时间线`}
+                className="text-xs text-gray-600 bg-white border border-gray-200 rounded px-2 py-1"
+              >
+                {tlOpen[order._id] ? '收起时间线' : '时间线'}
+              </button>
+              <button
                 onClick={() => handleDelete(order._id)}
                 disabled={deleting === order._id}
                 aria-label="删除订单"
@@ -346,6 +395,41 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
               </button>
             </div>
           </div>
+          {tlOpen[order._id] && (
+            <div className="mt-2 bg-gray-50 border border-gray-200/80 rounded-lg px-3 py-2">
+              {tlLoading[order._id] && (
+                <p className="text-xs text-gray-500">时间线加载中…</p>
+              )}
+              {!tlLoading[order._id] && tlError[order._id] && (
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs text-red-600">时间线加载失败：{tlError[order._id]}</p>
+                  <button
+                    onClick={() => void retryTimeline(order._id)}
+                    className="text-xs text-gray-700 px-2 py-1 rounded border border-gray-200"
+                  >
+                    重试
+                  </button>
+                </div>
+              )}
+              {!tlLoading[order._id] && !tlError[order._id] && (tlEvents[order._id] ?? []).length === 0 && tlEvents[order._id] !== undefined && (
+                <p className="text-xs text-gray-500">暂无事件</p>
+              )}
+              {!tlLoading[order._id] && !tlError[order._id] && (tlEvents[order._id] ?? []).length > 0 && (
+                <ol className="space-y-1.5">
+                  {(tlEvents[order._id] ?? []).map((ev, i) => (
+                    <li key={`${ev.at}-${ev.type}-${i}`} className="flex items-center justify-between gap-2 bg-white/70 rounded px-2 py-1.5">
+                      <span className="text-xs text-gray-700 truncate min-w-0">
+                        {ev.type} · {orderStatusLabel(ev.status) || ev.status}
+                      </span>
+                      <span className="text-[11px] text-gray-500 shrink-0">
+                        {ev.at ? new Date(ev.at).toLocaleString() : ''}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+          )}
         </div>
       ))}
       {totalPages > 1 && (

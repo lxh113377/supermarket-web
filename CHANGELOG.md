@@ -4,6 +4,43 @@
 
 ## [未发布]
 
+### 2026-10-03 接管在途的时间线 UI + 在途件与轮次分叉两条机制（第六十四轮）
+
+- **做了什么**：① **接管第六十二轮 §8 那条 P0 的半成品** —— 工作树里 `src/components/OrdersTab.tsx`
+  有 86 行未提交的「订单事件时间线」内联展开（`getEventTimeline` 的第一个 UI 消费点），
+  mtime 2026-10-02 16:30、`find src .ci -newermt "-15 minutes"` 空、HEAD 两次同值 ⇒ 判为中断遗留而非并发在途，
+  按第六十轮同一手法接手收尾。② **补它缺的测试**：`tests/ordersTab.test.tsx` 新增 6 条
+  （按单请求／只请求被点那单／收起再展开走缓存／空态「暂无事件」／失败行内报错+重试／加载中态与 `aria-expanded`），
+  并把 `getEventTimeline` 补进 `tests/ordersTab.test.tsx`、`tests/ordersTabStale.test.tsx` 两处
+  `vi.mock('../src/db')` —— 该 mock 是整模块替换件，少一个导出即 `undefined is not a function`，
+  而"没人点那一行"时全套件照样绿（这正是它此前 0 条用例却全过的原因）。
+  ③ 新判据 `scripts/check-inflight-intake.mjs`（advisory）＋ `verify:pointers` 增第三取数面（见下两条）。
+- **为什么**：这条 P0 在上一轮被写下、被开工、被停在半路，而**没有任何判据知道它存在过** ——
+  第六十轮 §3 G1 诊断的正是这件事，当时记账「本轮只接管不修机制」，本轮是它的第二次复发（实测同一形态），
+  所以这次把机制补上而不是再接管一遍就算完。
+- **UI 侧的两处实测纠正（期望值由被测对象自报，不由作者心算）**：
+  状态中文不能用裸 `getByText(/已支付/)` —— 状态 `<select>` 的 `<option>` 里同样有"已支付"，
+  实测报 `Found multiple elements`；改为由 `listitem` 的 `textContent` 作证，顺带把时刻也按
+  `new Date(...).toLocaleString()` 现算比对。另：展开/收起只换可见文本，按钮可及名始终由
+  `aria-label` 给出 ⇒ `getByRole('button', { name: '收起时间线' })` 永远查不到（本轮实测白跑一次）。
+- **变异演习（新测试有没有牙齿）**：摘掉 `toggleTimeline` 的缓存守卫
+  （`if (!next || tlEvents[orderId] || tlLoading[orderId]) return` → 去掉 `tlEvents[orderId]` 一项）后
+  `npx vitest run tests/ordersTab.test.tsx -t "走缓存"` **rc=1**，红因 `expected to be called 1 times, but got 2 times`；
+  改前逐字节备份、改后按 sha256 前缀 `fc432a271a2fd121` 载回并断言相等 ⇒ 源文件未漂。
+- **轮次编号分叉（本轮一手实测，此前无判据覆盖）**：`CHANGELOG.md:7` 已写「第六十三轮」（商品图+4件零食，
+  提交 `c995366..ccebafa`），而内层 `memory/07-next-steps.md` 主卷最新节仍是第六十二轮，
+  `verify:pointers` 却印「内层 62｜外层 62 ⇒ 指针在跟，已核对 2/2」PASS —— 它两侧取数面都只解析
+  `07-next-steps*.md` 的 `## …第N轮` 标题，**CHANGELOG 完全不在它的面里** ⇒ 一个轮号可以在 CHANGELOG 被宣称
+  而记忆指针不动，且这道闸结构上看不见。本轮据此新增 P3 腿（CHANGELOG 声明轮号 ⇄ 内层主卷最新轮号 双向对账），
+  并把本轮定为**第六十四轮**（不与 63 撞号）。
+- **验证**：`npx vitest run tests/ordersTab.test.tsx tests/ordersTabStale.test.tsx` 2 files 全绿（34 用例）；
+  变异腿 rc=1；`npm run verify:escape-hatch` rc=0（记录 9 条，绕过 8／起始 1，不合规 0）；
+  `npm run verify:backend` rc=0（**191 通过 / 0 失败**）；`npm run verify:functions` rc=0（编译产物 123,802 B，
+  `/web /pub /_health` 三入口齐备）；`npm run typecheck` 双配置 0 错。
+  生产侧只读回读：`event_log` `n=0`，而 `orders` 的 `MAX(createdAt)=MAX(updatedAt)=2026-10-01T12:44:00.682Z`
+  早于第六十轮迁移时刻 ⇒ 该 0 属「无输入」不是「写路径坏」，落库能力由 `GATE-PASS event-sink-d1` 主动证过，
+  本轮不另立第二条同事实判据。
+
 ### 2026-10-02 商品图轮换与四件零食上新（第六十三轮）
 
 - **做了什么**：① **康师傅冰红茶（order 6）宣传图替换** —— 用户提供供货实拍图（黄箱+单瓶，冰力十足），

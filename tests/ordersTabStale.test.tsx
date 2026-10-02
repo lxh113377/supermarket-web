@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   updateOrderStatus: vi.fn(),
   deleteOrder: vi.fn(),
   getAllOrders: vi.fn(),
+  getEventTimeline: vi.fn(),
 }))
 
 vi.mock('../src/auth', () => ({
@@ -14,7 +15,10 @@ vi.mock('../src/auth', () => ({
   updateOrderStatus: mocks.updateOrderStatus,
   deleteOrder: mocks.deleteOrder,
 }))
-vi.mock('../src/db', () => ({ getAllOrders: mocks.getAllOrders }))
+vi.mock('../src/db', () => ({
+  getAllOrders: mocks.getAllOrders,
+  getEventTimeline: mocks.getEventTimeline,
+}))
 vi.mock('../src/cloudbase', () => ({ IS_CLOUD: true }))
 
 import OrdersTab from '../src/components/OrdersTab'
@@ -34,6 +38,7 @@ describe('OrdersTab 超时订单面板', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.getAllOrders.mockResolvedValue({ orders: [], maxUpdatedAt: null })
+    mocks.getEventTimeline.mockResolvedValue([])
     mocks.updateOrderStatus.mockResolvedValue({ code: 0 })
     mocks.adminCall.mockImplementation(async (action) => {
       if (action === 'stalePendingReport') return { code: 0, data: staleReport }

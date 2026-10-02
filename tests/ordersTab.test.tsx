@@ -11,6 +11,7 @@ const m = vi.hoisted(() => ({
   deleteOrder: vi.fn(),
   adminCall: vi.fn(),
   getAllOrders: vi.fn(),
+  getEventTimeline: vi.fn(),
   onOrdersChange: vi.fn(),
 }))
 
@@ -19,7 +20,9 @@ vi.mock('../src/auth', () => ({
   deleteOrder: m.deleteOrder,
   adminCall: m.adminCall,
 }))
-vi.mock('../src/db', () => ({ getAllOrders: m.getAllOrders }))
+// getEventTimeline 必须一起给出：vi.mock 是整个模块的替换件，漏一个导出就是
+// 组件里 `undefined is not a function`，而"没人点那一行"时全套件照样绿。
+vi.mock('../src/db', () => ({ getAllOrders: m.getAllOrders, getEventTimeline: m.getEventTimeline }))
 
 const mkOrder = (i: number, over: Partial<Order> = {}): Order => ({
   _id: `o${i}`,
@@ -43,6 +46,7 @@ beforeEach(() => {
   m.getAllOrders.mockResolvedValue({ orders: [], maxUpdatedAt: null })
   m.updateOrderStatus.mockResolvedValue({ ok: true })
   m.deleteOrder.mockResolvedValue({ ok: true })
+  m.getEventTimeline.mockResolvedValue([])
 })
 afterEach(() => {
   cleanup()
@@ -346,5 +350,87 @@ describe('促销档位只读视图（M-58-3 getPromotions）', () => {
     await waitFor(() => expect(m.adminCall).toHaveBeenCalledWith('getPromotions', {}))
     expect(screen.queryByText(/满减档位/)).toBeNull()
     expect(screen.getByText(/36栋-101/)).toBeTruthy()
+  })
+})
+
+describe('订单事件时间线（getEventLog 的唯一 UI 消费点 · 第六十四轮）', () => {
+  const tlBtn = (room: string) =>
+    screen.getByRole('button', { name: `订单 ${room} 的事件时间线` })
+
+  const twoEvents = [
+    { type: 'order.created', at: '2026-10-01T12:44:00.682Z', orderId: 'o1', status: 'pending', totalAmount: 7, discountAmount: 0, createdAt: '2026-10-01T12:44:00.682Z' },
+    { type: 'order.status_changed', at: '2026-10-01T13:00:00.000Z', orderId: 'o1', status: 'paid', totalAmount: 7, discountAmount: 1.5, createdAt: '2026-10-01T13:00:00.000Z' },
+  ]
+
+  it('展开 → 按该单 orderId 请求，并把事件类型/状态中文/时刻逐行渲染', async () => {
+    m.getEventTimeline.mockResolvedValue(twoEvents)
+    setup()
+    fireEvent.click(tlBtn('36栋-101'))
+    await waitFor(() => expect(m.getEventTimeline).toHaveBeenCalledWith('o1'))
+    // 状态中文不能裸 getByText：状态 <select> 的 <option> 里也有"已支付"，会撞上多个元素。
+    // 时间线的行必须由 listitem 自己作证，才证明渲染落在这块面板里而不是别处。
+    const items = screen.getAllByRole('listitem')
+    expect(items).toHaveLength(2)
+    expect(items[0].textContent).toContain('order.created')
+    expect(items[1].textContent).toContain('order.status_changed')
+    expect(items[1].textContent).toContain('已支付')
+    expect(items[1].textContent).toContain(new Date('2026-10-01T13:00:00.000Z').toLocaleString())
+  })
+
+  it('只请求被点的那一单，另一单不发请求', async () => {
+    setup()
+    fireEvent.click(tlBtn('36栋-101'))
+    await waitFor(() => expect(m.getEventTimeline).toHaveBeenCalledTimes(1))
+    expect(m.getEventTimeline).toHaveBeenCalledWith('o1')
+    expect(m.getEventTimeline).not.toHaveBeenCalledWith('o2')
+  })
+
+  it('收起再展开走缓存：不重复请求（时间线是历史账，同一单没必要每次点击都打后端）', async () => {
+    m.getEventTimeline.mockResolvedValue(twoEvents)
+    setup()
+    // 按钮的可及名由 aria-label 决定，展开/收起只换可见文本 ⇒ 定位仍走 aria-label，
+    // "收起时间线"作为 getByRole 的 name 永远查不到（本轮实测踩过一次）。
+    expect(tlBtn('36栋-101').textContent).toBe('时间线')
+    fireEvent.click(tlBtn('36栋-101'))
+    await waitFor(() => expect(m.getEventTimeline).toHaveBeenCalledTimes(1))
+    expect(tlBtn('36栋-101').textContent).toBe('收起时间线')
+    fireEvent.click(tlBtn('36栋-101'))
+    expect(screen.queryByText(/order\.created/)).toBeNull()
+    fireEvent.click(tlBtn('36栋-101'))
+    await waitFor(() => expect(screen.getByText(/order\.created/)).toBeTruthy())
+    expect(m.getEventTimeline).toHaveBeenCalledTimes(1)
+  })
+
+  it('空事件 → 明确"暂无事件"，不得渲染成加载失败', async () => {
+    m.getEventTimeline.mockResolvedValue([])
+    setup()
+    fireEvent.click(tlBtn('36栋-101'))
+    await waitFor(() => expect(screen.getByText(/暂无事件/)).toBeTruthy())
+    expect(screen.queryByText(/加载失败/)).toBeNull()
+  })
+
+  it('请求失败 → 行内报错 + 重试；重试成功后出事件，且不打断订单主操作', async () => {
+    m.getEventTimeline
+      .mockRejectedValueOnce(new Error('网络中断'))
+      .mockResolvedValueOnce(twoEvents)
+    setup()
+    fireEvent.click(tlBtn('36栋-101'))
+    await waitFor(() => expect(screen.getByText(/时间线加载失败：网络中断/)).toBeTruthy())
+    expect(screen.getByText(/36栋-101/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '重试' }))
+    await waitFor(() => expect(screen.getByText(/order\.status_changed/)).toBeTruthy())
+    expect(m.getEventTimeline).toHaveBeenCalledTimes(2)
+  })
+
+  it('加载中态出文案，且按钮 aria-expanded 反映展开状态', async () => {
+    let release: (v: unknown[]) => void = () => {}
+    m.getEventTimeline.mockReturnValue(new Promise((r) => { release = r }))
+    setup()
+    expect(tlBtn('36栋-101').getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(tlBtn('36栋-101'))
+    expect(screen.getByText(/时间线加载中/)).toBeTruthy()
+    expect(tlBtn('36栋-101').getAttribute('aria-expanded')).toBe('true')
+    release(twoEvents)
+    await waitFor(() => expect(screen.getByText(/order\.created/)).toBeTruthy())
   })
 })
