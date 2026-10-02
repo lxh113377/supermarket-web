@@ -26,6 +26,7 @@ import { createSubmission, getSubmissions, getSubmissionImages, updateSubmission
 import { adminAiAdvice, pubAiChat } from './actions/ai.js'
 import { getDashboardStats } from './actions/stats.js'
 import { getStockMovements, adjustStock } from './actions/stock.js'
+import { getEventTimeline } from './actions/events.js'
 import { fail } from './errors.js'
 import { kvCacheGetJSON, kvCacheSet, invalidatePublicCatalog, invalidateDashboard, invalidateAiAdvice, AI_ADVICE_CACHE_KEY, DASHBOARD_CACHE_PREFIX } from './cache.js'
 
@@ -56,7 +57,7 @@ const ADMIN_READ_ACTIONS = new Set([
   'login', 'verifyKey', 'getProducts', 'stalePendingReport', 'getOrders', 'getOrder',
   'getPublicProducts', 'getPublicCategories', 'getAllReviews', 'getReviews', 'getOrderStatus',
   'getSubmissions', 'getSubmissionImages', 'aiAdvice', 'getDashboardStats', 'getStockMovements',
-  'getPromotions',
+  'getPromotions', 'getEventLog',
 ])
 
 // 会影响看板聚合结果的写操作（2026-09-18 R6）：成功后必须让看板缓存即时失效，
@@ -128,6 +129,8 @@ export async function handleAdmin(env, action, adminKey, payload = {}, request =
       case 'getOrder': result = { code: 0, data: await getOrderById(DB, payload.orderId) }; break
       // M-58-3 促销档位只读视图（纯读：档位定义 + 每档命中统计；缺表老库回空数组）
       case 'getPromotions': result = await getPromotions(DB); break
+      // 事件时间线只读视图（纯读：单单事件按 at 升序；orderId 必填；只读密钥可用）
+      case 'getEventLog': result = await getEventTimeline(DB, payload); break
       case 'getPublicProducts': {
         // M1：公共商品走 KV 缓存（60s TTL）；命中直接返回，未命中查库后回填
         const cached = await kvCacheGetJSON(env, 'cache:public:products')

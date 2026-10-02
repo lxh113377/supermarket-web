@@ -70,6 +70,23 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
   }
 }
 
+// 订单事件时间线（管理端 /web getEventLog；本地演示模式无事件存储，回空数组不造数据）
+export interface OrderEventItem {
+  type: string; at: string; orderId: string; status: string;
+  totalAmount: number; discountAmount: number; createdAt: string;
+}
+export async function getEventTimeline(orderId: string, limit = 50): Promise<OrderEventItem[]> {
+  if (!IS_CLOUD) return []
+  try {
+    const r = await adminCall<{ orderId: string; events: OrderEventItem[] }>('getEventLog', { orderId, limit })
+    if (r.code !== 0 || !r.data) return []
+    return Array.isArray(r.data.events) ? r.data.events : []
+  } catch (e) {
+    console.warn('[db] getEventTimeline failed:', e instanceof Error ? e.message : String(e))
+    return []
+  }
+}
+
 // 顾客侧订单进度（/pub getOrderStatus，免密钥；本地模式读 localStorage）
 export async function getOrderStatus(orderId: string): Promise<{ status: string; updatedAt?: string } | null> {
   if (!IS_CLOUD) {

@@ -685,6 +685,18 @@ ok(ledFilter.code === 0 && ledFilter.data.items.every((r) => r.kind === 'sale'),
 const ledBadFilter = await handleAdmin(env, 'getStockMovements', 'test-key-123', { kind: 'bogus' })
 ok(ledBadFilter.code === -1 && ledBadFilter.errorCode === 'invalid_kind', `L17 非法 kind 带机器码拒绝（实得 ${ledBadFilter.errorCode}）`)
 
+// 事件时间线只读视图（getEventLog）：按单查 + 缺 orderId 带机器码 + limit 钳位
+db.prepare("INSERT INTO event_log (type, at, orderId, status, totalAmount, discountAmount, createdAt) VALUES ('ORDER_STATUS_CHANGED','2026-10-02T00:00:00.000Z','probe-order-9','paid',12.5,2,'2026-10-02T00:00:00.000Z')").run()
+db.prepare("INSERT INTO event_log (type, at, orderId, status, totalAmount, discountAmount, createdAt) VALUES ('ORDER_STATUS_CHANGED','2026-10-02T01:00:00.000Z','probe-order-9','done',12.5,2,'2026-10-02T01:00:00.000Z')").run()
+const evTl = await handleAdmin(env, 'getEventLog', 'test-key-123', { orderId: 'probe-order-9' })
+ok(evTl.code === 0 && evTl.data.orderId === 'probe-order-9' && evTl.data.events.length === 2
+  && evTl.data.events[0].status === 'paid' && evTl.data.events[1].status === 'done',
+  `L24 时间线按 at 升序返回两条（实得 ${evTl.data?.events?.length}）`)
+const evTlNoId = await handleAdmin(env, 'getEventLog', 'test-key-123', {})
+ok(evTlNoId.code === -1 && evTlNoId.errorCode === 'missing_order_id', `L25 缺 orderId 带机器码拒绝（实得 ${evTlNoId.errorCode}）`)
+const evTlOne = await handleAdmin(env, 'getEventLog', 'test-key-123', { orderId: 'probe-order-9', limit: 1 })
+ok(evTlOne.code === 0 && evTlOne.data.events.length === 1, `L26 limit 钳位生效（实得 ${evTlOne.data?.events?.length}）`)
+
 // 不变式收口：跑完上面所有写路径之后，全库不得有一件商品脱节
 const ledBad = db.prepare(LEDGER_CHECK_SQL).all()
 ok(ledBad.length === 0, `L18 不变式 SUM(delta)==stock 对全部商品成立（脱节 ${ledBad.length} 件：${JSON.stringify(ledBad.slice(0, 3))}）`)

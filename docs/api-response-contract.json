@@ -884,6 +884,44 @@
       "errEnvelopeAlways": [],
       "errEnvelopeSeen": []
     },
+    "/web getEventLog": {
+      "side": "/web",
+      "action": "getEventLog",
+      "calls": 3,
+      "dataKinds": [
+        "object"
+      ],
+      "envelopeAlways": [
+        "code",
+        "data"
+      ],
+      "envelopeSeen": [
+        "code",
+        "data"
+      ],
+      "keysAlways": [
+        "events",
+        "orderId"
+      ],
+      "keysSeen": [
+        "events",
+        "orderId"
+      ],
+      "errEnvelopeAlways": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ],
+      "errEnvelopeSeen": [
+        "code",
+        "errorCode",
+        "kind",
+        "message",
+        "retryable"
+      ]
+    },
     "/web getOrder": {
       "side": "/web",
       "action": "getOrder",

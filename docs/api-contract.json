@@ -95,6 +95,11 @@
           "cacheKey": null,
           "rateBucket": null
         },
+        "getEventLog": {
+          "write": false,
+          "cacheKey": null,
+          "rateBucket": null
+        },
         "getPublicProducts": {
           "write": false,
           "cacheKey": "cache:public:products",
