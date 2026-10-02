@@ -27,6 +27,28 @@
   （`if (!next || tlEvents[orderId] || tlLoading[orderId]) return` → 去掉 `tlEvents[orderId]` 一项）后
   `npx vitest run tests/ordersTab.test.tsx -t "走缓存"` **rc=1**，红因 `expected to be called 1 times, but got 2 times`；
   改前逐字节备份、改后按 sha256 前缀 `fc432a271a2fd121` 载回并断言相等 ⇒ 源文件未漂。
+- **在途件机制（M-60-3，跨两轮复发的第二条腿）**：新增 `scripts/check-inflight-intake.mjs`
+  （别名 `npm run check:inflight`，**advisory：不进 `verify` 链也不进 CI** —— 它读本机工作树，
+  CI 的 checkout 恒为干净树，在链上只会恒答"0 件在途"，那是把"没对象"渲染成"通过"）。
+  退出码两档：`0` 面采到了（含 0 件这一合法读数）/ `2` 取数面坏了记 UNVERIFIED。
+  取数三面：`status --porcelain -z` ∪ `diff --name-only -z HEAD`（内容面，用来把行尾归一幻影剔掉）
+  ∪ `ls-files --others --exclude-standard -z`（未跟踪的第二条分母，与 status 的 `??` 各印一行对账）。
+  夹具 `tests/inflightIntake.test.js` 8 条全在**一次性 git 仓**上真跑（`--root=` 就是为它加的：
+  没有它只能断言门面行的形状，而形状断言抓不到"两面都读漏了"）。
+- **造这条判据时自己的两次翻车（都被它自己的夹具/自证抓到，非事后追认）**：
+  ① 「认领」判据第一版写成"该文件名是否在 `CHANGELOG.md` 或 `memory/07-next-steps*.md` 里出现过"——
+  动手前实测：`OrdersTab` 在 `CHANGELOG@HEAD~1` 命中 **9** 次、`memory/07-next-steps*.md` 全集命中 **5** 次
+  ⇒ 这种口径对任何真组件恒答"已认领"，是一条没有牙齿的判据；改成只问**主卷最新那个轮次节**。
+  ② `latestSectionOf()` 第一版取"最后一个 `^## ` 标题"，首跑就把认领面锚到 `## 分卷目录`（里面只有卷号，
+  永远不会点名源文件 ⇒ 每条在途件都被判无主，看着很严其实锚错面）；锚点改成"日期 + 第N轮"两条一起，
+  并把这一形态写成 `--selftest` 的回归断言（25/25）。
+  另：认领翻转那条夹具把我手算的期望 `claimed=1 unclaimed=0` 当场否证成 `files=2 claimed=1 unclaimed=1` ——
+  写下"认领"这句话本身就把它依赖的主卷改成了未提交态。判据没错，是期望值该由被测对象自报。
+- **登记面自动跟上（不必手抄就是登记制的收益）**：加完别名后 `npm run verify:entrypoints` 直接
+  **14/14 PASS**，门面行从「入口 58／子进程跑过 47／门禁类 38・真跑 35」变
+  「入口 **59**／跑过 **48**／门禁类 **39**・真跑 **36**」，G2 缺口∪豁免双向对账仍 11/11 ⇒
+  新件因"有子进程夹具"而**不需要**挂缺口也不需要豁免行；README 门禁一览由 `--update` 自动生成新行（幂等复跑逐字节等）。
+
 - **轮次编号分叉（本轮一手实测，此前无判据覆盖）**：`CHANGELOG.md:7` 已写「第六十三轮」（商品图+4件零食，
   提交 `c995366..ccebafa`），而内层 `memory/07-next-steps.md` 主卷最新节仍是第六十二轮，
   `verify:pointers` 却印「内层 62｜外层 62 ⇒ 指针在跟，已核对 2/2」PASS —— 它两侧取数面都只解析

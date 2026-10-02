@@ -79,6 +79,7 @@
     "check:doc-commands": "node scripts/check-doc-commands.mjs",
     "check:syntax": "node scripts/check-staged-syntax.mjs",
     "check:judge-side-effects": "node scripts/check-judge-side-effects.mjs",
+    "check:inflight": "node scripts/check-inflight-intake.mjs",
     "verify:cli-legs": "node scripts/check-cli-leg-coverage.mjs",
     "report:live-perf": "node scripts/report-live-perf.mjs",
     "collect:live-perf": "node scripts/collect-live-perf.mjs"
