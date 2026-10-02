@@ -697,6 +697,24 @@ ok(evTlNoId.code === -1 && evTlNoId.errorCode === 'missing_order_id', `L25 缺 o
 const evTlOne = await handleAdmin(env, 'getEventLog', 'test-key-123', { orderId: 'probe-order-9', limit: 1 })
 ok(evTlOne.code === 0 && evTlOne.data.events.length === 1, `L26 limit 钳位生效（实得 ${evTlOne.data?.events?.length}）`)
 
+// ---------- 对外回显卫生（第六十四轮 M-64-1）：请求方不得决定响应体里那段字符串 ----------
+// 一手形态：`/pub createOrder` 免鉴权，原来 `商品不存在: ${item.productId}` 把入参原样拼进 message，
+// 而 message 会被 OrderConfirmPage.tsx:87 直接渲染给顾客 ⇒ 5,000 字入参 = 5,000 字对外字符串。
+const LONG_ID = 'z'.repeat(5_000)
+const echoOrder = await handlePublic(env, 'createOrder', { roomNumber: '305', items: [{ productId: LONG_ID, quantity: 1 }] })
+ok(echoOrder.code === -1 && echoOrder.errorCode === 'product_not_found'
+  && echoOrder.message.length < 120 && !echoOrder.message.includes('z'.repeat(70)),
+  `L27 免鉴权入口的长入参不得原样回显进 message（实得 message ${echoOrder.message?.length}B，前 40：${String(echoOrder.message).slice(0, 40)}）`)
+const echoTl = await handleAdmin(env, 'getEventLog', 'test-key-123', { orderId: `${LONG_ID}!@#` })
+ok(echoTl.code === 0 && echoTl.data.orderId.length <= 64 && !/[!@#]/.test(echoTl.data.orderId),
+  `L28 零结果也要回显洗过的值：orderId ≤64 且白名单外字符不残留（实得 ${echoTl.data?.orderId?.length}B）`)
+const echoKind = await handleAdmin(env, 'getStockMovements', 'test-key-123', { kind: ['a'.repeat(3_000)] })
+ok(echoKind.code === -1 && echoKind.errorCode === 'invalid_kind' && echoKind.message.length < 200,
+  `L29 kind 传数组时模板串会 String() 化出无上限文本，message 必须有界（实得 ${echoKind.message?.length}B）`)
+// 正向腿（防"一律截空"把合法形状也缴械）：真实订单号过白名单必须逐字不变
+const echoReal = await handleAdmin(env, 'getEventLog', 'test-key-123', { orderId: 'probe-order-9' })
+ok(echoReal.data.orderId === 'probe-order-9', `L28b 合法 id 零损失（实得 ${echoReal.data?.orderId}）`)
+
 // 不变式收口：跑完上面所有写路径之后，全库不得有一件商品脱节
 const ledBad = db.prepare(LEDGER_CHECK_SQL).all()
 ok(ledBad.length === 0, `L18 不变式 SUM(delta)==stock 对全部商品成立（脱节 ${ledBad.length} 件：${JSON.stringify(ledBad.slice(0, 3))}）`)

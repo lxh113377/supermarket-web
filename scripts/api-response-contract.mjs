@@ -82,6 +82,13 @@ export function deriveEntry(rec) {
 const stable = (o) => JSON.stringify(o, Object.keys(o).sort())
 
 /**
+ * 形状字段清单（V4 唯一比对的面）。`side/action` 是身份、`calls` 是样本数 —— 它们变了不代表
+ * 响应形状漂了。名单外的新键出现必须由 V4 判红并点名（第六十四轮一手：原实现在这里只比
+ * 七个手抄名字，实际对象还有 `calls`，于是多跑一次探针就被判成"契约漂移"却印 `[]` 说不出红因）。
+ */
+const SHAPE_FIELDS = ['dataKinds', 'envelopeAlways', 'envelopeSeen', 'keysAlways', 'keysSeen', 'errEnvelopeAlways', 'errEnvelopeSeen']
+
+/**
  * 纯判据。V1 分母 / V2 流量⇄契约 / V3 缺口对账 / V4 漂移 / V5 条件字段 / V6 空保证字段 / V7 由 main 印门面行。
  * @param derived 本次实测录制压出的契约条目
  * @param committed 已提交的 docs/api-response-contract.json（null=还没生成）
@@ -128,9 +135,27 @@ export function evaluate({ derived, committed, apiActions, gaps = RESPONSE_GAPS,
       if (!a) { drift.push(`${k}：契约里有、实测没录到（action 被删或 payload 变了？）`); continue }
       if (!b) { drift.push(`${k}：实测新出现、契约里没有 ⇒ 跑 --write 入册`); continue }
       if (stable(a) !== stable(b)) {
-        const diff = ['dataKinds', 'envelopeAlways', 'envelopeSeen', 'keysAlways', 'keysSeen', 'errEnvelopeAlways', 'errEnvelopeSeen']
-          .filter((f) => stable(a[f]) !== stable(b[f]))
-        drift.push(`${k}：字段漂移 [${diff.join(',')}] 实测 ${diff.map((f) => f + '=' + JSON.stringify(a[f])).join(' ')}`)
+        // 一手缺陷（第六十四轮）：原来这里比对的是**整个对象**，而点名只靠一份手抄的七个字段名。
+        // 本轮往 verify-backend 里多加了几条探针 ⇒ 只有 `calls`（样本数，不是形状）变了 ⇒
+        // `stable` 不等、七个名字却全等 ⇒ 判据印出 `字段漂移 [] 实测 `：红是红了，说不出红在哪，
+        // 而且把"我多跑了一次探针"判成"契约漂移"，逼下一次 `--write` 去覆盖一份本没变的形状账。
+        // 正解是把两件事分开：① 形状字段逐个比；② 元数据按名字放行；③ **两侧键集里出现名单外的新键
+        //      必须红** —— 否则"新增一个字段"又会变成一次说不出话的 `[]`（这条就是本缺陷的成因）。
+        const META = ['side', 'action', 'calls']
+        const aKeys = new Set(Object.keys(a || {}))
+        const bKeys = new Set(Object.keys(b || {}))
+        const unknown = [...new Set([...aKeys, ...bKeys])]
+          .filter((f) => !SHAPE_FIELDS.includes(f) && !META.includes(f)).sort()
+        if (unknown.length) {
+          drift.push(`${k}：出现了名单外的键 [${unknown.join(',')}] ⇒ 先把它归进 SHAPE_FIELDS（形状）或 META（元数据），不许让新字段落在两边都不比对的位置`)
+          continue
+        }
+        const shapeDiff = SHAPE_FIELDS.filter((f) => stable(a[f]) !== stable(b[f]))
+        if (shapeDiff.length) {
+          drift.push(`${k}：形状漂移 [${shapeDiff.join(',')}] 契约 `
+            + shapeDiff.map((f) => f + '=' + JSON.stringify(b[f])).join(' ')
+            + ' ⇒ 实测 ' + shapeDiff.map((f) => f + '=' + JSON.stringify(a[f])).join(' '))
+        }
       }
     }
     push('V4', drift.length === 0, 'V4 契约与实测逐字段对账（漂移=红）',

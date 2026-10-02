@@ -1,6 +1,6 @@
 // 订单域 handlers（从 backend.js 拆出，逻辑零改动）
 
-import { logError } from '../logger.js'
+import { logError, sanitizeTrace } from '../logger.js'
 import { qAll, qFirst, qRun, qBatch, jparse, nowISO, genId, insert } from '../db.js'
 import { insertMovements } from '../stock.js'
 import { isSafeImageUrl } from '../security.js'
@@ -184,7 +184,11 @@ export async function createOrder(DB, payload) {
   const verified = []
   for (const item of items) {
     const p = byId.get(item.productId)
-    if (!p) return fail('product_not_found', `商品不存在: ${item.productId}`)
+    // 回显走 sanitizeTrace（第六十四轮 M-64-1）：`/pub createOrder` 是**免鉴权**入口，
+    // 原来 `${item.productId}` 等于让请求方决定一段会渲染进顾客端界面的字符串
+    // （实测 5,000 字 productId ⇒ 5,000 字 message；OrderConfirmPage.tsx:87 直接显示）。
+    // 真实商品号（p001 / p_mufyndudcyu1ji 形状）过白名单零损失，所以这不是"防坏人"而是"不替顾客排版"。
+    if (!p) return fail('product_not_found', `商品不存在: ${sanitizeTrace(String(item.productId ?? ''))}`)
     if (p.enabled === 0 || p.enabled === false) return fail('product_disabled', `商品已下架: ${p.name}`)
     // 数量必须为正整数：拦截负数/小数/缺失，防订单负金额或异常金额
     const qty = Number(item.quantity)

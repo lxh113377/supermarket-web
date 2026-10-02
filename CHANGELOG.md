@@ -49,16 +49,60 @@
   「入口 **59**／跑过 **48**／门禁类 **39**・真跑 **36**」，G2 缺口∪豁免双向对账仍 11/11 ⇒
   新件因"有子进程夹具"而**不需要**挂缺口也不需要豁免行；README 门禁一览由 `--update` 自动生成新行（幂等复跑逐字节等）。
 
+- **外层记忆壳纳入体量判据面（M-60-4）**：`scripts/check-memory-volume.mjs` 新增外层面读数 ——
+  `--outer-memory=<目录>`（缺省 `../超市/memory`，即可测试才加的：没它夹具只能断言内层）。
+  `shell_max` **优先读外层文件头自己的 `shell_max=40,960B` 声明**，读不到才退代码默认
+  （与 `loadBudget()` 同一口径；外层目录不存在时印 `unavailable`，**不折成 ok** ——
+  CI 的检出面里永远没有外层，这是常态不是故障）。本轮实测：外层主壳 **44,794 B**，越限 **3,834 B**。
+  **为什么仍不判红**：44KB 该按轮次拆还是按主题拆，第六十轮明写「口径先定再动」，本轮没有定；
+  判红等于逼下一轮猜一个拆法，而猜错的拆比重演一次断更更贵 ⇒ 走 `report:*` 那一档
+  （同 `docs/item-budgets.json` 第一版不进阻断链）：读数进 stdout 结论通道、越限另打一条 stderr WARN，
+  gate 门面行加「外层面=over（越 3,834B）｜两侧分母各报各的」。内层 V1~V5 一字未动
+  （同一事实只许一处判），并有一条夹具专门断言"外层不该伪装成一条 V 腿进分母"。
+  夹具 5 条（`tests/memoryVolume.test.js` 新 describe）：三态互不相同／`readShellMax` 四种输入／
+  入口真跑 rc 与不传参相同／unavailable 不印成 ok／内层腿数不变。
+  首跑踩到的一条自己的假反例：越限夹具最初只造了 539 B 的假外层文件，远小于 40,960 ⇒ 走的是 `ok` 档，
+  `外层面=over` 永不可达；改成 45,000 B 后才真打到 over 分支（户内：反例的期望值须由被测对象自报）。
+
+
 - **轮次编号分叉（本轮一手实测，此前无判据覆盖）**：`CHANGELOG.md:7` 已写「第六十三轮」（商品图+4件零食，
   提交 `c995366..ccebafa`），而内层 `memory/07-next-steps.md` 主卷最新节仍是第六十二轮，
   `verify:pointers` 却印「内层 62｜外层 62 ⇒ 指针在跟，已核对 2/2」PASS —— 它两侧取数面都只解析
   `07-next-steps*.md` 的 `## …第N轮` 标题，**CHANGELOG 完全不在它的面里** ⇒ 一个轮号可以在 CHANGELOG 被宣称
-  而记忆指针不动，且这道闸结构上看不见。本轮据此新增 P3 腿（CHANGELOG 声明轮号 ⇄ 内层主卷最新轮号 双向对账），
-  并把本轮定为**第六十四轮**（不与 63 撞号）。
+  而记忆指针不动，且这道闸结构上看不见。**本轮只把它记账成下一轮 P0，没有实施**（修法与落点写在
+  `memory/07-next-steps.md` 本轮节：给 `check-memory-pointer-sync.mjs` 加第三取数面 = CHANGELOG 声明轮号 ⇄
+  内层主卷最新轮号双向对账）—— 拿"发现了"当"修了"是本仓反复认过的错，宁可不写已完成。
+  本轮把自己的轮号定为**第六十四轮**（不与 63 撞号）。
+- **对外回显卫生逐根核（第六十轮 G5 欠的那半，本轮补上）**：子代理穷举 `/web`+`/pub` 全部响应出口
+  （`fail()` 第三参、`return { code: 0, data }` 构造点、`apiResponse`/`withTrace`/`httpStatusOf`/`retryAfterSeconds`、
+  CORS 的 `resolveCorsHeaders`、URL query、其余请求头），命中 9 处"入参进响应"，其中**真有卫生缺陷的是 3 处**：
+  ① `functions/lib/actions/orders.js:187` `商品不存在: ${item.productId}` —— **免鉴权** `/pub createOrder`，
+  且该 message 被 `src/pages/OrderConfirmPage.tsx:87` 直接渲染给顾客；实测 5,000 字 productId ⇒ message **5,007 B**。
+  ② `functions/lib/actions/events.js` 的 `data.orderId`：零结果也照样回显原值（无上限）。
+  ③ `functions/lib/stock.js:105` `kind 非法：${payload.kind}`：传数组时模板串 `String()` 化出无上限文本。
+  修法一律复用 `logger.js` 的 `sanitizeTrace`（洗 IP → `[\w:.-]` 白名单 → 64 字）——
+  **不再写第二个清洗器**（同一事实只许一处判），且 ①② 真实 id（`p001` / `o_62` / `probe-order-9`）过白名单零损失。
+  ② 另把清洗挪到查询之前，使"回显的串"与"真正查过的串"必然同一个（分两处洗迟早分叉）。
+  查证后**判为不成立**的两处（记此防重复劳动）：`getOrderStatus` 的 `data.orderId` 只在 DB 有该 `_id` 时才走到
+  （`_id` 由服务端 `genId` 生成，攻击者造不出长 id）⇒ 回显被数据库钳死了；CORS 是 `allowed.has(origin)`
+  命中才写头、未命中不写 ⇒ 非任意反射（附带查到一个真事实：OPTIONS 传 `env={}` ⇒ `ALLOWED_ORIGINS` 在预检上失效，本轮未动）。
+- **顺带修掉一条"红了却说不出红在哪"的判据缺陷（V4）**：`scripts/api-response-contract.mjs` 的 V4
+  比对的是**整个形状对象**，点名却靠一份手抄的七个字段名 —— 对象里还有 `side/action/calls`。
+  本轮往 verify-backend 加了 4 条断言 ⇒ 只有 `calls`（样本数）变 ⇒ `stable` 不等、七个名字全等 ⇒
+  判据印 `字段漂移 [] 实测 `（红无归因），而且把"我多跑了一次探针"当成"契约漂移"，逼一次 `--write` 去覆盖本没变的形状账。
+  正解不是把 `calls` 补进名单（下次再加字段照样隐身），而是把两件事分开：形状字段按 `SHAPE_FIELDS` 逐个比、
+  元数据按名字（`META`）放行、**名单外的新键必须红并点名**。演习：注入一个 `probeNewField64` ⇒
+  rc=1 且 47 条逐个印出该键名；撤掉注入后 V4 回到 6/6 PASS，且**没有动过 `docs/api-response-contract.json`**
+  ⇒ 反证真没有形状漂移，原先那条红纯属判据把样本数当成了契约字段。
 - **验证**：`npx vitest run tests/ordersTab.test.tsx tests/ordersTabStale.test.tsx` 2 files 全绿（34 用例）；
-  变异腿 rc=1；`npm run verify:escape-hatch` rc=0（记录 9 条，绕过 8／起始 1，不合规 0）；
-  `npm run verify:backend` rc=0（**191 通过 / 0 失败**）；`npm run verify:functions` rc=0（编译产物 123,802 B，
-  `/web /pub /_health` 三入口齐备）；`npm run typecheck` 双配置 0 错。
+  `tests/inflightIntake.test.js` 8/8、`tests/memoryVolume.test.js` 含外层 5 条全绿；
+  变异腿两条：时间线缓存守卫摘掉 ⇒ `expected to be called 1 times, but got 2 times`；
+  回显腿改回原写法 ⇒ L27 红因 `实得 message 5007B`（改后 71B）。两处都按 sha256 前缀载回并断言相等；
+  `npm run verify:escape-hatch` rc=0（记录 9 条，绕过 8／起始 1，不合规 0）；
+  `npm run verify:backend` rc=0（**195 通过 / 0 失败**，本轮 +4 条回显卫生断言）；
+  `npm run verify:functions` rc=0（编译产物 123,802 B，
+  `/web /pub /_health` 三入口齐备）；`npm run typecheck` 双配置 0 错；`npm run verify:volume` 印出两侧分母
+  （内层 132 卷全 ≤4,096B ｜外层面 44,794B / shell_max 40,960B ⇒ over）。
   生产侧只读回读：`event_log` `n=0`，而 `orders` 的 `MAX(createdAt)=MAX(updatedAt)=2026-10-01T12:44:00.682Z`
   早于第六十轮迁移时刻 ⇒ 该 0 属「无输入」不是「写路径坏」，落库能力由 `GATE-PASS event-sink-d1` 主动证过，
   本轮不另立第二条同事实判据。

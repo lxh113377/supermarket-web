@@ -6,6 +6,7 @@
 // 见 event_sink.js 头注；pii-inventory.md「覆盖表：event_log」）。
 import { qAll } from '../db.js'
 import { fail } from '../errors.js'
+import { sanitizeTrace } from '../logger.js'
 
 // 单单最多回多少行：正常单一生事件 <10 条（5 态状态机），100 是 10 倍余量，
 // 且窄行远低于 D1 行数配额；default 50 是"一屏时间线"的产品取值。
@@ -16,7 +17,11 @@ const EVENT_TIMELINE_LIMIT_DEFAULT = 50
 const EVENT_TIMELINE_LIMIT_MAX = 100
 
 export async function getEventTimeline(DB, payload = {}) {
-  const orderId = String(payload.orderId || '')
+  // 先洗再查（第六十四轮 M-64-1）：清洗后的值同时用于 SQL 绑定与 data.orderId 回显，
+  // 于是"回显的串"与"真正查过的串"必然同一个 —— 分别洗两处迟早会分叉。
+  // 真实订单号（o_/p_ + base36）过 `[\w:.-]` 白名单零损失 ⇒ 合法调用行为不变；
+  // 纯空白入参洗成空串后走 missing_order_id，不再拿空格去查一遍空结果。
+  const orderId = sanitizeTrace(String(payload.orderId || ''))
   if (!orderId) return fail('missing_order_id', '缺少 orderId')
   const n = Math.trunc(Number(payload.limit ?? EVENT_TIMELINE_LIMIT_DEFAULT))
   const limit = Number.isFinite(n)

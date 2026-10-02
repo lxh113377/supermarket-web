@@ -10,6 +10,7 @@
 //   每个有限库存商品 SUM(stock_movements.delta) === products.stock；不限售项（stock=-1）SUM 必须为 0。
 //   这条由 scripts/verify-backend.mjs 的 L 组当场判（见 LEDGER_CHECK_SQL），脱节即具名报出商品号。
 import { qAll, qFirst, qRun, qBatch, nowISO } from './db.js'
+import { sanitizeTrace } from './logger.js'
 import { fail } from './errors.js'
 
 /** 流水类型。init=建账/新品建档，sale=下单占用，void=取消或失败回补，adjust=后台手工改数 */
@@ -102,7 +103,9 @@ export async function queryMovements(DB, payload = {}) {
   const params = []
   if (payload.productId) { where.push('m.productId = ?'); params.push(String(payload.productId)) }
   if (payload.kind) {
-    if (!MOVEMENT_KINDS.includes(payload.kind)) return fail('invalid_kind', `kind 非法：${payload.kind}（在册：${MOVEMENT_KINDS.join('/')}）`)
+    // 回显走 sanitizeTrace（第六十四轮 M-64-1，与 orders.js:187 / events.js 同一处收口）：
+    // 模板串对数组/对象会做 String() 化，`kind: ['a'.repeat(5000)]` 原样进 message 不受长度约束。
+    if (!MOVEMENT_KINDS.includes(payload.kind)) return fail('invalid_kind', `kind 非法：${sanitizeTrace(String(payload.kind))}（在册：${MOVEMENT_KINDS.join('/')}）`)
     where.push('m.kind = ?'); params.push(payload.kind)
   }
   const limit = Math.min(MOVEMENT_PAGE_MAX, Math.max(1, Number(payload.limit) || MOVEMENT_PAGE_DEFAULT))
