@@ -139,4 +139,10 @@ export const products: SeedProduct[] = [
   // 新增商品（2026-09-07）
   { name: '康师傅茉莉清茶', spec: '1L', price: 3.5, subcategories: ['tea', 'sweet'], order: 53 },
   { name: '康师傅茉莉蜜茶', spec: '1L', price: 3.5, subcategories: ['tea', 'sweet'], order: 54 },
+
+  // 新增商品（2026-10-02，用户实拍供货图；四件均为零食类，图上无净含量小字，spec 留空）
+  { name: '口水娃鱿鱼须', spec: '', price: 0.5, subcategories: ['snacks'], order: 56 },
+  { name: '片甲不留辣片', spec: '', price: 0.5, subcategories: ['snacks'], order: 57 },
+  { name: '人小鬼大糖果', spec: '', price: 0.5, subcategories: ['snacks'], order: 58 },
+  { name: '脆皮虾', spec: '', price: 0.5, subcategories: ['snacks'], order: 59 },
 ]

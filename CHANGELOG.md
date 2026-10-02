@@ -4,6 +4,30 @@
 
 ## [未发布]
 
+### 2026-10-02 商品图轮换与四件零食上新（第六十三轮）
+
+- **做了什么**：① **康师傅冰红茶（order 6）宣传图替换** —— 用户提供供货实拍图（黄箱+单瓶，冰力十足），
+  重新生成 800×800 整图 + 400×400 缩略图覆盖 `public/images/6.webp` 与 `public/images/sm/6.webp`；
+  旧图移出 `public/` 归档到 `archive/images-replaced-2026-10-02/`（含 sm 副本，可回滚）。
+  **零代码改动**：商品 `image` 字段为空 → 四个调用点均走 `productImageUrl(order)` 派生 URL。
+  ② **新增 4 件零食**（用户实拍供货图，各 ¥0.5）：口水娃鱿鱼须（order 56）、片甲不留辣片（57）、
+  人小鬼大糖果（58）、脆皮虾（59）；分类 `["snacks"]`、库存 `-1`（不限售）、已上架、成本价 0；
+  `src/data/products-seed.ts` 为真相源，`db/seed.sql` 由 `node db/gen-seed.mjs` 同步生成。
+- **为什么**：冰红茶原图是白底单瓶图、观感弱，用户要求换成整箱宣传图；四件零食是店内实际在售、
+  但商品库里还没有的新品。order 顺延到 56–59，避开已占用的 55（润田矿泉水，只在 D1 不在 seed）。
+- **规格体检（换图前必查）**：线上 `/pub getPublicProducts` 现读确认 `p006` 的 `order=6`、`spec=1L`、
+  在售 `image` 为空 —— 图上印「1L×12 瓶 整箱装」，与商品的 1L 规格一致，**不存在"图文售卖单位冲突"**，
+  故不改规格也不改价（线上现价 3.50）。四件新商品图上净含量小字不可读，`spec` 一律留空，
+  沿用现有 43/44/45 的写法，不猜规格。
+- **图片流水线口径**：本机 WinGet 未装 ffmpeg（skill 文档的动态探测回退路径也未命中），
+  改用 **Python 3.12 + Pillow 11.3**（底层同为 libwebp，编码器一致）走同规格流水线：
+  整图 800×800 `-quality 80`、sm 400×400 `-quality 75`、白底 pad、**源图小于目标只 pad 不 upscale**。
+  5 张源图实测 800×800 ~ 2000×2000，成品 39.0–136.9 KB。
+- **验证**：`npm run verify:images` rc=0（主图 59/59 + 缩略图 59/59，覆盖率 100%）；
+  `npm run typecheck` 零错；`npm run verify:eol` GREEN；`npm run verify:schema` 25/25；
+  商品数据相关 5 个测试文件（catalogFacts / verifyImages / variants / localStore / productDetailVariants）全绿。
+  写线上前已做 D1 全量备份 `_backup/d1-pre-2026-10-02-new-products.sql`（1.48 MB）。
+
 ### 2026-10-02 追加七十九（第六十轮：事件总线第 3 步消费者 + 响应侧 trace 回报，并收口 trace 自身的卫生缺陷）
 
 - **做了什么**：① **M-59-1（挂账两轮的第 3 步）**：新增 `event_log` 表（`db/schema.sql` + `db/migrate-event-log.sql`

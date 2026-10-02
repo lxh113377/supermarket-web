@@ -54,3 +54,7 @@ INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", s
 INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p052', '乐吧薯片', '40g', 1.88, '["snacks"]', 1, 52, '[{"label":"海苔味"},{"label":"芥末味"},{"label":"鸡肉味"},{"label":"烧烤味"},{"label":"番茄味"},{"label":"泡菜味"},{"label":"咖喱牛肉味"},{"label":"香洋葱味"}]');
 INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p053', '康师傅茉莉清茶', '1L', 3.5, '["tea","sweet"]', 1, 53, '[]');
 INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p054', '康师傅茉莉蜜茶', '1L', 3.5, '["tea","sweet"]', 1, 54, '[]');
+INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p056', '口水娃鱿鱼须', '', 0.5, '["snacks"]', 1, 56, '[]');
+INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p057', '片甲不留辣片', '', 0.5, '["snacks"]', 1, 57, '[]');
+INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p058', '人小鬼大糖果', '', 0.5, '["snacks"]', 1, 58, '[]');
+INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p059', '脆皮虾', '', 0.5, '["snacks"]', 1, 59, '[]');
