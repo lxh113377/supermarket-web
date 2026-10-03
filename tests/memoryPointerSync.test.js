@@ -9,7 +9,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { copyGateScripts } from './helpers/copyGateScripts.mjs'
 import { assertCliRan } from './helpers/cliLeg.js'
-import { evaluate, latestRound, roundsOf, cnNum, OUTER_MEMORY } from '../scripts/check-memory-pointer-sync.mjs'
+import { evaluate, latestRound, roundSetOf, changelogRounds, ORPHAN_BASELINE, roundsOf, cnNum, OUTER_MEMORY } from '../scripts/check-memory-pointer-sync.mjs'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SELF = join(REPO, 'scripts', 'check-memory-pointer-sync.mjs')
@@ -47,10 +47,15 @@ describe('中文轮次解析（读不懂必须返回空，不得当 0）', () =>
 })
 
 describe('P1/P2 三态', () => {
-  const inner = { round: 36, seen: [36] }
-  it('跟上 ⇒ 两条都 PASS', () => {
-    const v = evaluate({ inner, outer: { round: 36, seen: [36] } })
-    expect(v.map((r) => r.state)).toEqual(['PASS', 'PASS'])
+  const inner = { round: 36, seen: [36], ambiguous: [] }
+  const outer36 = { round: 36, seen: [36], ambiguous: [] }
+  it('跟上 ⇒ 四条都 PASS（P3 喂对齐的 CHANGELOG 面，不喂即 UNVERIFIED）', () => {
+    const v = evaluate({ inner, outer: outer36, innerRounds: [36], clRounds: [...ORPHAN_BASELINE, 36] })
+    expect(v.map((r) => r.state)).toEqual(['PASS', 'PASS', 'PASS', 'PASS'])
+  })
+  it('不断言"没喂 CHANGELOG 也全绿"：缺第三面时 P3 必须写 UNVERIFIED', () => {
+    const v = evaluate({ inner, outer: outer36 })
+    expect(row(v, 'P3').state).toBe('UNVERIFIED')
   })
   it('断更 ⇒ P2 红，并把"补指针或改口径"两条出路写进结论', () => {
     const v = row(evaluate({ inner, outer: { round: 29, seen: [29] } }), 'P2')
@@ -73,6 +78,84 @@ describe('P1/P2 三态', () => {
   })
 })
 
+describe('P3 第三取数面（第六十五轮：CHANGELOG 宣称 ⇄ 内层记忆，权威=内层）', () => {
+  const inner = { round: 36, seen: [36], ambiguous: [] }
+  const outer36 = { round: 36, seen: [36], ambiguous: [] }
+  const base = { inner, outer: outer36, innerRounds: [36] }
+  it('对齐面 ⇒ P3 PASS 且写清"新增缺失 0"', () => {
+    const v = row(evaluate({ ...base, innerRounds: [36], clRounds: [...ORPHAN_BASELINE, 36] }), 'P3')
+    expect(v.state).toBe('PASS')
+    expect(v.detail).toContain('新增缺失 0')
+  })
+  it('新增缺失 ⇒ FAIL 并点名轮号（禁加进基线消音）', () => {
+    const v = row(evaluate({ ...base, innerRounds: [36], clRounds: [...ORPHAN_BASELINE, 36, 63] }), 'P3')
+    expect(v.state).toBe('FAIL')
+    expect(v.detail).toContain('63')
+    expect(v.detail).toContain('禁加进基线消音')
+  })
+  it('存量在册 ⇒ PASS（口径立于判据之前，不逼后人编假记忆）', () => {
+    const v = row(evaluate({ ...base, innerRounds: [36], clRounds: [...ORPHAN_BASELINE, 36] }), 'P3')
+    expect(v.state).toBe('PASS')
+    expect(v.detail).toContain('存量在册')
+  })
+  it('基线幽灵 ⇒ FAIL（那一轮已有记忆节就必须把号删出基线）', () => {
+    const v = row(evaluate({ ...base, innerRounds: [12, 36], clRounds: [...ORPHAN_BASELINE, 12, 36] }), 'P3')
+    expect(v.state).toBe('FAIL')
+    expect(v.detail).toContain('基线幽灵')
+    expect(v.detail).toContain('12')
+  })
+  it('CHANGELOG 取不到 ⇒ UNVERIFIED（未观测，不判漂移）', () => {
+    const v = row(evaluate({ ...base, clRounds: null, changelogPath: 'no-such-file.md' }), 'P3')
+    expect(v.state).toBe('UNVERIFIED')
+  })
+  it('ORPHAN_BASELINE 不含 63（约定生效后才发生的真缺陷不许进册）', () => {
+    expect(ORPHAN_BASELINE).not.toContain(63)
+  })
+})
+
+describe('P4 一节只准一个轮号（第六十五轮：补记者编号不得顶高最新轮次）', () => {
+  const inner = { round: 64, seen: [64], ambiguous: [] }
+  const outer64 = { round: 64, seen: [64], ambiguous: [] }
+  const base = { inner, outer: outer64, innerRounds: [64], clRounds: [64] }
+  it('无歧义 ⇒ P4 PASS', () => {
+    expect(row(evaluate(base), 'P4').state).toBe('PASS')
+  })
+  it('一节双号 ⇒ FAIL 并点名文件（标题只留被记轮，补记说明挪正文）', () => {
+    const bad = { ...inner, ambiguous: [{ file: '07-next-steps.md', rounds: [43, 44], title: '## 2026-09-28 — 对标第四十四轮' }] }
+    const v = row(evaluate({ ...base, inner: bad }), 'P4')
+    expect(v.state).toBe('FAIL')
+    expect(v.detail).toContain('43,44')
+  })
+  it('区间写法豁免（第三十~三十五轮是本仓合法补齐形态）', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'smptr-'))
+    tmpDirs.push(dir)
+    writeFileSync(join(dir, '07-next-steps.md'), '## 2026-09-27 — 对标第三十~三十五轮（工作区级指针）\n')
+    const r = latestRound(dir)
+    expect(r.round).toBe(35)
+    expect(r.ambiguous).toEqual([])
+  })
+})
+
+describe('roundSetOf / changelogRounds（集合形态：max 口径盖得住缺号，差集盖不住）', () => {
+  it('只吃标题行：正文里的"第N轮"转述不算宣称', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'smptr-'))
+    tmpDirs.push(dir)
+    writeFileSync(join(dir, '07-next-steps.md'),
+      '## 2026-10-02 — 第六十四轮（正文）\n接管第六十二轮那条 P0。\n')
+    expect(roundSetOf(dir)).toEqual([64])
+  })
+  it('CHANGELOG 面认 ### 前缀：正文口径会把 2 个宣称涨成 9 个（第六十五轮实测）', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'smptr-'))
+    tmpDirs.push(dir)
+    const f = join(dir, 'CHANGELOG.md')
+    writeFileSync(f, '### 2026-10-02 商品图轮换（第六十三轮）\n正文提到第六十二轮。\n')
+    expect(changelogRounds(f)).toEqual([63])
+  })
+  it('文件不在 ⇒ null（未观测，不是零）', () => {
+    expect(changelogRounds(join(tmpdir(), 'sm-no-such-file.md'))).toBeNull()
+  })
+})
+
 describe('真面与入口', () => {
   it('路径自证：外层目录必须是代码仓的**同级**（首版写成上两级 ⇒ 恒 UNVERIFIED 且输出看着合理）', () => {
     const parent = resolve(REPO, '..')
@@ -85,7 +168,12 @@ describe('真面与入口', () => {
     expect(inner.round, '内层 07 系里应能取到"对标第N轮"标题').not.toBeNull()
     const present = existsSync(OUTER_MEMORY)
     const outer = present ? latestRound(OUTER_MEMORY) : null
-    const v = evaluate({ inner, outer, outerPath: OUTER_MEMORY })
+    const clPath = join(REPO, 'CHANGELOG.md')
+    const v = evaluate({
+      inner, outer, outerPath: OUTER_MEMORY,
+      innerRounds: roundSetOf(join(REPO, 'memory')),
+      clRounds: changelogRounds(clPath), changelogPath: clPath,
+    })
     if (present) {
       expect(outer, '本机外层目录存在 ⇒ 必须读出轮次，读不出就是取数面坏了').not.toBeNull()
       expect(v.some((r) => r.state === 'UNVERIFIED'), `外层在本地可见却报未验证：${JSON.stringify(v)}`).toBe(false)
@@ -94,7 +182,7 @@ describe('真面与入口', () => {
       expect(row(v, 'P2').state).toBe('UNVERIFIED')
       const r = assertCliRan(spawnSync(process.execPath, [SELF], { cwd: REPO, encoding: 'utf8', timeout: 60_000 }), { label: 'memory-pointer-sync 外层不在场' })
       expect(r.status, r.stdout + r.stderr).toBe(0)
-      expect(r.stdout).toContain('已核对 1/2')
+      expect(r.stdout).toContain('已核对 3/4')
       expect(r.stdout).toContain('未验证 P2')
       expect(r.stdout).not.toContain('检查 2/2')
     }
@@ -109,7 +197,7 @@ describe('真面与入口', () => {
     expect(roundsOf(readFileSync(join(dir, '07-next-steps.md'), 'utf8'))).toEqual([inner.round])
     const same = assertCliRan(spawnSync(process.execPath, [SELF, '--outer', dir], { cwd: REPO, encoding: 'utf8', timeout: 60_000 }), { label: 'memory-pointer-sync 合成外层同轮' })
     expect(same.status, same.stdout + same.stderr).toBe(0)
-    expect(same.stdout).toContain('已核对 2/2')
+    expect(same.stdout).toContain('已核对 4/4')
     expect(same.stdout).not.toContain('未验证')
     const behind = mkdtempSync(join(tmpdir(), 'smouter-'))
     tmpDirs.push(behind)
@@ -123,7 +211,7 @@ describe('真面与入口', () => {
     expect(r.status, r.stdout + r.stderr).toBe(0)
     expect(r.stdout).toContain('GATE-PASS memory-pointer-sync')
     const j = JSON.parse(assertCliRan(spawnSync(process.execPath, [SELF, '--json'], { cwd: REPO, encoding: 'utf8', timeout: 60_000 }), { label: 'memory-pointer-sync --json' }).stdout)
-    expect(j.rows.map((x) => x.id)).toEqual(['P1', 'P2'])
+    expect(j.rows.map((x) => x.id)).toEqual(['P1', 'P2', 'P3', 'P4'])
     expect(j.checked + j.rows.filter((x) => x.state === 'UNVERIFIED').length).toBe(j.declared)
   })
   it('缺输入面：只有脚本、没有 memory/ 的假仓 ⇒ rc=2 且点名取不到（不得静默 0）', () => {
