@@ -126,7 +126,10 @@ describe('密钥卫生：workflow 里不得出现明文密钥值', () => {
 
 describe('关键 step 存在性（改名即红，防"门禁静默消失"）', () => {
   const REQUIRED_STEPS = [
-    'Dependency audit (npm audit, high+)',
+    // 第六十六轮拆成两腿：生产树阻断 + 全树只报不拦（名字自带后缀，防"把阻断力偷偷挪到构建期工具链上"，
+    // 也防其中任一腿哪天静默消失）。归属与可利用性口径见 docs/dependency-audit.md。
+    'Dependency audit (production tree, high+) — 阻断',
+    'Dependency audit (full tree incl. dev toolchain) — 只报不拦',
     'Secret scan',
     'File-name case collision check',
     'Env var registry gate (code vs docs/env-vars.md)',

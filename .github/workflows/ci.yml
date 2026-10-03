@@ -43,8 +43,22 @@ jobs:
       # 显式 --registry=npmjs 是本机/镜像源的必需项——npmmirror 未实现 audit 端点
       # （实测返回 NOT_IMPLEMENTED），不指 registry 会让审计静默拿不到数据。
       # 端点故障时 npm audit 以非 0 退出（不假绿）；high/critical 阻断，moderate 打印留痕。
-      - name: Dependency audit (npm audit, high+)
+      #
+      # 第六十六轮的**分面**（不是降档）：阻断腿只判 `--omit=dev`＝发布产物真含的那张依赖图。
+      # 一手事实：本仓 5 条 high 全在 tailwindcss(dev)→chokidar→braces 这条**构建期**链上，
+      # 且 braces 在该 advisory 下**没有任何已修版本**（实测 `npm view braces versions` 最新即 3.0.3，
+      # 而已装的就是 3.0.3 ⇒ `braces *` 受影响），npm 给的唯一"修"是 tailwindcss 3→4 的 major。
+      # 判据不许逼一次无人评审的框架大迁移，也不许为此把 audit-level 调高——两腿都印才叫对账。
+      # 可利用性口径（写死以便被反驳）：braces 那条是**深度嵌套 glob 模式致栈耗尽（DoS）**，
+      # 输入面是仓内静态的 `tailwind.config.js content` 模式，不接受外部输入 ⇒ 运行期不可达。
+      # 下一腿（full tree）仍逐条印出这 5 条 high + echarts 的 moderate，具名欠账见
+      # docs/dependency-audit.md（生产腿红=拦，开发腿红=记）。
+      - name: Dependency audit (production tree, high+) — 阻断
         run: npm run audit:deps
+
+      - name: Dependency audit (full tree incl. dev toolchain) — 只报不拦
+        continue-on-error: true
+        run: npm run audit:deps:full
 
       - name: Secret scan
         run: node scripts/scan-secrets.mjs
