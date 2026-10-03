@@ -16,6 +16,7 @@ import { spawnSync } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { requireInputs, bail } from './lib/preflight.mjs'
+import { capped } from './lib/named-list.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const MEM = join(root, 'memory')
@@ -205,8 +206,8 @@ export function evaluate({ files, max, all = true, added = null, partNumbers, de
       rows.push({ id: 'V5', pass: !missing.length && !extra.length,
         detail: missing.length || extra.length
           ? `声明 ${declaredRange.lo}–${declaredRange.hi} ⇄ 磁盘 ${nums.length} 本对不上：` +
-            [missing.length ? `声明有、磁盘无（跳号或被删）= ${missing.slice(0, 6).join(',')}` : '',
-              extra.length ? `磁盘有、声明未并号 = ${extra.slice(0, 6).join(',')} ⇒ 把主卷那行上界改成 ${Math.max(...nums)}` : '']
+            [missing.length ? `声明有、磁盘无（跳号或被删）= ${capped(missing, 6)}` : '',
+              extra.length ? `磁盘有、声明未并号 = ${capped(extra, 6)} ⇒ 把主卷那行上界改成 ${Math.max(...nums)}` : '']
               .filter(Boolean).join(' ｜ ')
           : `声明 ${declaredRange.lo}–${declaredRange.hi} ⇄ 磁盘 ${nums.length} 本双向对得上（无跳号、无未并号）` })
     }
@@ -321,9 +322,24 @@ export function main({ dir = root, all = false, outerMemDir = OUTER_MEM_DEFAULT 
   })
   console.log(`[memory-volume] ${outer.text}`)
   if (outer.state === 'over') {
-    console.error(`[memory-volume] WARN 外层面越 shell_max ${outer.over}B，但**不进本判据分母也不拦**：`
-      + `44KB 的拆法要先定口径（按轮次 vs 按主题），第六十轮明写「口径先定再动」；`
-      + `判红等于逼下一轮猜一个拆法。复算：wc -c < "${outerMainPath.replace(/\\/g, '/')}"`)
+    console.error(`[memory-volume] 外层面越 shell_max ${outer.over}B ⇒ 由 V7 判红（第六十五轮 M-64-3 起入分母）。`
+      + `口径已定：外层主壳按**轮次整段迁卷**（一节不拆、逐字迁，同内层「主卷只留当轮与上一轮」的纪律）。`
+      + `复算：wc -c < "${outerMainPath.replace(/\\/g, '/')}"`)
+  }
+  // V7（第六十五轮 M-64-3）：外层腿从"只报不拦"升档为入分母。
+  // 升档的三个硬前提本轮才同时成立，缺任何一个都不该升（户内：默认档必须等于现状那档）：
+  //   ① 口径定死并写进本轮报告与本行注释（按轮次 vs 按主题 的悬案在 60 轮挂着、64 轮挂着、本轮结掉）；
+  //   ② 有实测余量：外层主壳 45,980B → 17,687B（限 40,960，余 23,273B ≈ 每轮 +875B 可写 26 轮）；
+  //   ③ 三态不折叠：外层目录在 CI 检出面之外 ⇒ 取不到就是 UNVERIFIED，既不算过也不算红。
+  // 上一版这段的理由（"判红等于逼下一轮猜一个拆法"）依然成立 —— 所以它是在**拆完之后**才升的档。
+  res.rows.push(outer.state === 'unavailable'
+    ? { id: 'V7', pass: true, status: 'UNVERIFIED', detail: 'V7 外层主壳体量 —— 外层目录不在本仓检出面（CI 恒此态）⇒ 未验证，不是通过' }
+    : { id: 'V7', pass: outer.state === 'ok', status: outer.state === 'ok' ? 'PASS' : 'FAIL',
+      detail: `V7 外层主壳体量（口径=按轮次整段迁卷） —— ${outer.text}` })
+  res.summary.declared += 1
+  if (outer.state !== 'unavailable') {
+    if (outer.state === 'ok') res.summary.matched += 1
+    else res.summary.mismatched += 1
   }
   // 未验证态不得印成 PASS：V4 在 --all 模式下"不判"，若复用 PASS 就会被读成"新卷余量已核过"。
   const unver = res.rows.filter((r) => r.status === 'UNVERIFIED').map((r) => r.id)

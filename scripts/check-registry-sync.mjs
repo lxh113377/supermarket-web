@@ -32,6 +32,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 import { bail, requireInputs, requireJson } from './lib/preflight.mjs'
 import { reasonDefects } from './lib/registry-reason.mjs'
+import { capped } from './lib/named-list.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 export const BACKEND = 'functions/lib/backend.js'
@@ -104,7 +105,7 @@ export function evaluate({ pub, admin, totalCases, anchorLost, apiActions, basel
   push('R2', notDeclared.length === 0 && notDispatched.length === 0,
     'R2 代码分发面 ⇄ api-contract.json 双向差集（漏登=契约说谎，多登=契约有幽灵）',
     notDeclared.length || notDispatched.length
-      ? `代码有契约无: ${notDeclared.slice(0, 5).join(', ')}｜契约有代码无: ${notDispatched.slice(0, 5).join(', ')}`
+      ? `代码有契约无: ${capped(notDeclared, 5)}｜契约有代码无: ${capped(notDispatched, 5)}`
       : `${prodKeys.size} 条双向逐字相等（0 幽灵 0 漏登）`)
 
   const wantBase = new Set([...[...pub].map((x) => `P:${x}`), ...[...admin].map((x) => `A:${x}`)])
@@ -112,8 +113,8 @@ export function evaluate({ pub, admin, totalCases, anchorLost, apiActions, basel
   const baseUnexplained = [...base].filter((k) => !wantBase.has(k) && !covered.has(k))
   push('R3', baseMissing.length === 0 && baseUnexplained.length === 0,
     'R3 SQL 峰值基线键 ⇄ 分发面双向（多出的键必须被例外册命名；缺的键=新调用路径没入册）',
-    [baseMissing.length && `基线缺键: ${baseMissing.slice(0, 6).join(', ')}`,
-      baseUnexplained.length && `基线多键未解释: ${baseUnexplained.slice(0, 6).join(', ')}`].filter(Boolean).join(' ; ')
+    [baseMissing.length && `基线缺键: ${capped(baseMissing, 6)}`,
+      baseUnexplained.length && `基线多键未解释: ${capped(baseUnexplained, 6)}`].filter(Boolean).join(' ; ')
       || `基线 ${base.size} 键 = 分发面 ${wantBase.size} + 基线侧例外 ${[...base].filter((k) => !wantBase.has(k)).length}（例外册共声明 ${covered.size} 个键，跨基线与形状两张表）`)
 
   const ghost = Object.entries(exceptions).filter(([, e]) => !(e.covers || []).some((k) => base.has(k) || shape.has(k)))
@@ -130,7 +131,7 @@ export function evaluate({ pub, admin, totalCases, anchorLost, apiActions, basel
   const shapeGhost = [...shape].filter((k) => !prodKeys.has(k) && !covered.has(k))
   push('R6', shapeGhost.length === 0,
     'R6 形状登记册条目必须有对应生产者（只判幽灵方向；"没覆盖到"由 api-response-contract 的 V3 判，不重复立）',
-    shapeGhost.length ? `登记了形状却没有这个 action: ${shapeGhost.slice(0, 6).join(', ')}`
+    shapeGhost.length ? `登记了形状却没有这个 action: ${capped(shapeGhost, 6)}`
       : `${shape.size} 条全部落在分发面 ∪ 例外册内`)
 
   return rows

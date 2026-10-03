@@ -19,6 +19,7 @@ import { dirname, join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { requireInputs, requireJson, bail } from './lib/preflight.mjs'
+import { capped } from './lib/named-list.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
@@ -174,7 +175,7 @@ export function evaluate({ derived, committed, apiActions, gaps = RESPONSE_GAPS,
   }
   push('V5', condFindings.length === 0,
     'V5 条件字段（时有时无的键）逐条具名 —— 前端读可选字段可以，但"新加一个可选字段"不能只有加字段的人知道',
-    condFindings.length ? condFindings.slice(0, 8).join(' ; ')
+    condFindings.length ? capped(condFindings, 8, ' ; ')
       : `已具名 ${Object.values(conditional).reduce((a, v) => a + v.length, 0)} 个条件字段，与实测一致`)
 
   const hollow = derivedKeys.filter((k) => derived[k].dataKinds.includes('object') && !derived[k].keysAlways.length)

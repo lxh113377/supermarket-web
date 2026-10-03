@@ -715,6 +715,53 @@ ok(echoKind.code === -1 && echoKind.errorCode === 'invalid_kind' && echoKind.mes
 const echoReal = await handleAdmin(env, 'getEventLog', 'test-key-123', { orderId: 'probe-order-9' })
 ok(echoReal.data.orderId === 'probe-order-9', `L28b 合法 id 零损失（实得 ${echoReal.data?.orderId}）`)
 
+// ---------- 对外回显卫生（第六十五轮 M-64-5）：64 轮点名的剩余 4 处逐条给两态 ----------
+// 前两处是 batch 的 failed[].id。它和"成功路径回显主键"不同类：**这一支恰恰是 id 没命中 DB**，
+// 所以没有任何主键形状钳住长度；批量删除还带 BATCH_DELETE_MAX=200 的条数放大。
+const echoBu = await handleAdmin(env, 'batchUpdateProducts', 'test-key-123',
+  { items: [{ productId: 'q'.repeat(3_000), updates: { enabled: false } }] }, imgReq('10.98.0.1'))
+const buId = String(echoBu.data?.failed?.[0]?.id ?? '')
+ok(echoBu.code === 0 && buId.length <= 64 && !buId.includes('q'.repeat(70)),
+  `L30 batchUpdate 的 failed[].id 必须有界（实得 ${buId.length}B）`)
+const echoBd = await handleAdmin(env, 'batchDeleteProducts', 'test-key-123',
+  { productIds: ['r'.repeat(2_000), 'p_legit_shape_001'] }, imgReq('10.98.0.2'))
+const bdIds = (echoBd.data?.failed ?? []).map((f) => String(f.id))
+ok(echoBd.code === 0 && bdIds.length === 2 && Math.max(...bdIds.map((s) => s.length)) <= 64,
+  `L31 batchDelete 的 failed[].id 逐条有界（200 条放大面；实得最大 ${bdIds.length ? Math.max(...bdIds.map((s) => s.length)) : 'n/a'}B）`)
+ok(bdIds.includes('p_legit_shape_001'), `L31b 合法形状 id 零损失（实得 ${JSON.stringify(bdIds)}）`)
+// ③ 请求侧 conversationId：原来只截长度不限字符集 ⇒ 100 个换行/引号能原样进 rule 分支响应体
+const aiDirty = await handlePublic(env, 'aiChat',
+  { question: '白名单探针', conversationId: `${'"'.repeat(60)}\n`.repeat(30) + 's'.repeat(300) } , imgReq('10.98.0.3'))
+const dirtyCid = String(aiDirty.data?.conversationId ?? '')
+ok(aiDirty.errorCode !== 'rate_limited', 'aiChat 白名单探针未撞限流桶（前提自证）')
+ok(aiDirty.code === 0 && dirtyCid.length <= 64 && !/["\s]/.test(dirtyCid),
+  `L32 conversationId 走标识口径（长度+字符集双限，实得 ${JSON.stringify(dirtyCid.slice(0, 24))} ${dirtyCid.length}B）`)
+const aiUuid = await handlePublic(env, 'aiChat',
+  { question: '正向腿', conversationId: '1b9d6ad2-1c1c-4a1f-9a3d-2f7c8e6b5a44' }, imgReq('10.98.0.4'))
+ok(aiUuid.data?.conversationId === '1b9d6ad2-1c1c-4a1f-9a3d-2f7c8e6b5a44',
+  `L32b 合法 UUID 逐字不变（实得 ${aiUuid.data?.conversationId}）`)
+// ④ 响应侧 conversationId：这是**第三方回包**决定我方响应体的字段，顾客端会把它存进本地态再回传
+const realFetchUp = globalThis.fetch
+globalThis.fetch = async () => ({
+  ok: true, status: 200,
+  json: async () => ({ answer: '上游回包探针', conversation_id: 't'.repeat(4_000) + '!!!' }),
+})
+try {
+  const aiUp = await handlePublic({ ...env, DIFY_BASE_URL: 'https://dify.invalid', DIFY_CHAT_APP_KEY: 'up-probe' },
+    'aiChat', { question: '上游脏值探针' }, imgReq('10.98.0.5'))
+  const up = String(aiUp.data?.conversationId ?? '')
+  ok(aiUp.errorCode !== 'rate_limited', 'aiChat 上游探针未撞限流桶（前提自证）')
+  ok(aiUp.data?.source === 'dify' && up.length <= 64 && !up.includes('!'),
+    `L33 上游 conversation_id 不得原样进我方响应体（实得 ${up.length}B）`)
+} finally { globalThis.fetch = realFetchUp }
+// ⑤ 两处「成立依据」（不是"不改"，是给出可复算的理由）：
+//    adjustStock 的成功回显必须先 readStockRow 命中主键 ⇒ 超长入参根本走不到 return；
+//    createProduct 的 data 是 pick(PRODUCT_FIELDS) 白名单键 + 服务端 genId 的 _id。
+const adjLong = await handleAdmin(env, 'adjustStock', 'test-key-123',
+  { productId: 'w'.repeat(3_000), delta: 1 }, imgReq('10.98.0.6'))
+ok(adjLong.code === -1 && !JSON.stringify(adjLong).includes('w'.repeat(70)),
+  `L34 adjustStock 的长入参走不到成功回显（被主键查询挡在 product_not_found，实得 errorCode=${adjLong.errorCode}）`)
+
 // 不变式收口：跑完上面所有写路径之后，全库不得有一件商品脱节
 const ledBad = db.prepare(LEDGER_CHECK_SQL).all()
 ok(ledBad.length === 0, `L18 不变式 SUM(delta)==stock 对全部商品成立（脱节 ${ledBad.length} 件：${JSON.stringify(ledBad.slice(0, 3))}）`)

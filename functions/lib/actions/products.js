@@ -4,6 +4,7 @@ import { qAll, qFirst, qRun, jparse, nowISO, genId, pick, insert } from '../db.j
 import { isSafeImageUrl, validateImages } from '../security.js'
 import { PRODUCT_FIELDS } from '../shared.js'
 import { fail } from '../errors.js'
+import { sanitizeTrace } from '../logger.js'
 import { insertMovements, deltaForStockChange } from '../stock.js'
 
 export function rowToProduct(row) {
@@ -233,7 +234,9 @@ export async function batchUpdateProducts(DB, payload) {
     const has = beforeMap.has(it.productId)
     const r = await applyProductUpdate(DB, it.productId, it.updates || {}, has ? beforeMap.get(it.productId) : undefined)
     if (r.code === 0) updated++
-    else failed.push({ id: it.productId, message: r.message })
+    // 回显走 sanitizeTrace（第六十五轮 M-64-5）：`failed` 这一支恰恰是「该 id 没命中 DB」，
+    // 所以没有任何主键形状钳住它 —— 与 adjustStock 的成功回显（必须先 readStockRow 命中）不同类。
+    else failed.push({ id: sanitizeTrace(String(it.productId)), message: r.message })
   }
   return { code: 0, data: { updated, failed, total: items.length } }
 }
@@ -257,9 +260,11 @@ export async function batchDeleteProducts(DB, payload) {
   // 删除数以「批量前查到的存在集合」为准：不依赖驱动返回的 meta.changes（各环境口径不一，
   // 甚至可能为 null），保证 deleted 与 failed 之和恒等于去重后的请求数。
   const deleted = exist.size
+  // 同上：`failed` 是「没命中主键」的那一批，入参长度与字符集都不受服务端约束；
+  // 且这里是 BATCH_DELETE_MAX=200 条同时回显（放大 200 倍），比单条入口更该收。
   const failed = productIds
     .filter((id) => !exist.has(id))
-    .map((id) => ({ id, message: '商品不存在' }))
+    .map((id) => ({ id: sanitizeTrace(String(id)), message: '商品不存在' }))
   return { code: 0, data: { deleted, failed, total: productIds.length } }
 }
 

@@ -72,3 +72,30 @@ describe('batchDeleteProducts', () => {
     expect(res.code).toBe(-1)
   })
 })
+
+// 第六十五轮 M-64-5：failed[].id 是「没命中主键」那一支，没有任何 DB 形状钳住入参长度，
+// 所以它必须由服务端收口 —— 单元侧钉形状，集成侧（verify:backend L30/L31）钉真路由。
+describe('failed[].id 回显卫生（第六十五轮）', () => {
+  it('batchUpdate：超长 productId 不得原样回显，合法 id 零损失', async () => {
+    const db = makeDB(() => ({ meta: { changes: 0 } }))
+    const res = await batchUpdateProducts(db, {
+      items: [
+        { productId: 'q'.repeat(5_000), updates: { enabled: false } },
+        { productId: 'p_ok_1', updates: { enabled: false } },
+      ],
+    })
+    const ids = res.data.failed.map((f) => f.id)
+    expect(ids.every((s) => s.length <= 64)).toBe(true)
+    expect(ids.some((s) => s.includes('q'.repeat(70)))).toBe(false)
+    expect(ids).toEqual(['q'.repeat(64), 'p_ok_1'])
+  })
+
+  it('batchDelete：逐条有界（批量放大面），合法形状 id 逐字不变', async () => {
+    const db = makeDB(null, [{ _id: 'p1' }])
+    const res = await batchDeleteProducts(db, {
+      productIds: ['p1', 'r'.repeat(2_000), 'p_legit_shape_001'],
+    })
+    const ids = res.data.failed.map((f) => f.id)
+    expect(ids).toEqual(['r'.repeat(64), 'p_legit_shape_001'])
+  })
+})

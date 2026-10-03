@@ -12,7 +12,7 @@
 //   - 未配置 → 全站自动规则版，功能不缺失
 
 // ── 统一失败标记（F7/F38）──
-import { logError } from './logger.js'
+import { logError, sanitizeTrace } from './logger.js'
 export const DIFY_ERROR_PREFIX = '[DIFY_ERROR]'
 export const DIFY_UNAVAILABLE_TEXT = 'AI 服务暂不可用，已切换为演示模式，请稍后重试。'
 
@@ -107,7 +107,15 @@ export async function callDifyChat(env, query, user, conversationId = null) {
     }
     const data = await resp.json()
     breaker.onSuccess()
-    return { source: 'dify', content: data.answer || '', conversationId: data.conversation_id || conversationId }
+    // 上游回包里的 conversation_id 是**外部可写面**（第六十五轮 M-64-5）：它会被顾客端
+    // AssistantPage.tsx:67 存进本地态并原样回传，等于让第三方服务决定我方响应体的一个字段。
+    // 合法形态是 UUID（36 字，全在白名单内）⇒ 洗不过就回落请求侧那个已 sanitize 的值，
+    // 而不是把脏串往下游传。收口在生产者，不在两个消费点各收一遍。
+    return {
+      source: 'dify',
+      content: data.answer || '',
+      conversationId: sanitizeTrace(typeof data.conversation_id === 'string' ? data.conversation_id : '') || conversationId,
+    }
   } catch (err) {
     breaker.onFailure()
     logError('dify', 'chat 调用异常', { scene: `chat-${err?.name || 'err'}`, err })

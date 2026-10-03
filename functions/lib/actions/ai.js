@@ -3,7 +3,7 @@
 // 2026-09-18 双向迭代 R4：两个场景的全部分支（rule / dify / dify-error）统一留痕，
 // 留痕失败不影响返回（见 ai_trace.js）。
 
-import { logError } from '../logger.js'
+import { logError, sanitizeTrace } from '../logger.js'
 import { qAll, jparse } from '../db.js'
 import { fail } from '../errors.js'
 import {
@@ -72,7 +72,10 @@ export async function adminAiAdvice(env, DB) {
 export async function pubAiChat(env, DB, payload, ip) {
   const scene = 'aiChat'
   const question = sanitize(payload?.question, 200)
-  const conversationId = sanitize(payload?.conversationId, 100) || null
+  // conversationId 是**标识**不是文本：原来只 `sanitize(…,100)` 截长度、不限字符集，
+  // 于是 100 个换行/引号能原样进 `rule`/`dify-error` 两个分支的响应体（第六十五轮 M-64-5）。
+  // 换成 sanitizeTrace 与 trace/orderId 同一口径（≤64 + `[\w:.-]` 白名单），合法 UUID 逐字不变。
+  const conversationId = sanitizeTrace(payload?.conversationId) || null
   if (!question) return fail('invalid_params', '问题不能为空')
   try {
     if (!enabled(env)) {

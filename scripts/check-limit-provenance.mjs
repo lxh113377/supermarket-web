@@ -14,6 +14,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join, relative } from 'node:path'
 import { createRequire } from 'node:module'
 import { requireInputs } from './lib/preflight.mjs'
+import { capped } from './lib/named-list.mjs'
 
 const require = createRequire(import.meta.url)
 
@@ -349,7 +350,7 @@ export function evaluate({ items, rows, planRegistered, parseErrors, sources, sc
 
   const dead = rows.filter((r) => !items.some((i) => i.key === keyOf(r)))
   push('C4', dead.length === 0, 'C4 登记册无死行（源码已无该上限）',
-    dead.length ? `死行: ${dead.slice(0, 5).map((d) => keyOf(d)).join(', ')}` : `${rows.length} 行全部对得上现状`)
+    dead.length ? `死行: ${capped(dead.map((d) => keyOf(d)), 5)}` : `${rows.length} 行全部对得上现状`)
 
   // C5：声称受平台约束的行，必须点名是哪个事实，且**字面值**不得超过该事实。
   // ⚠️ 量纲自白（第五十七轮 R57-H2）：本条比的是"登记值 ⇄ 事实上限"，两边**只在同量纲时才有意义**。
@@ -472,7 +473,7 @@ export function evaluate({ items, rows, planRegistered, parseErrors, sources, sc
   push('C7', leaked.length === 0 && outsideLeak.length === 0 && hasSrc,
     'C7 取数面自证（前缀内 + 判据/文档不入面 + src/ 真在里面）',
     leaked.length || outsideLeak.length
-      ? `越面: ${[...new Set([...leaked, ...outsideLeak].map((l) => l.file))].slice(0, 5).join(', ')}`
+      ? `越面: ${capped([...new Set([...leaked, ...outsideLeak].map((l) => l.file))], 5)}`
       : `取数面 = ${SURFACE_PREFIXES.join(' + ')}（src/ 命中 ${items.filter((i) => i.file.startsWith('src/')).length} 项），判据与登记册在面外`)
 
   // C8（新增）：解析失败不许静默跳文件 —— 静默跳过等于把该类文件永久留在面外，
@@ -484,7 +485,7 @@ export function evaluate({ items, rows, planRegistered, parseErrors, sources, sc
   const capGaps = imageCapGaps(sources)
   push('C9', capGaps.length === 0,
     'C9 收图片的函数必须有服务端条数 cap（"≤N 张"不得只活在前端）',
-    capGaps.length ? `缺 cap: ${capGaps.slice(0, 6).join(' ; ')}`
+    capGaps.length ? `缺 cap: ${capped(capGaps, 6, ' ; ')}`
       : `validateImages 出口 ${(sources || []).filter((s) => s.code.includes('validateImages(')).length} 个文件全部带条数 cap`)
   return out
 }

@@ -412,30 +412,43 @@ describe('外层面（M-60-4 · 第六十四轮）：内层那把尺一字不动
     expect(SHELL_MAX_DEFAULT).toBe(40_960)
   })
 
-  it('入口真跑：外层越限时 gate 行带上外层状态 + stderr 打 WARN，但 rc 与不传该参数时相同（只报不拦）', () => {
+  it('入口真跑：外层越限时 V7 判红并带跑 rc（第六十五轮 M-64-3 起入分母，不再是"只报不拦"）', () => {
     const base = assertCliRan(spawnSync(process.execPath, [SELF, '--all'], { cwd: REPO, encoding: 'utf8', timeout: 60_000 }), { label: 'memory-volume --all 基线' })
     const d = mkOuter(`# 07\n> shell_max=40,960B\n\n${'x'.repeat(45_000)}\n`)
     const r = assertCliRan(spawnSync(process.execPath, [SELF, '--all', `--outer-memory=${d}`], { cwd: REPO, encoding: 'utf8', timeout: 60_000 }), { label: 'memory-volume --all 外层面 over' })
     const out = `${r.stdout || ''}${r.stderr || ''}`
     expect(base.status, base.stdout).toBe(0)
-    expect(r.status, `只报不拦：rc 不该被外层带跑\n${out.slice(-500)}`).toBe(base.status)
+    // 反例腿：外层越限必须把 rc 顶起来。它若仍与基线同值，说明 V7 只是装饰（升档=没升）。
+    expect(r.status, `外层越限必须判红\n${out.slice(-500)}`).not.toBe(base.status)
     expect(out).toMatch(/外层面=over/)
-    expect(out).toContain('WARN 外层面越 shell_max')
+    expect(out).toMatch(/^FAIL V7 ::/m)
+    expect(out).toContain('口径已定：外层主壳按**轮次整段迁卷**')
     expect(out).toContain('两侧分母各报各的')
   })
 
-  it('外层目录取不到 ⇒ 印 unavailable，不印 ok（CI 检出面里没有外层，这是常态而不是故障）', () => {
+  it('外层目录取不到 ⇒ 印 unavailable + V7 记 UNVERIFIED，不折成 ok/PASS（CI 检出面里没有外层，这是常态而不是故障）', () => {
     const r = assertCliRan(spawnSync(process.execPath,
       [SELF, '--all', `--outer-memory=${join(tmpdir(), 'smout-absent-64')}`], { cwd: REPO, encoding: 'utf8', timeout: 60_000 }), { label: 'memory-volume --all 外层面 unavailable' })
     expect(r.stdout).toMatch(/外层面=unavailable/)
     expect(r.stdout).not.toMatch(/外层面=ok/)
+    expect(r.stdout).toMatch(/^UNVERIFIED V7 ::/m)
+    // 未验证态不许被算进"已核对"：门面行的分母要如实少一条（V4 在 --all 下也不判 ⇒ 两条一起挂未验证）
+    expect(r.stdout).toMatch(/检查 \d\/7｜未验证 V4,V7/)
   })
 
-  it('反向自证：内层 V1~V5 的判定不因外层加入而变（同一事实只许一处判）', () => {
+  it('反向自证：加入外层腿后，内层 V1~V5 的**逐条判定**一字不动（同一事实只许一处判）', () => {
     const d = mkOuter('# 07\n> shell_max=40,960B\n\n随便\n')
     const r = assertCliRan(spawnSync(process.execPath, [SELF, '--all', `--outer-memory=${d}`], { cwd: REPO, encoding: 'utf8', timeout: 60_000 }), { label: 'memory-volume --all 内层腿数不变' })
-    const ids = (r.stdout.match(/^(?:PASS|FAIL|UNVERIFIED) (V\d+b?) ::/gm) || []).map((s) => /^(\S+) (V\w+)/.exec(s)[2])
-    expect(['V1', 'V2', 'V2b', 'V3', 'V4', 'V5'].every((v) => ids.includes(v)), `内层腿缺件：${ids.join(', ')}`).toBe(true)
-    expect(ids.filter((v) => /^V/.test(v) && !['V1', 'V2', 'V2b', 'V3', 'V4', 'V5'].includes(v)), '外层不该伪装成一条 V 腿进分母').toEqual([])
+    const rows = [...(r.stdout.match(/^(PASS|FAIL|UNVERIFIED) (V\w+) :: /gm) || [])]
+      .map((s) => { const m = /^(PASS|FAIL|UNVERIFIED) (V\w+)/.exec(s); return { st: m[1], id: m[2] } })
+    const INNER = ['V1', 'V2', 'V2b', 'V3', 'V4', 'V5']
+    const inner = rows.filter((x) => INNER.includes(x.id))
+    expect(inner.length, `内层腿缺件：${rows.map((x) => x.id).join(', ')}`).toBe(INNER.length)
+    // 外层只准以 V7 一条身份进面；出现第二条就是"外层偷偷改内层的账"
+    expect(rows.filter((x) => !INNER.includes(x.id)).map((x) => x.id), '外层腿只准是 V7').toEqual(['V7'])
+    // 内层六条的**状态词**必须与"没有外层腿时"完全同值 —— 判据不能只数条数，还要比结论
+    expect(inner.every((x) => x.st === 'PASS' || (x.id === 'V4' && x.st === 'UNVERIFIED')),
+      `内层腿被外层带跑：${inner.map((x) => `${x.id}=${x.st}`).join(' | ')}`).toBe(true)
   })
 })
+
