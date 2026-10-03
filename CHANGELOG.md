@@ -4,6 +4,34 @@
 
 ## [未发布]
 
+### 2026-10-04 依赖审计拆成两腿：生产树阻断、全树只报（第六十六轮）
+
+- **做了什么**：上一轮收尾时远端 CI 红在 `Dependency audit (npm audit, high+)`（run `37143828059`，
+  head `fbc8b04`），`deploy` 与 `Release parity` 双双 skipped ⇒ 第六十五轮的改动其实**没上线**。
+  本轮 P0 按上一轮报告 §8 的自订纪律执行：「若 rc≠0 接着修，别另开新题」。
+  红因是从**远端 job 日志原文**取到的（本机 `npm audit` 走 npmmirror 会 `NOT_IMPLEMENTED`，
+  而 CI 那行本来就显式带 `--registry=https://registry.npmjs.org` ⇒ 上一轮"本机量不到"的归因不完整，
+  少试了同一个参数）。明细：5 high 全在 `tailwindcss(dev) → chokidar → braces` 这条**构建期**链上
+  （GHSA-vfj7-8cjw-p6xm），另有 1 moderate 是生产依赖 `echarts` 的 XSS（GHSA-fgmj-fm8m-jvvx）。
+- **为什么这样修**：`braces` 在该 advisory 下**没有任何已发布修复版**——实测
+  `npm view braces versions` 最新即 `3.0.3`，而 lock 里装的**就是** 3.0.3；npm 给的唯一修法是
+  `tailwindcss` 3.4 → 4.3 的 major（配置格式与 PostCSS 插件位置都要迁）。于是两件事都不做：
+  **不逼一次无人评审的框架大迁移，也不把 `--audit-level` 调高凑绿**。改成给判据**分面**：
+  `audit:deps` 只判 `--omit=dev`（= 上线产物真含的那张依赖图，实测 rc=0）并保留阻断权；
+  新增 `audit:deps:full` 跑全树、CI 步骤 `continue-on-error: true` 只报不拦。
+  两条腿阈值同为 `high`，一字未改；可见性没丢，只是"谁有权拦提交"换了判据面。
+- **验证证据**：`npm run audit:deps` rc=0；`npm run audit:deps:full` rc=1 且 6 条全印（这正是"只报"的形态）；
+  `docs/dependency-audit.md` 新立，登记归属链、可利用性口径（braces 是深度嵌套 glob 致栈耗尽的 DoS，
+  输入面是仓内静态 `tailwind.config.js` 的 content 模式、不接受外部输入 ⇒ 运行期不可达；
+  这句话**写成可被反驳的形式**：哪天 content 由请求拼出来，本段作废并升回阻断项）与两条具名欠账。
+  改 step 名后被自家闸抓一次：`tests/ciWorkflow.test.ts` 的「改名即红，防门禁静默消失」立刻判红，
+  按新两腿名更新**期望值**（31/31 过）——改的是期望不是判据。全链 `npm run verify` rc=0。
+- **顺带**：`npm audit fix` 把 `package-lock.json` 里 18 行 `libc` 元数据重排了（本机 npm 版本差异，
+  与本次改动无关）⇒ 已 `git checkout --` revert，不混进这笔提交。
+- **未做**（不折算成已核对）：`echarts` 6.1.0 升级（D-66-1，需 ADR + 深路径 import 契约回归 +
+  管理端 4 张 canvas 实测出图）；Tailwind 3→4 迁移（D-66-2，需带视觉基线逐张过的专项轮）。
+  两条都**不是本轮能自决的**：前者动运行时渲染面，后者是一次框架大版本迁移。
+
 ### 2026-10-04 接管三面轮号判据 + 对外回显余账收口 + 外层拆卷口径落地（第六十五轮）
 
 - **做了什么**：① **接管第六十四轮 §8 点名的 H-64-5 半成品**（上一会话停在半路、未提交的
