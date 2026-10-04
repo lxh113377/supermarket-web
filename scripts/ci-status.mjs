@@ -20,11 +20,19 @@
 // 退出码：0 全绿 / 1 存在真判据红（需修代码）/ 3 存在账号级 0-step 红（**不要改代码绕它**）
 //        / 4 取不到数据（无 token、代理不通、API 不可达）—— 一律显式报错，禁静默 PASS
 //
-// 通道说明：**必须走 curl**。本机 node 的 global fetch 不读系统代理，而直连 api.github.com
-// 会被 GFW reset（实测返回空/异常会被兜底伪装成"没有数据"）。代理地址取自 HTTPS_PROXY，
-// 默认 127.0.0.1:7897（Clash Verge；未启动时按 --proxy=none 直连，可能失败）。
+// 通道说明：**首选 gh CLI，次选 curl + GCM token**。两条腿的理由与先后都是一手实测（第六十七轮）：
+//   ① 原实现把 curl 当唯一通道，而本机 curl 打不到 api.github.com —— 直连 rc=56（10.6s）、
+//      经 127.0.0.1:7897 代理 rc=35（5.1s，CONNECT 隧道建成但 schannel 握手失败）⇒ 本脚本必然 rc=4。
+//      同期 `gh.exe` 取同一接口 rc=0。⇒ 通道选错时，工具对"CI 到底红不红"这件事零信息量。
+//   ② 取 token 那一步用的是 `bash`；本机 PATH 上 `bash` = `C:/Windows/System32/bash.exe`（**WSL 那份**），
+//      它的 `git credential fill` 实测 45s 不返回。原实现既没有 timeout、又把 stderr 丢进 ignore
+//      ⇒ 表现为**零输出挂死 150s+**（第六十七轮实测复现两次），而本脚本是 AGENTS.md 钦点的
+//      「CI 红怎么办」入口 —— 最该响的地方最哑。
+//   ③ `gh` 自带鉴权，走它时 token 压根不进本进程，与 curl 腿的 argv 泄漏面无关（见下）。
 // 令牌只进变量，不回显、不落盘、不写日志。
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
+import { statSync } from 'node:fs'
+import { join } from 'node:path'
 
 const OWNER = 'lxh113377'
 const REPO = 'supermarket-web'
@@ -38,30 +46,104 @@ const limit = Number(flag('limit', '5'))
 const wantRun = flag('run', '')
 const wantAttempt = flag('attempts', '')
 const proxy = flag('proxy', process.env.HTTPS_PROXY || process.env.https_proxy || 'http://127.0.0.1:7897')
+// 通道开关：auto（默认，先 gh 后 curl）/ gh（只用 gh）/ curl（只用 curl+GCM）。
+// 为什么要有它：本机 curl 打不到 api.github.com（见文件头 ①），默认顺序必须让 gh 在前；
+// 但"curl 腿本身有没有泄漏面"仍要能被单独测到 —— 有了开关，两条腿各测各的，不必靠"把 gh 藏起来"制造条件。
+const transport = String(flag('transport', 'auto')).toLowerCase()
+if (!['auto', 'gh', 'curl'].includes(transport)) fail(`--transport 只能是 auto|gh|curl（实得 ${transport}）`, 4)
 
 function fail(msg, code) {
   console.error(`[ci-status] FAIL ${msg}`)
   process.exit(code)
 }
 
+// 每一个子进程都必须带上限。**无上限的 exec 就是本轮修掉的那个静默挂死**（见文件头 ②）。
+const EXEC_TIMEOUT_MS = 25_000
+
 function token() {
-  // 走 Git 凭据管理器（本机既有通路），绝不打印值
-  try {
-    const out = execFileSync('bash', ['-c', 'printf "protocol=https\\nhost=github.com\\n\\n" | git credential fill'],
-      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] })
-    const line = out.split('\n').find((l) => l.startsWith('password='))
-    if (!line) fail('凭据管理器里没有 github.com 的 token（git 跑一次 push/pull 由 GCM 写入）', 4)
-    return line.slice('password='.length).trim()
-  } catch (e) {
-    fail('取 token 失败：' + e.message, 4)
+  // **直连 git，不经 shell**（第六十七轮改）。原实现是
+  //   execFileSync('bash', ['-c', 'printf "protocol=https\nhost=github.com\n\n" | git credential fill'])
+  // 一手实测：① 本机 PATH 上的 `bash` 是 `C:/Windows/System32/bash.exe`（WSL 那份），它那条管道实测 45s
+  // 不返回（ETIMEDOUT）；② 原实现既没 timeout、又把 stderr 丢进 ignore ⇒ 脚本**零输出挂死 150s+**
+  // （复现两次）。而这台机器的 Windows GCM 里**本来就有** github.com 凭据 —— 去掉 bash 外壳后
+  // `git credential fill` 直连 0.1s 拿到 40 位 token。⇒ 那条挂死链是被 shell 外壳凭空造出来的，
+  // 不是环境缺能力；修法是拿掉外壳，不是给超时压住症状（超时只保留作兜底）。
+  // 测试里的 git 垫片照样生效：它认的就是 argv `['credential','fill']`，与有没有 shell 无关。
+  const r = spawnSync('git', ['credential', 'fill'], {
+    input: 'protocol=https\nhost=github.com\n\n', encoding: 'utf8',
+    timeout: EXEC_TIMEOUT_MS, windowsHide: true,
+  })
+  if (r.error || r.status !== 0) {
+    const why = r.error
+      ? (/ETIMEDOUT|timed out/i.test(String(r.error.message)) ? `超过 ${EXEC_TIMEOUT_MS}ms 未返回` : r.error.message)
+      : `git credential fill rc=${r.status}${(r.stderr || '').trim() ? '：' + String(r.stderr).trim().split('\n')[0] : ''}`
+    fail(`取 token 失败（${why}）；要么 git 凭据管理器里没有 github.com 的条目，要么改用 --transport=auto 走已登录的 gh`, 4)
   }
+  const line = String(r.stdout || '').split('\n').find((l) => l.startsWith('password='))
+  if (!line) fail('凭据管理器里没有 github.com 的 token（git 跑一次 push/pull 由 GCM 写入）', 4)
+  return line.slice('password='.length).trim()
 }
 
 function redact(s, tok) {
   return tok ? String(s).split(tok).join('[REDACTED-PAT]') : String(s)
 }
 
-function gh(path, tok) {
+/**
+ * 定位一个**真能跑**的 gh。不能只按名字 spawn：
+ * 本机 PATH 首位 `C:/Users/37533/.local/bin/gh` 是 **0 字节残件且无扩展名** ——
+ * PowerShell 把它当"文档"直接拒执行（`Cannot run a document in the middle of a pipeline`），
+ * Node 的 spawn 同样会因它不是合法可执行文件而失败，而失败是**零输出**的那种。
+ * 第六十五/六十六轮报告里那些"本机 gh 取不到 / 本机 curl 超时"的读数，成因就在这两条通道上，
+ * 当时被读成了"这台机器量不到"，实际是**取数器挑错了通道**。
+ * ⇒ 逐个候选验「是文件 + 非 0 字节 + 落在可执行扩展名上」，再把它当绝对路径 spawn。
+ */
+function findGh() {
+  const dirs = String(process.env.PATH || '').split(';').filter(Boolean)
+  const cands = []
+  for (const d of dirs) cands.push(join(d, 'gh.exe'), join(d, 'gh.cmd'), join(d, 'gh.bat'))
+  cands.push('C:/Program Files/GitHub CLI/gh.exe')
+  for (const c of cands) {
+    try {
+      const st = statSync(c)
+      if (!st.isFile() || st.size === 0) continue          // 0 字节残件：存在但跑不了
+      // Windows 上无扩展名的文件不是可执行文件（PowerShell 会当"文档"拒执行）；
+      // POSIX 上带 shebang 的无扩展名脚本**是**可执行文件，且那正是夹具能造出来的形态 ⇒ 别一杆子打死。
+      const runnable = /\.(exe|cmd|bat)$/i.test(c) || (process.platform !== 'win32' && !/\.[a-z0-9]+$/i.test(c))
+      if (runnable) return c
+    } catch { /* 候选不存在，继续找 */ }
+  }
+  return null
+}
+
+let ghExe
+/** 通道一（首选）：已登录的 gh CLI。自带鉴权 ⇒ token 不进本进程，也就不进本进程的 argv。 */
+function viaGh(path) {
+  if (ghExe === undefined) ghExe = findGh()
+  if (!ghExe) return null
+  const r = spawnSync(ghExe, ['api', path], {
+    encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, timeout: EXEC_TIMEOUT_MS, windowsHide: true,
+  })
+  if (r.error || !r.stdout) return null
+  let json
+  try { json = JSON.parse(r.stdout) } catch { return null }
+  const code = Number(json.status) || (r.status === 0 ? 200 : 502)
+  // gh 对 4xx/5xx 也会把 JSON 响应体打到 stdout（只是 rc≠0）⇒ 必须按响应归一，
+  // 否则 404 会被读成"拿到了数据"，调用方的 `if (!r.json)` 就拦不住了。
+  if (r.status !== 0 || code >= 400) return { code, json: null, message: json && json.message, via: 'gh' }
+  return { code, json, via: 'gh' }
+}
+
+function gh(path) {
+  if (transport !== 'curl') {
+    const fast = viaGh(path)
+    if (fast) return fast
+    if (transport === 'gh') {
+      fail(`--transport=gh 但 gh 通道不可用：${ghExe === null ? 'PATH 与常见安装位都没找到可执行的 gh（注意 0 字节残件会被跳过）' : `${ghExe} 这次自己失败`}`, 4)
+    }
+  }
+  // ↓↓↓ 通道二：curl + GCM token。走到这里说明机器上没有可用的 gh（或它自己失败）。
+  // 注意 token 在**这一行**才第一次被取：签名里不收 token，gh 腿因此结构上碰不到它。
+  const tok = fetchTok()
   // ⚠️ token 一律**不进 argv**（第五十七轮一手实测的泄漏）：`execFileSync` 失败时 Node 会把整条命令
   //   连同参数写进 `error.message`，于是 `-H "Authorization: Bearer ghp_…"` 的明文 PAT 直接落到
   //   终端 / 日志 / 对话里 —— 一次代理抖动就足够。argv 不只影响日志，同机其他进程也能读到进程参数，
@@ -74,11 +156,12 @@ function gh(path, tok) {
   const cfg = `header = "Accept: application/vnd.github+json"\nheader = "Authorization: Bearer ${tok}"\n`
   let raw
   try {
-    raw = execFileSync('curl', args, { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, input: cfg })
+    raw = execFileSync('curl', args, { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, input: cfg, timeout: EXEC_TIMEOUT_MS, windowsHide: true })
   } catch (e) {
     // 走本件自己的四态出口（rc=4 取不到数据），而不是让 Node 把整条 argv 连栈一起甩出来：
     // 未捕获时打印的就是 `Error: Command failed: curl …`，那正是泄漏面。
-    fail('curl 调 GitHub API 失败（代理/网络问题，非结论）：' + redact(e && e.message ? e.message : e, tok), 4)
+    fail(`curl 调 GitHub API 失败（代理/网络问题，非结论）：${redact(e && e.message ? e.message : e, tok)}`
+      + (e.killed || e.code === 'ETIMEDOUT' ? `（超过 ${EXEC_TIMEOUT_MS}ms 未返回）` : ''), 4)
   }
   const nl = raw.lastIndexOf('\n')
   const body = raw.slice(0, nl)
@@ -88,17 +171,21 @@ function gh(path, tok) {
   try { return { code, json: JSON.parse(body) } } catch { return { code, json: null, message: '响应非 JSON' } }
 }
 
-const tok = token()
+// token 必须**惰性**：原实现是模块顶层无条件 `const tok = token()`，于是"gh 腿能不能用"
+// 根本轮不到被问一句，脚本就先卡死在取 token 那一步（第六十七轮实测：零输出挂死 150s+）。
+// 现在只有真正要落到 curl 腿时才去取，且那次取自带 25s 上限。
+let _tokCache = null
+const fetchTok = () => (_tokCache || (_tokCache = token()))
 const secs = (a, b) => Math.max(0, (new Date(b) - new Date(a)) / 1000)
 
 let runs = []
 if (wantRun) {
   const suffix = wantAttempt ? `/attempts/${wantAttempt}` : ''
-  const r = gh(`/repos/${OWNER}/${REPO}/actions/runs/${wantRun}${suffix}`, tok)
+  const r = gh(`/repos/${OWNER}/${REPO}/actions/runs/${wantRun}${suffix}`)
   if (!r.json) fail(`取 run ${wantRun} 失败 http=${r.code} ${r.message || ''}`.trim(), 4)
   runs = [r.json]
 } else {
-  const r = gh(`/repos/${OWNER}/${REPO}/actions/runs?per_page=${limit}`, tok)
+  const r = gh(`/repos/${OWNER}/${REPO}/actions/runs?per_page=${limit}`)
   if (!r.json || !Array.isArray(r.json.workflow_runs)) fail(`取 run 列表失败 http=${r.code} ${r.message || ''}`.trim(), 4)
   runs = r.json.workflow_runs
 }
@@ -113,7 +200,7 @@ function probeBanner(url) {
   if (bannerProbed || !url) return
   bannerProbed = true
   try {
-    const a = gh(new URL(url).pathname + '/annotations', tok)
+    const a = gh(new URL(url).pathname + '/annotations')
     const msgs = ((a.json || []).filter((x) => x.annotation_level === 'failure').map((x) => x.message)).filter(Boolean)
     report.blockedBy = msgs.length ? msgs[0] : `annotations 为空 http=${a.code}（未取到原文）`
   } catch (e) {
@@ -121,7 +208,7 @@ function probeBanner(url) {
   }
 }
 for (const run of runs) {
-  const j = gh(`/repos/${OWNER}/${REPO}/actions/runs/${run.id}/jobs${wantAttempt ? `?attempt=${wantAttempt}` : ''}`, tok)
+  const j = gh(`/repos/${OWNER}/${REPO}/actions/runs/${run.id}/jobs${wantAttempt ? `?attempt=${wantAttempt}` : ''}`)
   const jobs = (j.json && j.json.jobs) || []
   const entry = {
     id: run.id, name: run.name, head: (run.head_sha || '').slice(0, 7),

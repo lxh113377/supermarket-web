@@ -122,8 +122,10 @@ describe('活体腿：采集层必须把真仓里的真文件读对一次（正�
     // 第五十三轮 E1 又在该文件加了"牙齿腿"（git archive / tar / ls-files 三处真起子进程）⇒ 调用点 2 → 6，
     // 而含两词的配对原文仍是 5（新那三处不含 `SCRIPT` 标识符，没落进这一档）。复算命令（不依赖任何临时脚本）：
     //   node --input-type=module -e "import('./scripts/check-cli-entrypoints.mjs').then(m=>{const s=require('fs').readFileSync('tests/docCommands.test.js','utf8');const t=m.scanBrackets(s).parens.map(([a,b])=>s.slice(a,b+1));console.log((s.match(/spawnSync\\(/g)||[]).length, t.filter(x=>x.includes('process.execPath')&&x.includes('SCRIPT')).length)})"
+    // 第六十七轮 E2 又在该文件加了"牙齿腿"（git archive / tar / 拆钩子腿跑真进程三处起子进程）
+    // ⇒ 调用点 6 → 9；含两词的配对原文仍是 5（新增三处都不含 `SCRIPT` 标识符，没落进这一档）。
     // 数值仍然写死而不改成 ≥：这条腿的全部价值就是"形状变了必须有人来看一眼"。
-    expect((src.match(/spawnSync\(/g) || []).length).toBe(6)
+    expect((src.match(/spawnSync\(/g) || []).length).toBe(9)
     const texts = scanBrackets(src).parens.map(([a, b]) => src.slice(a, b + 1))
     expect(texts.filter((t) => t.includes('process.execPath') && t.includes('SCRIPT')).length).toBe(5)
     expect(texts.some((t) => t.includes('--check')), '新腿的 CLI 调用必须也在采集面里（否则采集又漏了一次）').toBe(true)

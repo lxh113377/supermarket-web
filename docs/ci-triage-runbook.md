@@ -23,6 +23,30 @@ node scripts/ci-status.mjs            # 最近 5 条 run，自动分类并给退
 | `3` | **账号级 0-step 秒红**（无 step 且 ≤12s） | **不要改代码**。按下面 §2 排除，然后走 §4 |
 | `4` | 取不到数据（无 token / 代理不通 / API 挂） | 修通道，别把"没数据"读成"通过"（R247） |
 
+### 0.1 两条取数通道，以及"为什么它以前会一声不吭地卡住"
+
+`node scripts/ci-status.mjs` 有两条通道，`--transport` 可钉死走哪条：
+
+| 通道 | 怎么走 | 何时用 |
+|---|---|---|
+| `gh`（默认首选） | 已登录的 GitHub CLI，自带鉴权 | 日常。token 压根不进本进程 |
+| `curl` | curl + Git 凭据管理器的 token（敏感项走 `--config -` 从 stdin 读，不进 argv） | 机器上没有 gh，或要单独验 curl 腿的泄漏面 |
+
+```bash
+node scripts/ci-status.mjs --transport=auto   # 默认：先 gh，失败再 curl
+node scripts/ci-status.mjs --transport=gh     # 只走 gh；找不到可用 gh 就 rc=4，不静默回落
+node scripts/ci-status.mjs --transport=curl   # 只走 curl + GCM token
+```
+
+**第六十七轮实测的旧病，值得单独记一笔**：本工具一度会**零输出挂死 150s+**，被误读成"这台机器量不到 CI"。
+真因有两层，都不是环境缺能力：① 取 token 那一步原本包在 `bash -c '… | git credential fill'` 里，
+而本机 PATH 上的 `bash` 是 `C:/Windows/System32/bash.exe`（**WSL 那份**），它那条管道实测 45s 不返回，
+且原实现**没有 timeout**；② 本机 curl 打不到 `api.github.com`（直连 rc=56、经 `127.0.0.1:7897` rc=35），
+而同期 `gh.exe` 取同一接口 rc=0。
+两条修法：token 改为**直连 `git credential fill`（去掉 shell 外壳）**，同一台机器 0.1s 就拿到凭据 ——
+Windows GCM 里本来就有；并让 gh 腿排在前面。**教训**：归因"本机量不到"之前，先确认不是取数器自己挑错了通道 ——
+尤其是当"量不到"这件事已经连续几轮被复述、却从没被当成一个待修的缺陷时。
+
 ## 1. 症状 → 结论对照
 
 | 症状 | 结论 | 依据（本仓实测） |
