@@ -31,8 +31,7 @@
 //   ③ `gh` 自带鉴权，走它时 token 压根不进本进程，与 curl 腿的 argv 泄漏面无关（见下）。
 // 令牌只进变量，不回显、不落盘、不写日志。
 import { execFileSync, spawnSync } from 'node:child_process'
-import { statSync } from 'node:fs'
-import { join } from 'node:path'
+import { runGh } from './lib/gh-cli.mjs'
 
 const OWNER = 'lxh113377'
 const REPO = 'supermarket-web'
@@ -88,44 +87,13 @@ function redact(s, tok) {
   return tok ? String(s).split(tok).join('[REDACTED-PAT]') : String(s)
 }
 
-/**
- * 定位一个**真能跑**的 gh。不能只按名字 spawn：
- * 本机 PATH 首位 `C:/Users/37533/.local/bin/gh` 是 **0 字节残件且无扩展名** ——
- * PowerShell 把它当"文档"直接拒执行（`Cannot run a document in the middle of a pipeline`），
- * Node 的 spawn 同样会因它不是合法可执行文件而失败，而失败是**零输出**的那种。
- * 第六十五/六十六轮报告里那些"本机 gh 取不到 / 本机 curl 超时"的读数，成因就在这两条通道上，
- * 当时被读成了"这台机器量不到"，实际是**取数器挑错了通道**。
- * ⇒ 逐个候选验「是文件 + 非 0 字节 + 落在可执行扩展名上」，再把它当绝对路径 spawn。
- */
-function findGh() {
-  const dirs = String(process.env.PATH || '').split(';').filter(Boolean)
-  const cands = []
-  for (const d of dirs) cands.push(join(d, 'gh.exe'), join(d, 'gh.cmd'), join(d, 'gh.bat'))
-  cands.push('C:/Program Files/GitHub CLI/gh.exe')
-  for (const c of cands) {
-    try {
-      const st = statSync(c)
-      if (!st.isFile() || st.size === 0) continue          // 0 字节残件：存在但跑不了
-      // Windows 上无扩展名的文件不是可执行文件（PowerShell 会当"文档"拒执行）；
-      // POSIX 上带 shebang 的无扩展名脚本**是**可执行文件，且那正是夹具能造出来的形态 ⇒ 别一杆子打死。
-      const runnable = /\.(exe|cmd|bat)$/i.test(c) || (process.platform !== 'win32' && !/\.[a-z0-9]+$/i.test(c))
-      if (runnable) return c
-    } catch { /* 候选不存在，继续找 */ }
-  }
-  return null
-}
-
-let ghExe
 /** 通道一（首选）：已登录的 gh CLI。自带鉴权 ⇒ token 不进本进程，也就不进本进程的 argv。 */
 function viaGh(path) {
-  if (ghExe === undefined) ghExe = findGh()
-  if (!ghExe) return null
-  const r = spawnSync(ghExe, ['api', path], {
-    encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, timeout: EXEC_TIMEOUT_MS, windowsHide: true,
-  })
-  if (r.error || !r.stdout) return null
+  const r = runGh(['api', path], { timeoutMs: EXEC_TIMEOUT_MS })
+  if (r.exe === null) return { unavailable: 'no-gh-executable' }
+  if (r.error || !r.stdout) return { unavailable: `gh-spawn-failed:${(r.error && (r.error.code || r.error.message)) || 'no-stdout'}` }
   let json
-  try { json = JSON.parse(r.stdout) } catch { return null }
+  try { json = JSON.parse(r.stdout) } catch { return { unavailable: 'unparsable-json' } }
   const code = Number(json.status) || (r.status === 0 ? 200 : 502)
   // gh 对 4xx/5xx 也会把 JSON 响应体打到 stdout（只是 rc≠0）⇒ 必须按响应归一，
   // 否则 404 会被读成"拿到了数据"，调用方的 `if (!r.json)` 就拦不住了。
@@ -136,9 +104,9 @@ function viaGh(path) {
 function gh(path) {
   if (transport !== 'curl') {
     const fast = viaGh(path)
-    if (fast) return fast
+    if (fast.code !== undefined || fast.json !== undefined) return fast
     if (transport === 'gh') {
-      fail(`--transport=gh 但 gh 通道不可用：${ghExe === null ? 'PATH 与常见安装位都没找到可执行的 gh（注意 0 字节残件会被跳过）' : `${ghExe} 这次自己失败`}`, 4)
+      fail(`--transport=gh 但 gh 通道不可用：${fast.unavailable}（PATH 与常见安装位都要有**非 0 字节**的可执行 gh，残件会被跳过）`, 4)
     }
   }
   // ↓↓↓ 通道二：curl + GCM token。走到这里说明机器上没有可用的 gh（或它自己失败）。

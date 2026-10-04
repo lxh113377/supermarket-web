@@ -1,7 +1,7 @@
 {
   "schema": "chaoshi-cron-health-v1",
   "note": "本件由 `node scripts/check-cron-health.mjs --update` 生成；C4 拿它与 YAML 声明面双向对账，手改即红。accepts_red_* 是人填的豁免，--update 会保留同名条目已填的值。",
-  "generatedUtc": "2026-09-28T00:22:52.760Z",
+  "generatedUtc": "2026-10-04T18:45:59.141Z",
   "lookback_days": 7,
   "entries": [
     {
@@ -9,10 +9,10 @@
       "name": "D1 Daily Backup",
       "cron": "0 20 * * *",
       "period_days": 1,
-      "observed_state": "RED",
+      "observed_state": "OK",
       "observed_last_run": {
-        "id": 36356709142,
-        "at": "2026-09-27T22:51:17Z",
+        "id": 37159400244,
+        "at": "2026-10-03T22:43:27Z",
         "conclusion": "failure"
       },
       "accepts_red_until": "2026-10-12",
@@ -24,10 +24,10 @@
       "name": "Uptime",
       "cron": "0 1 * * *",
       "period_days": 1,
-      "observed_state": "RED",
+      "observed_state": "OK",
       "observed_last_run": {
-        "id": 36299454141,
-        "at": "2026-09-27T06:13:21Z",
+        "id": 37183322217,
+        "at": "2026-10-04T06:37:00Z",
         "conclusion": "failure"
       },
       "accepts_red_until": "2026-10-12",

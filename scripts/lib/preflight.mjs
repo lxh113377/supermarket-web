@@ -50,6 +50,12 @@ export const RISK_PATTERNS = [
   [/writeFileSync\([^)]*(?:docs|dist|api-contract|API\.md)/, 'writes-artifacts', '运行即改写受版本控制的产物'],
   [/\bfetch\s*\(|['"]curl['"]\s*,/, 'network-fetch', '直连线上端点（fetch 或 curl），本地探针只会测网络'],
   [/['"]gh['"]\s*[,.]/, 'gh-cli', '要 gh 鉴权与远端 API，探针跑它等于测 GitHub 可用性'],
+  // 第六十七轮补：共享取数件 `scripts/lib/gh-cli.mjs` 把「定位并调用 gh」收进了一层间接，
+  // 于是 `benchmark-peers.mjs` 里不再出现 `'gh',` 字面量 —— **风险是代码的属性，间接也是属性**。
+  // 不补这一条的后果实测过：benchmark-peers 从派生风险名单里静默消失 ⇒ 自动探针会开始真跑它
+  // ⇒ 而它每次跑都要打十几个远端 API 调用（等于拿探针测 GitHub 可用性，正是这条标签要防的）。
+  // 所以凡是**调用/导入**这个取数件的，一律仍判 gh-cli：宁可多报，不可漏报。
+  [/\brunGh\s*\(|\bgh-cli\.mjs['"]/, 'gh-cli', '经共享取数件调用 gh CLI（间接也算：风险跟着行为走，不跟着字面量走）'],
 ]
 
 /**

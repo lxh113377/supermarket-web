@@ -133,7 +133,7 @@ G11 认的是"已证明停在门口"这个整词，不是子串 —— 否则 �
 | collect-live-perf.mjs | network-fetch | ✅ 已证明停在门口：默认**只出计划不动手**，实测 rc=0 / 0.07s（@2026-09-29 本机，走完整解析链后停在 DRY 出口），`fetch`/`spawnSync`/`mkdirSync`/写盘全在其后的显式 `--run` 分支里。一手代价：本件首版没有默认 DRY，裸调用**实测 rc=1 / 219s 且真打了 6 份 Lighthouse 落盘**——那正是户内「探针参数会写盘」的形态，被我自己撞了一次才补上门。另由 `tests/livePerfCollect.test.js` 断言裸调用后样本目录零新增、连目录都不许建（合成面用假浏览器与假包树驱动，不读本机安装） |
 | check-pr-has-tests.mjs | gh-cli | ❌ 未停在门口：无开放 PR 时按设计 rc=0（看守型）⇒ 探针的 rc≠0 断言对它不成立，永不进自动面；每轮 push main 在 `dispatch.yml:44` 真跑 |
 | ci-green-contract.mjs | gh-cli | ✅ 已证明停在门口：rc=1 / 0s（读不到 `.ci/contract.json` 即 fail-closed），gh 调用在其后 ⇒ 回到分母 |
-| ci-status.mjs | network-fetch | ❌ 未停在门口：实测 9s 真打 api.github.com（通道是 curl —— 本机 node fetch 不走系统代理） |
+| ci-status.mjs | gh-cli, network-fetch | ❌ 未停在门口：实测 9s 真打 api.github.com（第六十七轮起**先 gh 后 curl**；gh 腿自带鉴权，curl 腿的 token 走 `--config -` 从 stdin 读、不进 argv） |
 | gen-api-doc.mjs | writes-artifacts | ✅ 已证明停在门口：rc=2 / 0s（`requireJson` 拦在渲染之前），实测骨架里不产出 `docs/` ⇒ 不弄脏工作树，回到分母 |
 | local-api-stub.mjs | http-server | ❌ 未停在门口：实测真监听 `:5182`，要 `timeout 30` 才终止（rc=124）⇒ spawn 必挂 |
 | migrate.mjs | wrangler | ✅ 已证明停在门口：rc=1 / 0s（"未找到本地 wrangler…先 npm ci"），`d1 execute --remote` 在其后 ⇒ 回到分母 |

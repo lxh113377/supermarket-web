@@ -20,10 +20,10 @@
 //       node scripts/benchmark-peers.mjs --offline           不触网，只验名册形状（CI 无网时的降级腿）
 //       node scripts/benchmark-peers.mjs --selftest          跑内置正反例（含"404 不得折成 0"这条反例）
 import { readFileSync, writeFileSync } from 'node:fs'
-import { spawnSync } from 'node:child_process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 import { requireJson } from './lib/preflight.mjs'
+import { runGh } from './lib/gh-cli.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
@@ -35,13 +35,17 @@ const PER_CALL_MS = 20000
 function gh(path, { headers = false } = {}) {
   const args = ['api', path]
   if (headers) args.push('--include')
-  const r = spawnSync('gh', args, { encoding: 'utf8', timeout: PER_CALL_MS, windowsHide: true })
+  // 第六十七轮：改走共享取数件。原先这里是裸 `spawnSync('gh', …)`，而本机 PATH 首位那个 gh 是
+  // **0 字节残件**（PowerShell 报"不能执行文档"、Node 零输出 spawn 失败）⇒ 这一整份对标名册的取数
+  // 在本机长期处于"不可得"，且失败原因被读成了网络/通道问题。现在失败会指名是"找不到可执行的 gh"。
+  const r = runGh(args, { timeoutMs: PER_CALL_MS })
+  if (r.exe === null) return { err: 'no-gh-executable: PATH 与常见安装位都没有可执行的 gh（0 字节残件会被跳过）' }
   if (r.error) return { err: `spawn-failed:${r.error.code || r.error.message}` }
+  const out = r.stdout || ''
   if (r.status !== 0) {
     const msg = (r.stderr || '').split(/\r?\n/)[0] || `rc=${r.status}`
     return { err: msg.slice(0, 160) }
   }
-  const out = r.stdout || ''
   if (!headers) {
     try { return { json: JSON.parse(out) } } catch { return { err: 'unparsable-json' } }
   }
