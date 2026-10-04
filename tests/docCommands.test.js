@@ -6,7 +6,7 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
 import { spawnSync } from 'node:child_process'
-import { readFileSync, writeFileSync, mkdtempSync, rmSync, readdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdtempSync, rmSync, readdirSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -439,4 +439,85 @@ describe('E1 台账漂移接闸（严格档必须既被接上、又真有牙齿�
       rmSync(dir, { recursive: true, force: true })
     }
   }, 180_000)
+})
+
+/**
+ * ── E2 台账漂移挪到"提交那一刻"（第六十七轮）──────────────────────────────
+ * 立它的读数是**同一个红因连栽 4 次**（git log 实测：3c8df89「先 --update 后写正文」、
+ * 00b92d4「CHANGELOG 新增命令致台账过期」、89a67db 之后那一笔、以及 65/66 两轮报告各自
+ * 记的「本机绿 / CI 红」）。根因不是尺不准，是**顺序**：`docs/doc-commands.json` 的
+ * mentions/claim 计的是 CHANGELOG 与 docs/ 正文里的命令提及，所以"先跑 verify 或 --update、
+ * 之后再写文档"必然让册子当场过期，而红要等下一次 CI 才现形 ⇒ 每轮都靠一轮远端红来发现。
+ *
+ * 本块要立的性质只有一句：**漂着的台账不许进库**。它分两半，各自有牙：
+ *   ① 接线半边——钩子里真有那条腿，且在 `set -e` 之后（配一条篡改反例，防"接了又被改回去"）；
+ *   ② 牙齿半边——在 HEAD 的干净检出上，钩子里那条腿必须绿（= 台账不许带着漂进库），
+ *      把册改旧后**同一行**必须红。
+ * ② 的命令是从**钩子文件里读出来的**，不是在这里写死的：钩子改了那条腿，本块跟着走，
+ * 也就不会测成"另一个我手抄的命令"。
+ */
+describe('E2 台账漂移挪到提交那一刻（钩子必须拦）', () => {
+  const HOOK = join(ROOT, '.githooks', 'pre-commit')
+  // 从钩子原文里取那条腿，而不是写死一条命令——否则钩子改了，本块还在测旧命令。
+  const hookLeg = () => {
+    const hook = readFileSync(HOOK, 'utf8')
+    const legs = hook.split('\n').filter((l) => l.includes('check-doc-commands.mjs') && !l.trimStart().startsWith('#'))
+    return { hook, legs }
+  }
+
+  it('接线半边：钩子里真有那条腿、在 set -e 之后、且不以注释形态出现', () => {
+    const { hook, legs } = hookLeg()
+    expect(legs, `钩子里该腿出现 ${legs.length} 次，必须恰好 1 次`).toHaveLength(1)
+    expect(legs[0].trim()).toBe('node scripts/check-doc-commands.mjs --check')
+    expect(legs[0], '腿必须带 --check 档：默认档按设计只报不拦，接了等于没接').toContain('--check')
+    expect(hook.indexOf('set -e')).toBeLessThan(hook.indexOf('check-doc-commands.mjs'))
+    // 反向半边：把那条腿换成 no-op，断言必须翻红（证明上面那几条不是在读空气）。
+    const tampered = hook.replace(/check-doc-commands\.mjs/g, 'echo-ok.mjs')
+    expect(tampered).not.toContain('check-doc-commands.mjs')
+    expect(tampered.split('\n').filter((l) => l.includes('echo-ok.mjs') && !l.trimStart().startsWith('#'))).toHaveLength(1)
+  })
+
+  it('牙齿半边：HEAD 干净检出上那条腿必须绿（漂着的台账不许进库），改旧后同一行必须红', () => {
+    const { legs } = hookLeg()
+    const dir = mkdtempSync(join(tmpdir(), 'dcom-hook-'))
+    try {
+      // tar 路径形态照 E1 那段抄：`-o` 收**绝对路径**（否则 tar 落进 cwd=仓库根，检出树里根本没有它），
+      // `-xf` 只在 cwd=检出根 里用相对文件名（绝对路径喂 tar 在 Git-Bash 上会被当远程主机名）。
+      const tar = join(dir, 'head.tar')
+      const arch = spawnSync('git', ['archive', '-o', tar, 'HEAD'], { cwd: ROOT, encoding: 'utf8', timeout: 120_000 })
+      expect(arch.status, arch.stderr).toBe(0)
+      expect(existsSync(tar), `git archive 没在检出根里落下 ${tar}`).toBe(true)
+      const ex = spawnSync('tar', ['-xf', 'head.tar'], { cwd: dir, encoding: 'utf8', timeout: 120_000 })
+      expect(ex.status, ex.stderr).toBe(0)
+      // 跑的就是钩子里那一行，但**不经 shell**：拆成 argv 后把开头的 `node` 换成本进程可执行文件。
+      // 两个理由，缺一个都会把读数变成假象：
+      //   ① 本机 PATH 上没有 `sh`（git 自己带一份，钩子照跑不误，但 spawnSync 走 PATH 会 ENOENT，
+      //      而 ENOENT 的 `status` 是 **null** —— 不拆开就会把"根本没跑起来"读成"跑了判红"，
+      //      然后配一句关于台账的假诊断。这条腿第一版就是这么红的。
+      //   ② 钩子那一行本来就没有 shell 语法（`node <脚本> --check`），绕开 shell 少一层不确定性。
+      const argv = legs[0].trim().split(/\s+/)
+      expect(argv[0], '钩子那条腿的 runner 必须能换成 process.execPath（本仓用 node）').toBe('node')
+      const runLeg = () => spawnSync(process.execPath, argv.slice(1), { cwd: dir, encoding: 'utf8', timeout: 120_000 })
+      const control = runLeg()
+      expect(control.error, `那条腿没跑起来，结论不作数：${control.error && control.error.message}`).toBeUndefined()
+      expect(control.status,
+        `HEAD 里就带着一张漂着的台账 ⇒ 这正是本块要禁的那件事（跑 --update 后请连台账一起提交）：${`${control.stdout || ''}${control.stderr || ''}`.slice(-500)}`
+      ).toBe(0)
+      const regPath = join(dir, 'docs', 'doc-commands.json')
+      const reg = JSON.parse(readFileSync(regPath, 'utf8'))
+      const before = reg.counts.claim
+      reg.counts.claim = 42
+      writeFileSync(regPath, JSON.stringify(reg, null, 2) + '\n', 'utf8')
+      const red = runLeg()
+      expect(red.error, `反例那腿没跑起来，结论不作数：${red.error && red.error.message}`).toBeUndefined()
+      expect(red.status, '把册改旧后，钩子那条腿必须拦').toBe(1)
+      expect(`${red.stdout || ''}${red.stderr || ''}`).toContain(`claim 册上 42`)
+      // 复原：不留半成品，也顺带证明"绿/红"不是检出树被搞坏导致的假象。
+      reg.counts.claim = before
+      writeFileSync(regPath, JSON.stringify(reg, null, 2) + '\n', 'utf8')
+      expect(runLeg().status, '复原后必须重新变绿').toBe(0)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  }, 240_000)
 })

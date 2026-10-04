@@ -1,12 +1,19 @@
 #!/bin/sh
 # 本地提交门禁：① 暂存区语法闸（判的是 index 里的 blob，不是工作树）；② 扫描 git 暂存区，发现疑似密钥即阻断提交；
-# ③ 记忆卷 4KB 上限（只判本次要提交的记忆文件）。
+# ③ 记忆卷 4KB 上限（只判本次要提交的记忆文件）；④ 文档命令台账不许漂（只判不写）。
 # 由 `git config core.hooksPath .githooks` 启用（仓库级，无需全局配置）。
 # 误报时先复核"为什么会命中"并把结论记进 docs/，不要用跳过钩子的开关提交——绕过去的那一次不留痕迹。
 # 记忆卷超限的完整普查在 CI 里跑 `npm run verify:volume`（--all 全量面），本地这条只拦新增。
 # ①是第四十八轮加上的：同一形态（编辑时把"被保留的头几行"当成替换锚）四轮里犯了 4 次，
 #   以前要等全链 verify 或 CI 才现形，现在在 commit 那一刻就拦（盲区：.ts/.tsx/.jsx 由 oxlint + typecheck 判，本闸不判）。
+# ④是第六十七轮加上的，理由是**同一个红因已经栽了 4 次**（git log 实测：3c8df89 / 00b92d4 / 89a67db 那一笔之后，
+#   外加 65/66 两轮报告各自记的"本机绿、CI 红"）：根因不是尺不准，是**顺序**——
+#   `docs/doc-commands.json` 的 mentions/claim 计的是 CHANGELOG 与 docs/ 正文里的命令提及，
+#   所以"先跑 verify/--update，之后再写 CHANGELOG 或文档"必然让册子当场过期，而红要等下一次 CI 才现形。
+#   本腿只读不写（--check）：漂了就地给出重生命令，不在钩子里替人改文件（钩子改文件 = 提交了没被审过的内容）。
+#   误报不是本腿的已知形态——判据取数面零输入判红、真面非空已由 tests/docCommands.test.js 的 E1 腿钉住。
 set -e
 node scripts/check-staged-syntax.mjs
 node scripts/scan-secrets.mjs --staged
 node scripts/check-memory-volume.mjs
+node scripts/check-doc-commands.mjs --check
