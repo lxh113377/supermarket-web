@@ -43,6 +43,17 @@ export const BACKUP_UPLOAD_RULE = /name:\s*d1-backup(?:-enc)?-\$\{\{\s*github\.r
 export const PLAIN_UPLOAD_GUARD = /if:[^\n]*mode == 'plaintext'/
 
 /**
+ * 第六十八轮：两种 mode 证的是**两件不同的事**，不再共用一个「必须 success」。
+ *   backup   「备份真产出了可核对的产物」⇒ success + 导出步骤真成功 + artifact ≥ 1 + 名字像备份
+ *   presence 「那条 cron 到点真跑了」⇒ 只要求窗口内有一条 scheduled run，**颜色不是它的职责**
+ * 一手实测的成因（本轮）：presence 旧写法要求对侧 success，而对侧 success 又要求本侧真有产物
+ * ⇒ 两条 cron 互为前提成环，`d1-backup.yml` 的反查步还排在 `Export remote D1` **之前**，
+ * 于是**即使配上 CF_D1_BACKUP_TOKEN，备份当晚仍走不到导出**。
+ * 颜色在这里降成可见的读数（`redStreak` WARN），不再是绿灯条件——静默的绿与沉默的红是同一种病。
+ */
+export const didFire = (r) => r.event === 'schedule' && r.conclusion != null && r.conclusion !== ''
+
+/**
  * 从已抓到的步骤形态反推"缺哪个 secret"，把 FAIL 从"去看注释"升级成"照这条做"。
  * 只报证据支持的结论：取不到步骤明细就老实说取不到，不猜。
  */
@@ -79,8 +90,9 @@ function diagnoseSecrets(runs) {
 
 /**
  * runs: [{ id, createdAt, conclusion, event, artifactCount, steps? }]
- * mode: 'backup'（默认，要求产物与导出步骤）| 'presence'（只判"这个 cron 最近真跑成功过"，
- *       用于自动化链互指：备份链反查巡检链是否还活着）
+ * mode: 'backup'（默认，要求产物与导出步骤）| 'presence'（只判"这个 cron 到点真**跑**过"，
+ *       用于自动化链互指：备份链反查巡检链是否还在调度。第六十八轮起不再要求它对侧是绿的——
+ *       旧口径与巡检链的产物门互指成环，会把"配了 token 也备份不了"锁死）
  * cronPeriodDays：调度周期，用于**分母断言**（过滤后 scheduled run 数应 ≥ 窗口/周期）。
  */
 export function judgeLiveness({ runs, nowMs, maxAgeDays = 2, exempt = false, mode = 'backup', cronPeriodDays = 1, lookbackDays = 4 }) {
@@ -105,7 +117,11 @@ export function judgeLiveness({ runs, nowMs, maxAgeDays = 2, exempt = false, mod
   // 产物名字：null = 没取到（失明，单独摊出来）；false = 取了但没有一个像备份产物 ⇒ 这次跑**没产出备份**。
   const nameVerdict = (r) => (mode !== 'backup' || !Array.isArray(r.artifactNames) ? null
     : r.artifactNames.some((n) => BACKUP_ARTIFACT_NAME.test(n)))
-  const isGood = (r) => r.conclusion === 'success' && stepsOk(r) && artifactOk(r) && nameVerdict(r) !== false
+  /** 产物级断言（只有 backup 模式该用它）：success + 导出步真成功 + artifact≥1 + 名字像备份。 */
+  const isArtifactBacked = (r) => r.conclusion === 'success' && stepsOk(r) && artifactOk(r) && nameVerdict(r) !== false
+  // presence 只认「到点跑过」；同一事实不在两处各判一遍（第四十二轮归口教训），
+  // "到底有没有跑"由下面那条调度层断言（scheduled 为空 / 龄期超限）独占红因位。
+  const isGood = mode === 'presence' ? didFire : isArtifactBacked
   if (mode === 'backup') {
     const wrong = runs.filter((r) => r.conclusion === 'success' && (r.artifactCount || 0) > 0 && nameVerdict(r) === false)
     for (const r of wrong) {
@@ -114,7 +130,12 @@ export function judgeLiveness({ runs, nowMs, maxAgeDays = 2, exempt = false, mod
     const blindNames = runs.filter((r) => r.conclusion === 'success' && (r.artifactCount || 0) > 0 && nameVerdict(r) === null).length
     if (blindNames) warnings.push(`${blindNames} 次 success run 有产物但**名字未取到** ⇒ 只由计数定性（这是未核，不是已核）`)
   }
-  const good = runs.find(isGood) || null
+  // presence 取**最近一条**跑过的（API 默认按时间倒序，但不依赖它：显式按时间戳取最大，
+  // 解不出时间戳的排最后，免得 NaN 把排序变成随机序 ⇒ 龄期断言会读到一条旧 run）。
+  const tOf = (r) => { const t = Date.parse(r.createdAt); return Number.isFinite(t) ? t : -1 }
+  const good = mode === 'presence'
+    ? (runs.filter(isGood).sort((a, b) => tOf(b) - tOf(a))[0] || null)
+    : (runs.find(isGood) || null)
   // 步骤明细的**覆盖度**要印成分子/分母，且"取数失败"与"没去取"不得同形（第三十六轮：
   // 旧版把两者混成一条 blind 计数，看起来像 API 不稳，其实是自己 slice(0,3) 少取了）。
   const succeeded = runs.filter((r) => r.conclusion === 'success')
@@ -130,14 +151,23 @@ export function judgeLiveness({ runs, nowMs, maxAgeDays = 2, exempt = false, mod
       + (neverTried.length ? `；无取数记录 ${neverTried.length} 次（夹具态或未走到取数分支）` : ''))
   }
 
-  const vacuous = runs.filter((r) => r.conclusion === 'success' && !isGood(r))
+  // 「恒绿空转」是**备份面**的病：success 却没有可核对的产物。presence 面不认产物，
+  // 用它判 presence 只会造出一句与本次断言无关的读数（第四十三轮 R43-H1 同一族：别把没断言的说成断言过）。
+  const vacuous = mode === 'backup' ? runs.filter((r) => r.conclusion === 'success' && !isArtifactBacked(r)) : []
   if (vacuous.length) {
     warnings.push(`${vacuous.length}/${runs.length} 次 run 的 conclusion=success 但**没有产出可核对的备份证据**（恒绿空转的形状）`)
   }
 
   if (!good) {
     if (mode === 'presence') {
-      problems.push('窗口内没有任何一次成功的 scheduled run ⇒ 该 cron 很可能已停摆（GitHub 对 public 仓"60 天无仓库活动自动禁用 schedule"是官方行为）')
+      // 这里**不再判一次红**：presence 的 good = 「有一条 scheduled run 出过结论」，
+      // 它为空 ⟺ 下面调度层断言的 `scheduled.length === 0`（或全在跑中）⟹ 同一红因出两行，
+      // 会让人以为要修两遍（第四十二轮归口教训）。红由调度层那一处独占，本行只把形状摊出来。
+      const sched = runs.filter((r) => r.event === 'schedule')
+      if (sched.length) {
+        warnings.push(`${sched.length} 条 scheduled run 都没有结论字段（多半还在跑或 API 未回 conclusion）`
+          + ' ⇒ 本步的龄期断言照常判，颜色读数缺失，不按"全绿"也不按"全红"计')
+      }
     } else {
       // 措辞必须被证据撑住：本判据只看得到 lookback 窗口内扫到的这 N 次 run，
       // 旧版据此下"生产库**从未**被这条链备份过"的结论＝把"窗口内没看到"说成"从来没发生过"
@@ -151,7 +181,9 @@ export function judgeLiveness({ runs, nowMs, maxAgeDays = 2, exempt = false, mod
         + ` ⇒ 窗口内没有任何一次备份产物可核对（窗口外是否曾成功，本判据看不见，不下结论）`
         + diagnoseSecrets(runs))
     }
-  } else if (Number.isFinite(nowMs)) {
+  } else if (mode === 'backup' && Number.isFinite(nowMs)) {
+    // 「最近一次真备份多久前」是**产物面**的断言；presence 的龄期归下面那条调度层断言管，
+    // 两处各判一遍会让同一条红出两行、看着像两件事（第四十二轮归口教训）。
     const then = Date.parse(good.createdAt)
     if (!Number.isFinite(then)) problems.push(`成功 run 的时间戳解不出来：${JSON.stringify(good.createdAt)} ⇒ 无法证新鲜度，按不通过处理`)
     else {
@@ -161,6 +193,8 @@ export function judgeLiveness({ runs, nowMs, maxAgeDays = 2, exempt = false, mod
   }
 
   // 调度层断言：窗口内至少要有一次 scheduled run；且最近一次的龄期不得超过 2 个周期 + 1 天缓冲。
+  // **presence 模式的龄期唯一出口就是这里**（第六十八轮）：它不认产物，所以阈值由**周期推导**
+  // 而不是由 `LIVENESS_MAX_AGE_DAYS` 配置——一个事实只在一处判，也不留一处会被忽略的死配置。
   // 为什么不用"窗口内应有 N 次"的计数分母（本仓另一条同类判据的常规写法）：
   // 刚建链的 workflow 在窗口内天然凑不够次数，会把"昨天刚上线"报成停摆 ⇒ 假红。
   // 而 GitHub 官方那条「public 仓 60 天无仓库活动会自动禁用 schedule」的失效面，
@@ -180,6 +214,20 @@ export function judgeLiveness({ runs, nowMs, maxAgeDays = 2, exempt = false, mod
         problems.push(`最近一次 scheduled run 在 ${gapDays.toFixed(1)} 天前（周期 ${cronPeriodDays} 天，容许 ≤${allowed} 天）`
           + ' ⇒ cron 被改/被自动禁用（public 仓 60 天无活动即触发）或动作配额耗尽')
       }
+    }
+  }
+
+  // 颜色从闸门降成**读数**（第六十八轮）——降成读数不等于不说，沉默的绿与沉默的红是同一种病。
+  // 只在 presence 印：backup 面的"颜色"就是它自己的产物判据，此处数它的 run 会指错对象。
+  if (mode === 'presence' && scheduled.length) {
+    const byNewest = scheduled.slice().sort((a, b) => tOf(b) - tOf(a))
+    let streak = 0
+    for (const r of byNewest) { if (r.conclusion === 'success') break; streak++ }
+    const head = byNewest[0]
+    if (streak > 0) {
+      warnings.push(`对侧 cron 到点在跑，但连着 ${streak}/${scheduled.length} 次不是 green`
+        + `（最近 = run ${head.id} ${head.createdAt} conclusion=${head.conclusion ?? 'null'}）`
+        + ' ⇒ 本步只证"有没有跑"，颜色归它自己的判据管；这条 WARN 是读数，不是豁免')
     }
   }
 
@@ -257,7 +305,13 @@ function main() {
     runs, nowMs, maxAgeDays: Number(process.env.LIVENESS_MAX_AGE_DAYS || 2), exempt,
     mode, cronPeriodDays, lookbackDays,
   })
-  console.log(`[liveness] mode=${mode} 窗口=${lookbackDays}天 周期=${cronPeriodDays}天 扫到 ${runs.length} 次 run；新鲜度阈值 ${process.env.LIVENESS_MAX_AGE_DAYS || 2} 天；豁免=${exempt ? '是' : '否'}`)
+  // 首行读数必须与本 mode 实际断言的东西同形：presence 不认产物，就不许印"新鲜度阈值"
+  // （那是产物面的数，印出来会让人以为它在管，而它现在由周期推导）。
+  console.log(`[liveness] mode=${mode} 窗口=${lookbackDays}天 周期=${cronPeriodDays}天 扫到 ${runs.length} 次 run；`
+    + (mode === 'presence'
+      ? `调度龄期容许 ≤${cronPeriodDays * 2 + 1} 天（周期×2+1 推导，本 mode 不判产物）`
+      : `新鲜度阈值 ${process.env.LIVENESS_MAX_AGE_DAYS || 2} 天`)
+    + `；豁免=${exempt ? '是' : '否'}`)
   for (const r of runs.slice(0, 5)) {
     const shape = (r.steps || []).filter((s) => /Export remote D1|Upload backup artifact/.test(s.name || ''))
       .map((s) => `${s.name}=${s.conclusion}`).join(' ')
@@ -267,14 +321,18 @@ function main() {
   if (problems.length) {
     for (const p of problems) console.error(`  ✗ ${p}`)
     console.error(mode === 'presence'
-      ? '[liveness] FAIL ⇒ 这条 cron 没在按时跑（被禁用／改期／配额耗尽）。去 Actions 看该 workflow 的最近 run，别猜成网络问题'
+      // 旧句「这条 cron 没在按时跑（被禁用／改期／配额耗尽）」是**未被证据撑住的归因**：
+      // 一手实况（run 37241500391）里对侧每夜都在跑、只是红，而本步已不再判颜色。
+      // 具体红因由上面每行 ✗ 各自带着，这里不替它们下结论。
+      ? '[liveness] FAIL ⇒ 对侧 cron 的调度层不成立（红因见上面逐行 ✗：到点没跑 = 被禁用/改期/配额；时间戳解不出 = 取数面问题）。本步不判它的颜色'
       : '[liveness] FAIL ⇒ 备份不可依赖。两条出路见 .github/workflows/d1-backup.yml 顶部注释；要显式接受"暂时不备份"就设仓库变量 BACKUP_SKIP_OK=true（会降为 WARN，但别再让它沉默）')
     process.exit(1)
   }
   // 输出必须与 mode 对齐（第四十三轮 R43-H1）：presence 模式**不要求产物**，
   // 却一直在印"最近一次可核对备份" —— 那是把没断言的东西说成断言过（判据匹配描述而不是行为）。
+  // 第六十八轮再进一步：presence 连"成功"两个字都不印，因为它判的是**跑过**，颜色另起一行读数。
   console.log(mode === 'presence'
-    ? `[liveness] OK 调度层存活：最近一次成功 run = run ${good.id}（${good.createdAt}，event=${good.event || '-'}，artifact=${good.artifactCount}）`
+    ? `[liveness] OK 调度层存活：最近一条 scheduled run = run ${good.id}（${good.createdAt}，conclusion=${good.conclusion ?? 'null'}）——本步只证到点跑过，未证它绿`
     : `[liveness] OK 最近一次可核对备份：run ${good.id}（${good.createdAt}，artifact=${good.artifactCount}）`)
 }
 

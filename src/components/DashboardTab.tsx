@@ -39,7 +39,7 @@ interface DashboardStats {
   rangeData: RangeData
   delta: { ordersDelta: number | null; revenueDelta: number | null }
   reviewTrend: { counts: number[]; labels: string[] }
-  margin: { drink: MarginSummary | null; food: MarginSummary | null; withCostItems: number; totalItems: number }
+  margin: { drink: MarginSummary | null; food: MarginSummary | null; daily: MarginSummary | null; withCostItems: number; totalItems: number }
   pieSegments: Array<{ name: string; value: number }>
   topRevenue: Array<{ name: string; revenue: number; qty: number }>
   totalOrders: number
@@ -114,7 +114,7 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
       revenueSum,
       orderSum: stats?.orderSum ?? 0,
       reviewTrend,
-      margin: stats?.margin ?? { drink: null, food: null, withCostItems: 0, totalItems: 0 },
+      margin: stats?.margin ?? { drink: null, food: null, daily: null, withCostItems: 0, totalItems: 0 },
       pieSegments: stats?.pieSegments ?? [],
       topRevenue: stats?.topRevenue ?? [],
       totalOrders: stats?.totalOrders ?? 0,
@@ -264,9 +264,9 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
         )}
       </div>
 
-      {/* 毛利率：饮品/食品 */}
+      {/* 毛利率：饮品/食品/日用 */}
       <div className="bg-white p-5 rounded-2xl border border-gray-100/80 shadow-card animate-fade-in-up stagger-5">
-        <h3 className="section-title mb-4">饮品/食品毛利率</h3>
+        <h3 className="section-title mb-4">饮品/食品/日用毛利率</h3>
         {margin.withCostItems === 0 ? (
           <div className="text-center py-6">
             <IconBox className="w-8 h-8 mx-auto text-gray-300" />
@@ -274,10 +274,11 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
             <p className="text-[10px] text-gray-300 mt-1">在商品内联编辑中录入成本价后自动计算</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             {([
               ['饮品', margin.drink],
               ['食品', margin.food],
+              ['日用', margin.daily],
             ] as Array<[string, MarginSummary | null]>).map(([label, m]) => (
               <div key={label} className="rounded-xl bg-gray-50 p-3 text-center">
                 <p className="text-[10px] text-gray-400">{label}</p>
@@ -299,7 +300,7 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
       <div className="bg-white p-5 rounded-2xl border border-gray-100/80 shadow-card animate-fade-in-up stagger-6">
         <h3 className="section-title mb-2">分类销量占比</h3>
         <div className="relative h-56 w-full">
-          <div ref={pieRef} className="h-56 w-full" aria-label="饮品与食品销量占比图" />
+          <div ref={pieRef} className="h-56 w-full" aria-label="饮品、食品与日用销量占比图" />
           {!pieSegments.length && (
             <div className="absolute inset-0 flex items-center justify-center text-gray-300 text-sm" aria-hidden="true">
               暂无数据

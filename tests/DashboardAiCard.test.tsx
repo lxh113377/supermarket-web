@@ -33,7 +33,7 @@ function mockStatsOk() {
           rangeData: { labels: [], orderCounts: [], revenues: [] },
           delta: { ordersDelta: null, revenueDelta: null },
           reviewTrend: { counts: [], labels: [] },
-          margin: { drink: null, food: null, withCostItems: 0, totalItems: 0 },
+          margin: { drink: null, food: null, daily: null, withCostItems: 0, totalItems: 0 },
           pieSegments: [],
           topRevenue: [],
           totalOrders: 0,

@@ -6,7 +6,7 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
 import { spawnSync } from 'node:child_process'
-import { readFileSync, writeFileSync, mkdtempSync, rmSync, readdirSync, existsSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdtempSync, rmSync, readdirSync, existsSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -520,4 +520,84 @@ describe('E2 台账漂移挪到提交那一刻（钩子必须拦）', () => {
       rmSync(dir, { recursive: true, force: true })
     }
   }, 240_000)
+})
+
+/**
+ * `--update` 必须**一趟到位**（第六十八轮一手实测的根因）。
+ * 一手读数：本轮新增一个别名后跑 `--update`，它自称 GATE-PASS，紧跟一条 `--check` 回
+ * `mentions 册上 278 → 现算 279` —— 差的那 1 条正是 `--update` 自己刚写进 README 门禁一览的那一行。
+ * 机制：**生成器把自己的输出算进了取数面**，而登记册在重写 README *之前* 就落盘了。
+ * 第六十七轮的"先写正文再 --update"只缩小窗口，没关这一半 ⇒ 这里用行为（不是文本形状）钉住修法。
+ */
+describe('--update 一趟到位：新增别名后单次重生即自洽（生成器不吃自己的旧快照）', () => {
+  const mkRepo = () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dcom-idem-'))
+    mkdirSync(join(dir, 'docs'), { recursive: true })
+    copyGateScripts(ROOT, dir, 'check-doc-commands.mjs')
+    const pkg = (extra) => ({
+      name: 'fixture', version: '1.0.0',
+      scripts: { 'verify:ok': 'node scripts/ok.mjs', lint: 'node scripts/lint.mjs', ...extra },
+    })
+    writeFileSync(join(dir, 'package.json'), JSON.stringify(pkg({}), null, 2) + '\n', 'utf8')
+    // 故意把生成块写成**只有两条**的旧形态：--update 必须整块重生，D7 才可比。
+    writeFileSync(join(dir, 'README.md'), [
+      '# 夹具仓', '',
+      '<!-- gate-table:begin -->', '', '| 命令 | 它跑的是 |', '| --- | --- |',
+      '| `npm run verify:ok` | ok.mjs |', '', '<!-- gate-table:end -->', '',
+      '## 功能一览', '', '- 跑 `npm run verify:ok` 验证；另有 `npm run lint`。', '',
+    ].join('\n'), 'utf8')
+    return { dir, pkg }
+  }
+  const runIn = (dir, args, label) => assertCliRan(
+    spawnSync(process.execPath, [join(dir, 'scripts', 'check-doc-commands.mjs'), ...args],
+      { encoding: 'utf8', timeout: 120_000, cwd: dir }),
+    { label: `doc-commands ${label}`, budgetMs: 120_000 })
+  const addAlias = (dir, pkg, name) => writeFileSync(join(dir, 'package.json'), JSON.stringify(pkg({ [name]: 'node scripts/new.mjs' }), null, 2) + '\n', 'utf8')
+
+  it('基线：无新别名时 --update 一趟后 --check 必须绿（否则下面的对照组不成立）', () => {
+    const { dir } = mkRepo()
+    try {
+      const u = runIn(dir, ['--update'], '基线 --update')
+      expect(u.status, u.stdout + u.stderr).toBe(0)
+      const c = runIn(dir, ['--check'], '基线 --check')
+      expect(c.status, c.stdout + c.stderr).toBe(0)
+    } finally { rmSync(dir, { recursive: true, force: true }) }
+  })
+
+  it('判据主腿：新增一个别名 ⇒ 单次 --update 后 --check 必须绿（计数不得比现状少它自己加的那行）', () => {
+    const { dir, pkg } = mkRepo()
+    try {
+      expect(runIn(dir, ['--update'], '前置 --update').status).toBe(0)
+      addAlias(dir, pkg, 'verify:new-leg')
+      const u = runIn(dir, ['--update'], '加别名后 --update')
+      expect(u.status, u.stdout + u.stderr).toBe(0)
+      const c = runIn(dir, ['--check'], '加别名后 --check')
+      expect(c.status, `--update 之后 --check 仍要复现出漂移：\n${c.stdout}${c.stderr}`).toBe(0)
+      expect(`${c.stdout}${c.stderr}`).not.toContain('册上')
+      const reg = JSON.parse(readFileSync(join(dir, 'docs', 'doc-commands.json'), 'utf8'))
+      expect(reg.counts.mentions).toBeGreaterThan(0)
+    } finally { rmSync(dir, { recursive: true, force: true }) }
+  })
+
+  it('变异腿：把"写完 README 再重取面"这步删掉 ⇒ 同一夹具必须当场复现漂移（证明上面那条腿有牙）', () => {
+    const { dir, pkg } = mkRepo()
+    try {
+      // 先用**未变异**的脚本建一次干净基线：变异体不能给自己当对照组
+      // （它连第一次 --update 都跑不绿，那"红"就不是我要测的那一行造成的）。
+      const u0 = runIn(dir, ['--update'], '变异前置 --update')
+      expect(u0.status, u0.stdout + u0.stderr).toBe(0)
+      const p = join(dir, 'scripts', 'check-doc-commands.mjs')
+      const src = readFileSync(p, 'utf8')
+      const mutated = src.replace(
+        "      docs = collectDocs()\n      const { counts } = evaluate({ docs, aliases, fileExists, registry })",
+        '      const { counts } = evaluate({ docs, aliases, fileExists, registry })')
+      expect(mutated, '变异锚点已失效（update 分支的文本形状变了，夹具必须同步修订）').not.toBe(src)
+      writeFileSync(p, mutated, 'utf8')
+      addAlias(dir, pkg, 'verify:new-leg')
+      runIn(dir, ['--update'], '变异体加别名后 --update')
+      const c = runIn(dir, ['--check'], '变异体加别名后 --check')
+      expect(c.status, '摘掉重取那步后 --check 仍是绿 ⇒ 这条腿测的不是被删的那一行').toBe(1)
+      expect(`${c.stdout}${c.stderr}`).toContain('册上')
+    } finally { rmSync(dir, { recursive: true, force: true }) }
+  })
 })

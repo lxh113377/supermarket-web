@@ -113,6 +113,17 @@ describe('computeGrossMargin', () => {
     expect(r.food).toBeNull()
   })
 
+  it('日用子分类（daily_goods）归日用桶，饮品/食品为 null', () => {
+    const dailyProducts = [...products, { _id: 'p9', name: '纸抽', price: 0.5, costPrice: 0.2 }]
+    const r = computeGrossMargin([
+      orderWithItems([{ productId: 'p9', name: '纸抽', price: 0.5, quantity: 4, subcategories: ['daily_goods'] }]),
+    ], dailyProducts)
+    expect(r.daily).toEqual({ revenue: 2, cost: 0.8, marginPct: 60 })
+    expect(r.drink).toBeNull()
+    expect(r.food).toBeNull()
+    expect(r.withCostItems).toBe(4)
+  })
+
   it('name+spec 兜底匹配（productId 失效时）', () => {
     const r = computeGrossMargin([
       orderWithItems([{ productId: 'missing-id', name: '薯片', spec: '原味', price: 6, quantity: 3, subcategories: ['snack'] }]),

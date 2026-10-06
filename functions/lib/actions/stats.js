@@ -5,7 +5,7 @@
 //
 // 口径与原前端纯函数逐一对应（dashboard.test.ts 用例迁移到 tests/stats.test.js，防漂移）：
 // - 营收口径：cancelled 不计（orderCounts 计全部订单数；revenues 仅非取消）
-// - 饮品/食品判定：item.subcategories 命中 drinkSubs 集合 → 饮品，否则食品；无子分类信息归饮品
+// - 饮品/食品/日用判定：item.subcategories 命中 dailySubs → 日用；否则命中 drinkSubs → 饮品；否则食品。无子分类信息归饮品
 // - 毛利率：仅统计已填 costPrice 商品的订单（productId 匹配，兜底 name+spec）
 // - 时间聚合：按自然日（固定 UTC+8，与服务端统一存储的 ISO UTC 对齐，中国无夏令时）
 // 注意：AI 建议（aiAdvice）走 application/actions/ai.js，不在此表。
@@ -14,6 +14,7 @@ import { qAll, jparse } from '../db.js'
 
 // ── 常量（与前端 useDashboardCharts/DashboardTab 同源）
 const drinkSubs = new Set(['low_sugar', 'vitamin', 'energy', 'tea', 'soda', 'sweet', 'water'])
+const dailySubs = new Set(['daily_goods'])
 
 const DAY_MS = 86400000
 const TZ_SHIFT_MS = 8 * 3600000 // UTC+8（Asia/Shanghai，无夏令时）
@@ -101,7 +102,7 @@ export function buildReviewTrend(reviews, days = 14, nowMs = Date.now()) {
   return { counts, labels }
 }
 
-// 饮品/食品毛利率
+// 饮品/食品/日用毛利率
 function nameSpecKey(name, spec) {
   return `${name}|${spec || ''}`
 }
@@ -116,7 +117,7 @@ function toMargin(revenue, cost) {
 export function computeGrossMargin(orders, products) {
   const byId = new Map(products.map((p) => [p._id, p]))
   const byNameSpec = new Map(products.map((p) => [nameSpecKey(p.name, p.spec), p]))
-  const acc = { drink: { revenue: 0, cost: 0 }, food: { revenue: 0, cost: 0 } }
+  const acc = { drink: { revenue: 0, cost: 0 }, food: { revenue: 0, cost: 0 }, daily: { revenue: 0, cost: 0 } }
   let withCostItems = 0
   let totalItems = 0
   for (const o of orders) {
@@ -128,10 +129,13 @@ export function computeGrossMargin(orders, products) {
       if (!product || product.costPrice == null) continue
       const revenue = (Number(item.price) || 0) * qty
       const cost = Number(product.costPrice) * qty
-      const isDrink = Array.isArray(item.subcategories)
-        ? item.subcategories.some((s) => drinkSubs.has(s))
-        : true
-      if (isDrink) {
+      const subs = item.subcategories
+      const isDaily = Array.isArray(subs) && subs.some((s) => dailySubs.has(s))
+      const isDrink = Array.isArray(subs) ? subs.some((s) => drinkSubs.has(s)) : true
+      if (isDaily) {
+        acc.daily.revenue += revenue
+        acc.daily.cost += cost
+      } else if (isDrink) {
         acc.drink.revenue += revenue
         acc.drink.cost += cost
       } else {
@@ -144,20 +148,23 @@ export function computeGrossMargin(orders, products) {
   return {
     drink: toMargin(acc.drink.revenue, acc.drink.cost),
     food: toMargin(acc.food.revenue, acc.food.cost),
+    daily: toMargin(acc.daily.revenue, acc.daily.cost),
     withCostItems,
     totalItems,
   }
 }
 
-// 饮品/食品销量占比（与前端 subcategories 判定一致）
+// 饮品/食品/日用销量占比（与前端 subcategories 判定一致）
 export function buildPieSegments(orders) {
   let drinkQty = 0
   let foodQty = 0
+  let dailyQty = 0
   for (const o of orders) {
     if (o.status === 'cancelled') continue
     for (const i of o.items || []) {
       if (Array.isArray(i.subcategories)) {
-        if (i.subcategories.some((s) => drinkSubs.has(s))) drinkQty += i.quantity
+        if (i.subcategories.some((s) => dailySubs.has(s))) dailyQty += i.quantity
+        else if (i.subcategories.some((s) => drinkSubs.has(s))) drinkQty += i.quantity
         else foodQty += i.quantity
       } else {
         drinkQty += i.quantity
@@ -167,6 +174,7 @@ export function buildPieSegments(orders) {
   return [
     { name: '饮品', value: drinkQty },
     { name: '食品', value: foodQty },
+    { name: '日用', value: dailyQty },
   ].filter((s) => s.value > 0)
 }
 

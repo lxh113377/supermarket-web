@@ -19,7 +19,7 @@ import { watchErrors, type ErrorWatch } from '../e2e/helpers/watchErrors'
 const CHART_HOSTS = [
   ['营收趋势图', '[aria-label$="营收与订单趋势图"]'],
   ['评价趋势图', '[aria-label="近14天评价趋势图"]'],
-  ['分类占比图', '[aria-label="饮品与食品销量占比图"]'],
+  ['分类占比图', '[aria-label="饮品、食品与日用销量占比图"]'],
   ['营收排行图', '[aria-label="热销商品营收排行图"]'],
 ] as const
 

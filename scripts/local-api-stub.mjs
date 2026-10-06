@@ -37,8 +37,8 @@ const STATS = {
   },
   delta: { ordersDelta: 0.12, revenueDelta: -0.03 },
   reviewTrend: { counts: [1, 0, 3, 2, 4, 1, 2, 0, 5, 3, 1, 2, 0, 4], labels: Array.from({ length: 14 }, (_, i) => `9/${i + 1}`) },
-  margin: { drink: { revenue: 420, cost: 300, marginPct: 28.6 }, food: { revenue: 180, cost: 120, marginPct: 33.3 }, withCostItems: 12, totalItems: 54 },
-  pieSegments: [{ name: '饮品', value: 62 }, { name: '食品', value: 38 }],
+  margin: { drink: { revenue: 420, cost: 300, marginPct: 28.6 }, food: { revenue: 180, cost: 120, marginPct: 33.3 }, daily: { revenue: 60, cost: 40, marginPct: 33.3 }, withCostItems: 12, totalItems: 54 },
+  pieSegments: [{ name: '饮品', value: 62 }, { name: '食品', value: 38 }, { name: '日用', value: 8 }],
   topRevenue: [
     { name: '可乐', revenue: 120.6, qty: 40 }, { name: '薯片', revenue: 80.4, qty: 30 },
     { name: '气泡水', revenue: 60.2, qty: 20 }, { name: '辣条', revenue: 30.1, qty: 12 },

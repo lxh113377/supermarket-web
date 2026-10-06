@@ -143,6 +143,57 @@ for (const file of ['README.md', 'docs/ARCHITECTURE.md']) {
   }
 }
 
+// ── 断言 E：权威文档 `HANDOFF.md` 的单测文件数与实测戳（第六十八轮）──────────
+// 为什么不把 'HANDOFF.md' 直接塞进上面 A/B/D 的循环：`expectEq` 在**句式匹配不到时 also 判红**
+// （口径变更须同步文档），而 HANDOFF 没有「管理 N action」这种句式 ⇒ 追加进循环 = 立刻假红。
+// 所以这里按"哪个文件含哪条事实"逐条挂，不按"整份文件进整盘面"。
+// 一手实况（本轮盘面）：HANDOFF 一个文件里同时写着 `132/132`、`63 文件 631 用例`、`18 文件 126 用例`
+// 三个互相矛盾的单测数，而 `AGENTS.md` 把它列为权威文档 #2 —— 文件内部自相矛盾正是本脚本立项的缺陷类。
+const HANDOFF = 'HANDOFF.md'
+if (existsSync(join(ROOT, HANDOFF))) {
+  const doc = read(HANDOFF)
+  // 只认**单测口径**的「N 文件」：窗口回看 34 个字符内必须出现 vitest/单测。
+  // 不加这层限定的第一轮就把 `### 2026-08-08 全量上线` 里那句「41 文件 TS 迁移」（历史事实）
+  // 也判成了当前单测数 —— 门禁拒真话、放行自相矛盾的写法，那就是判据缺陷（本轮实拍）。
+  const unitWindow = 34
+  const hits = [...doc.matchAll(/(\d+)\s*文件/g)]
+    .filter((m) => /vitest|单测/i.test(doc.slice(Math.max(0, m.index - unitWindow), m.index)))
+  if (!hits.length) {
+    problems.push(`单测文件数（交接文档）：${HANDOFF} 里找不到 vitest/单测口径的「N 文件」表述 ⇒ 交接件不再对账，等于放开手写`)
+  } else {
+    let mismatched = 0
+    for (const m of hits) {
+      if (Number(m[1]) !== unitFiles) {
+        mismatched += 1
+        problems.push(`单测文件数（交接文档）：${at(HANDOFF, lineOf(doc, m[0]))} 写的是 ${m[1]}，真相源实测 ${unitFiles}`)
+      }
+    }
+    if (!mismatched) ok.push(`单测文件数（交接文档）= ${unitFiles}（${hits.length} 处 vitest 口径逐一相等；历史口径句按 vitest/单测 上下文筛除）`)
+  }
+  // E2：实测戳龄期。交接文档一旦不写"什么时候核过"，读者就只能凭它当下的口气决定信多少。
+  // 阈值 45 天是拍的（> 本仓"对标轮"节奏的两倍），所以必须连复算命令一起印出来，方便被反驳。
+  const stamp = /最后实测验证[：:]\s*(\d{4}-\d{2}-\d{2})/.exec(doc)
+  if (!stamp) {
+    problems.push(`实测戳：${HANDOFF} 里没有「最后实测验证：YYYY-MM-DD」戳 ⇒ 交接件的新旧无法机器判，只能靠人记`)
+  } else {
+    const t = Date.parse(`${stamp[1]}T00:00:00Z`)
+    if (!Number.isFinite(t)) {
+      problems.push(`实测戳：${HANDOFF} 的日期解不出来（${stamp[1]}）⇒ 按不通过处理，不折算成"很新"`)
+    } else {
+      const ageDays = Math.floor((Date.now() - t) / 86400_000)
+      const maxAge = 45
+      if (ageDays > maxAge) {
+        problems.push(`实测戳龄期：${HANDOFF} 的「最后实测验证」= ${stamp[1]}，距已 ${ageDays} 天（阈值 ${maxAge} 天）`
+          + ` ⇒ 交接件比代码旧两轮以上。复算：node -e "console.log((Date.now()-Date.parse('${stamp[1]}T00:00:00Z'))/86400000|0)"`)
+      } else {
+        ok.push(`实测戳龄期 = ${ageDays} 天（阈值 ${maxAge} 天）`)
+      }
+    }
+  }
+} else {
+  problems.push(`交接文档缺席：${HANDOFF} 不在盘面（本脚本的 E 组判据因此无对象可判，这不是"通过"）`)
+}
+
 if (problems.length) {
   console.error(`[doc-consistency] FAIL ${problems.length} 项：`)
   for (const p of problems) console.error(`  - ${p}`)

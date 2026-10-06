@@ -491,6 +491,22 @@ function backupOrderProblems(text: string): string[] {
     if (!/if:.*mode == 'encrypted'/.test(encUpload)) problems.push('加密上传步骤缺 mode==encrypted 条件')
     if (!/path:\s*d1-backup\.sql\.smbk/.test(encUpload)) problems.push('加密上传步骤的 path 不是密文容器（上传了明文？）')
   }
+  // 第六十八轮：反查巡检链的那一步**不得排在导出之前**。它原来排在前头，而当时判据要求对侧是绿的
+  // ⇒ 探活要绿得先有备份产物、备份要产出得先探活绿，两条 cron 互为前提成环。
+  // 一手实况 run 37241500391：本步 failure、`Export remote D1` skipped ⇒ 配了 token 也备份不了。
+  const crossAt = at('- name: Cross-check the daily probe')
+  if (crossAt >= 0 && exportAt >= 0 && crossAt < exportAt) {
+    problems.push('反查步排在 Export remote D1 之前 ⇒ 对侧 cron 一红就否决备份产出，两条 cron 互为前提成环')
+  }
+  if (crossAt >= 0 && !/if:[^\n]*always\(\)/.test(stepBlockOf(t, /- name: Cross-check the daily probe/))) {
+    problems.push('反查步没有 if: always() ⇒ 它仍会被前面的红静音成 skipped，停摆读数再一次不落地')
+  }
+  // 死配置也要有尺：presence 的龄期自第六十八轮起由**周期推导**，再把 LIVENESS_MAX_AGE_DAYS
+  // 当配置键传进去就是一条永远不会被读的键——留着它，下一个人会以为它还在管事。
+  const crossBlock = crossAt >= 0 ? stepBlockOf(t, /- name: Cross-check the daily probe/) : ''
+  if (/^[ \t]*LIVENESS_MAX_AGE_DAYS:[ \t]/m.test(crossBlock)) {
+    problems.push('反查步把 LIVENESS_MAX_AGE_DAYS 当配置键传入 ⇒ presence 的龄期已由周期推导，这是一处不会被读的死配置')
+  }
   return problems
 }
 
@@ -526,6 +542,26 @@ describe('备份链顺序：导出 → 恢复演练 → 上传（顺序错=白�
     const loose = raw.replace(/if: steps\.tok\.outputs\.found == 'true' && steps\.disp\.outputs\.mode == 'plaintext'/, "if: steps.tok.outputs.found == 'true'")
     expect(loose, '变异体没造出来').not.toBe(raw)
     expect(backupOrderProblems(loose).join()).toContain('mode==plaintext')
+  })
+  it('第六十八轮反例：把反查步挪回导出之前 / 摘掉它的 if: always() —— 两条都必须点名', () => {
+    const raw = readWorkflow('d1-backup.yml').replace(/\r\n/g, '\n')
+    expect(backupOrderProblems(raw), '真面必须先合格，否则下面红的不是我要测的东西').toEqual([])
+    const cross = /      - name: Cross-check the daily probe[\s\S]*?run: npm run check:backup-liveness\n\n/.exec(raw)
+    expect(cross, '夹具依赖：反查步的文本形状已变，请同步修订').toBeTruthy()
+    // ① 挪回「导出」之前 = 恢复成环（对侧一红就否决备份产出）
+    const backEarly = raw.replace(cross?.[0] || '', '')
+      .replace(/\n      - name: Fail loudly/, `\n${cross?.[0] || ''}      - name: Fail loudly`)
+    expect(backEarly, '变异体没造出来').not.toBe(raw)
+    expect(backupOrderProblems(backEarly).join()).toContain('互为前提成环')
+    // ② 位置对但摘掉 always() = 它自己仍会被前面的红静音成 skipped
+    const noAlways = raw.replace('        if: always()\n        env:\n          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n          GITHUB_REPOSITORY: ${{ github.repository }}\n          LIVENESS_WORKFLOW_ID: uptime.yml', '        env:\n          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n          GITHUB_REPOSITORY: ${{ github.repository }}\n          LIVENESS_WORKFLOW_ID: uptime.yml')
+    expect(noAlways, '变异体没造出来（反查步的 if 行形状变了）').not.toBe(raw)
+    expect(backupOrderProblems(noAlways).join()).toContain('没有 if: always()')
+    // ③ 死配置回归：把 LIVENESS_MAX_AGE_DAYS 当配置键插回反查步 ⇒ 必须点名。
+    // （现状那半边不用测：本用例开头已断言真面 backupOrderProblems(raw) === []。）
+    const deadCfg = raw.replace('          LIVENESS_MODE: presence\n', '          LIVENESS_MODE: presence\n          LIVENESS_MAX_AGE_DAYS: \'3\'\n')
+    expect(deadCfg, '变异体没造出来（反查步 env 形状变了）').not.toBe(raw)
+    expect(backupOrderProblems(deadCfg).join()).toContain('不会被读的死配置')
   })
 })
 
@@ -573,7 +609,35 @@ function automationWiringProblems(texts: Record<string, string>): string[] {
   else if (/^[ \t]*continue-on-error:[ \t]*true\b/m.test(catalogStep)) {
     problems.push('uptime.yml 的 catalog 步骤又挂回 continue-on-error ⇒ 硬不变量违反会被吞（本轮已按两次一致样本接成阻断）')
   }
+  problems.push(...independenceProblems(up))
   return problems
+}
+
+/**
+ * 第六十八轮：日巡检里每条**独立判据**都必须 `if: always()`，否则判据之间互为闸门。
+ * 一手实况：run 37272967991 中 `Backup chain liveness` 判红，紧随的 `check:cron-health`
+ * 步 conclusion=**skipped** —— 全仓唯一能发现「某条 cron 到点没跑」的尺，因此连续多夜一步未执行。
+ * skipped 不是"没问题"，是"没判"；把它读成前者就是另一种绿色的沉默。
+ * 注意本判据只要求"跑到"（always()），不要求"放行"：加 always() 只会把 skipped 变 ran，
+ * 永远不会把 failure 变 passed —— 所以这条规则的方向是**加判**，不是削闸。
+ */
+const INDEPENDENT_LEGS: Array<{ re: RegExp; label: string }> = [
+  { re: /run: node scripts\/uptime-check\.mjs/, label: '生产端点探活' },
+  { re: /run: npm run report:catalog/, label: 'catalog 事实核对' },
+  { re: /run: npm run check:backup-liveness/, label: '备份链存活' },
+  { re: /run: npm run check:cron-health/, label: '全仓 cron 普查（唯一能发现"到点没跑"的尺）' },
+]
+
+function independenceProblems(up: string): string[] {
+  const out: string[] = []
+  for (const leg of INDEPENDENT_LEGS) {
+    const block = stepBlockOf(up, leg.re)
+    if (!block) { out.push(`uptime.yml 里没有「${leg.label}」步骤 ⇒ 该尺从日巡检消失了`); continue }
+    if (!/^[ \t]*if:[ \t]*always\(\)[ \t]*(?:#[^\n]*)?[ \t]*$/m.test(block)) {
+      out.push(`uptime.yml 的「${leg.label}」步骤缺 if: always() ⇒ 前一条判据一红它就被静音成 skipped（没判 ≠ 判过）`)
+    }
+  }
+  return out
 }
 
 describe('自动化链接线契约（活着 ≠ 绿色）', () => {
@@ -608,6 +672,32 @@ describe('自动化链接线契约（活着 ≠ 绿色）', () => {
     expect(automationWiringProblems(commented).join()).toContain('continue-on-error')
     // 反向：advisory 挂在**别的** step 上（本轮的分支保护普查就是）不得算到 catalog 头上
     expect(automationWiringProblems(base).join()).not.toContain('catalog 步骤又挂回')
+    // 第六十八轮：把四条独立判据的 `if: always()` 全抽掉 ⇒ 必须逐条点名，且先证抽干净了
+    const noAlways = { ...base, 'uptime.yml': dropAll(base['uptime.yml'], /^ +if: always\(\)\n/, 'if: always()') }
+    const indep = automationWiringProblems(noAlways).join()
+    for (const leg of INDEPENDENT_LEGS) expect(indep, `抽掉 always() 后没点名「${leg.label}」`).toContain(leg.label)
+    // 变异定位按 step 块取行，不靠"整段文本里第一次出现"，也不手抄相邻两行：
+    // uptime.yml 有 4 个 always()，而 cron-health 那步的 `if:` 与 `run:` 之间夹着 env: 块，
+    // 照相邻两行写 replace 会**一个字都替换不到** ⇒ 这条腿退化成空操作假过（本仓同族坑第四次）。
+    const mutateLegIfLine = (t: string, runNeedle: string, to: (line: string) => string) => {
+      const lines = t.split('\n')
+      const runAt = lines.findIndex((l) => l.includes(runNeedle))
+      expect(runAt, `夹具依赖：找不到 ${runNeedle}`).toBeGreaterThan(-1)
+      let i = runAt
+      while (i > 0 && !/^[ \t]*if:[ \t]*always/.test(lines[i])) i -= 1
+      expect(i, `夹具依赖：${runNeedle} 所在 step 块里没有 if: always 行`).toBeGreaterThan(0)
+      const before = lines[i]
+      lines[i] = to(before)
+      expect(lines[i], '变异体没造出来（该行未被改动）').not.toBe(before)
+      return lines.join('\n')
+    }
+    // 两个方向都要测。只测拒绝侧的判据会把合法写法永久判红，逼人改用绕法（门禁形状必须容纳真值）：
+    // ① 诚实值不得误伤 —— 行尾带注释的 `if: always()` 在 Actions 里同样是 always。
+    const annotated = { ...base, 'uptime.yml': mutateLegIfLine(base['uptime.yml'], 'run: npm run check:cron-health', (l) => `${l}   # 判据之间不得互为闸门`) }
+    expect(automationWiringProblems(annotated).join()).not.toContain('cron 普查')
+    // ② 长得像但不成立 —— 摘掉括号（`if: always` 在 Actions 里不是 always）必须点名。
+    const bare = { ...base, 'uptime.yml': mutateLegIfLine(base['uptime.yml'], 'run: npm run check:cron-health', (l) => l.replace('always()', 'always')) }
+    expect(automationWiringProblems(bare).join()).toContain('cron 普查')
   })
 })
 

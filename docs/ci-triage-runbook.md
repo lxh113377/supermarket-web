@@ -212,16 +212,27 @@ npm run check:backup-liveness        # 需要 gh 鉴权（本机）或 GH_TOKEN�
 要让它变绿，只有一条正路：**配 `CF_D1_BACKUP_TOKEN` 并解决明文导出可见性**（转回 private，或导出后加密再上传）。
 `BACKUP_SKIP_OK=true` 只是"我暂时接受不备份"的显式声明——它把红降成带原文的 WARN，**不会**假装备份成功。
 
+⚠️ **第六十八轮实测更正**：上面这句在 10-04 之前**还不够**——就算配了 token，备份当晚仍产不出东西。
+`Cross-check the daily probe` 那一步当时排在 `Export remote D1` 之前，而 `presence` 模式要求对侧
+（`Uptime`）**必须是绿的**；`Uptime` 要绿又必须先有一份真产物 ⇒ 两条 cron 互为前提成环
+（一手 run `37241500391`：反查步 failure、导出步 skipped，日志还把红因写成"这条 cron 没在按时跑"，
+而它每夜都在跑、只是红）。本轮已拆开：`presence` 只证**到点跑过**、颜色降成 `连着 N 次不是 green` 读数，
+反查步挪到上传之后并加 `if: always()`；产物门（backup 模式）一字未动。
+
 ### 8.5 三条 cron 互指（守"没人会红的那类停摆"）
 
 | 链 | 触发 | 谁守它 |
 |---|---|---|
 | `d1-backup.yml`（每日导出 + 恢复演练 + 上传） | `schedule` | `Uptime` 里的 `check:backup-liveness`（backup 模式：要产物） |
-| `uptime.yml`（每日探活 + 目录事实） | `schedule` | `d1-backup.yml` 里的 `Cross-check the daily probe`（presence 模式：只认按时成功） |
+| `uptime.yml`（每日探活 + 目录事实） | `schedule` | `d1-backup.yml` 里的 `Cross-check the daily probe`（第六十八轮起 `presence` 模式**只认"到点跑过"**，颜色只印读数不当绿灯条件） |
 | `release-parity.yml`（双端一致） | `workflow_run: CI` | 由 CI 触发，本身不会沉默；红即邮件 |
 
 为什么要互指：GitHub 官方行为里 **public 仓 60 天无仓库活动会自动禁用 `schedule`** —— 那一刻没有任何东西会红，
 备份与巡检一起静默消失。两条 cron 互相当对方哨兵，才能把"停摆"变成一次可见的失败。
+但**互指只能指"有没有跑"，不能指"跑成什么颜色"**：后者会造出上面的环（第六十八轮一手）。
+同一族还有一处：`Uptime` 里各步原先没有 `if: always()`，前一条判据一红，后面全变 `skipped` ——
+run `37272967991` 实测 `check:cron-health`（全仓唯一能发现"某条 cron 到点没跑"的尺）因此连续多夜一步未执行。
+判据之间互为闸门 = 把"没判"读成"判过"，这是同一种病。
 
 ## 9. 跑判据期间不要写被测仓（第三十一轮实测，A/B 各一次）
 

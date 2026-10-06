@@ -41,6 +41,9 @@ jobs:
           node-version: 22
 
       - name: Probe production endpoints
+        # 这条红了**更不许**静音后面三条尺：生产站点挂了恰恰是最需要备份链/调度层读数的时刻，
+        # 而从前它一红，同 job 的 catalog、backup-liveness、cron-health 全部变 skipped（第六十八轮）。
+        if: always()
         run: node scripts/uptime-check.mjs
 
       - name: Branch protection census (report only)
@@ -60,11 +63,16 @@ jobs:
         # （本机 + Uptime run 36240825097：28/54、漂移 27+1+22、重复 3+3），
         # 故摘掉 continue-on-error：**硬不变量违反即红**（exit 1），
         # 取不到数据也红（exit 2 BLOCKED）；漂移仍只打印不判红（脚本内部区分两类退出码）。
+        # 第六十八轮：判据之间不得互为闸门——本步红了也要让后面两条尺跑到
+        # （一手实况：run 37272967991 里 `Backup chain liveness` 判红，紧随的
+        #  `check:cron-health` 步 conclusion=**skipped**，那条普查尺已连续多夜一步未执行）。
+        if: always()
         run: npm run report:catalog
 
       - name: Backup chain liveness (did the nightly run really produce an artifact)
         # 只认 conclusion 会被骗：实测两次备份 run 都是 success，而导出/上传步骤全是
         # skipped、artifact 数为 0 ⇒ 生产库从未被这条链备份过。本步判"产物 + 新鲜度"。
+        if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
@@ -77,6 +85,11 @@ jobs:
         # 同一时刻实跑 rc=0 —— 因为它认的是 09-26 的一次 workflow_dispatch。本步补的是"最近性"那半把尺。
         # 这里**不挂** continue-on-error：本 job 就是那条每日 cron 的现场，红了要落在 cron 的日志里；
         # 已知的红走登记册的具名限期豁免（docs/cron-health.json，至 2026-10-12），不是靠静音。
+        # 第六十八轮补 `if: always()`：全仓**唯一**能发现「某条 cron 到点没跑」的尺，
+        # 从前被上一条红挡在后面 ⇒ 它连自己该判的那件事都没判过。加 always() 只把
+        # skipped 变成 ran，不会把 failure 变成 passed —— 一条 continue-on-error 都没加。
+        id: cronHealth
+        if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}

@@ -46,6 +46,7 @@
     "report:item-budgets": "node scripts/report-item-budgets.mjs",
     "check:backup-liveness": "node scripts/check-backup-liveness.mjs",
     "check:cron-health": "node scripts/check-cron-health.mjs",
+    "check:delivery-claims": "node scripts/check-delivery-claims.mjs",
     "check:live-shape": "node scripts/check-live-shape.mjs",
     "verify:images": "python scripts/verify_images.py",
     "verify:eol": "node scripts/check-eol-purity.mjs",

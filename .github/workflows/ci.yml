@@ -230,6 +230,17 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run check:cron-health
 
+      # 对标第六十八轮 M-67-3：报告里凡写"已上线/已交付/已推送"，同段必须带可复算的远端回执
+      # （run 号 + conclusion + 必需 job 全点名，或线上 "deploy":"<sha>" 锚）；测量句还须点名取数器。
+      # 档位 = **报告型起步**（老大拍板）：先量一轮误报率，`matched/mismatched` 两个数落进 CI 日志，
+      # 下一轮再据实决定升不升阻断位。为什么这里必然是 advisory 的另一半事实：CI 只检出代码仓，
+      # `../deliverables/` 在 runner 上不存在 ⇒ 读数恒为 UNVERIFIED（"未观测"≠"已核对"，脚本自己会这么说）。
+      # 真正的取数面在本机与那条每日 cron 上；本步的作用是**让"这条尺在 CI 量不到"这件事每天有痕**，
+      # 而不是只活在报告作者的记忆里（同第三十三轮 branch protection census 的处理）。
+      - name: Delivery claims (report only)
+        continue-on-error: true
+        run: npm run check:delivery-claims
+
       # 对标第三十三轮：用户侧安全设置普查（advisory，故意不阻断）——借 ossf/scorecard 的 Branch-Protection
       # 形态，但取不到时绝不按"满足"计：四态 ENFORCED / NOT_ENFORCED / UNVERIFIED + 时刻，每轮在 CI 日志留痕，
       # 免得"分支保护还没开"这件事只活在报告作者的记忆里。runner 上的 token 无 admin ⇒ 预期读数是 UNVERIFIED。

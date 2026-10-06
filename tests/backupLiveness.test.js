@@ -106,11 +106,42 @@ describe('分母与模式断言（治"列表非空但全不相干"的假绿）',
     const allCovered = judge([{ ...base, id: 3, createdAt: dayAgo(0.1), steps: [{ name: 'Export remote D1', conclusion: 'success' }] }]).warnings.join()
     expect(allCovered).not.toContain('步骤明细覆盖')
   })
-  it('presence 模式（自动化链互指）：不看 artifact，只认成功的定时 run', () => {
-    const r = judge([{ id: 6, event: 'schedule', createdAt: dayAgo(0.5), conclusion: 'success', artifactCount: 0 }], { mode: 'presence' })
-    expect(r.problems).toEqual([])
-    const bad = judge([{ id: 6, event: 'schedule', createdAt: dayAgo(0.5), conclusion: 'failure', artifactCount: 0 }], { mode: 'presence' })
-    expect(bad.problems.join()).toContain('scheduled run')
+  it('presence 模式（第六十八轮改口径）：只证"到点跑过"，颜色降成可见读数而非闸门', () => {
+    const ok = judge([{ id: 6, event: 'schedule', createdAt: dayAgo(0.5), conclusion: 'success', artifactCount: 0 }], { mode: 'presence' })
+    expect(ok.problems).toEqual([])
+    // 一手实况的对侧形状（run 37241500391 读到的 uptime.yml）：每夜都在跑、**全是 failure**。
+    // 旧口径在这里判红 ⇒ 备份链被探活的颜色锁死，而探活要绿又必须先有备份产物，两条 cron 成环。
+    const redButRunning = judge([
+      { id: 8, event: 'schedule', createdAt: dayAgo(1.5), conclusion: 'failure', artifactCount: 0 },
+      { id: 7, event: 'schedule', createdAt: dayAgo(0.5), conclusion: 'failure', artifactCount: 0 },
+    ], { mode: 'presence' })
+    expect(redButRunning.problems).toEqual([])
+    // 取的是**最近**一条，不依赖 API 的返回顺序（列表故意倒着喂）
+    expect(redButRunning.good?.id).toBe(7)
+    // 降成读数 ≠ 不说：颜色必须印出来，否则就是另一种沉默
+    expect(redButRunning.warnings.join()).toContain('连着 2/2 次不是 green')
+    expect(redButRunning.warnings.join()).toContain('run 7')
+  })
+  it('presence 反例①：一条 scheduled 都没有 ⇒ 仍判红（手动 run 不得顶替调度层）', () => {
+    const r = judge([{ id: 9, event: 'workflow_dispatch', createdAt: dayAgo(0.5), conclusion: 'success', artifactCount: 0 }], { mode: 'presence' })
+    expect(r.problems.join()).toContain('没有任何 scheduled run')
+  })
+  it('presence 反例②：到点没跑（龄期超 周期×2+1）⇒ 仍判红，且这条红因只出一行', () => {
+    const r = judge([{ id: 10, event: 'schedule', createdAt: dayAgo(9), conclusion: 'success', artifactCount: 0 }], { mode: 'presence' })
+    const p = r.problems.join()
+    expect(p).toContain('最近一次 scheduled run 在 9.0 天前')
+    // 同一事实两处判 ⇒ 看着像两件事、要修两遍（第四十二轮归口教训）；presence 的龄期唯一出口是调度层
+    expect(r.problems.filter((x) => x.includes('天前'))).toHaveLength(1)
+  })
+  it('presence 反例③：scheduled 全在跑中（无 conclusion）⇒ 不折成绿，按调度层缺失处理', () => {
+    const r = judge([{ id: 11, event: 'schedule', createdAt: dayAgo(0.5), conclusion: null, artifactCount: 0 }], { mode: 'presence' })
+    expect(r.good).toBe(null)
+    expect(r.warnings.join()).toContain('都没有结论字段')
+  })
+  it('backup 面的产物门一字未动：success + 0 artifact + 步骤全 skipped ⇒ 仍判红（证明本轮不是削闸）', () => {
+    const r = judge([realRun()])
+    expect(r.problems.join()).toContain('没有任何一次备份产物可核对')
+    expect(r.good).toBe(null)
   })
 })
 

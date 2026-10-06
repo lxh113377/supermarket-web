@@ -20,7 +20,7 @@ const EMPTY_STATS = {
   rangeData: { labels: [], orderCounts: [], revenues: [] },
   delta: { ordersDelta: null, revenueDelta: null },
   reviewTrend: { counts: [], labels: [] },
-  margin: { drink: null, food: null, withCostItems: 0, totalItems: 0 },
+  margin: { drink: null, food: null, daily: null, withCostItems: 0, totalItems: 0 },
   pieSegments: [],
   topRevenue: [],
   totalOrders: 0,
@@ -57,12 +57,12 @@ describe('看板数据区渲染', () => {
 
   it('毛利卡：withCostItems>0 时饮品列毛利率与毛利额，缺侧显示「暂无销售」', async () => {
     stubStats({
-      margin: { drink: { revenue: 100, cost: 60, marginPct: 40 }, food: null, withCostItems: 3, totalItems: 5 },
+      margin: { drink: { revenue: 100, cost: 60, marginPct: 40 }, food: null, daily: null, withCostItems: 3, totalItems: 5 },
     })
     render(<DashboardTab />)
     await waitFor(() => expect(screen.getByText('40%')).toBeTruthy())
     expect(screen.getByText('毛利 ¥40')).toBeTruthy()
-    expect(screen.getAllByText('暂无销售')).toHaveLength(1)
+    expect(screen.getAllByText('暂无销售')).toHaveLength(2)
   })
 
   it('毛利卡：withCostItems=0 显示「待录入」引导而非空表', async () => {
@@ -86,7 +86,7 @@ describe('看板数据区渲染', () => {
     })
     const { container } = render(<DashboardTab />)
     await waitFor(() => expect(container.querySelector('[aria-label="近14天评价趋势图"]')).toBeTruthy())
-    expect(container.querySelector('[aria-label="饮品与食品销量占比图"]')).toBeTruthy()
+    expect(container.querySelector('[aria-label="饮品、食品与日用销量占比图"]')).toBeTruthy()
     expect(container.querySelector('[aria-label="热销商品营收排行图"]')).toBeTruthy()
     expect(screen.queryByText('暂无数据')).toBeNull()
   })

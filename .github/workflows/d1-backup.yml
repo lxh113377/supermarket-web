@@ -82,17 +82,6 @@ jobs:
             exit 1
           fi
 
-      - name: Cross-check the daily probe is still running
-        # 第十二轮：三条 cron 两两互指。GitHub 官方行为——public 仓 60 天无仓库活动会
-        # **自动禁用 schedule**；任一条停摆，另一条要当场红，否则又是「绿色的沉默」。
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          LIVENESS_WORKFLOW_ID: uptime.yml
-          LIVENESS_MODE: presence
-          LIVENESS_MAX_AGE_DAYS: '3'
-        run: npm run check:backup-liveness
-
       - name: Fail loudly instead of reporting a green no-op
         # 实况（第十二轮）：未配 token 时以前只发一条 ::warning::，后面两步全 skipped，
         # job 仍 success ⇒ 连续两晚"绿色的零备份"。沉默跳过不是状态，是缺陷。
@@ -159,6 +148,26 @@ jobs:
           path: d1-backup.sql.smbk
           retention-days: 30
           if-no-files-found: error
+
+      # 第六十八轮：这一步**必须排在导出与上传之后**。
+      # 它原来排在 `Export remote D1` 之前，而判据当时要求对侧是绿的 ⇒ 两条 cron 互为前提成环：
+      # 探活要绿得先有备份产物，备份要产出得先探活是绿的 —— 于是配了 token 也永远备份不了
+      # （一手实测 run 37241500391：本步 failure、`Export remote D1` skipped）。
+      # 判据侧同步改成「只证到点跑没跑、颜色降成可见读数」；这里是**双保险**：
+      # 就算对侧真停摆，本步只把它自己的红留在日志里，不再否决备份产出。
+      - name: Cross-check the daily probe is still running
+        # 第十二轮立的原意：GitHub 对 public 仓「60 天无仓库活动自动禁用 schedule」，
+        # 任一条**停摆**时另一条要当场红，否则又是「绿色的沉默」。注意它说的是停摆，不是颜色——
+        # 实现跑偏成"必须 success"就是本轮修的病。
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          LIVENESS_WORKFLOW_ID: uptime.yml
+          LIVENESS_MODE: presence
+          # 不再传 LIVENESS_MAX_AGE_DAYS：presence 的龄期由**对侧 cron 的周期推导**（日 cron ⇒ ≤3 天），
+          # 留在这里是一处永远不会被读的死配置（第六十八轮，与判据同批改）。
+        run: npm run check:backup-liveness
 
       - name: Post-check — 非私有仓只允许加密产物落地
         # 两半互斥 if 保证"加密模式下明文那步不可能被上传"；本步再把**结果**核一遍，

@@ -1,5 +1,6 @@
 INSERT INTO categories (_id, name, type, "order", subcategories) VALUES ('drinks', '饮品', 'drink', 1, '[{"id":"low_sugar","name":"无/低糖","order":1},{"id":"vitamin","name":"维生素","order":2},{"id":"energy","name":"提神","order":3},{"id":"tea","name":"茶","order":4},{"id":"soda","name":"碳酸","order":5},{"id":"sweet","name":"甜口","order":6},{"id":"water","name":"矿泉水","order":7}]');
 INSERT INTO categories (_id, name, type, "order", subcategories) VALUES ('food', '食品', 'food', 2, '[{"id":"snacks","name":"零食","order":1},{"id":"filling","name":"垫腹","order":2}]');
+INSERT INTO categories (_id, name, type, "order", subcategories) VALUES ('daily', '日用', 'daily', 3, '[{"id":"daily_goods","name":"日用百货","order":1}]');
 INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p001', '康师傅冰糖雪梨', '1L', 2.66, '["sweet"]', 1, 1, '[]');
 INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p002', '康师傅青梅绿茶', '1L', 2.66, '["sweet"]', 1, 2, '[]');
 INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p003', '康师傅金桔柠檬', '1L', 2.66, '["sweet"]', 1, 3, '[]');
@@ -58,3 +59,7 @@ INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", s
 INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p057', '片甲不留辣片', '', 0.5, '["snacks"]', 1, 57, '[]');
 INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p058', '人小鬼大糖果', '', 0.5, '["snacks"]', 1, 58, '[]');
 INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p059', '脆皮虾', '', 0.5, '["snacks"]', 1, 59, '[]');
+INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p060', '纸帕', '', 0.1, '["daily_goods"]', 1, 60, '[]');
+INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p061', '纸抽', '', 0.5, '["daily_goods"]', 1, 61, '[]');
+INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p062', '一次性碗盖筷', '', 0.5, '["daily_goods"]', 1, 62, '[]');
+INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p063', '一次性垃圾袋', '', 0.5, '["daily_goods"]', 1, 63, '[]');

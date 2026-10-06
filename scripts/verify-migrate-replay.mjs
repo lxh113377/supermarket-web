@@ -282,6 +282,12 @@ export function judge({ files, schemaSql, extraFiles = [] }) {
     'rollback-rename-order20.sql': { forward: 'adhoc-rename-order20.sql' },
     'rollback-taste-baixiang.sql': { forward: 'migrate-taste-baixiang.sql' },
   }
+  // 第十七轮补：行集轨（INSERT 新增行 / DELETE 删行）。数据轨只认单语句 UPDATE 改名，
+  // 「插一批新行 + 回滚删这批行」落不进那条形态；本轨先于它之外单列，避免把插入型迁移
+  // 硬塞进 UPDATE 轨而静默跳过（承 fail-closed 立场）。tables = 涉及的表，逐个判行数往返。
+  const ROLLBACK_INSERT = {
+    'rollback-daily-goods.sql': { forward: 'migrate-daily-goods.sql', tables: ['categories', 'products'] },
+  }
   const textOf = (name) => [...files, ...(extraFiles || [])].find((f) => f.file === name)?.text
   const seedSql = textOf('seed.sql') || ''
   let rbChecked = 0
@@ -289,23 +295,26 @@ export function judge({ files, schemaSql, extraFiles = [] }) {
     if (!/^rollback-.*\.sql$/.test(f.file)) continue
     const s = ROLLBACK_STRUCTURAL[f.file]
     const d = ROLLBACK_DATA[f.file]
-    if (!s && !d) {
+    const ins = ROLLBACK_INSERT[f.file]
+    if (!s && !d && !ins) {
       problems.push(`A8 ${f.file} 既不在结构轨也不在数据轨的具名清单里 ⇒ 该回滚件仍未被执行验证过`
-        + '（正解：判定它删的是 schema 对象还是行值，然后登记进 ROLLBACK_STRUCTURAL / ROLLBACK_DATA）')
+        + '（正解：判定它删的是 schema 对象还是行值，然后登记进 ROLLBACK_STRUCTURAL / ROLLBACK_DATA / ROLLBACK_INSERT）')
       continue
     }
     rbChecked++
-    const fwdText = textOf((s || d).forward)
+    const fwdText = textOf((s || d || ins).forward)
     if (!fwdText) {
-      problems.push(`A8 ${f.file} 的配对正向件 ${(s || d).forward} 不在盘上 ⇒ 无法做往返验证`)
+      problems.push(`A8 ${f.file} 的配对正向件 ${(s || d || ins).forward} 不在盘上 ⇒ 无法做往返验证`)
       continue
     }
     const probs = s
       ? structuralRollbackTrip({ schemaSql, rollbackText: f.text, forwardText: fwdText, objects: s.objects, label: `A8 ${f.file}` })
-      : dataRollbackTrip({ schemaSql, seedSql, rollbackText: f.text, forwardText: fwdText, label: `A9 ${f.file}` })
+      : d
+        ? dataRollbackTrip({ schemaSql, seedSql, rollbackText: f.text, forwardText: fwdText, label: `A9 ${f.file}` })
+        : insertRollbackTrip({ schemaSql, rollbackText: f.text, forwardText: fwdText, tables: ins.tables, label: `A9 ${f.file}` })
     problems.push(...probs)
   }
-  notes.push(`A8/A9 回滚件往返：结构轨 ${Object.keys(ROLLBACK_STRUCTURAL).length} 件 + 数据轨 ${Object.keys(ROLLBACK_DATA).length} 件，实测覆盖 ${rbChecked} 件`)
+  notes.push(`A8/A9 回滚件往返：结构轨 ${Object.keys(ROLLBACK_STRUCTURAL).length} 件 + 数据轨 ${Object.keys(ROLLBACK_DATA).length} 件 + 行集轨 ${Object.keys(ROLLBACK_INSERT).length} 件，实测覆盖 ${rbChecked} 件`)
 
   // A4：跑完前向迁移后仍须等于真相源
   const after = normalizeSchema(base)
@@ -444,6 +453,55 @@ export function dataRollbackTrip({ schemaSql, seedSql, rollbackText, forwardText
 function rb0(text) {
   const stmt = text.split('\n').filter((l) => l.trim() && !l.trim().startsWith('--')).join(' ').trim().replace(/;$/, '')
   return stmt.replace(/\s+/g, ' ')
+}
+
+/**
+ * A9（行集轨，第十七轮补）：插入型数据迁移的往返。
+ *
+ * 数据轨（dataRollbackTrip）只认单语句 `UPDATE t SET c='v' WHERE …`（改名/改值），
+ * 而「插一批新行 + 回滚删这批行」落不进那条形态 —— 若不管，它会掉进"未归类即判红"或被
+ * 硬塞进 UPDATE 轨误判。本轨断言：正向必须真的加行且连跑两次幂等（INSERT 需 OR IGNORE）；
+ * 回滚必须还原到插入前行数且可重复（DELETE 可重跑）。
+ *
+ * 只灌 `schema.sql`、**不灌 seed.sql**：seed 由同一数据源生成、本就含同批行，
+ * 用 seed 会让"正向未新增任何行"变成假失败；而迁移真正作用的生产库并没有 seed 行。
+ */
+export function insertRollbackTrip({ schemaSql, rollbackText, forwardText, tables, label }) {
+  const out = []
+  if (!Array.isArray(tables) || tables.length === 0) {
+    out.push(`${label} 未登记 tables ⇒ 行集轨无从判，须显式给出涉及的表`)
+    return out
+  }
+  const db = new DatabaseSync(':memory:')
+  try {
+    const boot = applySql(db, schemaSql)
+    if (boot.length) { out.push(`${label} 基线 schema.sql 灌入失败：${boot[0]}`); return out }
+    const counts = () => tables.map((t) => db.prepare(`SELECT COUNT(*) AS n FROM ${t}`).get().n)
+    const before = counts()
+
+    let errs = applySql(db, forwardText)
+    if (errs.length) { out.push(`${label} 正向件执行失败：${errs[0]}`); return out }
+    const afterFwd = counts()
+    if (!tables.some((t, i) => afterFwd[i] > before[i])) {
+      out.push(`${label} 正向件未新增任何行（${tables.join('/')}）⇒ 不是一次插入型迁移，登记可能有误`)
+      return out
+    }
+    errs = applySql(db, forwardText)
+    if (errs.length) { out.push(`${label} 正向件第二次执行失败（INSERT 需 OR IGNORE 才幂等）：${errs[0]}`); return out }
+    if (counts().join(',') !== afterFwd.join(',')) { out.push(`${label} 正向件第二次执行改变了行数 ⇒ 非幂等`); return out }
+
+    errs = applySql(db, rollbackText)
+    if (errs.length) { out.push(`${label} 回滚件执行失败：${errs[0]}`); return out }
+    if (counts().join(',') !== before.join(',')) {
+      out.push(`${label} 回滚未还原到插入前行数（${counts().join(',')} vs ${before.join(',')}）`)
+      return out
+    }
+    errs = applySql(db, rollbackText)
+    if (errs.length) { out.push(`${label} 回滚件重复执行失败（DELETE 应可重跑）：${errs[0]}`); return out }
+  } finally {
+    db.close()
+  }
+  return out
 }
 
 function main() {

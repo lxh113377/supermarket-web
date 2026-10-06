@@ -48,3 +48,10 @@ playwright-report-visual/
 
 # Lighthouse 现网性能样本（第五十五轮 R55-H1；产物面不入版本库，判据读不到即判 UNVERIFIED）
 .lighthouse/
+
+# 回收站/备份残留（第六十九轮）。落点是"可载回的副本"，不是交付物 ——
+# 第六十九轮 `git add -A` 把 _trash/r67-stray-head-tar/head.tar（8MB 级 tar 备份）一起收了，
+# pre-commit 的 staged-syntax 闸把它数进分母才暴露出来。治本在这里而不是"记得别 add -A"：
+# 备份件留在盘上（可回滚），但永不入库（不是交付面）。
+_trash/
+_backup/

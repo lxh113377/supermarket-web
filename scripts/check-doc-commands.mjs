@@ -319,11 +319,12 @@ function main() {
     const regPath = join(ROOT, REGISTRY)
     registry = existsSync(regPath) ? JSON.parse(readFileSync(regPath, 'utf8')) : { archive_faces: [] }
     if (update) {
-      const { rows, counts } = evaluate({ docs, aliases, fileExists, registry })
-      const body = registryBody(counts, registry.archive_faces)
-      void rows
-      writeFileSync(join(ROOT, REGISTRY), JSON.stringify(body, null, 2) + '\n', 'utf8')
-      console.log(`[doc-commands] 已重写 ${REGISTRY}（提及 ${counts.mentions} 条 / 不成立 ${counts.broken} 条）`)
+      // **顺序就是这条 bug 的本体**（第六十八轮一手实测）：登记册若在 README 重生之前算 counts，
+      // 而 README 的「门禁一览」本身就是取数面（每加一个别名就多一行 `npm run X`）⇒ 写进去的数
+      // 天生比现状**少它刚给自己加的那些行**。表现：新增一个 alias 后 `--update` 跑完自称 GATE-PASS，
+      // 紧跟一条 `--check` 立刻回 `mentions 册上 278 → 现算 279` —— 这就是"台账漂移"第 4 次复发的机制。
+      // 第六十七轮的"先写正文再 --update"只缩小了窗口，没关掉**生成器把自己的输出算进取数面**这一半。
+      // 正解：先写 README → 重新取面 → 再写登记册，让 counts 永远来自写后的盘面（一趟到位，不需跑两遍）。
       const rp = join(ROOT, 'README.md')
       const before = readFileSync(rp, 'utf8')
       // 写出面保持该文件原有的行尾形态（比较面已按 `normalizeEol` 归一，判定与机器无关；
@@ -333,10 +334,14 @@ function main() {
       if (!src) { console.error(`[doc-commands] BLOCKED README 里没有 "## 功能一览" 锚点 ⇒ 无处插生成块，拒绝硬塞`); process.exit(2) }
       writeFileSync(rp, src, 'utf8')
       console.log(`[doc-commands] README 门禁一览块 ${action}（${aliases.filter((a) => /^(verify|check):/.test(a.name)).length} 条，全部取自 package.json）`)
-      // 写完必须**重新取面**再判：`docs`/`registry` 是写之前读进来的，沿用它们会让 `--update`
+      docs = collectDocs()
+      const { counts } = evaluate({ docs, aliases, fileExists, registry })
+      const body = registryBody(counts, registry.archive_faces)
+      writeFileSync(join(ROOT, REGISTRY), JSON.stringify(body, null, 2) + '\n', 'utf8')
+      console.log(`[doc-commands] 已重写 ${REGISTRY}（提及 ${counts.mentions} 条 / 不成立 ${counts.broken} 条；取数面 = README 重生**之后**的盘面）`)
+      // 写完必须**重新取面**再判：沿用写之前的 `docs`/`registry` 会让 `--update`
       // 用自己的旧快照判刚生成的产物 —— 实测表现为"跑完 --update 反而 GATE-FAIL（D7 漂了）"，
       // 一个修漂移的命令把自己报红了。重取一次，写侧才是自证的。
-      docs = collectDocs()
       registry = existsSync(regPath) ? JSON.parse(readFileSync(regPath, 'utf8')) : { archive_faces: [] }
     }
   }

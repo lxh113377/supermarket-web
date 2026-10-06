@@ -4,6 +4,72 @@
 
 ## [未发布]
 
+### 2026-10-07 新增「日用」商品板块（第三个分类）
+
+- **新增分类**：`src/data/products-seed.ts` 增加第三个顶级分类 `daily`（名称「日用」，子分类单个「日用百货」`daily_goods`），
+  其下新增 4 件商品（order 60-63）：纸帕 0.1 / 纸抽 0.5 / 一次性碗盖筷 0.5 / 一次性垃圾袋 0.5。
+  商城导航、分类筛选、路由均由分类数据驱动，无需改动即自动出现「日用」板块。
+- **生产库**：新增迁移件 `db/migrate-daily-goods.sql`（仅 `INSERT OR IGNORE` 新行，幂等，不触碰既有分类/商品的任何列）
+  + 回滚件 `db/rollback-daily-goods.sql`（按 `_id`/`order` 精确删除）。
+- **看板口径扩为三分类**：`functions/lib/actions/stats.js` 增 `dailySubs`，`computeGrossMargin`/`buildPieSegments`
+  由二元（饮品/食品）改三路判定（日用/饮品/食品，无子分类仍归饮品）；`DashboardTab.tsx` 毛利卡两列改三列、
+  占比图 aria-label 同步更新；演示数据 `scripts/local-api-stub.mjs` 补齐 `daily` 形状。
+- **图片资产**：4 张供货图按既有流水线转 WebP（主图 800w q80、`sm/` 400w q75），命名 60-63，魔数校验为 RIFF/WEBP。
+- **验证**：`npm test` 全绿（含新增 stats 用例与更新后的看板用例）；`scripts/verify_images.py` rc=0；
+  `scripts/verify-migrate-replay.mjs`、`scripts/check-schema-drift.mjs` rc=0；`npm run build` 通过。
+
+### 2026-10-06 收口第六十八轮半成品 + 拆卷治verify 红（第六十九轮）
+
+- **本轮最重要的一条不是新功能，是记账**：开工实测发现第六十八轮的 **23 件改动全部未提交**
+  （`check:inflight-intake.mjs` 回 `files=23 claimed=0`，最老一件龄 37.6h），远端 head 仍停在 `ecdc92d`
+  ⇒ 第六十八轮那两处 workflow 修法（`if: always()` + 反查步后移）**线上原封不动**。
+  远端一手 step 明细坐实：run `37428097178`（Uptime / 07:11:07Z）里
+  `Every scheduled workflow - last scheduled run + red streak` 仍 = **skipped**；
+  run `37397785726`（D1 Daily Backup / 01:10:11Z）仍红在 `Cross-check the daily probe`，
+  `Export remote D1` 仍 = skipped。**"写完了"不等于"上线了"，中间隔着一个没人管的提交动作。**
+- **拆卷治唯一那条红**：`verify:volume` V2 实测 `part139` 5182B 越 4096B 阈（+1086）⇒ `npm run verify` rc=1。
+  按第六十五轮定的口径**按轮次整节迁卷**（切在 `## 下一轮 P0` 这个二级标题之前，一节不拆、逐字迁），
+  无损在**写盘前**断言：非空行多集合 缺 0 / 多 1（多的那 1 行是 part140 新增卷首横幅，单列一条腿核 tail 正文）。
+  迁后 `part139` 3264B + `part140` 2003B，V5 声明区间同步 1–139 → 1–140。
+- **拆环修法用真实远端读数两档并排实测**（不是只跑夹具）：取 `uptime.yml` 真实 6 次 scheduled run
+  喂进判据 —— presence 档 **rc=0**（"调度层存活：run 37428097178 @2026-10-06T07:11:07Z"，
+  附 `连着 6/6 次不是 green` 的 WARN 读数）、backup 档**仍 rc=1**（产物门一字未动）；
+  再把 `didFire` 退回 fix 前语义重跑，presence 档**当场翻红 rc=1** ⇒ 成环复现、红是判据给的不是环境给的。
+- **本轮自己踩的两个坑**（都写进记忆）：① A/B 探针第一版按契约字段名（`createdAt`/`artifactCount`）造 fixture，
+  而 `check-backup-liveness.mjs:263` 读的是 GitHub API 原始名（`created_at`/`artifacts_count`）
+  ⇒ 全程 `undefined`，判据把"取数面坏"报成了"调度层不成立"；② 变异件写到 `%TEMP%` 导致
+  `import './lib/preflight.mjs'` 断链。两条都是同一族：**量不到 ≠ 判红因，自己取的数要先证非空**。
+- **验证**：`npm run verify` **rc=0**（127 文件 / 1785 用例全过，含此前红的 memoryVolume 3 条）；
+  `verify:volume` 7 条腿全绿（超限 0、V5 双向对账 140=140）。
+
+### 2026-10-06 解开备份/巡检两条 cron 的成环互指，并立起交付回执尺（第六十八轮）
+
+- **做了什么**：本轮开工先实测重建现状——线上 `/_health` 的 `deploy` = `ecdc92d`、push CI
+  run `37228542182` = `completed/success` ⇒ 第六十七轮**真的上线了**（第六十六轮没有）。
+  但同一 HEAD 上有两条 `schedule` 工作流正在红，而红法与前两轮的记录都不同：
+  - `D1 Daily Backup` run `37241500391` 红在 `Cross-check the daily probe`（**不是**缺 token 那一步），
+    `Export remote D1` 被跳在它后面；
+  - `Uptime` run `37272967991` 红在 `check:backup-liveness`，紧随的 `check:cron-health`
+    ——全仓唯一能发现"某条 cron 到点没跑"的尺——conclusion = **skipped**。
+  四件事按优先级落地：① `check:backup-liveness` 的 `isGood()` 拆成 `didFire`（presence：只证到点跑过，
+  颜色降成 `连着 N/M 次不是 green` 的 WARN 读数）与 `isArtifactBacked`（backup：产物门三段断言逐字不动），
+  并把反查步挪到上传之后 + `if: always()`；② `uptime.yml` 四条判据各加 `if: always()`（一处
+  `continue-on-error` 都没加）；③ 新建 `scripts/check-delivery-claims.mjs`（上一轮钦定的 M-67-3）；
+  ④ `check-doc-consistency.mjs` 的取数面补进 `HANDOFF.md`（同文件内三处互相矛盾的用例数 + 实测戳龄期）。
+- **为什么这样修**：`d1-backup.yml` 里那条反查步的**注释原意**是"任一条**停摆**时另一条当场红"，
+  实现却写成"对侧必须是绿的"——实现跑偏成环的后果是**即使配上 `CF_D1_BACKUP_TOKEN`，备份当晚仍产不出产物**，
+  10-12 那条硬到期根本走不到。判据之间互为闸门还有一个更隐蔽的害处：`skipped` 会被读成"判过了、没问题"，
+  而那恰恰是"没判"。所以本轮的方向是**加判**（把 skipped 变 ran）而不是削闸：
+  实测两档并排——presence `rc=0`（附连红读数），backup **仍 `rc=1`**，产物门字节未变。
+- **顺手抓到的一处自证缺陷**：第六十七轮 §6 断言「UTF-16LE 日志 ⇒ 普通文本搜索搜不到 `VERIFY_RC`」，
+  本机三把尺实测 `grep` 命中 1（rc=0）、`rg` 0（rc=1）、`Select-String` 0 ⇒ 那句绝对断言只量过一把尺。
+  这正是新尺 D3 腿（测量句必须点名取数器）的第一个真样本，本轮如实计入不合格而不回改历史报告正文。
+- **对用户的影响**：备份仍需老大配 token（agent 不碰凭据），但**配完当晚就能真产出**；
+  10-12 之前那两条 RED 的在册理由需要在到期轮按"成环"这一新根因改写，不许续写旧理由。
+- **验证**：`tests/backupLiveness.test.js` 29 用例（含三条 presence 停摆反例 + 一条"产物门未被动过"对偶）、
+  `tests/ciWorkflow.test.ts` 32 用例（含"把反查步挪回导出之前"与"摘掉 `if: always()`"两个变异体）、
+  `tests/deliveryClaims.test.js` 21 用例（含 `--inject-red` 演习与"引用式提及不算主张"的放行方向）。
+
 ### 2026-10-04 依赖审计拆成两腿：生产树阻断、全树只报（第六十六轮）
 
 - **做了什么**：上一轮收尾时远端 CI 红在 `Dependency audit (npm audit, high+)`（run `37143828059`，

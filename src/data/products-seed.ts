@@ -27,6 +27,15 @@ export const categories: Category[] = [
       { id: 'filling', name: '垫腹', order: 2 },
     ],
   },
+  {
+    _id: 'daily',
+    name: '日用',
+    type: 'daily',
+    order: 3,
+    subcategories: [
+      { id: 'daily_goods', name: '日用百货', order: 1 },
+    ],
+  },
 ]
 
 export const products: SeedProduct[] = [
@@ -145,4 +154,10 @@ export const products: SeedProduct[] = [
   { name: '片甲不留辣片', spec: '', price: 0.5, subcategories: ['snacks'], order: 57 },
   { name: '人小鬼大糖果', spec: '', price: 0.5, subcategories: ['snacks'], order: 58 },
   { name: '脆皮虾', spec: '', price: 0.5, subcategories: ['snacks'], order: 59 },
+
+  // 新增商品（2026-10-07，第三个板块「日用」；用户提供供货图，图上无净含量小字，spec 留空）
+  { name: '纸帕', spec: '', price: 0.1, subcategories: ['daily_goods'], order: 60 },
+  { name: '纸抽', spec: '', price: 0.5, subcategories: ['daily_goods'], order: 61 },
+  { name: '一次性碗盖筷', spec: '', price: 0.5, subcategories: ['daily_goods'], order: 62 },
+  { name: '一次性垃圾袋', spec: '', price: 0.5, subcategories: ['daily_goods'], order: 63 },
 ]
