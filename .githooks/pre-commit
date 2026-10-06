@@ -1,6 +1,6 @@
 #!/bin/sh
 # 本地提交门禁：① 暂存区语法闸（判的是 index 里的 blob，不是工作树）；② 扫描 git 暂存区，发现疑似密钥即阻断提交；
-# ③ 记忆卷 4KB 上限（只判本次要提交的记忆文件）；④ 文档命令台账不许漂（只判不写）。
+# ③ 记忆卷 4KB 上限（只判本次要提交的记忆文件）；④ 文档命令台账不许漂（只判不写）；⑤ 轮次指针三面对账（只判不写）。
 # 由 `git config core.hooksPath .githooks` 启用（仓库级，无需全局配置）。
 # 误报时先复核"为什么会命中"并把结论记进 docs/，不要用跳过钩子的开关提交——绕过去的那一次不留痕迹。
 # 记忆卷超限的完整普查在 CI 里跑 `npm run verify:volume`（--all 全量面），本地这条只拦新增。
@@ -12,8 +12,17 @@
 #   所以"先跑 verify/--update，之后再写 CHANGELOG 或文档"必然让册子当场过期，而红要等下一次 CI 才现形。
 #   本腿只读不写（--check）：漂了就地给出重生命令，不在钩子里替人改文件（钩子改文件 = 提交了没被审过的内容）。
 #   误报不是本腿的已知形态——判据取数面零输入判红、真面非空已由 tests/docCommands.test.js 的 E1 腿钉住。
+# ⑤是第七十轮加上的，理由与④同族：**约定没有判据 = 约定会在某一轮无声失效**。
+#   外层工作区台账（`超市/memory/07-next-steps.md`）有"每轮追加一条工作区级指针"的约定，
+#   第30~34轮曾静默断更 5 轮；`scripts/check-memory-pointer-sync.mjs` 的 P2 早就判这件事，
+#   但它**只在 verify 链里跑**，而 verify 链不收 pre-push/pre-commit ⇒ 断更要等下一轮 verify 才现形。
+#   本轮实测把这条红抓了个正着：`npm run verify` 唯一那条红就是 P2（外层 68 / 内层 69），
+#   并且它**连坐**了 `tests/memoryPointerSync.test.js` 的 rc 断言（那条用例真跑生产判据、期望 rc=0）。
+#   ⇒ 断更是"提交那一刻就能拦"的事，不该等下一轮。**本腿只判不写**：指针缺了就地给出该补什么，不替人改外层台账。
+#   已知形态：外层目录不在本仓检出面里时 P2 判 UNVERIFIED（不判红）——那是未观测，不是通过，判据自己会点名。
 set -e
 node scripts/check-staged-syntax.mjs
 node scripts/scan-secrets.mjs --staged
 node scripts/check-memory-volume.mjs
 node scripts/check-doc-commands.mjs --check
+node scripts/check-memory-pointer-sync.mjs

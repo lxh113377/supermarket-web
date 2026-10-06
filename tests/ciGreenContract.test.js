@@ -146,8 +146,8 @@ function offlineEnv(extra = {}) {
 
 function runCli({ script = CLI, input = '', env = {}, cwd = REPO } = {}) {
   const r = spawnSync(process.execPath, [script, 'origin', 'https://example.invalid/repo.git'],
-    { input, env: offlineEnv(env), cwd, encoding: 'utf8', timeout: 20_000 })
-  assertCliRan(r, { label: `ci-green-contract ${script}`, budgetMs: 20_000 })
+    { input, env: offlineEnv(env), cwd, encoding: 'utf8', timeout: CLI_SUBPROCESS_BUDGET_MS })
+  assertCliRan(r, { label: `ci-green-contract ${script}`, budgetMs: CLI_SUBPROCESS_BUDGET_MS })
   return { rc: r.status, out: `${r.stdout || ''}${r.stderr || ''}` }
 }
 
@@ -179,10 +179,27 @@ describe('parseRefLines：git 的 ref 行契约', () => {
   })
 })
 
+/**
+ * CLI 腿的预算（第七十轮上修；第五十四轮 R54-H4 立守卫时定的 20s/30s 已不够）。
+ *
+ * 一手起因：第七十轮全链 `npm test`（127 个测试文件并行）下 `变异体 M2` 报
+ *   `[cli-leg-timeout] ci-green-contract … status=null（signal=SIGTERM，预算=20000ms，stdout=0B）`，
+ * 而**单跑该文件 28/28 全绿**。`stdout=0B + status=null` 是「这条腿没跑成」，不是判据判红 ——
+ * 所以治法是**提预算**（把并行负载留的余量补回去），不是改判据、也不是把守卫摘掉。
+ *
+ * 为什么上修而不是改成"自适应"：本仓的判据面全是显式常数，可审计；自适应预算会让同一条腿
+ * 在不同机器上花不同时间还都算绿，等于把可复算性换成方便。**两个常数必须成对改**：
+ * 子进程预算（60s）必须小于用例天花板（90s），否则 vitest 会先掐用例，掐出来的报法
+ * 是 "Test timed out" 而不是守卫的具名错误 ⇒ 又回到"分不清是没跑成还是判红"那个坑。
+ * 守卫本身仍能抓到真超时（spawnSync 超时照旧返回 status=null）。
+ */
+const CLI_SUBPROCESS_BUDGET_MS = 60_000
+const CLI_TEST_TIMEOUT_MS = 90_000
+
 describe('CLI 入口（子进程真跑）', () => {
   // 这一段每条都起子进程：vitest 默认 5s 天花板会在 85 文件并行时先把探针判成超时
-  // （报的是"Test timed out"而不是任何真实结论）。子进程预算 20s < 用例天花板 30s。
-  const itCli = (name, fn) => it(name, fn, 30_000)
+  // （报的是"Test timed out"而不是任何真实结论）。子进程预算必须小于用例天花板。
+  const itCli = (name, fn) => it(name, fn, CLI_TEST_TIMEOUT_MS)
 
   itCli('入口通道真的读得到 stdin：推 feature-x 时闸门必须报 feature-x', () => {
     const { rc, out } = runCli({ input: ref('feature-x') })
@@ -282,6 +299,23 @@ describe('CLI 入口（子进程真跑）', () => {
     const { out } = runCli({ script, input: ref('feature-x') })
     expect(out).not.toContain('branch=feature-x')
     expect(out).toContain('branch=main') // 退回契约默认分支 = 审了个不相干的分支
+  })
+  // 第七十轮补的**预算自证腿**：上修预算（20s→60s）最大的风险是把守卫的牙齿一起磨掉 ——
+  // 那条腿以后真超时也只会安静地返回一个 status=null，没人再被具名错误拦住。
+  // 所以这里不测"预算够不够"，测"**守卫在预算内仍然能分辨没跑成**"：
+  // 直接喂一个 status=null 的 spawnSync 返回值（模拟被打断），断言守卫抛的是具名错误而不是静默放行。
+  it('预算自证：守卫对 status=null 的返回值仍然抛具名错误（上修预算不许磨掉牙齿）', () => {
+    expect(() => assertCliRan({ status: null, signal: 'SIGTERM', stdout: '', stderr: '' },
+      { label: '预算自证夹具', budgetMs: CLI_SUBPROCESS_BUDGET_MS }))
+      .toThrow(/\[cli-leg-timeout\]/)
+    expect(() => assertCliRan({ status: null, signal: 'SIGTERM', stdout: '', stderr: '' },
+      { label: '预算自证夹具', budgetMs: CLI_SUBPROCESS_BUDGET_MS }))
+      .toThrow(/这条腿没跑成/)
+    // 预算必须小于用例天花板，否则 vitest 先掐用例 ⇒ 掐出来的是 "Test timed out"（无判据名），
+    // 于是又回到「分不清是没跑成还是判红」那个坑。这条断言把那对关系钉在产物上。
+    expect(CLI_SUBPROCESS_BUDGET_MS).toBeLessThan(CLI_TEST_TIMEOUT_MS)
+    // 且必须比旧值大，否则这次上修根本没发生（防止有人把两个常数一起改回 20s/30s）
+    expect(CLI_SUBPROCESS_BUDGET_MS).toBeGreaterThan(20_000)
   })
   itCli('变异体 M3：只审第一行 ref ⇒ 多 ref 断言必须翻红', () => {
     const script = mutated('const refs = parseRefLines(pushRef)', 'const refs = parseRefLines(pushRef).slice(0, 1)')

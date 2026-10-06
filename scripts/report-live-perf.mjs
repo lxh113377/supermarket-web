@@ -456,7 +456,19 @@ function main(argv = process.argv.slice(2)) {
   const complete = r.groups.filter((g) => !g.excluded).length
   const ready = r.budget.perPage.filter((p) => p.ready).map((p) => p.page)
   const line = r.budget.lineSet ? '名册已写线（本件不自行改线）' : `未立（${ready.length ? `立线条件已成立：${ready.join('/')}` : '立线条件不成立，见 BUDGET 段'}）`
-  console.log(`[report:live-perf] verdict=${(r.rc || !closed) ? 'RED' : 'GREEN'} rc=${r.rc || (closed ? 0 : 1)}｜名册 ${roster.pages.length} 页｜批次组 ${complete}/${r.groups.length} 完整｜入统计 ${s}／未采到 ${r.notMeasured}／产物不符 ${r.unreadable}／文件 ${files.length}（恒等式 ${closed ? '✓' : '✗'}）｜达标线=${line}`)
+  // 隔离区可见性（第七十轮 I-70-4 治的正是这个洞）：
+  // `scripts/quarantine-unreached-perf.mjs` 把 `runtimeError` ∈ 网络类的样本移出取数面，
+  // 于是「未采到 7」变成「未采到 0」，verdict 由 RED 转 GREEN。**但判据若不知道隔离区存在，
+  // 那个 GREEN 会被读成"这一维全部采到了、性能达标"** —— 而真值是"有 7 件网络类失败被搬到别处"。
+  // 绿色沉默的两种形态（"没跑到"与"跑到了但被藏起来"）必须落在同一句读数里，不能只报好看的那个。
+  // ⇒ 隔离件数进门面恒等式的第四项：**入统计 + 未采到 + 产物不符 + 已隔离 == 取数面样本 + 隔离区样本**。
+  const qIndex = join(dir, 'quarantine', 'INDEX.json')
+  const qn = existsSync(qIndex) ? (JSON.parse(readFileSync(qIndex, 'utf8')).items || []).length : 0
+  const qClosed = s + r.notMeasured + r.unreadable + qn === files.length + qn
+  const qNote = qn
+    ? `｜**已隔离 ${qn} 件未采到（网络类，不折进基线、不等于"慢"）**，故「未采到 ${r.notMeasured}」为零不等于全部采到 ⇒ 复原见 node scripts/quarantine-unreached-perf.mjs --restore`
+    : '｜隔离区 0 件'
+  console.log(`[report:live-perf] verdict=${(r.rc || !closed) ? 'RED' : 'GREEN'} rc=${r.rc || (closed ? 0 : 1)}｜名册 ${roster.pages.length} 页｜批次组 ${complete}/${r.groups.length} 完整｜入统计 ${s}／未采到 ${r.notMeasured}／产物不符 ${r.unreadable}／文件 ${files.length}（恒等式 ${closed ? '✓' : '✗'}）${qNote}｜总恒等式 ${qClosed ? '✓' : '✗'}｜达标线=${line}`)
   return r.rc || (closed ? 0 : 1)
 }
 

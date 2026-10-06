@@ -223,3 +223,101 @@ describe('真面与入口', () => {
     expect(`${r.stderr}${r.stdout}`).toMatch(/memory/)
   })
 })
+
+/**
+ * 第七十轮 E3：把 P2 从"只在 verify 链里跑"挪到**提交那一刻**。
+ *
+ * 立它的实测：第七十轮 `npm run verify` 全链 34 条判据里唯一那条红就是 P2（外层 68 / 内层 69，断更 1 轮），
+ * 而它**连坐**了上面那条「子进程 rc 断言」——因为那条用例真跑生产判据、期望 rc=0。
+ * 也就是说：断更这件事本来在 commit 那一刻就能拦，却要等下一轮 verify 才现形，
+ * 而"等下一轮"这个动作没人保证会发生（第30~34轮曾静默断更 5 轮）。
+ *
+ * 三块缺一不可：
+ *   ① 接线半边 —— 腿在钩子里、在 `set -e` 之后、且不以注释形态出现；
+ *   ② 牙齿半边 —— HEAD 干净检出上该腿必须绿；把外层轮号改旧后**同一行**必须红；复原后重新变绿；
+ *   ③ 反向半边 —— 把该腿换成 no-op，上面那些断言必须翻红（证明 ①②不是在读空气）。
+ *
+ * 命令从**钩子原文**里读出来，不在夹具里写死 —— 钩子改了腿，夹具跟着走，
+ * 也就不会测成"另一个我手抄的命令"（沿用 tests/docCommands.test.js 的 E2 口径）。
+ */
+describe('E3 指针断更挪到提交那一刻（钩子必须拦）', () => {
+  const HOOK = join(REPO, '.githooks', 'pre-commit')
+  // 从钩子原文里取那条腿，不写死命令
+  const hookLeg = () => {
+    const hook = readFileSync(HOOK, 'utf8')
+    const legs = hook.split('\n').filter((l) => l.includes('check-memory-pointer-sync.mjs') && !l.trimStart().startsWith('#'))
+    return { hook, legs }
+  }
+
+  it('接线半边：钩子里真有那条腿、恰好一次、在 set -e 之后、且不以注释形态出现', () => {
+    const { hook, legs } = hookLeg()
+    expect(legs, `钩子里该腿出现 ${legs.length} 次，必须恰好 1 次`).toHaveLength(1)
+    expect(legs[0].trim(), '本腿不带档位参数：判据本身默认即阻断档，多加 flag 只会掩盖钩子接线错了').toBe('node scripts/check-memory-pointer-sync.mjs')
+    // 位置比的是**腿行本身**，不是 `indexOf('脚本文本')` —— 注释里只要提一句这个名字，
+    // `indexOf` 就会命中注释（byte 1028）而不是腿（byte 1430），断言当场翻红。
+    // 夹具自己也会写坏（沿用 docCommands E2 记过的同一形态），所以这条断言必须量可归因的那个位置。
+    const lines = hook.split('\n')
+    const setEAt = lines.findIndex((l) => l.trim() === 'set -e')
+    const legAt = lines.findIndex((l) => l.includes('check-memory-pointer-sync.mjs') && !l.trimStart().startsWith('#'))
+    expect(setEAt, '钩子里必须有 `set -e`，否则前一条腿红时后面的腿照样跑').toBeGreaterThanOrEqual(0)
+    expect(setEAt, '`set -e` 必须在该腿之前').toBeLessThan(legAt)
+    // 夹具自身先自证往返：写的中文轮次必须能被同一套解析器读回同一个数，否则绿的是空气
+    expect(roundsOf(`## 2026-10-07 — 对标第${cn(69)}轮（工作区级指针）`)).toEqual([69])
+  })
+
+  it('反向半边：把那条腿换成 no-op ⇒ 上面那条断言必须翻红（证明接线断言有牙齿）', () => {
+    const { hook } = hookLeg()
+    const tampered = hook.replace(/check-memory-pointer-sync\.mjs/g, 'echo-ok.mjs')
+    expect(tampered).not.toContain('check-memory-pointer-sync.mjs')
+    expect(tampered.split('\n').filter((l) => l.includes('echo-ok.mjs') && !l.trimStart().startsWith('#'))).toHaveLength(1)
+  })
+
+  it('牙齿半边：HEAD 干净检出上那条腿必须绿（断更不许进库），外层轮号改旧后同一行必须红', () => {
+    const { legs } = hookLeg()
+    const dir = mkdtempSync(join(tmpdir(), 'smptr-hook-'))
+    try {
+      // git archive 的两条纪律（照 docCommands E2 抄）：`-o` 收**绝对路径**（否则 tar 落进 cwd=仓库根），
+      // `-xf` 只在检出根里用相对文件名（绝对路径喂 tar 在 Git-Bash 上会被当远程主机名）。
+      const tar = join(dir, 'head.tar')
+      const arch = spawnSync('git', ['archive', '-o', tar, 'HEAD'], { cwd: REPO, encoding: 'utf8', timeout: 120_000 })
+      expect(arch.status, arch.stderr).toBe(0)
+      expect(existsSync(tar), `git archive 没在检出根里落下 ${tar}`).toBe(true)
+      const ex = spawnSync('tar', ['-xf', 'head.tar'], { cwd: dir, encoding: 'utf8', timeout: 120_000 })
+      expect(ex.status, ex.stderr).toBe(0)
+
+      // 合成外层：检出树里**没有**真外层目录（它在仓外），所以这条腿默认会判 P2 UNVERIFIED。
+      // 而 UNVERIFIED 是"未观测"不是"通过" ⇒ 不能拿它当绿。要证明这条腿真的会红，必须显式喂一个外层。
+      const inner = latestRound(join(dir, 'memory'))
+      expect(inner.round, '检出树里取不到内层轮次 ⇒ 后面全是空气').not.toBeNull()
+      const outer = mkdtempSync(join(tmpdir(), 'smptr-outer-'))
+      tmpDirs.push(outer)
+      const outerFile = join(outer, '07-next-steps.md')
+      const sameRound = `## 2026-10-07 — 对标第${cn(inner.round)}轮（工作区级指针）\n`
+      writeFileSync(outerFile, sameRound, 'utf8')
+
+      const argv = legs[0].trim().split(/\s+/)
+      expect(argv[0], '腿的 runner 必须能换成 process.execPath（本仓用 node）').toBe('node')
+      const runLeg = (outDir) => spawnSync(process.execPath, [...argv.slice(1), '--outer', outDir],
+        { cwd: dir, encoding: 'utf8', timeout: 120_000 })
+
+      const control = runLeg(outer)
+      expect(control.error, `那条腿没跑起来，结论不作数：${control.error && control.error.message}`).toBeUndefined()
+      expect(control.status,
+        `HEAD 里就带着一张断更的外层指针 ⇒ 这正是本块要禁的那件事：${`${control.stdout || ''}${control.stderr || ''}`.slice(-500)}`
+      ).toBe(0)
+
+      // 断更 3 轮 ⇒ 同一行必须红，且红话要说人话（点出断更几轮）
+      writeFileSync(outerFile, `## 2026-10-07 — 对标第${cn(Math.max(1, inner.round - 3))}轮（工作区级指针）\n`, 'utf8')
+      const red = runLeg(outer)
+      expect(red.error, `反例那腿没跑起来，结论不作数：${red.error && red.error.message}`).toBeUndefined()
+      expect(red.status, '外层指针落后 3 轮，钩子那条腿必须拦').toBe(1)
+      expect(red.stdout).toContain('断更 3 轮')
+
+      // 复原 ⇒ 重新变绿（顺带证明"绿/红"不是检出树被搞坏导致的假象）
+      writeFileSync(outerFile, sameRound, 'utf8')
+      expect(runLeg(outer).status, '复原后必须重新变绿').toBe(0)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  }, 240_000)
+})
