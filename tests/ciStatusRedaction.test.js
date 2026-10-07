@@ -25,8 +25,14 @@ afterAll(() => { for (const d of dirs) rmSync(d, { recursive: true, force: true 
 function shimDir() {
   const d = mkdtempSync(join(tmpdir(), 'cishim-'))
   dirs.push(d)
-  const sh = '#!/bin/sh\nif [ "$1" = "credential" ]; then printf "protocol=https\\nhost=github.com\\nusername=shim\\npassword='
-    + FAKE + '\\n"; exit 0; fi\nexit 0\n'
+  // ⚠️ 垫片必须先**读完 stdin 再应答**：ci-status 是 `spawnSync('git',['credential','fill'],{input})`
+  // （见 scripts/ci-status.mjs token()），真 `git credential fill` 也是先读完整请求再写回。
+  // 第一版垫片不读 stdin 直接 printf+exit ⇒ Linux runner 上父进程写 input 撞 EPIPE
+  // ⇒ ci-status 报「取 token 失败（spawnSync git EPIPE）」、腿③必红（run 37649381961/37662320707 一手）；
+  // Windows 本机 PATH 上无扩展名的垫片文件不会被当作可执行、跑的是真 git ⇒ 本地永远测不出。
+  // 与 deliveryClaims 那条同族：夹具只在本机的面上自洽 ≠ 判据成立。
+  const sh = '#!/bin/sh\nif [ "$1" = "credential" ]; then cat > /dev/null; printf "protocol=https\\nhost=github.com\\nusername=shim\\npassword='
+    + FAKE + '\\n"; exit 0; fi\ncat > /dev/null\nexit 0\n'
   writeFileSync(join(d, 'git'), sh, { mode: 0o755 })
   try { chmodSync(join(d, 'git'), 0o755) } catch { /* Windows：MSYS 按 shebang 处理 */ }
   return d
