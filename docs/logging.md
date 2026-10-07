@@ -45,6 +45,8 @@
 | aiAdvice | functions/lib/actions/ai.js | 管理端 AI 建议生成失败 |
 | aiChat | functions/lib/actions/ai.js | 顾客端 AI 导购对话失败 |
 | orders | functions/lib/actions/orders.js | `createOrder` 落库失败且库存已回补（丢单链路的最后一条服务端证据） |
+| upload | functions/upload.js | 打印文件直传的失败侧（R2 写入失败 / 限流拒绝 / 类型与体积拒绝）；成功不落日志，落的是哪个顾客传了什么文件 |
+
 
 ## PII 补充册（流经代码、但从未入库的键）
 
