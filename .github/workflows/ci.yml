@@ -328,6 +328,14 @@ jobs:
 
       - run: npm ci
 
+      # Playwright 浏览器缓存（2026-10-08）：三个 e2e job 各自下载 Chromium（~150MB），
+      # CDN 慢时单步卡 10 分钟+（run 37671123138 一手：Install Chromium 卡 12 分钟+）。
+      # 键 = package-lock 哈希：升 playwright 才换缓存；命中时 install 幂等跳过下载，只补系统依赖。
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ms-playwright-${{ hashFiles('package-lock.json') }}
+
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
@@ -365,6 +373,14 @@ jobs:
 
       - run: npm ci
 
+      # Playwright 浏览器缓存（2026-10-08）：三个 e2e job 各自下载 Chromium（~150MB），
+      # CDN 慢时单步卡 10 分钟+（run 37671123138 一手：Install Chromium 卡 12 分钟+）。
+      # 键 = package-lock 哈希：升 playwright 才换缓存；命中时 install 幂等跳过下载，只补系统依赖。
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ms-playwright-${{ hashFiles('package-lock.json') }}
+
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
@@ -396,6 +412,14 @@ jobs:
           cache: npm
 
       - run: npm ci
+
+      # Playwright 浏览器缓存（2026-10-08）：三个 e2e job 各自下载 Chromium（~150MB），
+      # CDN 慢时单步卡 10 分钟+（run 37671123138 一手：Install Chromium 卡 12 分钟+）。
+      # 键 = package-lock 哈希：升 playwright 才换缓存；命中时 install 幂等跳过下载，只补系统依赖。
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ms-playwright-${{ hashFiles('package-lock.json') }}
 
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
