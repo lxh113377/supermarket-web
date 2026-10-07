@@ -4,6 +4,17 @@
 
 ## [未发布]
 
+### 2026-10-08 推送前预检脚本（preflight）：把"只在 CI 上跑的门禁"搬到本地
+
+- **背景**：打印页上线修红链（5 笔）里 3 笔红的红因门禁**只挂 CI、不在本机 `npm run verify` 链**
+  （report:item-budgets / check:size / 覆盖率棘轮阈值），每次都是推送→等 CI→读日志→再修，一轮 4 分钟起。
+- **`npm run preflight`**（快档，实测 10s）：lint + typecheck + 行尾纯度 + 错误语义 + 上限台账 +
+  日志登记 + 文档一致性 + 许可白名单 + API 契约漂移 + 登记表同步 —— 推送前 10 秒抓掉静态类红。
+- **`npm run preflight:ci`**（全档，约 5-6 分钟）：build → check:size → report:item-budgets →
+  vitest 带覆盖率（棘轮阈值）→ verify:backend → verify:functions，即 CI build-and-test 尾部
+  那段"只有 CI 才跑"的面。**改动涉及 src/functions/依赖/资产时建议跑全档**，纯文档改动跑快档即可。
+- 判据零改动：两个脚本只是把既有 `npm run` 按执行顺序串起来，不改任何判据的取数面与档位。
+
 ### 2026-10-08 「学习」区新增「打印」子页面：3D 实景导航 + R2 文件直传
 
 - **新页面 `/print`**（懒加载路由，学习分类页新增入口卡片）：视觉刻意独立于站内 —— 深色影院感 +
