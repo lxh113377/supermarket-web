@@ -74,9 +74,51 @@
     {
       "id": "first-load-css",
       "pattern": "index-*.css",
-      "budget": 11100,
-      "measuredAtBuild": "10,032B gz",
-      "note": "首屏 CSS（聚合预算里 firstLoadCss 的分项化）"
+      "budget": 12400,
+      "measuredAtBuild": "10,032B gz（2026-09-29 实测）；11,223B gz（2026-10-08 打印页轮重测）",
+      "note": "首屏 CSS（聚合预算里 firstLoadCss 的分项化）。2026-10-08 由 11100 上调到 12400：打印页（/print）组件的 Tailwind 工具类被全量扫描进主 CSS（Tailwind 不按路由拆分），+123B gz；打印页专属样式已拆 print.css 随路由加载（见 CHANGELOG），本条涨的是工具类面"
+    },
+    {
+      "id": "three-vendor",
+      "pattern": "three-vendor-*.js",
+      "budget": 276600,
+      "measuredAtBuild": "251,445B gz（2026-10-08 打印页轮本机构建实测）",
+      "note": "three.js + @react-three/fiber（打印页专用懒加载块，manualChunks 单独成块）。WebGL 引擎本体体积，不进首屏；归因与补偿措施见 check-bundle-size.mjs 头注与 CHANGELOG"
+    },
+    {
+      "id": "print-page",
+      "pattern": "PrintPage-*.js",
+      "budget": 7900,
+      "measuredAtBuild": "7,175B gz（同上）",
+      "note": "打印页装配块（懒加载路由，场景在 three-vendor/独立 print.css）。第二条进名册的业务页路由块"
+    },
+    {
+      "id": "scroll-vendor",
+      "pattern": "scroll-vendor-*.js",
+      "budget": 6400,
+      "measuredAtBuild": "5,765B gz（同上）",
+      "note": "lenis 平滑滚动（打印页专用懒加载块，manualChunks 单独成块）"
+    },
+    {
+      "id": "assistant-page",
+      "pattern": "AssistantPage-*.js",
+      "budget": 2700,
+      "measuredAtBuild": "2,405B gz（同上，--enumerate 2200 现算）",
+      "note": "AI 助手页路由块（懒加载）。2026-10-08 补登记：未登记尾部最大件（原 ≥2,500B 门槛看不见它）"
+    },
+    {
+      "id": "echarts-axis",
+      "pattern": "Axis-*.js",
+      "budget": 2700,
+      "measuredAtBuild": "2,386B gz（同上）",
+      "note": "echarts 坐标轴组件块。2026-10-08 补登记（同上）"
+    },
+    {
+      "id": "cart-page",
+      "pattern": "CartPage-*.js",
+      "budget": 2400,
+      "measuredAtBuild": "2,096B gz（同上，--enumerate 1800 档现算）",
+      "note": "购物车页路由块（懒加载）。2026-10-08 补登记（同上）"
     },
     {
       "id": "echarts-tooltip",
@@ -192,5 +234,5 @@
     }
   ],
   "noBudgetMax": 36,
-  "noBudgetMaxNote": "未登记件数上限（第五十二轮 52 ⇒ 第五十三轮补 7 件到 45 ⇒ 第五十四轮 R54-H2 补 6 件到 39 ⇒ 本轮 R55-H2 补 3 件到 36，四次都是**补登记与降地板同一笔提交**）。**只准降不准升**：升=新增 chunk 家族却没进名册，处置只能是「补登记（带当次实测时刻）」或「复用既有 pattern」，禁把地板调高求绿。门槛每降一档前先跑 `node scripts/report-item-budgets.mjs --enumerate <minBytes>` 现算件数——第五十四轮那次「>=3,500B 恰为 6 件」是临时管道算的、算完即失，本轮把它固化成一条腿，换门槛不再需要重新拼管道。剩余 36 件全部 <2,500B gz；「最大未登记件」由判据 ADVISORY 行现印，本行不写死（写死就随下一次构建漂移）。取数面由判据现场枚举 dist/assets 得出，禁手抄清单。"
+  "noBudgetMaxNote": "未登记件数上限（第五十二轮 52 ⇒ 第五十三轮补 7 件到 45 ⇒ 第五十四轮 R54-H2 补 6 件到 39 ⇒ R55-H2 补 3 件到 36 ⇒ 2026-10-08 打印页轮补 6 件回到 36：产物 62→68 件（three-vendor/scroll-vendor/PrintPage 三个新家族 + 件数自然增长），不补登记就是 42；补登记与降/守地板同一笔提交）。**只准降不准升**：升=新增 chunk 家族却没进名册，处置只能是「补登记（带当次实测时刻）」或「复用既有 pattern」，禁把地板调高求绿。门槛每降一档前先跑 `node scripts/report-item-budgets.mjs --enumerate <minBytes>` 现算件数——第五十四轮那次「>=3,500B 恰为 6 件」是临时管道算的、算完即失，本轮把它固化成一条腿，换门槛不再需要重新拼管道。剩余 36 件全部 <2,500B gz；「最大未登记件」由判据 ADVISORY 行现印，本行不写死（写死就随下一次构建漂移）。取数面由判据现场枚举 dist/assets 得出，禁手抄清单。"
 }
