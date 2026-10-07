@@ -119,11 +119,15 @@ describe('routeLoaders 与总线接线', () => {
   // 单文件跑则稳定通过 ⇒ 属负载相关脆弱点，不是断言写错。
   // 处理口径：只给这两条按"冷导入"档位放宽到 20s（不改全局 testTimeout，避免掩盖别处真缺陷）。
   // 全局性改造（pool: 'vmThreads' / isolate: false 复用 jsdom）另记 07 待评估，不在本轮顺手改。
-  it('13 条路由全部登记，工厂返回带 default 组件的页面模块', async () => {
+  // 13 → 14：2026-10-07 新增 /print（打印页，独立沉浸式页面）。
+  // 它也**不进预取白名单**：3D chunk 250KB 级，空闲时预取会把首屏带宽吃掉一半，
+  // 故只登记工厂（点击时才下载），不进 prefetchHotRoutes。
+  it('14 条路由全部登记，工厂返回带 default 组件的页面模块', async () => {
     const { routeLoaders } = await import('../src/routeLoaders')
     const keys = Object.keys(routeLoaders)
-    expect(keys).toHaveLength(13)
+    expect(keys).toHaveLength(14)
     expect(keys).toContain('orderQuery') // 订单查询页入表（漏登记就会 lazy 与预取脱钩）
+    expect(keys).toContain('print') // 打印页入表（漏登记 ⇒ /print 直接 404）
     for (const k of ['cart', 'orderQuery'] as const) {
       const mod = (await routeLoaders[k]()) as { default?: unknown }
       expect(typeof mod.default).toBe('function')

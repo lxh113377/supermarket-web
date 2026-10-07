@@ -18,20 +18,33 @@ const num = (re: RegExp, src: string, what: string) => {
   return Number(m![1])
 }
 
-describe('服务申请表配图张数两侧契约（≤5）', () => {
-  const srvFile = read('functions/lib/actions/submissions.js')
-  const cliFile = read('src/pages/ServiceFormPage.tsx')
-  const srv = num(/clean\.images\.length > (\d+)/, srvFile, '服务端 createSubmission 条数 cap')
-  const cli = num(/images\.length \+ valid\.length > (\d+)/, cliFile, '前端 ServiceFormPage 张数上限')
+describe('服务提交条数两侧契约（MAX_SUBMISSION_FILES，2026-10-07 由 5 抬到 9）', () => {
+  // 形状变更：值不再内联在消费处，而是收口成共享常量（服务端 shared.js / 前端 submissionLimits.ts）——
+  // 打印服务要带多页文档，5 个不够；常量化之后 ServiceFormPage 与打印页共用一把尺，
+  // 不会出现"两个页面各写一个数"。
+  const srvFile = read('functions/lib/shared.js')
+  const cliFile = read('src/data/submissionLimits.ts')
+  const srv = num(/export const MAX_SUBMISSION_FILES = (\d+)/, srvFile, '服务端 MAX_SUBMISSION_FILES')
+  const cli = num(/export const MAX_SUBMISSION_FILES = (\d+)/, cliFile, '前端 MAX_SUBMISSION_FILES')
 
-  it('前端 == 服务端（R35 补服务端 cap 时定的同值，此处防下一轮单边改）', () => {
+  it('前端 == 服务端（两条构建链物理上共享不了模块，靠这条钉住）', () => {
     expect(cli).toBe(srv)
-    expect(srv).toBe(5)
+    expect(srv).toBe(9)
   })
-  it('两侧值都在登记册在册（C2 只保证"有行"，不保证"两侧同值"）', () => {
+  it('打印页复用同一常量而不是再写一个 9（第二真相源 = 屏上提示与实际拒绝不一致）', () => {
+    const cfg = read('src/pages/print/print.config.ts')
+    expect(cfg).toMatch(/export \{ MAX_SUBMISSION_FILES \} from '\.\.\/\.\.\/data\/submissionLimits'/)
+    expect(cfg).toMatch(/export const MAX_PRINT_FILES = 9/)
+  })
+  it('消费侧两侧都引用常量而不是字面量（5 这个旧字面量不许回来）', () => {
+    expect(read('functions/lib/actions/submissions.js')).toMatch(/clean\.images\.length > MAX_SUBMISSION_FILES/)
+    expect(read('src/pages/ServiceFormPage.tsx')).toMatch(/images\.length \+ valid\.length > MAX_SUBMISSION_FILES/)
+    expect(read('src/pages/ServiceFormPage.tsx')).not.toMatch(/images\.length \+ valid\.length > \d+/)
+  })
+  it('两侧定义都在登记册在册（C2 只保证"有行"，不保证"两侧同值"）', () => {
     const reg = read('docs/limit-provenance.md')
-    expect(reg).toContain('functions/lib/actions/submissions.js | 拒绝型 | 5')
-    expect(reg).toContain('src/pages/ServiceFormPage.tsx | 拒绝型 | 5')
+    expect(reg).toContain('functions/lib/shared.js | 常量 | MAX_SUBMISSION_FILES=9')
+    expect(reg).toContain('src/data/submissionLimits.ts | 常量 | MAX_SUBMISSION_FILES=9')
   })
 })
 

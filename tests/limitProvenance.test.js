@@ -245,7 +245,8 @@ describe('C10 件数上限换算核 / C11 定义断言核', () => {
     expect(v.filter((x) => !x.ok).map((x) => x.id + ' ' + x.detail)).toEqual([])
     expect(v.map((x) => x.id)).toEqual(expect.arrayContaining(['C10', 'C11']))
     expect(v.find((x) => x.id === 'C10').detail).toContain('换算核 3 条')
-    expect(v.find((x) => x.id === 'C11').detail).toContain('8 条')
+    // 8 → 9：2026-10-07 打印域新增 MAX_INLINE_PRINT_CHARS 的定义断言行（内联降级单文件上限）
+    expect(v.find((x) => x.id === 'C11').detail).toContain('9 条')
   })
 
   it('M1 上限抬到 45 并同步改册（换算式照搬 1+2n）⇒ 只有 C10 红、C5 依旧绿', () => {

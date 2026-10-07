@@ -53,8 +53,9 @@ describe('E3 登记册：解析与双向差分', () => {
 
   // 分母 33 → 35：第三十七轮新增 payload_too_large 与 quantity_exceeds_limit（两个都要具名登记，不接受复用别人的码）
   // 分母 35 → 38：第五十六轮 E7 库存域新增 invalid_delta / invalid_kind / stock_untracked
-    it('正向：真仓登记册零差异，分母由表自身给出（38 行）', () => {
-    expect(rows.size).toBe(38)
+  // 分母 38 → 41：2026-10-07 新增打印域 print_storage_unavailable / print_file_too_large / print_file_type_denied
+    it('正向：真仓登记册零差异，分母由表自身给出（41 行）', () => {
+    expect(rows.size).toBe(41)
     expect(diffRegistry(DECLARED, ERRORS, rows)).toEqual({ miss: [], extra: [], mismatch: [], stub: [] })
   })
   it('反例 a：文档少一行 ⇒ miss 点名', () => {
@@ -186,9 +187,11 @@ describe('分流行为真值表（前端侧：本轮缺陷的行为级证据）'
     expect(allowed.length).toBe(2)
     for (const k of allowed) expect(isFallbackSafe({ errorCode: 'x', kind: k }), k).toBe(true)
     for (const k of forbidden) expect(isFallbackSafe({ errorCode: 'x', kind: k }), k).toBe(false)
-    // 对偶：全码表里"允许兜底"的码恰好只有 3 个 platform 码（有人偷偷给 state 放行会红）
+    // 对偶：全码表里"允许兜底"的码恰好只有 platform 那几个（有人偷偷给 state 放行会红）。
+    // 3 → 4：print_storage_unavailable（2026-10-07）也是 platform —— 它是**部署态**问题
+    // （R2 桶没建/没绑），跟 db_unbound 同族，不该让顾客背锅。
     const fallbackCodes = DECLARED.filter((c) => isFallbackSafe({ errorCode: c, kind: ERRORS[c].kind }))
-    expect(fallbackCodes).toEqual(['db_unbound', 'internal_error', 'order_create_failed'])
+    expect(fallbackCodes).toEqual(['print_storage_unavailable', 'db_unbound', 'internal_error', 'order_create_failed'])
   })
   it('OrderRejectedError 保真：可被上层 instanceof，且 kind 落在合法档位', () => {
     const e = new OrderRejectedError('stock_insufficient', 'state', '库存不足: 可乐')
