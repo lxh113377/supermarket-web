@@ -42,6 +42,13 @@
 *.jar binary
 *.node binary
 
+# glTF 资产（2026-10-08 打印页引入，CI 首跑红在 verify:eol 后补）：
+#   *.bin 是 glTF 的二进制 buffer，按字节原样入库，绝不许被行尾归一化碰到；
+#   *.gltf 虽是 JSON，但来自 Poly Haven 原包（CRLF、无末行换行），按"资产"对待 ——
+#   -text 让它不进 verify:eol 的文本分母（E2/E3/E7），字节与下载件逐位一致（hash-object 已核）。
+*.gltf binary
+*.bin binary
+
 # 明确是文本的（含被 `text=auto` 猜错的资产）：钉死，不留给启发式
 *.sh text eol=lf
 *.md text eol=lf
