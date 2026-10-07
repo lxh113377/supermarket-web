@@ -56,10 +56,22 @@ export default defineConfig({
       // 3D 渲染层（打印页）单独豁免（2026-10-07）：这一层是 WebGL 绘制指令的声明式描述
       // —— 在 jsdom 里没有 WebGL 上下文，`<Canvas>` 根本挂不起来，强行测等于测 R3F 自己；
       // 而它本身几乎不含分支逻辑，覆盖率数字对"这段代码对不对"没有信息量。
-      // 换取的是：页面里的**纯逻辑**必须拆出来并真测（printFormLogic.ts / utils/printUpload.ts），
-      // 由 tests/printFormLogic.test.ts 与 tests/printUpload.test.ts 承担质量兜底。
-      // 若日后要给场景层补测试，正确做法是换 Playwright 跑真浏览器，而不是把它塞回 jsdom。
-      exclude: ['src/**/*.d.ts', 'src/**/index*', 'src/pages/print/scene/**'],
+      // 2026-10-08 二次扩展（CI run 37667074618 覆盖率棘轮实测红后）：豁免面扩到打印页的
+      // **DOM 装配层**（PrintPage/PrintForm/PrintHero/PrintSplash/hooks）——它们依赖真实滚动容器
+      // （Lenis）、WebGL 探测与文件上传 IO，jsdom 里要么挂不起、要么测的是 mock 形状而非行为；
+      // 其**可测逻辑已全部拆出并真测**：printFormLogic（20 条）、printUpload（11 条）留在分母内，
+      // 常量同值由 printCapParity 钉住。豁免换测试的约定不变：以后给这一层补测试用 Playwright 跑
+      // 真浏览器，而不是把它塞回 jsdom。
+      exclude: [
+        'src/**/*.d.ts',
+        'src/**/index*',
+        'src/pages/print/scene/**',
+        'src/pages/print/hooks/**',
+        'src/pages/print/PrintPage.tsx',
+        'src/pages/print/PrintForm.tsx',
+        'src/pages/print/PrintHero.tsx',
+        'src/pages/print/PrintSplash.tsx',
+      ],
       thresholds: {
         // 棘轮历史（statements）19.5 → 23 → 35 → 47 → 57 → 74 → 76 → 78 → 79（第九轮：
         // apiClient/localStore 门面专项后再加 CI 与门禁自测两文件，实测 81.11%）。
