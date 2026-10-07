@@ -57,8 +57,10 @@ const NEEDS = deployNeeds(ci)
 
 describe('deploy 的阻断链（注释说阻断不算，看 needs）', () => {
   it('CI 至少含这五个 job', () => {
+    // 2026-10-08 分层 CI：build-and-test 拆为 gates（快门禁，推送阻断+部署闸），
+    // 深门禁移入独立链 ci-deep.yml（夜兜底 + 后端相关路径触发），见下方 deep 段断言。
     expect(new Set(JOBS)).toEqual(
-      new Set(['build-and-test', 'e2e', 'e2e-cloud-stub', 'visual', 'deploy']),
+      new Set(['gates', 'e2e', 'e2e-cloud-stub', 'visual', 'deploy']),
     )
   })
 
@@ -79,7 +81,7 @@ describe('deploy 的阻断链（注释说阻断不算，看 needs）', () => {
 })
 
 describe('供应链卫生：actions 全部钉到提交 SHA', () => {
-  it('四个 workflow 里每个 uses: 都是 40 位十六进制', () => {
+  it('全部 workflow（含新增文件）里每个 uses: 都是 40 位十六进制', () => {
     const offenders: string[] = []
     for (const [file, text] of allWorkflows) {
       for (const line of text.split('\n')) {
@@ -125,6 +127,8 @@ describe('密钥卫生：workflow 里不得出现明文密钥值', () => {
 })
 
 describe('关键 step 存在性（改名即红，防"门禁静默消失"）', () => {
+  // 2026-10-08 分层：step 名单按"住在哪条链"分两组 —— gates（每笔推送阻断+部署闸）
+  // 与 deep（ci-deep.yml：夜兜底 + 后端相关路径触发）。挪链时两组互检，防门禁静默消失。
   const REQUIRED_STEPS = [
     // 第六十六轮拆成两腿：生产树阻断 + 全树只报不拦（名字自带后缀，防"把阻断力偷偷挪到构建期工具链上"，
     // 也防其中任一腿哪天静默消失）。归属与可利用性口径见 docs/dependency-audit.md。
@@ -137,10 +141,6 @@ describe('关键 step 存在性（改名即红，防"门禁静默消失"）', ()
     'Import cycle check',
     'API contract drift check',
     'Doc facts consistency gate',
-    'Schema drift check (migrations vs schema.sql)',
-    'Migration replay and baseline reconstruction check',
-    'D1 round-trip complexity gate (slope vs input size)',
-    'Function-level authorization coverage gate',
     'Numeric limit provenance gate',
     'Error semantics registry gate',
     'PII inventory gate',
@@ -148,15 +148,39 @@ describe('关键 step 存在性（改名即红，防"门禁静默消失"）', ()
     'CHANGELOG entry gate',
     'Bundle size budget (gzip, first-load)',
     'Pages Functions deployable-artifact check (compile, no deploy)',
+  ]
+  const DEEP_STEPS = [
+    'API response-shape contract gate',
+    'Schema drift check (migrations vs schema.sql)',
+    'Migration replay and baseline reconstruction check',
+    'D1 round-trip complexity gate (slope vs input size)',
+    'Function-level authorization coverage gate',
+    'Backup restore drill (encrypt -> decrypt -> restore, no CF creds needed)',
+    'CLI entrypoint real-run gate',
+    'CLI leg guard coverage gate (npm run verify:cli-legs)',
+    'Empirical artifact-write probe (blind candidates)',
     'Backend contract verify (node:sqlite mock D1)',
   ]
   const steps = (text: string) => [...text.matchAll(/-\s*name:\s*(.+?)\s*$/gm)].map((m) => m[1])
 
-  it('build-and-test 里这些 step 一个都不能少', () => {
-    const body = /\n  build-and-test:\n([\s\S]*?)(?=\n  [a-zA-Z0-9_-]+:\n|$)/.exec(ci)?.[1] ?? ''
+  it('gates（快门禁）里这些 step 一个都不能少', () => {
+    const body = /\n  gates:\n([\s\S]*?)(?=\n  [a-zA-Z0-9_-]+:\n|$)/.exec(ci)?.[1] ?? ''
     const have = steps(body)
     const missing = REQUIRED_STEPS.filter((s) => !have.includes(s))
-    expect(missing, `CI 里缺失 step：${missing.join(' | ')}`).toEqual([])
+    expect(missing, `CI 快门禁里缺失 step：${missing.join(' | ')}`).toEqual([])
+    // 反向钉：快门禁里不许残留被移去 ci-deep 的深门禁（挪链挪一半 = 两边都以为对方在跑）
+    const leaked = DEEP_STEPS.filter((s) => have.includes(s))
+    expect(leaked, `深门禁混进了快门禁：${leaked.join(' | ')}`).toEqual([])
+  })
+
+  it('ci-deep（深门禁独立链）里这些 step 一个都不能少', () => {
+    const deep = readWorkflow('ci-deep.yml')
+    const body = /\njobs:\n([\s\S]*?)$/.exec(deep)?.[1] ?? ''
+    const have = steps(body)
+    const missing = DEEP_STEPS.filter((s) => !have.includes(s))
+    expect(missing, `ci-deep 里缺失 step：${missing.join(' | ')}`).toEqual([])
+    // 独立链反查（同下方"其余 workflow 是独立链"的口径，这里对被测文件本身钉死）
+    expect(deep, 'ci-deep 出现阻断依赖声明 ⇒ 它不再是独立链，须同步修订本测试').not.toMatch(/needs:/)
   })
 
   it('deploy 后置：本端冒烟与回滚两道都得在（缺一即"发完不看"）', () => {

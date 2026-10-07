@@ -1,0 +1,136 @@
+name: CI Deep Gates
+
+# 2026-10-08 分层 CI（用户拍板"动防护结构"）：
+#   每笔 push 的阻断链收窄为 ci.yml 的快门禁（gates + e2e 三件套 + deploy），
+#   本文件承载**深门禁**（跑得慢、或主要守 functions//db//scripts 的那些）：
+#     · 触发：改动到 functions/db/scripts/docs/tests/workflows/lock 时随 push 跑，
+#       另加每晚 03:20 UTC 全量兜底 + 手动触发。
+#   防护语义（如实写，不留含糊）：
+#     · 纯 src/**（顾客端前端）推送不再被深门禁挡部署 —— 深门禁的取数面本来就不读 src/**
+#       （response/schema/roundtrips/authz/backend 全是 functions 侧），前端由 vitest+coverage、
+#       e2e 三件套、smoke+自动回滚把守。
+#     · 触碰 functions//db//scripts 的推送仍被深门禁挡住（本文件随 push 跑）。
+#     · 本机 `npm run verify` 全链不变（本地仍是全量权威面）；`npm run preflight:ci`
+#       覆盖快门禁尾部，深门禁部分在推送前可单独跑对应 verify:*。
+# ⚠️ 本仓 tests/ciWorkflow.test.ts 钉死：除 ci.yml 外的 workflow 是独立链，禁止声明阻断依赖
+#    （测试按文本匹配该关键字，故本注释也不直书那三个字母冒号），且所有 uses: 必须钉 40 位提交 SHA。
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'functions/**'
+      - 'db/**'
+      - 'scripts/**'
+      - 'docs/**'
+      - 'tests/**'
+      - 'package-lock.json'
+      - '.github/workflows/**'
+  schedule:
+    # 每晚 03:20 UTC（北京 11:20）：全量兜底，防"路径外改动累积漂移"
+    - cron: '20 3 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ci-deep-supermarket-web-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deep-gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # 对标第二十七轮：action 响应形状契约（当年 39 个 action 里 12 个连成功形状都没被观测过；
+      # 第三十四轮把具名缺口做到 0 条 ⇒ 现在这条判据守的是"漂移"与"新增可选字段必须登记"）
+      - name: API response-shape contract gate
+        run: npm run verify:response
+
+      # 对标第二轮 A2：迁移引入的对象必须回写 schema.sql，否则测试库（verify-backend 每次
+      # 从 schema.sql 重建 :memory:）与线上 D1 漂移——症状是"全绿但线上 no column named"。
+      - name: Schema drift check (migrations vs schema.sql)
+        run: npm run verify:schema
+
+      - name: Migration replay and baseline reconstruction check
+        run: npm run verify:migrate-replay
+
+      # 对标第十四轮：一次业务动作打多少次 D1（往返斜率 + 免费档每调用查询数对账）
+      - name: D1 round-trip complexity gate (slope vs input size)
+        run: npm run verify:roundtrips
+
+      # 对标第十五轮：只读密钥的写操作清单必须与「代码实际会改业务数据的 action」双向相等
+      - name: Function-level authorization coverage gate
+        run: npm run verify:authz
+
+      # 第三十八轮：备份恢复的端到端闭环（合成 dump → 加密 → 解密 → 逐字节相等 → 交恢复判据）。
+      # 跨机取回（真实产物）没有凭据时判 UNVERIFIED —— 记未验证，不折算成通过。
+      - name: Backup restore drill (encrypt -> decrypt -> restore, no CF creds needed)
+        run: npm run verify:restore-drill
+
+      # 对标第二十四轮：CLI 入口真跑对账 —— 门禁脚本只被 import 纯函数不算被测，
+      # 入口通道（读 stdin / 解析 git ref 行 / 退出码）必须至少有一次被当子进程真跑过。
+      - name: CLI entrypoint real-run gate
+        run: npm run verify:entrypoints
+
+      # 对标第五十五轮 R55-H3：把 `spawnSync(..., {timeout})` 的空输出当结论的那类文件还剩几件。
+      # 上限册 docs/cli-legs.json 的 `unguardedMax` 只准降不准升 ⇒ 新增一条裸腿当场判红。
+      - name: CLI leg guard coverage gate (npm run verify:cli-legs)
+        run: npm run verify:cli-legs
+
+      # 对标第四十三轮 R43-P0 / 第四十四轮：静态推不出的"这判据会不会改写受版本控制的产物"，用真跑判。
+      # CI 走 --blind-only（只测 import/形参/argv 那三类静态解不出的候选）。
+      - name: Empirical artifact-write probe (blind candidates)
+        run: npm run check:judge-side-effects -- --blind-only
+
+      # 第八轮 H4（对标 microfeed 的 "Verify the Worker bundle"）：backend 契约 204 断言
+      - name: Backend contract verify (node:sqlite mock D1)
+        run: node scripts/verify-backend.mjs
+
+      # —— 以下为 advisory（只报不拦），从 ci.yml 移入：它们要么要联网、要么在 CI 检出面恒 UNVERIFIED，
+      #     每晚全量兜底 + 每次后端相关推送留痕即可，不必占用每笔推送的阻断链 ——
+
+      # 对标第三十六轮：外层"工作区级记忆指针"是否跟上内层轮次（实测断更过 5 轮无人知）。
+      - name: Workspace memory pointer sync (advisory)
+        run: npm run verify:pointers
+
+      # 第三十八轮：线上 /_health 的响应形状 ⇄ 本仓声明键集（只读 GET，advisory：发布在用户侧）。
+      - name: Live endpoint shape vs declared keys (advisory)
+        continue-on-error: true
+        run: npm run check:live-shape
+
+      # 对标第四十二轮 R42-H1：远端 D1 累计用量 ⇄ 本机下界对账（advisory）。
+      - name: D1 remote cumulative usage vs local floor (advisory)
+        continue-on-error: true
+        env:
+          CLOUDFLARE_ACCOUNT_ID: 04b1466b2606b678a332fe6f26aa87ec
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node scripts/check-d1-remote-usage.mjs
+
+      # 对标第四十二轮：全部 schedule: 工作流的"最近一次"普查（advisory）。
+      - name: Every scheduled workflow - is the LAST scheduled run green (advisory)
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run check:cron-health
+
+      # 对标第六十八轮 M-67-3：交付主张 ⇄ 远端回执对账（advisory；真正的阻断取数面在本机与每日 cron）。
+      - name: Delivery claims (report only)
+        continue-on-error: true
+        run: npm run check:delivery-claims
+
+      # 对标第三十三轮：用户侧安全设置普查（advisory，故意不阻断）。
+      - name: Branch protection census (advisory)
+        continue-on-error: true
+        run: node scripts/check-branch-protection.mjs

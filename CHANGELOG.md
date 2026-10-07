@@ -4,6 +4,29 @@
 
 ## [未发布]
 
+### 2026-10-08 分层 CI：推送阻断链收窄为快门禁，深门禁独立成链（夜兜底 + 后端路径触发）
+
+- **动机（用户拍板"动防护结构"）**：CI 单轮实测 3.4 分钟（并非 10 分钟），但深门禁
+  （CLI 入口真跑、产物改写探针、backend 契约等 10 项 + 6 项网络 advisory）与纯前端推送无关，
+  却每笔都在阻断链上；且它们失败时反馈来得最晚。
+- **新结构**：
+  - `ci.yml`（每笔 push/PR，阻断+部署）：`gates`（原 build-and-test 的快门禁子集：
+    审计/密钥扫描/lint/大小写/环境登记册/CSP/图片资产/行尾纯度/vitest+覆盖率棘轮/typecheck/
+    循环依赖/契约漂移/登记表同步/文档事实/上限溯源/错误语义/PII/license/CHANGELOG/逃生门/
+    文档命令对账/记忆卷/Build/体积预算/逐块预算/Functions 可部署检查）+ e2e/visual/e2e-cloud-stub
+    + deploy（`needs: [gates, e2e, e2e-cloud-stub, visual]`）。
+  - `ci-deep.yml`（新，独立链）：响应形状/schema 漂移/迁移重放/D1 往返/authz/备份演练/
+    CLI 入口真跑/CLI 腿守卫/产物改写探针/backend 契约 + 6 项网络 advisory。
+    触发 = 改动 functions/db/scripts/docs/tests/workflows/lock 时随 push + 每晚 03:20 UTC 兜底 + 手动。
+- **防护语义（如实）**：纯 `src/**`（前端）推送不再被深门禁挡部署 —— 深门禁取数面本就不读 src/**，
+  前端由 vitest+覆盖率、e2e 三件套、部署后 smoke+自动回滚把守；触碰 functions/db/scripts 的推送
+  两条链都跑。本机 `npm run verify` 全链不变（本地仍是全量权威面）。
+- **判据同步**：`tests/ciWorkflow.test.ts` 改为按链分组钉 step（gates 组 + 深门禁组互检，
+  挪链挪一半=两边都以为对方在跑，反向钉死）；ci-deep.yml 遵守"独立链不得声明阻断依赖、
+  uses: 全钉 40 位 SHA"两条既有约束。README CI 段已更新分层说明。
+- 效果：纯前端推送的阻断链反馈更深（vitest/覆盖率红在 gates 早期即见），深门禁红不再阻塞
+  无关推送；每晚兜底保证深门禁覆盖不因分层而失守。
+
 ### 2026-10-08 推送前预检脚本（preflight）：把"只在 CI 上跑的门禁"搬到本地
 
 - **背景**：打印页上线修红链（5 笔）里 3 笔红的红因门禁**只挂 CI、不在本机 `npm run verify` 链**

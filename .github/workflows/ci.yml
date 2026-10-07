@@ -20,7 +20,7 @@ permissions:
   contents: read
 
 jobs:
-  build-and-test:
+  gates:
     runs-on: ubuntu-latest
     steps:
       # 固定到提交 SHA（OpenSSF Pinned-Dependencies）：防止上游标签被移动导致供应链投毒
@@ -112,11 +112,6 @@ jobs:
       - name: API contract drift check
         run: npm run verify:contract
 
-      # 对标第二十七轮：action 响应形状契约（当年 39 个 action 里 12 个连成功形状都没被观测过；
-      # 第三十四轮把具名缺口做到 0 条 ⇒ 现在这条判据守的是"漂移"与"新增可选字段必须登记"）
-      - name: API response-shape contract gate
-        run: npm run verify:response
-
       # 对标第三十五轮：登记表 ⇄ 生产者（代码分发面）双向差集。
       # 立它的一手事实：docs/sql-baseline.json 43 键 vs 分发面 39 条，4 个键长期没人解释，
       # 其中 amortized:audit-retention-purge 迟到 6 轮才入册；反向（登记有、代码已无）此前无人守。
@@ -129,22 +124,6 @@ jobs:
       - name: Doc facts consistency gate
         run: npm run verify:docs
 
-      # 对标第二轮 A2：迁移引入的对象必须回写 schema.sql，否则测试库（verify-backend 每次
-      # 从 schema.sql 重建 :memory:）与线上 D1 漂移——症状是"全绿但线上 no column named"。
-      - name: Schema drift check (migrations vs schema.sql)
-        run: npm run verify:schema
-
-      - name: Migration replay and baseline reconstruction check
-        run: npm run verify:migrate-replay
-
-      # 对标第十四轮：一次业务动作打多少次 D1（往返斜率 + 免费档每调用查询数对账）
-      - name: D1 round-trip complexity gate (slope vs input size)
-        run: npm run verify:roundtrips
-
-      # 对标第十五轮：只读密钥的写操作清单必须与「代码实际会改业务数据的 action」双向相等
-      - name: Function-level authorization coverage gate
-        run: npm run verify:authz
-
       # 对标第十七轮：每个数值上限必须能追到一个真实约束（平台事实/列定义/产品决定）
       - name: Numeric limit provenance gate
         run: npm run verify:limits
@@ -153,29 +132,9 @@ jobs:
       - name: Error semantics registry gate
         run: npm run verify:errors
 
-      # 第三十八轮：备份恢复的端到端闭环（合成 dump → 加密 → 解密 → 逐字节相等 → 交恢复判据）。
-      # 立它的实测：在册写"verify:restore 需 CF 凭据故恒红"，本轮用本机 dump 实跑判 OK ⇒ 演练不需要云凭据。
-      # 跨机取回（真实产物）没有凭据时判 UNVERIFIED —— 记未验证，不折算成通过。
-      - name: Backup restore drill (encrypt -> decrypt -> restore, no CF creds needed)
-        run: npm run verify:restore-drill
-
       # 对标第二十轮：个人数据登记册 ⇄ schema 全量列双向对账，并与导出面白名单互锁
       - name: PII inventory gate
         run: npm run verify:pii
-
-      # 对标第二十四轮：CLI 入口真跑对账 —— 门禁脚本只被 import 纯函数不算被测，
-      # 入口通道（读 stdin / 解析 git ref 行 / 退出码）必须至少有一次被当子进程真跑过。
-      # 立它的原因：ci-green-contract 的 stdin 读取抛 ReferenceError 被空 catch 吞掉，
-      # 15 条夹具全绿，闸门却把每一次推送都审成 contract 默认分支。
-      - name: CLI entrypoint real-run gate
-        run: npm run verify:entrypoints
-
-      # 对标第五十五轮 R55-H3：把 `spawnSync(..., {timeout})` 的空输出当结论的那类文件还剩几件。
-      # 分母由 AST 现取（文本级检测器对带解构默认值的签名整片失明，本轮一手：它把 24 位点的文件判成"无包装器"）；
-      # 风险位点只算**带 timeout** 的 spawn（不带 timeout 产不出 `status===null`，算进去就是虚报欠账）。
-      # 上限册 docs/cli-legs.json 的 `unguardedMax` 只准降不准升 ⇒ 新增一条裸腿当场判红，既存欠账逐轮清偿。
-      - name: CLI leg guard coverage gate (npm run verify:cli-legs)
-        run: npm run verify:cli-legs
 
       # 对标第四十三轮 R43-H1：文档里印的命令有没有跟真相源对过账（别名册 ⇄ package.json ⇄ 盘上文件）。
       # 立它的事实：`docs/implementation-plan-2026-08-08.md` 里三条 `npm run predeploy` 是 CloudBase 时代的
@@ -184,69 +143,10 @@ jobs:
       - name: Documented commands vs real aliases
         run: npm run check:doc-commands -- --check
 
-      # 对标第四十三轮 R43-P0 / 第四十四轮：静态推不出的"这判据会不会改写受版本控制的产物"，用真跑判。
-      # CI 走 --blind-only（只测 import/形参/argv 那三类静态解不出的候选）：全量面本机实测 9 件 ≈300s，
-      # 每件都要解一份 git archive 快照再跑两趟，不适合放在每次推送的必需 job 里；缩面后的取数面印在
-      # 门面行上，S3/S5 对"本轮没敲那扇门"的对象记未复核而不记幽灵（假红会把闸变成噪音）。
-      - name: Empirical artifact-write probe (blind candidates)
-        run: npm run check:judge-side-effects -- --blind-only
-
       # 对标第三十一轮：记忆卷 4KB 上限的仓内闸（借 pre-commit/pre-commit-hooks 的 check-added-large-files
       # 形态：阈值显式 + 默认只管要提交的面；CI 这条走 --all 全量面，所以外部 handoff.py 只是报告型也不裸奔）
       - name: Memory volume budget gate
         run: npm run verify:volume
-
-      # 对标第三十六轮：外层"工作区级记忆指针"是否跟上内层轮次（实测断更过 5 轮无人知）。
-      # 该目录在代码仓之外 ⇒ CI 里必然取不到，判据对此只报 UNVERIFIED 且 rc=0（不阻断、也不假装核过）；
-      # 真正会红的是本地 `npm run verify`——那才是它设计时要守的现场。
-      # 第三十八轮：线上 /_health 的响应形状 ⇄ 本仓声明键集（只读 GET，advisory：发布在用户侧）。
-      # 立它的事实：本仓 _health.js:4 自述 deploy 字段就是为了发现"改了没部署"，却从来没有东西做这个比对。
-      - name: Live endpoint shape vs declared keys (advisory)
-        continue-on-error: true
-        run: npm run check:live-shape
-
-      # 对标第四十二轮 R42-H1：远端 D1 累计用量 ⇄ 本机下界对账（advisory，同 Branch-Protection 的取舍：
-      # 取不到读数时判据自己 rc=2 记 UNREACHABLE，绝不折算成"配额安全"；红了不拦发布，但每轮在日志留痕）。
-      # 两通道 = GraphQL Analytics（UTC 日界，配额 00:00 UTC 重置）+ `wrangler d1 info`（滚动 24h）。
-      - name: D1 remote cumulative usage vs local floor (advisory)
-        continue-on-error: true
-        env:
-          CLOUDFLARE_ACCOUNT_ID: 04b1466b2606b678a332fe6f26aa87ec
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: node scripts/check-d1-remote-usage.mjs
-
-      - name: Workspace memory pointer sync (advisory)
-        run: npm run verify:pointers
-
-      # 对标第四十二轮：全部 schedule: 工作流的"最近一次"普查（advisory）。
-      # 为什么不阻断（写下来，不留"以后再说"）：本轮实测 2 条 cron 的最近一次 scheduled run **都是红的**，
-      # 根因是用户侧凭据（CF_D1_BACKUP_TOKEN / BACKUP_PASSPHRASE）没配 —— 判据本身没错，
-      # 但在凭据配上之前把它接成阻断位，会让每个 push 连带变红（全仓连坐，见 docs/ci-triage-runbook.md）。
-      # 已按在册口径登记为"具名 + 限期 + 理由可证伪"的豁免（docs/cron-health.json，至 2026-10-12）；
-      # 真正的阻断位在 uptime.yml（每日那条 cron 自己跑它，红了就落在 cron 的日志里）。
-      - name: Every scheduled workflow - is the LAST scheduled run green (advisory)
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run check:cron-health
-
-      # 对标第六十八轮 M-67-3：报告里凡写"已上线/已交付/已推送"，同段必须带可复算的远端回执
-      # （run 号 + conclusion + 必需 job 全点名，或线上 "deploy":"<sha>" 锚）；测量句还须点名取数器。
-      # 档位 = **报告型起步**（老大拍板）：先量一轮误报率，`matched/mismatched` 两个数落进 CI 日志，
-      # 下一轮再据实决定升不升阻断位。为什么这里必然是 advisory 的另一半事实：CI 只检出代码仓，
-      # `../deliverables/` 在 runner 上不存在 ⇒ 读数恒为 UNVERIFIED（"未观测"≠"已核对"，脚本自己会这么说）。
-      # 真正的取数面在本机与那条每日 cron 上；本步的作用是**让"这条尺在 CI 量不到"这件事每天有痕**，
-      # 而不是只活在报告作者的记忆里（同第三十三轮 branch protection census 的处理）。
-      - name: Delivery claims (report only)
-        continue-on-error: true
-        run: npm run check:delivery-claims
-
-      # 对标第三十三轮：用户侧安全设置普查（advisory，故意不阻断）——借 ossf/scorecard 的 Branch-Protection
-      # 形态，但取不到时绝不按"满足"计：四态 ENFORCED / NOT_ENFORCED / UNVERIFIED + 时刻，每轮在 CI 日志留痕，
-      # 免得"分支保护还没开"这件事只活在报告作者的记忆里。runner 上的 token 无 admin ⇒ 预期读数是 UNVERIFIED。
-      - name: Branch protection census (advisory)
-        continue-on-error: true
-        run: node scripts/check-branch-protection.mjs
 
       # 对标第三轮 C2：生产依赖（含传递）license 白名单，拦 GPL/AGPL 类传染（本项目 MIT 发布）
       - name: Production license gate
@@ -275,7 +175,7 @@ jobs:
           retention-days: 7
 
       - name: Build
-        # 坑27 防线（2026-09-05）：dist 由 deploy job 复用，此处必须烘焙线上端点，
+        # 坑27 防线（2026-09-05）：dist 由 deploy job 复用（gates 产出），此处必须烘焙线上端点，
         # 否则发布的是"local demo mode"未烘焙版（本文件任何 Build 步骤都需注入这两项）。
         run: npm run build
         env:
@@ -300,9 +200,6 @@ jobs:
       - name: Pages Functions deployable-artifact check (compile, no deploy)
         run: npm run verify:functions
 
-      - name: Backend contract verify (node:sqlite mock D1)
-        run: node scripts/verify-backend.mjs
-
       # M5（2026-09-05）：构建产物上传，deploy job 复用，避免重复 npm ci + build（CI 时长约减 1/3）
       - name: Upload dist artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -313,7 +210,7 @@ jobs:
           retention-days: 1
 
   # 端到端冒烟（对标 P0-A3）：跑在 dev server 的本地演示模式，不依赖后端与 D1。
-  # 2026-09-24 起移除 continue-on-error，但当时 deploy.needs 只有 build-and-test ⇒ 本 job 红了
+  # 2026-09-24 起移除 continue-on-error，但当时 deploy.needs 只有 gates ⇒ 本 job 红了
   # 仍然照常部署，"阻断性门禁"那句 CHANGELOG/ci.yml 注释与实际不符（本轮 K2 才真正接入 needs）。
   # 改页面结构/文案需同步更新 tests/e2e/。
   e2e:
@@ -360,7 +257,7 @@ jobs:
   # 密钥：桩对任意非空密钥放行，生产密钥不进 CI 日志也不进产物。
   # 不跑 verify:changelog ⇒ 无需 fetch-depth: 0（该门禁只在 build-and-test 跑）。
   # 不定义 job 级 concurrency：继承 workflow 级按 ref 分组（固定组名会让 PR 与 main 互砍）。
-  # 回滚（若本 job 误拦部署）：把下面 deploy 的 needs 改回 build-and-test 一项即可退回非阻断。
+  # 回滚（若本 job 误拦部署）：把下面 deploy 的 needs 里被移走的深门禁加回来即可退回非阻断。
   e2e-cloud-stub:
     runs-on: ubuntu-latest
     steps:
@@ -446,7 +343,7 @@ jobs:
     # + e2e-cloud-stub（生产构建真渲染）。此前 needs 只有 build-and-test ⇒ e2e 红了照样部署，
     # 属"判据假安全感"（2026-09-24 那起 19 天空白事故的检测失效模式）。
     # 第八轮 M4 加入 visual（生产构建上的布局/对比度/焦点环 16 条），改样式自此有红绿可言。
-    needs: [build-and-test, e2e, e2e-cloud-stub, visual]
+    needs: [gates, e2e, e2e-cloud-stub, visual]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     env:
