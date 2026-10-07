@@ -337,12 +337,18 @@ describe('D5 CLI：真实面与夹具面分开对待（存量册是版面的）'
     expect(out).toContain('D5 自证 判红=true 认更正=true 拒裸标注=true 容未知=true')
     expect(out).toContain('档位=阻断')
   })
-  it('注入演习在两种机器上都必须被 D5 观察到（本机走"幽灵"，CI 走"未定位"——两个分支都算收到）', () => {
-    const { rc, out } = (() => {
-      const r = runCli(['--inject-red'])
-      return { rc: r.status, out: String(r.stdout) + String(r.stderr) }
-    })()
-    expect(rc).toBe(1)
+  it('注入演习必须打在"两边都存在的那一面"上：默认版面在 CI 里根本不在 ⇒ 整条判据提前 UNVERIFIED rc=0（第七十一轮 CI 一手假绿）', () => {
+    // 一手：本腿第一版跑的是**默认取数面**，本机 ../deliverables 在 ⇒ rc=1；CI 上那个目录不存在 ⇒
+    // main() 在注入之前就走了 UNVERIFIED rc=0 ⇒ "演习有牙"这句话在 CI 上从来没被证明过。
+    const { path } = orphanRepo()
+    const dir = writeFix(tmpDir(), { 'good.md': GOOD })
+    const r = runCli(['--dir', dir, '--inject-red'], { DELIVERY_CLAIMS_ROOTS: path })
+    const out = String(r.stdout) + String(r.stderr)
+    expect(r.status, out.slice(-700)).toBe(1)
+    expect(out).toContain('--inject-red 已注入两处假')
+    expect(out).toContain('INJECTED')
+    expect(out).toMatch(/D5 sha 引用候选 \d+/)
+    // 注入的那枚 `f5b22d2` 在合成仓里取不到 ⇒ 走"未定位"分支；两个分支都算 D5 收到了这条注入
     expect(out).toMatch(/幽灵 sha `f5b22d2`|未定位 [1-9]/)
   })
 })
