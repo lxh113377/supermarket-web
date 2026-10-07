@@ -5,6 +5,7 @@ import EmptyState from './EmptyState'
 import { SkeletonTable } from './Skeleton'
 import Overlay from './Overlay'
 import { IconEmpty } from './Icons'
+import { resolvePrintFileUrl } from '../utils/printUpload'
 import type { Submission } from '../types'
 
 const STATUS_MAP: Record<string, { label: string; cls: string }> = {
@@ -188,24 +189,54 @@ export default function SubmissionsTab() {
                           )}
                           {/* 图片本身可点开预览 —— 用 button 包裹而不是给 img 挂 onClick，
                               键盘用户与读屏用户才能操作（原实现只有鼠标能点） */}
-                          {(s.images || imageCache[s._id] || []).map((img, i) => (
-                            <button
-                              key={i}
-                              onClick={() => setPreview(img)}
-                              aria-label={`查看截图 ${i + 1}`}
-                              className="w-14 h-14 rounded-lg overflow-hidden border border-gray-200 hover:opacity-80 transition focus-visible:outline-2 focus-visible:outline-brand-500"
-                            >
-                              <img
-                                src={img}
-                                alt=""
-                                width={56}
-                                height={56}
-                                loading="lazy"
-                                decoding="async"
-                                className="w-full h-full object-cover"
-                              />
-                            </button>
-                          ))}
+                          {(s.images || imageCache[s._id] || []).map((img, i) => {
+                            // 打印服务（serviceId='print'）的条目可能是文档：
+                            // `r2:<key>`（需配 VITE_R2_PUBLIC_BASE 才拼得出链接）或文档类 data: URL。
+                            // 图片沿用原预览；文档一律给下载入口 —— 后台要看的是文件本体，不是缩略图。
+                            const href = resolvePrintFileUrl(img)
+                            const isDoc = img.startsWith('data:application') || /\.(pdf|docx?|pptx?|xlsx?|txt)$/i.test(href)
+                            if (img.startsWith('data:application') || (isDoc && href)) {
+                              return (
+                                <a
+                                  key={i}
+                                  href={img.startsWith('data:') ? img : href}
+                                  download
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  aria-label={`下载文件 ${i + 1}`}
+                                  className="w-14 h-14 rounded-lg border border-gray-200 flex flex-col items-center justify-center gap-0.5 hover:bg-gray-50 transition focus-visible:outline-2 focus-visible:outline-brand-500"
+                                >
+                                  <span aria-hidden="true" className="text-base">📄</span>
+                                  <span className="text-[9px] text-gray-500">下载</span>
+                                </a>
+                              )
+                            }
+                            if (img.startsWith('r2:') && !href) {
+                              return (
+                                <span key={i} className="w-14 h-14 rounded-lg border border-dashed border-gray-200 flex items-center justify-center text-[9px] text-gray-400 text-center leading-tight px-1">
+                                  文件（未配置下载基址）
+                                </span>
+                              )
+                            }
+                            return (
+                              <button
+                                key={i}
+                                onClick={() => setPreview(img)}
+                                aria-label={`查看截图 ${i + 1}`}
+                                className="w-14 h-14 rounded-lg overflow-hidden border border-gray-200 hover:opacity-80 transition focus-visible:outline-2 focus-visible:outline-brand-500"
+                              >
+                                <img
+                                  src={img}
+                                  alt=""
+                                  width={56}
+                                  height={56}
+                                  loading="lazy"
+                                  decoding="async"
+                                  className="w-full h-full object-cover"
+                                />
+                              </button>
+                            )
+                          })}
                         </div>
                       )}
                     </div>

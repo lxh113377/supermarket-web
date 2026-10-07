@@ -69,6 +69,13 @@ export const ERRORS = {
   // ── 配额（服务端活着并明确说了"慢点"，重试才对）──────────────
   rate_limited: { kind: 'quota', status: 429, retryable: true },
 
+  // ── 打印服务文件（2026-10-07 新增）───────────────────────────
+  // storage_unavailable 归 platform、retryable=false 是刻意的：R2 绑定缺失是部署态问题，
+  // 原样重发到同一条路必然同样失败；前端该做的是**换路径**（改走内联降级），而不是重试。
+  print_storage_unavailable: { kind: 'platform', status: 500, retryable: false },
+  print_file_too_large: { kind: 'input', status: 413, retryable: false },
+  print_file_type_denied: { kind: 'input', status: 400, retryable: false },
+
   // ── 平台自身（唯一允许调用方先行兜底、不丢用户意图的一类）────
   db_unbound: { kind: 'platform', status: 500, retryable: true },
   internal_error: { kind: 'platform', status: 500, retryable: true },

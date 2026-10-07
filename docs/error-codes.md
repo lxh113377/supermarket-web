@@ -42,6 +42,9 @@
 | too_many_images | input | 400 | false | 评价图片多于 3 张 | 删到 3 张内 |
 | image_too_large | input | 413 | false | 单张图片超 D1 单语句体积预算（`MAX_STATEMENT_PAYLOAD_CHARS` = 90,000 字符；第三十七轮按实测把 800KB/2MB 的假上限收敛成这一把尺） | 压小图片或减少张数 |
 | payload_too_large | input | 413 | false | 整条记录（含全部图片）序列化后超单语句预算——一条 INSERT = 一行 = 一份预算 | 减少张数或压小图片 |
+| print_storage_unavailable | platform | 500 | **false** | 打印文件直传端点 `/upload` 拿不到 R2 绑定（桶未建/绑定名不符/本地 dev）。归 platform 但**不可重试**：原样重发必同样失败，前端该换路径（改走小文件内联）而不是重试 | 走内联降级；管理员建桶并绑定 `PRINT_FILES` |
+| print_file_too_large | input | 413 | false | 单文件超 `PRINT_FILE_MAX_BYTES`（20MB） | 压小或拆分文件 |
+| print_file_type_denied | input | 400 | false | 扩展名不在打印白名单（图片 + pdf/office/txt） | 换格式重传 |
 | quantity_exceeds_limit | input | 400 | false | 单行数量超产品上界 99（继承详情页在册硬顶；对标 `saleor/saleor` 站点默认 50、`medusajs/medusa` 只校库存） | 减少数量或拆成多单 |
 | batch_too_large | input | 400 | false | 批量条目数超该批预算（更新 20 / 删除 200，两者不同因） | 按上限分片 |
 | invalid_action | input | 400 | false | action 名不存在 | 修调用方；这是契约错不是运行错 |

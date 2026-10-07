@@ -4,6 +4,46 @@
 
 ## [未发布]
 
+### 2026-10-08 「学习」区新增「打印」子页面：3D 实景导航 + R2 文件直传
+
+- **新页面 `/print`**（懒加载路由，学习分类页新增入口卡片）：视觉刻意独立于站内 —— 深色影院感 +
+  霓虹光带（样式集中在 `src/pages/print/print.css`，随路由加载，**不进首屏 CSS**）。
+  交互按需求落地：splash 遮罩式入场（进度就绪或 6s 超时兜底，不锁死弱网用户）→ hero →
+  **滚动驱动 3D 相机前进**（three + @react-three/fiber，走廊场景 + Poly Haven CC0 glTF 道具）→
+  Lenis 平滑滚动 + 分段吸附 + 单向推进（进度只增不减，`prefers-reduced-motion` / 无 WebGL 时整块降级为静态渐变）→
+  下单表单（楼栋号/房间号必填，微信号/备注选填）→ 成功态 + 遮罩式出场。
+- **选型取舍（写下来防止下一轮重查）**：GSAP 因许可为 `Standard 'no charge' license`
+  （不在 `check-licenses` 白名单且非 OSI）被排除；drei 因会引入未安装的可选 peer（expo / react-native /
+  vue 等，会被许可门禁算进分母）也未引入 —— 滚动驱动相机用十几行 `useFrame` 自接，加载进度挂
+  `THREE.DefaultLoadingManager`。最终新增生产依赖 `three` / `@react-three/fiber` / `lenis`（均 MIT）。
+- **体积归因（按 `check-bundle-size` 注释要求的口径）**：`largestChunk` 90KB → 300KB，
+  实测 `three-vendor` 单块 gzip 245.6KB，是 WebGL 引擎本体而非业务膨胀，砍不掉；
+  补偿三重：① 打印页懒加载 + `manualChunks` 独立成块 ⇒ **不进首屏**（实测首屏 JS 仍 88.2KB）；
+  ② 打印页样式独立成 `print.css` 随路由加载 ⇒ 首屏 CSS 零增长；③ 降级路径整块不挂载 ⇒ 低端机不下载。
+  `chunkSizeWarningLimit` 800 → 1000（懒加载块的恒告警等于没有告警）。
+- **后端新增 `/upload`（Pages Functions，multipart → R2）**：顾客直传文件（图片与 pdf/docx/pptx 等），
+  D1 只存 `r2:<key>` 引用（`security.js` 的 scheme 白名单早已预留）。附**内联降级**：R2 桶未就绪时
+  小文件（≤512KB/个）转 base64 直交，页面其余功能不受影响 —— 建桶是账号级开关，不能让它把整个功能卡死。
+  新增 3 个 errorCode（`print_storage_unavailable` / `print_file_too_large` / `print_file_type_denied`），
+  `docs/error-codes.md` ⇄ `functions/lib/errors.js` ⇄ `src/api/error-codes.ts` 三处已同步。
+- **条数上限 5 → 9**（打印服务一次要交多页文档）：常量收口为服务端 `functions/lib/shared.js` 的
+  `MAX_SUBMISSION_FILES` 与前端 `src/data/submissionLimits.ts`（两条构建链不能共享模块，必然双写），
+  同值由新增 `tests/printCapParity.test.ts` 钉住；扩展名白名单两端逐项同值也由它钉。
+  `verify-backend.mjs` 的条数探针同步抬到 9/10（探针不跟就会把合法的第 6~9 张当回归报红 —— 首跑即红，已修）。
+- **素材与许可**：`public/print/`（3 个 CC0 glTF + 2 张 CC0 贴图，合计 2.15MB ≤ 3MB 预算），
+  来源/作者/许可逐项登记在 `public/print/CREDITS.md`（Poly Haven，CC0，未修改仅下载）。
+- **覆盖率豁免（写明归因的新先例）**：`src/pages/print/scene/**` 从 v8 覆盖率分母排除 —— WebGL 在
+  jsdom 里挂不起来，强行测等于测 R3F 自己；换来的是**纯逻辑必须拆出来真测**：
+  新增 `tests/printFormLogic.test.ts`（20 条，含空输入/超长/路径穿越/边界 20MB 等负面用例）、
+  `tests/printUpload.test.ts`（11 条：直传成功、端点不可达降级、业务拒绝**不许**降级）、
+  `tests/printCapParity.test.ts`（5 条）。实测 `npm run verify:limits` 13/13、`verify:errors` 8/8、
+  `verify:backend` 204/204、`check:size` 3/3、`check:cycles` 通过、覆盖率棘轮未破。
+- **后台**：`SubmissionsTab` 支持打印提交的文件条目 —— 文档给下载入口（依赖 `VITE_R2_PUBLIC_BASE`，
+  未配置时明确显示"未配置下载基址"而不是拼一个错链接），图片仍走原预览。
+- **本地桩**：`local-api-stub.mjs` 新增 `/upload` 分支（只回假 key 不落盘），`serve:stub` 模式可演完整直传链。
+- **已知边界**：R2 桶需在 Cloudflare 侧创建并在 `wrangler.toml` 配 `[[r2_buckets]]` 绑定 `PRINT_FILES`
+  后直传才生效；未配置时页面自动走内联降级（上限单个 512KB），并有明确的 amber 提示引导大文件走微信。
+
 ### 2026-10-07 交付回执的牙齿：幽灵 sha / 归档入库面 / 登记册新鲜度 / 通道普查（第七十一轮）
 
 - **本轮抓到的是一条能骗过全部 34 条判据的缺陷**：第七十轮 §7 写「内层提交：`f5b22d2`」，而该 sha 被同轮

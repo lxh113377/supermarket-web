@@ -53,7 +53,13 @@ export default defineConfig({
       reporter: ['text-summary', 'html'],
       reportsDirectory: './coverage',
       include: ['src/**'],
-      exclude: ['src/**/*.d.ts', 'src/**/index*'],
+      // 3D 渲染层（打印页）单独豁免（2026-10-07）：这一层是 WebGL 绘制指令的声明式描述
+      // —— 在 jsdom 里没有 WebGL 上下文，`<Canvas>` 根本挂不起来，强行测等于测 R3F 自己；
+      // 而它本身几乎不含分支逻辑，覆盖率数字对"这段代码对不对"没有信息量。
+      // 换取的是：页面里的**纯逻辑**必须拆出来并真测（printFormLogic.ts / utils/printUpload.ts），
+      // 由 tests/printFormLogic.test.ts 与 tests/printUpload.test.ts 承担质量兜底。
+      // 若日后要给场景层补测试，正确做法是换 Playwright 跑真浏览器，而不是把它塞回 jsdom。
+      exclude: ['src/**/*.d.ts', 'src/**/index*', 'src/pages/print/scene/**'],
       thresholds: {
         // 棘轮历史（statements）19.5 → 23 → 35 → 47 → 57 → 74 → 76 → 78 → 79（第九轮：
         // apiClient/localStore 门面专项后再加 CI 与门禁自测两文件，实测 81.11%）。
@@ -84,12 +90,19 @@ export default defineConfig({
     target: 'es2020',
     outDir: 'dist',
     // 已移除 CloudBase JS SDK（后端迁至 Pages Functions），不再有 cloudbase-sdk 大块。
-    // 保持 800KB 阈值仅作首屏相关 bundle 超限的告警。
-    chunkSizeWarningLimit: 800,
+    // 阈值只作告警（真正阻断在 scripts/check-bundle-size.mjs）。
+    // 2026-10-07 由 800 抬到 1000：three-vendor raw 953KB 会恒告警，而它是懒加载块、
+    // 不进首屏；留一条永远红着的告警等于没有告警。
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) return
+          // 3D（打印页专用，2026-10-07 新增）：three 生态体积远大于其余依赖，
+          // 单独成块才能①不进首屏 ②不被 react 升级带着一起失效长缓存。
+          // 注意：必须在 react 判断之前，否则会被 includes('react') 误吞（@react-three/fiber）。
+          if (id.includes('/three/') || id.includes('@react-three')) return 'three-vendor'
+          if (id.includes('/lenis/')) return 'scroll-vendor'
           // 路由：与 React 运行时分离，router 升级不会让 react 块的长缓存失效
           // 注意：此判断必须在 react 之前，否则会被 includes('react') 误吞
           if (id.includes('react-router')) return 'router'

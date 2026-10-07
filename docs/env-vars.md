@@ -13,6 +13,7 @@
 | `ALLOWED_ORIGINS` | plain | Pages Variables（逗号分隔） | 回退内置默认源（`supermarket-web.pages.dev` + `lxh113377.github.io`）并额外放行 localhost/127.0.0.1 本地开发 | CORS 精确放行白名单追加项 |
 | `DB` | 绑定 | Pages → Functions → D1 bindings | 响亮失败：`handleAdmin`/`handlePublic` 直接返回「未配置 D1 数据库绑定」，不静默返回空数据 | D1 数据库绑定 |
 | `RATE_KV` | 绑定 | Pages → Functions → KV namespace bindings | 限流自动回退 D1 计数（`checkRate` 检测 KV 形态失败即走 `checkRateDB`），限流不失效、只是慢一点 | Workers KV 限流计数（快路径） |
+| `PRINT_FILES` | 绑定 | `wrangler.toml` 的 `[[r2_buckets]]`（Pages → Functions → R2 bucket bindings） | `/upload` 返回 `print_storage_unavailable`，前端降级为小文件内联提交（单个 ≤512KB）—— 不静默丢文件 | 打印服务文件本体存储（R2）。**注意**：建桶前需在 Dashboard 先启用 R2，否则 `wrangler r2 bucket create` 报 code:10042；对象公网读依赖下方的 `VITE_R2_PUBLIC_BASE` |
 | `CF_PAGES_COMMIT_SHA` | plain | Cloudflare 自动注入（不需手填） | `/_health` 的 `deploy` 字段返回 `null`，其余健康检查项不受影响 | 线上版本可追溯（取前 7 位） |
 | `DIFY_BASE_URL` | plain | Pages Variables（须公网可达，CF edge 出网调用） | AI 整链路关闭：`aiAdvice` 走规则版、顾客端导购走本地兜底，功能不缺失 | Dify 服务地址 |
 | `DIFY_CHAT_APP_KEY` | secret | Pages → Variables and Secrets | 同 `DIFY_BASE_URL`：缺任一即不发起 Dify 调用，直接降级 | 顾客端导购 Chat App 密钥 |
@@ -20,7 +21,7 @@
 | `ORDER_WEBHOOK_URL` | secret | Pages → Variables and Secrets（第三方端点若含签名/token，整串按 secret 存） | **纯 no-op**：不发请求、不改订单状态、不消耗重试（`webhookTarget` 返回 null 即结束），下单照常成功 | 新订单外部通知投递地址（http/https only） |
 | `VITE_CB_API_BASE` | build | `.env` / CI 构建参数（`wrangler pages deploy` 前烘焙） | 前端 `IS_CLOUD=false`，后台静默降级「本地演示模式」——这正是历史上「线上看不到真实订单」的根因，故 CI 的 Build step 必须显式烘焙 | 管理 API 端点 `/web` |
 | `VITE_CB_PUBLIC_API_BASE` | build | 同上 | 同上（顾客端拿不到公开接口基址即走本地种子数据） | 公开 API 端点 `/pub` |
-| `VITE_R2_PUBLIC_BASE` | build | `.env` / CI 构建参数（R2 bucket 建好并配公网读后才填） | 原样透传 `r2:` 引用（评价图不断言渲染，后端仍只产出 base64/外链）；配后 `r2:<key>` 拼成可渲染地址 | 评价晒图 R2 对象公网基址（迁移就绪，bucket 未建前留空） |
+| `VITE_R2_PUBLIC_BASE` | build | `.env` / CI 构建参数（R2 bucket 建好并配公网读后才填） | 原样透传 `r2:` 引用（评价图不断言渲染，后端仍只产出 base64/外链）；配后 `r2:<key>` 拼成可渲染地址 | 评价晒图 R2 对象公网基址（迁移就绪，bucket 未建前留空）。**打印服务的后台下载同样读它**：未配置时打印提交的文件条目只显示文件名、不给下载链接 |
 
 ## 为什么把「未配置时行为」写成硬判据
 

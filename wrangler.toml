@@ -20,3 +20,13 @@ database_id = "4bfc0283-d307-4285-9f02-dc230cfe4f5c"
 [[kv_namespaces]]
 binding = "RATE_KV"
 id = "47242e458b0e4922b0238f87e472f0d1"
+
+# R2 对象存储：打印服务上传的文档/图片本体（2026-10-07 新增，端点 functions/upload.js）。
+# D1 只存 `r2:<key>` 不透明引用，文件字节不进数据库。
+# ⚠️ 启用前置：Cloudflare Dashboard 需先启用 R2（账号级开关，实测未启用时报 code:10042），
+#    然后跑 `npx wrangler r2 bucket create supermarket-print-files`，再取消下面三行注释重新部署。
+#    绑定缺席时 /upload 返回 print_storage_unavailable，前端自动降级为小文件内联提交
+#    （单个 ≤512KB，见 src/utils/printUpload.ts）——功能不中断，只是大文件走微信补发。
+# [[r2_buckets]]
+# binding = "PRINT_FILES"
+# bucket_name = "supermarket-print-files"

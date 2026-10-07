@@ -67,7 +67,13 @@
 
 | src/auth.ts | 常量 | BATCH_UPDATE_CHUNK=20 | platform | 前端批量改价分片大小，必须等于服务端 BATCH_UPDATE_MAX=20（那边按 d1_queries_per_invocation_free=50 推导：第五十六轮 E7 起语句数 1+2n ⇒ 41<50）；两侧等值由 tests/batchChunkContract.test.ts 钉住。**本轮随服务端由 40 降为 20**，不同笔就会造成前端一次请求打爆服务端预算 |
 | src/components/admin/ProductInlineEditForm.tsx | 截断型 | 9 | product | 商品图册保存前只提交前 9 张：一屏约 3×3，再多没人翻到。**第三十五轮起服务端 createProduct/updateProduct 对 >9 直接拒（too_many_images）**，前端截断不再独自承担上限 |
-| functions/lib/actions/submissions.js | 拒绝型 | 5 | product | 第三十五轮补的服务端条数 cap，与 ServiceFormPage 的 ≤5 同值（此前只有前端有 cap，直接 POST 可塞任意多张）。不用 d1_statement_bytes 反推：线上实测单条提交 images 最大 442KB（本文件 :37 注释）仍写成功 ⇒ 100KB 只管语句文本、不含绑定参数，拿它当图片上限会得出错误结论 |
+| functions/lib/actions/submissions.js | 常量上限 | MAX_SUBMISSION_FILES | product | 第三十五轮补的服务端条数 cap，与前端同值（此前只有前端有 cap，直接 POST 可塞任意多张）。**2026-10-07 由 5 抬到 9**：打印服务一次要交多页文档，5 个装不下；9 与后台商品图册同值同族。定义移入 `functions/lib/shared.js`，本行只记消费侧。不用 d1_statement_bytes 反推：线上实测单条提交 images 最大 442KB（本文件注释）仍写成功 ⇒ 100KB 只管语句文本、不含绑定参数，拿它当图片上限会得出错误结论 |
+| functions/lib/actions/submissions.js | 常量上限 | MAX_INLINE_PRINT_CHARS | perf | 定义 = 700000 字符（≈512KB 二进制）：打印服务在 R2 未就绪时改走**内联降级**（文件本体入 D1）的单文件上限。依据是同文件那手 442KB 实测（绑定参数不计入 100KB 语句预算），90,000 那把尺对文档过紧；再往上会让单条 INSERT 逼近 Worker 请求体与内存，故止于此 |
+| functions/lib/actions/submissions.js | 常量 | MAX_INLINE_PRINT_CHARS=700000 | perf | 打印服务在 R2 未就绪时改走**内联降级**（文件本体入 D1）的单文件字符上限，约 512KB 二进制。取值依据是同文件那手 442KB 实测（绑定参数不计入 100KB 语句预算），90,000 那把尺对文档过紧；再往上会让单条 INSERT 逼近 Worker 请求体与内存，故止于此 |
+| functions/lib/actions/submissions.js | 常量 | MAX_INLINE_PRINT_TOTAL_CHARS=2000000 | perf | 内联降级下 9 个文件的合计字符上限，约 1.4MB 二进制（≈ 单文件上限 ×3，打印场景实测多为 1~3 个文件、单个几百 KB）。超出即要求改走 R2 或减少张数 |
+| functions/lib/shared.js | 常量 | MAX_SUBMISSION_FILES=9 | product | 服务提交条数上限的定义处（消费侧见 submissions.js 与前端 ServiceFormPage/打印页）。2026-10-07 由 5 抬到 9，动因是打印服务的多页文档；9 与后台商品图册同值同族（一屏 3×3 的可视上界）。前端 `src/data/submissionLimits.ts` 同值，由 tests/printCapParity.test.ts 钉住 |
+| functions/lib/shared.js | 体积型 | 20 | product | `PRINT_FILE_MAX_BYTES` = 20MB：打印单文件上限，压在 Workers 免费档 100MB 请求体之下留 5 倍余量；校园打印实际文件实测 1~8MB。前端 `src/pages/print/print.config.ts` 同值，由 tests/printCapParity.test.ts 钉住 |
+| functions/upload.js | 截断型 | 120 | schema | 上传文件**名**入库前截 120 字：文件名由客户端自报且可任意构造，不设上限即让请求方决定 D1 这一列的行宽（与 orders.js 的 requestId 截 64 同族，取 120 是因为要容得下中文长课件名） |
 | functions/lib/actions/products.js | 拒绝型 | 9 | product | 第三十五轮补：与 ProductInlineEditForm 的 slice(0,9) 同值。服务端从"只查 scheme"升到"也查条数"，两处出口（createProduct/updateProduct）同笔加，缺一侧就会被另一侧绕过 |
 | functions/lib/actions/orders.js | 常量上限 | BATCH | perf | 全表扫描的分页批大小（定义 = 200）；`rows.length < BATCH` 只是"取到底了"的提前退出，不是用户可感上限 ⇒ 记 perf 不记 platform |
 | functions/lib/actions/products.js | 常量上限 | BATCH_UPDATE_MAX | platform | 定义 = 20。第五十六轮 E7 起更新链是 **1+2n** 条语句（预读 1 + 每件 UPDATE + 改到库存时那条流水 INSERT），n=20 ⇒ 41 条，压在 d1_queries_per_invocation_free（免费档 50 查询/调用）之内；与下面 200 不同值是有原因的，不是笔误。**本行上一轮漏改**：同名常量有「常量」与「常量上限」两种形状，当时只改了前者，于是这句还写着 `1+n、n=40 安全`——第五十七轮由新腿 C11 当场抓到（行号与值都是断言） |
@@ -95,7 +101,18 @@
 | src/localStore.ts | 截断型 | 500 | schema | 本地演示模式评价正文截 500 字：对齐服务端 checkPublicText(clean.text, 500)，两侧不一致会出现"云端收、本地丢一半" |
 | src/pages/CustomerPage.tsx | 截断型 | 5 | product | 搜索建议下拉最多 5 条：再长就超出下拉可视区，且顾客本可以直接回车进结果页 |
 | src/pages/OrderConfirmPage.tsx | 体积型 | 5 | product | 付款截图原图 ≤5MB 才进压缩：下单必附凭证的场景实拍常见 2~4MB，5MB 是"明显误传大文件"的分界 |
-| src/pages/ServiceFormPage.tsx | 拒绝型 | 5 | product | 服务提交图片总数 ≤5 张：产品决定。**第三十五轮起服务端 createSubmission 同值拒绝（too_many_images）**，这一行不再是全链唯一 cap ⇒ 两侧同值的契约已成立 |
+| src/pages/ServiceFormPage.tsx | 常量上限 | MAX_SUBMISSION_FILES | product | 服务提交图片总数上限：产品决定。**第三十五轮起服务端 createSubmission 同值拒绝（too_many_images）**，这一行不再是全链唯一 cap ⇒ 两侧同值的契约已成立。**2026-10-07 随服务端由 5 抬到 9**（打印服务驱动，前端常量收口在 `src/data/submissionLimits.ts`） |
+| src/data/submissionLimits.ts | 常量 | MAX_SUBMISSION_FILES=9 | product | 条数上限的**前端定义处**（服务端定义见 `functions/lib/shared.js` 同名常量）。两条构建链不能共享模块 ⇒ 必然双写，同值由 tests/printCapParity.test.ts 钉住；取值 9 的动因与同族对照见 shared.js 那行 |
+| functions/upload.js | 截断型 | 7 | schema | 上传文件 key 的月份段取 ISO 串前 7 位（YYYY-MM）：与看板日期标签那两条同形同因，是**命名粒度**不是容量上限 —— 登记它只是为了让普查面不留洞 |
+| src/pages/print/print.config.ts | 常量 | MAX_PRINT_FILES=9 | product | 打印页自己的张数上限：与 `src/data/submissionLimits.ts` 的 MAX_SUBMISSION_FILES 同源（本文件 re-export 它），不另立一个数；两处同值由 tests/printCapParity.test.ts 钉住 |
+| src/pages/print/print.config.ts | 体积型 | 20 | product | 打印单文件上限 20MB（前端侧镜像）：与 `functions/lib/shared.js` 的 PRINT_FILE_MAX_BYTES 同值，由 tests/printCapParity.test.ts 钉住。选值理由见服务端那行 |
+| src/pages/print/print.config.ts | 体积型 | 512 | perf | `MAX_INLINE_UPLOAD_BYTES` = 512KB：云存储未就绪时**内联降级**的前端侧单文件门槛。必须与服务端 MAX_INLINE_PRINT_CHARS（700,000 字符 ≈ 512KB 二进制）同量纲，否则会出现"前端放行、服务端拒" |
+| src/pages/print/printFormLogic.ts | 常量上限 | MAX_PRINT_FILES | product | 提交前校验的张数上限（消费侧）：与服务端 createSubmission 的 cap 同值，由 tests/printCapParity.test.ts 钉住 |
+| src/pages/print/printFormLogic.ts | 拒绝型 | 50 | schema | 楼栋号/房间号/微信号超 50 字**拒绝**（不是截断）：与服务端 formData 各字段截 50 同值同因，两侧不同值就会出现"前端收下了、入库被悄悄截断" |
+| src/pages/print/printFormLogic.ts | 拒绝型 | 200 | schema | 备注超 200 字拒绝：与服务端 formData 截 200 同值同因（TEXT 列无列宽约束，长度由应用层定） |
+| src/pages/print/printFormLogic.ts | 体积型 | 1024 | schema | formatBytes 的 KB 分档阈值（1024 字节）：纯展示分档，不是准入上限 —— 登记它只是让普查面不留洞 |
+| src/pages/print/PrintForm.tsx | 常量上限 | MAX_PRINT_FILES | product | 上传按钮禁用与"已选 n/9"计数用的同一个常量：屏上提示与真实拒绝必须是同一个数 |
+| src/pages/print/PrintForm.tsx | 截断型 | 200 | schema | 文件名清单入 formData 前截 200：与服务端 formData 单值预算同值，避免"文件多了清单被截断后看不到后面几个" |
 | src/pages/ServiceFormPage.tsx | 体积型 | 10 | product | 单张原图 ≤10MB 门槛：与 ReviewForm 的 10MB 同因（压不动就别上传） |
 | functions/lib/shared.js | 常量 | MAX_STATEMENT_PAYLOAD_CHARS=90000 | platform | 第三十七轮 R37-H2 的唯一一把尺：90,000 = 平台事实 `d1_statement_bytes = 100000 bytes/语句` × (1 − 10% 余量)，余量给 SQL 关键字、items JSON 与转义膨胀。一手实测把改前的三条旧尺全判成虚设 —— 本仓 `public/` 现有 115 张图 base64 后 p50≈29,677 / p90≈103,298 / max≈204,538 字符，**p90 就已越过平台预算**，故 `800 * 1024` 与 `2 * 1024 * 1024` 放行后必然在平台层失败（用户看到"下单失败"而不是"图太大"）。量纲结案：base64 是 ASCII ⇒ 1 字符 = 1 byte，"字符数"与"语句字节数"同尺可比，第十七轮 M5 那句"须先统一量纲再谈等值"到此关闭 |
 | functions/lib/actions/orders.js | 常量上限 | MAX_STATEMENT_PAYLOAD_CHARS | platform | 付款截图单张长度守卫，引用 shared.js 那把尺（不另拍数字）：一条订单 = 一行 INSERT = 一份语句预算；出处 = 平台事实 `d1_statement_bytes = 100000 bytes/语句`（经 `MAX_STATEMENT_PAYLOAD_CHARS` 派生，见 shared.js 那行） |

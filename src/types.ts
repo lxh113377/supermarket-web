@@ -138,7 +138,8 @@ export interface Service {
   name: string
   icon: string
   description: string
-  type?: 'supermarket' | 'form'
+  /** 'print' = 走独立沉浸式页面（/print），不复用通用表单页 */
+  type?: 'supermarket' | 'form' | 'print'
   popup?: string
   hint?: string
   fields?: ServiceField[]

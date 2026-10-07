@@ -144,6 +144,39 @@ export function isSafeImageUrl(url) {
   }
 }
 
+/**
+ * 打印服务的文件引用白名单（2026-10-07 新增，与 isSafeImageUrl 分家而不是改它）。
+ * 为什么另起一个：isSafeImageUrl 同时被评价图、商品图、订单截图消费，把
+ * `data:application/pdf` 塞进去等于**给三条既有链路同时开一个新面**；打印是唯一需要
+ * 收文档的入口，收紧在这一处即可。
+ * 放行三种形态：
+ *  ① `r2:<key>` —— 主路径，文件本体在 R2，D1 只存不透明引用（与 isSafeImageUrl 同正则）；
+ *  ② `data:image/...` —— R2 未就绪时的降级（见下）；
+ *  ③ `data:application/pdf|msword|vnd.openxmlformats-*` —— 同上，仅文档类。
+ * ②③ 统称**内联降级**：R2 绑定缺失（本地 dev / 桶未建）时仍要能下单，代价是文件进 D1，
+ * 因此只放行 ≤ MAX_INLINE_PRINT_BYTES 的小文件（由调用方按字符数核，见 submissions.js）。
+ */
+export function isSafePrintFileRef(ref) {
+  if (typeof ref !== 'string' || !ref) return false
+  if (/^r2:(?!.*\.\.)[A-Za-z0-9/_.-]{1,128}$/.test(ref)) return true
+  if (/^data:image\/(jpeg|png|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(ref)) return true
+  if (/^data:application\/pdf;base64,[A-Za-z0-9+/=]+$/.test(ref)) return true
+  if (/^data:application\/msword;base64,[A-Za-z0-9+/=]+$/.test(ref)) return true
+  if (/^data:application\/vnd\.openxmlformats-officedocument\.[a-z.]+;base64,[A-Za-z0-9+/=]+$/.test(ref)) return true
+  return false
+}
+
+/** 打印服务文件数组校验：语义与 validateImages 一致（非法项返回 null，不静默丢弃）。 */
+export function validateSubmissionFiles(files) {
+  if (!Array.isArray(files)) return []
+  const out = []
+  for (const f of files) {
+    if (typeof f !== 'string' || !isSafePrintFileRef(f)) return null
+    out.push(f)
+  }
+  return out
+}
+
 // 图片数组校验：返回过滤后数组；发现非法项返回 null（调用方拒绝，不静默丢弃）
 export function validateImages(images) {
   if (!Array.isArray(images)) return []

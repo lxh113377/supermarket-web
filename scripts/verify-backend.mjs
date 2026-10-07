@@ -396,12 +396,15 @@ ok(badText.code === -1, 'addPublicReview 注入关键词文本被拒')
 // addPublicReview 的第 4 张返回的是 rate_limited（quota 类，与条数无关），限流桶会顶替 cap 判定。
 const imgReq = (ip) => ({ headers: new Headers({ 'CF-Connecting-IP': ip }) })
 const manyImgs = (n) => Array.from({ length: n }, () => 'data:image/jpeg;base64,/9j/4AAQSkZJRg==')
-const sub6 = await handlePublic(env, 'createSubmission', { serviceId: 'svc_x', serviceName: '空调维修', images: manyImgs(6) }, imgReq('10.90.0.1'))
-ok(sub6.errorCode !== 'rate_limited', 'createSubmission 6 张探针未撞限流桶（前提自证）')
-ok(sub6.code === -1 && sub6.errorCode === 'too_many_images', `createSubmission 第 6 张被拒（实得 errorCode=${sub6.errorCode}）`)
-const sub5 = await handlePublic(env, 'createSubmission', { serviceId: 'svc_x', serviceName: '空调维修', images: manyImgs(5) }, imgReq('10.90.0.2'))
-ok(sub5.errorCode !== 'rate_limited', 'createSubmission 5 张探针未撞限流桶（前提自证）')
-ok(sub5.code === 0, `createSubmission 5 张图通过（cap 边界 =5 合法；正向腿，实得 code=${sub5.code}）`)
+// cap 边界 5 → 9（2026-10-07）：打印服务一次要交多页文档，条数上限抬到 9，与后台商品图册同值。
+// 探针跟着抬到 9/10：只抬常量不抬探针，这条腿就会把合法的第 6~9 张当成回归报红
+// （这正是刚发生的实况：改为 9 后本探针首跑即红，且报错文案还是旧值）。
+const sub10 = await handlePublic(env, 'createSubmission', { serviceId: 'svc_x', serviceName: '空调维修', images: manyImgs(10) }, imgReq('10.90.0.1'))
+ok(sub10.errorCode !== 'rate_limited', 'createSubmission 10 张探针未撞限流桶（前提自证）')
+ok(sub10.code === -1 && sub10.errorCode === 'too_many_images', `createSubmission 第 10 张被拒（实得 errorCode=${sub10.errorCode}）`)
+const sub5 = await handlePublic(env, 'createSubmission', { serviceId: 'svc_x', serviceName: '空调维修', images: manyImgs(9) }, imgReq('10.90.0.2'))
+ok(sub5.errorCode !== 'rate_limited', 'createSubmission 9 张探针未撞限流桶（前提自证）')
+ok(sub5.code === 0, `createSubmission 9 张图通过（cap 边界 =9 合法；正向腿，实得 code=${sub5.code}）`)
 const rev4 = await handlePublic(env, 'addPublicReview', { productOrder: 1, user: 'x', rating: 5, text: '好', images: manyImgs(4) }, imgReq('10.90.0.3'))
 ok(rev4.errorCode !== 'rate_limited', 'addPublicReview 4 张探针未撞限流桶（前提自证）')
 ok(rev4.code === -1 && rev4.errorCode === 'too_many_images', `addPublicReview 第 4 张被拒（实得 errorCode=${rev4.errorCode}）`)

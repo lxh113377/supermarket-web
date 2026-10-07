@@ -27,6 +27,9 @@ const port = Number(arg('port', 5182))
 
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.webp': 'image/webp', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.jpg': 'image/jpeg', '.map': 'application/json' }
 
+// /upload 桩的计数器（只用于生成不重复的假 key，见下方 handler 注释）
+let uploadSeq = 0
+
 // 与 functions/lib/actions/stats.js 的返回口径对齐（字段缺一个就是另一回事，别用 any 糊过去）
 const STATS = {
   rangeDays: 90,
@@ -69,6 +72,21 @@ function dispatch(action) {
 
 const server = createServer(async (req, res) => {
   const url = (req.url || '/').split('?')[0]
+  // 打印文件直传桩（2026-10-07）：生产实现是 Pages Functions 的 /upload（multipart → R2）。
+  // 本桩不落盘、只回一个假 key —— 让 `serve:stub` 模式下打印页能走**直传路径**（而不是
+  // 前端降级到内联），从而把"上传成功 → 提交带 r2: 引用 → 后台显示下载入口"整条链在本地演完。
+  // 假 key 形如 stub-<n>.pdf：后台 resolvePrintFileUrl 因 VITE_R2_PUBLIC_BASE 未配而显示"未配置下载基址"，
+  // 这正是预期的降级形态，不算 bug。
+  if (req.method === 'POST' && url === '/upload') {
+    const chunks = []
+    for await (const c of req) chunks.push(c)
+    const n = ++uploadSeq
+    const payload = JSON.stringify({ code: 0, data: { key: `stub/2026-10/local-${n}.bin`, size: chunks.reduce((s, c) => s + c.length, 0) } })
+    res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': '*' })
+    res.end(payload)
+    console.log(`[stub] /upload -> ${payload.length}B (${chunks.reduce((s, c) => s + c.length, 0)}B body)`)
+    return
+  }
   if (req.method === 'POST' && (url === '/web' || url === '/pub')) {
     let body = ''
     req.on('data', (c) => { body += c })

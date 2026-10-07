@@ -30,9 +30,22 @@ function classify(license) {
   return 'unknown' // 未识别一律拦下来人工看，防"没见过=没问题"
 }
 
+const phantom = []
+
 function walk(tree, key, acc) {
   for (const [name, info] of Object.entries(tree?.dependencies || {})) {
     if (info.extraneous) continue // 本机 node_modules 残留（如历史 optional 二进制）不代表 lock 依赖，CI 的 npm ci 树里没有它
+    // 未安装的可选 peer（2026-10-07 打印页引入 three 生态后实测）：npm ls --all 会把
+    // `@react-three/fiber → expo / react-native`、`zustand → immer`、`lenis → vue / @nuxt/kit`
+    // 这类 optional peerDependencies 列成**空对象 {}**（无 version、磁盘上无包文件）。
+    // 它们根本没被安装 ⇒ 不在 lock 解析出的安装树里 ⇒ 不进发布物，按许可口径不该有发言权；
+    // 但原实现把它们算进分母并报「未知 → 未找到包文件」，于是任何带可选 peer 的依赖都装不进来。
+    // 判据收紧为「无 version **且** 磁盘上确实没有包文件」——两者缺一仍照旧进分母，
+    // 不把"真缺依赖"也一并豁免（与 :55 零分母 fail-closed 同一口径）。跳过项逐条打印，不静默。
+    if (!info.version && !existsSync(path.join(ROOT, 'node_modules', name, 'package.json'))) {
+      phantom.push(name)
+      continue
+    }
     const id = `${name}@${info.version || '?'}`
     if (!acc.has(id)) acc.set(id, info.license ?? info.link ?? '')
     if (info.dependencies) walk(info, name, acc)
@@ -70,6 +83,10 @@ for (const [id] of pkgs) {
   }
   const c = classify(lic)
   if (c !== 'allow') bad.push(`${c === 'deny' ? '禁止' : '未知'} ${id} → ${lic || '(无 license 字段)'}`)
+}
+const uniqPhantom = [...new Set(phantom)].sort()
+if (uniqPhantom.length) {
+  console.log(`[licenses] 跳过 ${uniqPhantom.length} 个未安装的可选 peer（无 version 且磁盘无包文件，不进发布物）：${uniqPhantom.join(', ')}`)
 }
 if (bad.length) {
   console.error(`[licenses] ${bad.length}/${pkgs.size} 个生产依赖许可不在白名单：`)

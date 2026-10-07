@@ -11,6 +11,7 @@ export const routeLoaders = {
   home: () => import('./pages/HomePage'),
   category: () => import('./pages/CategoryPage'),
   service: () => import('./pages/ServiceFormPage'),
+  print: () => import('./pages/print/PrintPage'),
   shop: () => import('./pages/CustomerPage'),
   product: () => import('./pages/ProductDetailPage'),
   cart: () => import('./pages/CartPage'),

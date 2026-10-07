@@ -1,0 +1,183 @@
+/* ============================================================
+   打印页（/print）：深色影院感 + 霓虹光带
+   —— 刻意独立于站内其他页面的视觉语言，故单独一段，不复用 brand 暖黄体系。
+   动画全部走 CSS 类（不用内联 style）：CSP 禁 style 属性，且 Tailwind 无对应工具类。
+
+   ⚠️ 必须留在**本文件**而不是 src/index.css：index.css 是首屏 CSS（单文件、全量下发），
+   把这一百多行塞进去会推高 firstLoadCss 预算，让**每个没访问打印页的顾客**为它付流量。
+   放在这里后 Vite 会把编译结果挂到 /print 的懒加载 chunk 上，随路由才下载。
+   ============================================================ */
+
+/* 页面底色：近黑蓝 → 深靛，叠两条霓虹光晕 */
+.print-bg {
+  background:
+    radial-gradient(120% 80% at 15% 0%, rgba(110, 231, 255, 0.16) 0%, transparent 55%),
+    radial-gradient(100% 70% at 85% 15%, rgba(168, 85, 247, 0.18) 0%, transparent 60%),
+    linear-gradient(180deg, #05070d 0%, #0b1020 45%, #141b33 100%);
+}
+
+/* 满屏区块。
+   ⚠️ 不用 Tailwind 的 min-h-[100svh]：本仓 Tailwind 3.4 的 JIT 实测没有为这个任意值生成规则
+   （浏览器里查不到对应 cssRule，computed minHeight = 0），整页塌成 1134px、滚动进度全错。
+   自己写并带 vh 回退，screenshot 实测本条才可靠。 */
+.print-section {
+  min-height: 100vh;
+}
+@supports (min-height: 100svh) {
+  .print-section {
+    min-height: 100svh;
+  }
+}
+
+/* 遮罩式入场：整块向上抽离，露出 hero（稳定优先方案，不做共享元素） */
+@keyframes print-mask-rise {
+  0%   { transform: translateY(0); }
+  100% { transform: translateY(-100%); }
+}
+.print-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: #05070d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 18px;
+}
+.print-mask--out { animation: print-mask-rise 0.9s cubic-bezier(0.76, 0, 0.24, 1) forwards; }
+
+/* 出场遮罩（跳转过渡用）：反向落下盖住页面 */
+@keyframes print-mask-fall {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(0); }
+}
+.print-mask--in { animation: print-mask-fall 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+
+/* splash 中央光点脉冲 */
+@keyframes print-core-pulse {
+  0%, 100% { transform: scale(0.85); opacity: 0.55; }
+  50%      { transform: scale(1.15); opacity: 1; }
+}
+.print-core {
+  width: 74px;
+  height: 74px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 35% 30%, #6ee7ff 0%, #a855f7 55%, #ff3d9a 100%);
+  box-shadow: 0 0 60px rgba(110, 231, 255, 0.55), 0 0 120px rgba(168, 85, 247, 0.35);
+  animation: print-core-pulse 1.6s ease-in-out infinite;
+}
+
+/* 霓虹进度条 */
+@keyframes print-bar-sheen {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(300%); }
+}
+.print-bar {
+  position: relative;
+  width: 168px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(242, 246, 255, 0.14);
+  overflow: hidden;
+}
+.print-bar > i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #6ee7ff, #a855f7, #ff3d9a);
+  transition: width 0.25s ease-out;
+}
+.print-bar--done > i::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  background: rgba(255, 255, 255, 0.85);
+  animation: print-bar-sheen 0.9s ease-in-out infinite;
+}
+
+/* 玻璃拟态卡片（承载表单与文案） */
+.print-glass {
+  background: linear-gradient(160deg, rgba(20, 27, 51, 0.86) 0%, rgba(11, 16, 32, 0.72) 100%);
+  border: 1px solid rgba(110, 231, 255, 0.16);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  box-shadow: 0 18px 60px -18px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* 霓虹描边（hover 时增强） */
+.print-neon-edge {
+  border: 1px solid rgba(168, 85, 247, 0.28);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.25s ease;
+}
+.print-neon-edge:hover {
+  border-color: rgba(110, 231, 255, 0.65);
+  box-shadow: 0 0 0 1px rgba(110, 231, 255, 0.2), 0 12px 40px -12px rgba(110, 231, 255, 0.55);
+}
+
+/* 标题渐变字 */
+.print-title {
+  background: linear-gradient(100deg, #f2f6ff 0%, #6ee7ff 45%, #a855f7 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* 向下滚动的呼吸指示线 */
+@keyframes print-scroll-hint {
+  0%   { transform: translateY(-8px); opacity: 0; }
+  40%  { opacity: 1; }
+  100% { transform: translateY(22px); opacity: 0; }
+}
+.print-scroll-hint {
+  width: 1px;
+  height: 34px;
+  background: linear-gradient(180deg, transparent, #6ee7ff);
+  animation: print-scroll-hint 2.2s ease-in-out infinite;
+}
+
+/* 章节文案入场（单向：一旦揭示就不再回退，由 JS 打上 --shown 后保持） */
+@keyframes print-reveal {
+  0%   { opacity: 0; transform: translateY(26px) scale(0.98); filter: blur(6px); }
+  100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+.print-reveal {
+  opacity: 0;
+}
+.print-reveal--shown {
+  animation: print-reveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* 上传成功的勾 */
+@keyframes print-check {
+  0%   { transform: scale(0.4); opacity: 0; }
+  60%  { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.print-check { animation: print-check 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* 无 WebGL / reduced-motion 时的静态降级背景 */
+.print-bg--static {
+  background:
+    radial-gradient(120% 60% at 50% 0%, rgba(110, 231, 255, 0.12) 0%, transparent 60%),
+    linear-gradient(180deg, #05070d 0%, #0b1020 50%, #141b33 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .print-core,
+  .print-scroll-hint,
+  .print-bar--done > i::after {
+    animation: none;
+  }
+  .print-reveal--shown {
+    animation: none;
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+  .print-mask--out,
+  .print-mask--in {
+    animation-duration: 0.01s;
+  }
+}

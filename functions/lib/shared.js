@@ -35,6 +35,22 @@ const SUBMISSION_FIELDS = ['serviceId', 'serviceName', 'categoryId', 'categoryNa
  */
 export const MAX_STATEMENT_PAYLOAD_CHARS = 90_000
 
+/**
+ * 单条服务提交可带的文件/图片条数上限。
+ * 2026-10-07 由 5 抬到 9：打印服务（serviceId='print'）一次要交多页文档（实习证明/论文/
+ * 课件分章节），5 个装不下；抬到 9 与后台商品图册的 9 同值同族（一屏 3×3 的可视上界）。
+ * 不是平台约束 ⇒ 取值类别 product，登记见 docs/limit-provenance.md。
+ * 单条体积仍受 MAX_STATEMENT_PAYLOAD_CHARS 兜底，抬条数不会放大单条 D1 语句。
+ */
+export const MAX_SUBMISSION_FILES = 9
+
+/**
+ * 打印服务单文件上限（字节）。取值 product：校园打印的实际文件量级实测远小于此
+ * （一份 PDF 课件通常 1~8MB），20MB 是给"扫描件 + 高清图"留的余量；
+ * 同时压在 Cloudflare Workers 免费档 100MB 请求体之下，留出 5 倍安全系数。
+ */
+export const PRINT_FILE_MAX_BYTES = 20 * 1024 * 1024
+
 export {
   PRODUCT_FIELDS,
   ORDER_FIELDS,

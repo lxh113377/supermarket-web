@@ -7,6 +7,7 @@ import ServiceHintCard from '../components/service/ServiceHintCard'
 import ServicePopup from '../components/service/ServicePopup'
 import type { ServiceCategory } from '../types'
 import { compressImageFile } from '../utils/imageCompress'
+import { MAX_SUBMISSION_FILES } from '../data/submissionLimits'
 
 export default function ServiceFormPage() {
   const { serviceId } = useParams()
@@ -58,8 +59,8 @@ export default function ServiceFormPage() {
       if (f.size > 10 * 1024 * 1024) { setError('单张图片不能超过10MB'); return false }
       return true
     })
-    if (images.length + valid.length > 5) {
-      setError('最多上传5张图片')
+    if (images.length + valid.length > MAX_SUBMISSION_FILES) {
+      setError(`最多上传${MAX_SUBMISSION_FILES}张图片`)
       e.target.value = ''
       return
     }
@@ -255,7 +256,7 @@ export default function ServiceFormPage() {
                     >
                       <span className="block text-2xl mb-2" aria-hidden="true">📷</span>
                       <span className="font-medium">点击上传截图</span>
-                      <span className="block text-xs text-gray-300 mt-1">至少{field.minCount || 1}张，最多5张</span>
+                      <span className="block text-xs text-gray-300 mt-1">至少{field.minCount || 1}张，最多{MAX_SUBMISSION_FILES}张</span>
                     </button>
                     <input
                       ref={fileInputRef}

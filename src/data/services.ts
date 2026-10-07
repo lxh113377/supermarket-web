@@ -191,6 +191,17 @@ export const SERVICES: Service[] = [
       { key: 'remark', label: '备注', type: 'text', required: false, placeholder: '选填，有其他需求可以写在这里' },
     ],
   },
+  {
+    // 打印：走独立沉浸式页面（/print 路由），不复用 ServiceFormPage。
+    // 该页视觉与站内其他页面刻意不同（深色影院感 + 3D 实景导航），故不在 SERVICES 里带 fields ——
+    // 字段定义收口在 src/pages/print/print.config.ts，避免同一份表单有两处真源。
+    id: 'print',
+    categoryId: 'study',
+    name: '打印',
+    icon: '🖨️',
+    description: '文档照片上传，送到宿舍门口',
+    type: 'print',
+  },
   // ===== 其他 =====
   {
     id: 'cooperate',
