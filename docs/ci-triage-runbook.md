@@ -54,7 +54,7 @@ Windows GCM 里本来就有；并让 gh 腿排在前面。**教训**：归因"�
 | job `failure` + `steps=0` + 4~6 秒 | 没拿到 runner，与提交内容无关 | run `36110097808`（两 attempt）、`36111760145`、探针 `36115775548` 全如此 |
 | 同上，且**本仓零改动**的 workflow 也这样 | 排除"我的改动导致" | `uptime.yml`（最后变更 `5fda761`）dispatch 后 `probe` 同样 0 step / 3 秒 |
 | 多个**互不相关**私有仓同时这样 | 账号级，不是仓级 | 5 个私有仓 29 个 run 全 0 step，0 success（2026-09-25 当时的现场证据；**本仓现已 public**，见下 §4.3 与本文件顶部状态注） |
-| `deploy` = `skipped` | 闸门**在正常工作**（needs 上游红） | 本轮起 `deploy.needs = [build-and-test, e2e, e2e-cloud-stub]` |
+| `deploy` = `skipped` | 闸门**在正常工作**（needs 上游红） | 现行 `deploy.needs = [gates, e2e, e2e-cloud-stub, visual]`（2026-10-08 分层后：快链 job 由 `build-and-test` 更名为 `gates`，深门禁移入 `ci-deep.yml` 且不在 deploy 的必需面内） |
 | run 的 logs 包是 22 字节空 zip | 确无任何 step 执行过 | 两个失败 run 实测 |
 | 入口 bundle 名没变 | **不能**证明没上线（纯资源/文案改动不改哈希） | 判"上没上"只看 `sw.js` 的 `CACHE_VERSION`（坑 32） |
 

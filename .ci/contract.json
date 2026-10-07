@@ -1,8 +1,8 @@
 {
   "branch": "main",
   "workflow": "CI",
-  "requiredJobs": ["build-and-test", "e2e", "e2e-cloud-stub", "visual", "deploy"],
+  "requiredJobs": ["gates", "e2e", "e2e-cloud-stub", "visual", "deploy"],
   "graceMinutes": 90,
   "escapeHatch": "CI_GREEN_SKIP",
-  "why": "pre-push 只认远端回执（gh run view 的 conclusion/jobs），不认本地退出码。实证代价：d1RoundTrips 缺 @vitest-environment node 让 CI 连红 7 个 commit、deploy 被 needs 掐住，而期间的报告写着 CI 全绿。"
+  "why": "pre-push 只认远端回执（gh run view 的 conclusion/jobs），不认本地退出码。实证代价：d1RoundTrips 缺 @vitest-environment node 让 CI 连红 7 个 commit、deploy 被 needs 掐住，而期间的报告写着 CI 全绿。2026-10-08 分层 CI：build-and-test 拆为 gates（快链）+ ci-deep.yml（独立深门禁链，不在本契约的必需面内 —— 它不挡 deploy）；**job 改名必须同笔改本文件**，否则 verdictOf 判 BLOCKED「缺少必需 job」（改名当天实测：旧名单让普通推送必被挡，只有逃生门能过）。该同步现已由 tests/ciWorkflow.test.ts 的桥接判据钉住。"
 }

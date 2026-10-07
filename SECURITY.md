@@ -58,7 +58,7 @@
   新增/扩权 secret 属仓库管理员决定，Agent 侧不擅动（读数拿不到就写"未观测"，绝不按"已满足"计——
   这点对标 `ossf/scorecard`，它在无 admin token 时按满足计分，我们是台账不是评分器）。
 - **要把它变成真强制**（用户侧一步）：Settings → Branches → Add branch protection rule for `main`，
-  勾选 *Require a pull request before merging* 与 *Require status checks to pass*（`build-and-test`、`deploy`）。
+  勾选 *Require a pull request before merging* 与 *Require status checks to pass*（`gates`、`deploy`）。
   开完后本判据应转 `ENFORCED`，`docs/cli-entrypoints.md` 与轮次报告的挂账随之销账。
 
 ## 备份与恢复现状（机器在册，不靠记忆）

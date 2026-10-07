@@ -321,10 +321,10 @@ export function selfCheckGhost () {
  * 只测拒绝侧的判据会把真话永久拦死，逼人改用绕法；这条每次运行都自证一次（零外部依赖）。
  */
 export function selfCheckAdmission() {
-  const jobs = ['build-and-test', 'deploy']
+  const jobs = ['gates', 'deploy']
   const good = [{
     name: 'good.md',
-    text: '## 9. 远端回执\n\n| 事 | 回执 |\n|---|---|\n| 本轮 H-1 **已上线** | run `37228542182` `completed/success`；`build-and-test` success、`deploy` success；`/_health` 返回 {"deploy":"ecdc92d"} |\n',
+    text: '## 9. 远端回执\n\n| 事 | 回执 |\n|---|---|\n| 本轮 H-1 **已上线** | run `37228542182` `completed/success`；`gates` success、`deploy` success；`/_health` 返回 {"deploy":"ecdc92d"} |\n',
   }]
   const bad = [
     { name: 'bad.md', text: '## 4. 改进建议\n\n| # | 状态 |\n|---|---|\n| H-1 | **本轮已上线** |\n' },

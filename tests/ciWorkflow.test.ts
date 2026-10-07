@@ -71,6 +71,17 @@ describe('deploy 的阻断链（注释说阻断不算，看 needs）', () => {
     expect(NEEDS.length).toBe(gates.length)
   })
 
+  // 桥接判据（2026-10-08 补）：分层 CI 把 build-and-test 改名为 gates 时，**没人在看**
+  // `.ci/contract.json` 的 requiredJobs —— 该文件是跨项目 CI 全绿契约的必需 job 名单，
+  // pre-push 的 verdictOf 对不上的 job 判 BLOCKED「缺少必需 job」（改名当天：普通推送必被挡，
+  // 只有逃生门能过）。ciWorkflow 只看 ci.yml 内部一致性、ciGreenContract 只看契约自身自洽，
+  // 两张网之间正好漏掉这条缝。本判据把两张网缝上：ci.yml 的 job 集合 ⇄ 契约必需 job 逐项相等。
+  it('契约必需 job 名单 ⇄ ci.yml 实际 job 集合逐项相等（改名/增删 job 必须同笔改 .ci/contract.json）', () => {
+    const contract = JSON.parse(readFileSync(join(WF_DIR, '..', '..', '.ci', 'contract.json'), 'utf8')) as { requiredJobs?: string[] }
+    expect(Array.isArray(contract.requiredJobs), '.ci/contract.json 的 requiredJobs 不是数组').toBe(true)
+    expect(new Set(contract.requiredJobs)).toEqual(new Set(JOBS))
+  })
+
   it('其余 workflow 是独立链（不经 deploy），必须显式声明，勿误当阻断门禁', () => {
     const standalone = allWorkflows
       .filter(([f]) => f !== 'ci.yml')

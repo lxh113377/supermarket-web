@@ -22,8 +22,8 @@ import {
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SCRIPT = resolve(ROOT, 'scripts', 'check-delivery-claims.mjs')
-const JOBS = ['build-and-test', 'e2e', 'e2e-cloud-stub', 'visual', 'deploy']
-const GOOD = '## 9. 远端回执\n\n| 事 | 回执 |\n|---|---|\n| H-1 **已上线** | run `37228542182`，`completed/success`；`build-and-test` success、`e2e` success、`e2e-cloud-stub` success、`visual` success、`deploy` success |\n'
+const JOBS = ['gates', 'e2e', 'e2e-cloud-stub', 'visual', 'deploy']
+const GOOD = '## 9. 远端回执\n\n| 事 | 回执 |\n|---|---|\n| H-1 **已上线** | run `37228542182`，`completed/success`；`gates` success、`e2e` success、`e2e-cloud-stub` success、`visual` success、`deploy` success |\n'
 const BAD = '## 4. 改进建议清单\n\n| # | 状态 |\n|---|---|\n| H-1 | **本轮已上线** |\n'
 const MENTION = '## 3. 逐项差距\n\n- 「已交付」的判定从来没有被机器管住；把"已推送"当"已上线"是上一轮的病。\n'
 const MEASURE = '## 6. 证据与时刻\n\n| 主张 | 取证 |\n|---|---|\n| 读日志 | 该日志是 UTF-16LE ⇒ 普通文本搜索**搜不到** `VERIFY_RC` |\n'
@@ -91,7 +91,7 @@ describe('receiptsOf：回执三件套逐半都有断言', () => {
     expect(r.ok).toBe(true)
   })
   it('run 号与结论都在、但必需 job 只点名一半 ⇒ 不 ok，且缺的那半被点名', () => {
-    const r = receiptsOf('run `37228542182` completed/success；build-and-test success', ['build-and-test', 'e2e-cloud-stub'])
+    const r = receiptsOf('run `37228542182` completed/success；gates success', ['gates', 'e2e-cloud-stub'])
     expect(r.hasRun && r.hasConclusion).toBe(true)
     expect(r.ok).toBe(false)
     expect(r.missingJobs).toEqual(['e2e-cloud-stub'])

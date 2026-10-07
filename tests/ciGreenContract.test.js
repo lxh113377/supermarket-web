@@ -29,7 +29,9 @@ describe('契约文件本身在册且自洽', () => {
   })
   it('requiredJobs 必须含 deploy —— 只盯测试 job 会漏掉"绿了但没发出去"这种形态', () => {
     expect(contract.requiredJobs).toContain('deploy')
-    expect(contract.requiredJobs).toContain('build-and-test')
+    // 2026-10-08 分层 CI：build-and-test 拆为 gates（快链 job）。
+    // 与 ci.yml 的逐项对账在 tests/ciWorkflow.test.ts 的桥接判据里（本文件只管契约自身自洽）。
+    expect(contract.requiredJobs).toContain('gates')
   })
   it('反例：契约文件缺失或 JSON 坏掉 ⇒ UNKNOWN（不是默默放行）', () => {
     expect(verdictOf({ sha: SHA, runs: [run({ jobs: allJobs() })], contract: null }).state).toBe('UNKNOWN')
