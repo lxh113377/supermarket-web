@@ -444,7 +444,12 @@ function main() {
     ])
   }
 
-  const roots = [root, join(root, '..')]
+  // 两个 git 根默认 = 代码仓 + 其同级工作区仓。`DELIVERY_CLAIMS_ROOTS` 是**测试注入口**：
+  // CI 的 `actions/checkout` 缺省 depth=1，本机才有的孤儿对象在那儿根本不存在（第七十一轮 CI 一手：
+  // `f5b22d2` 在 CI 上判 unknown 而非 ghost，于是"幽灵必须判红"那条 CLI 腿在 CI 上静默空过）。
+  // 夹具自带一棵真 git 仓，两条通道才真的同形。
+  const rootsEnv = String(process.env.DELIVERY_CLAIMS_ROOTS || '').split(',').map((s) => s.trim()).filter(Boolean)
+  const roots = rootsEnv.length ? rootsEnv : [root, join(root, '..')]
   const resolveFn = makeGitShaResolver(roots)
   // 存量册是**版面**的：它按默认取数面（../deliverables）建行。夹具面（--dir 指到别处）拿来对账，
   // 会把册上 51 行全部读成"死行"⇒ 每个夹具测试当场误判。所以非默认面默认不装载，并在门面行说清为什么。

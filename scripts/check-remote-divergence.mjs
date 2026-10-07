@@ -172,6 +172,23 @@ export function ledgerFrom(snap) {
   }
 }
 
+/** 台账读取：文件在但读不出/解不出 ⇒ 一律具名失败，**禁把崩栈交给调用方**。
+ *  一手（第七十一轮 CI 实测）：零分母探针把 `docs/remote-divergence.json` 造成 0 字节，
+ *  `JSON.parse('')` 直接抛 SyntaxError，探针首行拿到 `<anonymous_script>:1` ⇒ 失败路径自己也会失败。 */
+function readLedger(p) {
+  if (!existsSync(p)) return { ledger: null, error: null }
+  let raw
+  try { raw = readFileSync(p, 'utf8') } catch (e) { return { ledger: null, error: `读不出 ${p}（${String(e && e.message || e).split('\n')[0]}）` } }
+  if (!raw.trim()) return { ledger: null, error: `${p} 是 0 字节 ⇒ 读不出结构，不按"没有未推送"处理` }
+  try {
+    const j = JSON.parse(raw)
+    if (!j || typeof j !== 'object') return { ledger: null, error: `${p} 解出来不是对象` }
+    return { ledger: j, error: null }
+  } catch (e) {
+    return { ledger: null, error: `${p} 解析失败（${String(e && e.message || e).split('\n')[0]}）` }
+  }
+}
+
 function main() {
   const argv = process.argv.slice(2)
   const update = argv.includes('--update')
@@ -182,7 +199,10 @@ function main() {
 
   let snap, ledger
   if (fxIdx !== -1) {
-    const f = JSON.parse(readFileSync(argv[fxIdx + 1], 'utf8'))
+    let f
+    try { f = JSON.parse(readFileSync(argv[fxIdx + 1], 'utf8')) } catch (e) {
+      console.error(`[remote-divergence] BLOCKED --fixture 读不出/解不出（${String(e && e.message || e).split('\n')[0]}）⇒ 没有输入就不判`); process.exit(2)
+    }
     snap = f.snapshot
     // 夹具把"这笔推出去了没"做成一张表：`isPushed: [sha...]`。没有这张表时 judge 的 R4 走未验证分支。
     if (Array.isArray(f.isPushed)) snap = { ...snap, isPushedFn: (s) => f.isPushed.includes(s) }
@@ -194,7 +214,9 @@ function main() {
       return { rc: r.status, stdout: r.stdout || '', stderr: r.stderr || '' }
     }
     snap = collect({ repo, branch: process.env.DIVERGENCE_BRANCH || 'main', gitFn })
-    ledger = existsSync(LEDGER) ? JSON.parse(readFileSync(LEDGER, 'utf8')) : null
+    const rl = readLedger(LEDGER)
+    if (rl.error) { console.error(`[remote-divergence] BLOCKED 台账不可用：${rl.error}`); process.exit(2) }
+    ledger = rl.ledger
   }
   if (inj) {
     // 演习注入的是 R4 的幽灵分支：往册前塞一枚**当次已能走到**的 sha。用真孤儿 `f5b22d2` 不行 ——

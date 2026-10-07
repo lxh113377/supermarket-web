@@ -37,6 +37,29 @@ const runCli = (args, env = {}) => {
   return assertCliRan(r, { label: `check-delivery-claims ${args.join(' ')}`, budgetMs: 60_000 })
 }
 
+/**
+ * 现场造一棵**真 git 仓**并留下一枚真孤儿（第七十一轮 CI 一手）：
+ * CI 的 `actions/checkout` 缺省 depth=1，本仓历史上那枚 `f5b22d2` 在 runner 上根本不存在 ⇒
+ * "幽灵必须判红"那条 CLI 腿在 CI 上会静默走 unknown 分支（假绿）。
+ * 夹具自带仓库 ⇒ 判的是逻辑，不是本机历史深浅。手法就是本轮定罪的那一个：commit 后 --amend。
+ */
+function orphanRepo () {
+  const path = mkdtempSync(join(ROOT, 'node_modules', '.tmp-r71-repo-'))
+  const g = (args) => spawnSync('git', ['-C', path, ...args], { encoding: 'utf8', windowsHide: true })
+  const must = (r, what) => {
+    if (!r || r.status !== 0) throw new Error(`${what} 失败：${String((r && (r.stderr || r.error && r.error.message)) || '').split('\n')[0].slice(0, 180)}`)
+    return r
+  }
+  const id = ['-c', 'user.email=fixture@example.invalid', '-c', 'user.name=fixture']
+  must(g(['init', '-q', '--initial-branch=main']), 'git init')
+  must(g([...id, 'commit', '-q', '--allow-empty', '-m', '第一笔（稍后被 amend 顶掉）']), 'commit#1')
+  const orphan = must(g(['rev-parse', 'HEAD']), 'rev-parse').stdout.trim()
+  must(g([...id, 'commit', '-q', '--amend', '--allow-empty', '-m', '第二笔（真身）']), 'commit#1 --amend')
+  const head = must(g(['rev-parse', 'HEAD']), 'rev-parse#2').stdout.trim()
+  if (orphan === head) throw new Error('amend 没换出 sha，孤儿夹具不成立')
+  return { path, orphan, head }
+}
+
 describe('sectionsOf / claimHits：主张与"讨论这个词"必须分得开', () => {
   it('按标题切段：一段 = 标题到下一标题之前', () => {
     const secs = sectionsOf('front matter\n## A\naaa\n## B\nbbb\n')
@@ -280,15 +303,21 @@ describe('D5 存量指纹册：双向差集两个方向都要拦，且键不许�
 })
 
 describe('D5 CLI：真实面与夹具面分开对待（存量册是版面的）', () => {
-  it('夹具面 + 空册 ⇒ rc=1，并把幽灵 sha 的所在文件与 sha 本体一起点名', () => {
-    const dir = writeFix(tmpDir(), { 'a.md': '## 7. 交付回执\n\n- **内层提交**：`f5b22d2`（工作树干净）\n' })
+  it('夹具自带一棵真 git 仓 ⇒ 孤儿 sha 判红在 CI 与本机同形（不依赖仓库历史深浅）', () => {
+    const { path, orphan, head } = orphanRepo()
+    const dir = writeFix(tmpDir(), { 'a.md': `## 7. 交付回执\n\n- **内层提交**：\`${orphan}\`（工作树干净）\n` })
     const base = join(dir, 'base.json')
     writeFileSync(base, '{"schema":"t","rows":[]}\n', 'utf8')
-    const r = runCli(['--dir', dir, '--baseline', base])
-    expect(r.status).toBe(1)
-    const out = String(r.stdout) + String(r.stderr)
-    expect(out).toContain('幽灵 sha `f5b22d2`')
-    expect(out).toContain('a.md')
+    const r = runCli(['--dir', dir, '--baseline', base], { DELIVERY_CLAIMS_ROOTS: path })
+    expect(r.status, `${r.stdout}${r.stderr}`).toBe(1)
+    expect(String(r.stdout) + String(r.stderr)).toContain(`幽灵 sha \`${orphan}\``)
+    // 反向那一半：同一行补上"幽灵标注 + 一枚可达真锚"⇒ 就地更正必须放行
+    const fixed = writeFix(tmpDir(), { 'a.md': `## 7. 交付回执\n\n- **内层提交**：\`${head}\`；原文写 \`${orphan}\`，那枚是幽灵 sha，已被 --amend 顶掉\n` })
+    const fb = join(fixed, 'base.json')
+    writeFileSync(fb, '{"schema":"t","rows":[]}\n', 'utf8')
+    const ok = runCli(['--dir', fixed, '--baseline', fb], { DELIVERY_CLAIMS_ROOTS: path })
+    expect(ok.status, `${ok.stdout}${ok.stderr}`).toBe(0)
+    expect(String(ok.stdout)).toContain('已就地更正 1')
   })
   it('夹具面不载默认存量册 ⇒ 干净夹具仍 rc=0（回归：拿默认面对账会把整册读成死行，夹具全灭）', () => {
     const dir = writeFix(tmpDir(), { 'a.md': GOOD })
@@ -296,12 +325,24 @@ describe('D5 CLI：真实面与夹具面分开对待（存量册是版面的）'
     expect(r.status).toBe(0)
     expect(String(r.stdout)).toContain('基线未装载')
   })
-  it('真实面 ⇒ 必须印出 D5 的三个分面计数与存量在册数，且本机走的是阻断档', () => {
+  it('真实面 ⇒ 有版面就印 D5 三个分面计数，没版面（CI 只检出代码仓）就必须说"未观测"', () => {
     const r = runCli([])
     const out = String(r.stdout) + String(r.stderr)
+    if (/UNVERIFIED/.test(out)) {
+      expect(out).toContain('取数面')
+      return
+    }
     expect(out).toMatch(/D5 sha 引用候选 \d+（commit \d+／run-id \d+／点号形 \d+／非十六进制 \d+/)
     expect(out).toMatch(/存量在册 \d+｜D4 自证/)
     expect(out).toContain('D5 自证 判红=true 认更正=true 拒裸标注=true 容未知=true')
     expect(out).toContain('档位=阻断')
+  })
+  it('注入演习在两种机器上都必须被 D5 观察到（本机走"幽灵"，CI 走"未定位"——两个分支都算收到）', () => {
+    const { rc, out } = (() => {
+      const r = runCli(['--inject-red'])
+      return { rc: r.status, out: String(r.stdout) + String(r.stderr) }
+    })()
+    expect(rc).toBe(1)
+    expect(out).toMatch(/幽灵 sha `f5b22d2`|未定位 [1-9]/)
   })
 })
