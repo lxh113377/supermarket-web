@@ -1,0 +1,27 @@
+{
+  "schema": "chaoshi-remote-divergence-v1",
+  "note": "本件由 `node scripts/check-remote-divergence.mjs --update` 生成；R4 拿它与当次读数做双向对账（册上 sha 已能走到却还没摘 = 幽灵；册记 HEAD 与当前不符 = STALE），手改即红。它记的是**待兑现的回执**，不是凭据。",
+  "observed_utc": "2026-10-07T14:47:20.893Z",
+  "localHead": "ca2f8ea1e723b23024878ad451156ef469331046",
+  "branch": "main",
+  "remoteRef": "5620c16badbb3ce77ee22e24deda78b763aed793",
+  "apiHead": "5620c16badbb3ce77ee22e24deda78b763aed793",
+  "channel": {
+    "transport": "ok",
+    "api": "ok"
+  },
+  "unpushed": [
+    {
+      "sha": "ca2f8ea",
+      "subject": "fix(eol): 补齐 5 个新文件末尾换行，过 verify:eol E7"
+    },
+    {
+      "sha": "10342a5",
+      "subject": "docs(memory): 第70轮记忆卷 part147-152 + 主卷迁卷治 V3 贴死"
+    },
+    {
+      "sha": "96679fb",
+      "subject": "feat(判据+工具): 第70轮四项改造——指针断更接进提交门/CI腿预算上修/perf未采到样本隔离器"
+    }
+  ]
+}

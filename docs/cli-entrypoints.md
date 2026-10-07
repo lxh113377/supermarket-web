@@ -123,6 +123,7 @@ G11 认的是"已证明停在门口"这个整词，不是子串 —— 否则 �
 | --- | --- | --- |
 | check-backup-liveness.mjs | gh-cli | ✅ 已证明停在门口：骨架实测 rc=2 / 0s（缺 GITHUB_REPOSITORY 即 bail），`gh api` 在其后 ⇒ 回到分母 |
 | check-cron-health.mjs | gh-cli, writes-artifacts | ✅ 已证明停在门口：骨架**实测 rc=2 / 0.2s**（现测 156ms：缺 `GITHUB_REPOSITORY` 即在门口 bail），`gh api` 与 `writeFileSync(join(ROOT, REGISTRY))` 都在其后 ⇒ 回到分母。它的**入口**由 `tests/cronHealth.test.js` 以 `--fixture` 注入合成读数被子进程真跑（三档退出码 0/1/2 各一条：不碰网络、不改受版本控制的册） |
+| check-remote-divergence.mjs | gh-cli, writes-artifacts | ✅ 已证明停在门口：骨架**实测 rc=2 / 0.1s**（无 `GITHUB_REPOSITORY` 且无 `--fixture` 即 bail），`git ls-remote`/`rev-*` 与 `gh api`、`writeFileSync(LEDGER)` 全在其后 ⇒ 回到分母。它的**入口**由 `tests/remoteDivergence.test.js` 以 `--fixture` 注入快照 + `isPushed` 表被子进程真跑（三档退出码 0/1/2 各有断言，不碰网络、不碰真台账）。第七十一轮新增 |
 | check-d1-remote-usage.mjs | network-fetch, wrangler, writes-artifacts | ❌ **没停在门口**（本条否证了我给它写的初稿"缺登记册即 rc=2"）：无 flag 骨架**实测 rc=0 / 7.7s** —— CF GraphQL 与 `wrangler d1 info` 各真打了一遍，只因不带 `--write` 才没落盘 ⇒ 探针跑它等于测 Cloudflare 可用性，永不进自动面。判据本体由 `tests/d1RemoteUsage.test.js` 注入读数覆盖（U5 三向的四种出口各有断言） |
 | api-response-contract.mjs | writes-artifacts | ❌ 不声明停在门口：**读侧骨架实测 rc=0 / 0.3s**（它就是 `verify:response` 每轮真跑的那条，也是 PROBED 成员）。`writes-artifacts` 只在显式 `--write`（= `gen:response-contract` 别名）时成立。本轮 R42-H2 把"目标是表达式/常量"的形态认出来之后它才入表 ⇒ 此前它挂"零风险"是**漏登**，不是它变危险了 |
 | check-catalog-facts.mjs | network-fetch | ✅ 已证明停在门口：rc=2 / 1s（缺 `db/seed.sql`）；`--live` 才走 fetch ⇒ 回到分母 |

@@ -4,6 +4,33 @@
 
 ## [未发布]
 
+### 2026-10-07 交付回执的牙齿：幽灵 sha / 归档入库面 / 登记册新鲜度 / 通道普查（第七十一轮）
+
+- **本轮抓到的是一条能骗过全部 34 条判据的缺陷**：第七十轮 §7 写「内层提交：`f5b22d2`」，而该 sha 被同轮
+  一次 `git commit --amend` 顶掉（`git merge-base --is-ancestor f5b22d2 HEAD` 实测 rc=1，真身 `96679fb`）。
+  那句话的 run 号、结论、必需 job、线上 deploy 锚**全是真的**，假的只有"本轮交付物本体"——
+  而那恰恰是下一轮唯一能复算的锚。一次 amend 三种症状：幽灵 sha 进回执 → BOM 进提交说明 → `verify:eol` 报红。
+- **`check:delivery-claims` 加 D5「幽灵 sha」腿并升阻断位**（`scripts/check-delivery-claims.mjs`）：
+  回执面反引号 token 按**结构**分类（commit 189／run-id 64／点号形 7，后两类不判但计数照印），
+  只有"对象存在但不在链上"判红，两根都取不到记 `未定位` 不判红；
+  **就地更正过的必须放行**（同一行带 幽灵/顶掉 标注 + 一个可达真锚），否则门禁就是在拒真话、逼作者删历史。
+  存量 51 条进 `docs/delivery-claims-baseline.json`（键 = 整行指纹，不锚行号），判据只拦「新增」与「基线死行」。
+  `--inject-red` 现在注入**两处**假（假主张 + 引用真孤儿的回执）；`check:delivery-claims` 已接进 `npm run verify`。
+- **`verify:pointers` 加 P5「外层归档面」**：P2 判的是外层台账的内容，P5 判的是它有没有真进归档仓。
+  一手：第七十轮那份报告此前在外层 git 里是 `??`、台账是 `M`，**P2 一直是绿的**。
+  牙齿由真实 red→green 证明：该腿落地当刻判红，外层还账提交后转绿（`已核对 5/5`）。它挂在 pre-commit 第 5 条腿上。
+- **`check:cron-health` 加 C7 登记册新鲜度 + C8 在册失败 step ⇄ 当次实测**：grep 实测此前**没有任何判据读
+  `generatedUtc`/`observed_state`/`observed_last_run`（只有 `--update` 写），而册上读数停在 3 夜之前。
+  C7 走 rc=2（过期的是证据，不是某条 cron 病了）；C8 默认只报，`--require-reason-match` 是 10-12 到期轮才拧的开关。
+  本轮实测两条在册豁免理由**仍然为真** ⇒ 一个字未改（`git diff docs/cron-health.json` 只含机器字段）。
+- **新增 `npm run report:remote-divergence`**（`scripts/check-remote-divergence.mjs` + `docs/remote-divergence.json`）：
+  本轮开工时 `github.com` 两路不通而 `api.github.com` 通；它答"本地几笔没到远端 + 哪条通道还活着"，
+  与 `ci-green-contract`、`check-live-shape` 各答一个问题。R2 钉住 CI `fetch-depth: 1` 那条假绿（浅克隆 ⇒ 计数未验证）。
+- **测试与台账**：单测文件 128 → 129（新增 `tests/remoteDivergence.test.js` 24 条），
+  `npm test` 当场实测 1868 用例全过；`npm run verify` `VERIFY_RC=0`（链上段数 36 → 37）。
+  README / HANDOFF 的单测文件数、`docs/doc-commands.json` 别名册、`docs/cli-entrypoints.md` 风险表
+  与 `docs/judge-side-effects.json` 写通道面均已由判据/生成器对账追平。
+
 ### 2026-10-07 新增「日用」商品板块（第三个分类）
 
 - **新增分类**：`src/data/products-seed.ts` 增加第三个顶级分类 `daily`（名称「日用」，子分类单个「日用百货」`daily_goods`），

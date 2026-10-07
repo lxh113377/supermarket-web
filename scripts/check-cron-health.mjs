@@ -23,7 +23,13 @@
 // 用法：node scripts/check-cron-health.mjs                真仓全量校验（需 GITHUB_REPOSITORY）
 //       node scripts/check-cron-health.mjs --update       重写登记册（只写非凭据事实）
 //       node scripts/check-cron-health.mjs --fixture F    喂合成读数（夹具/演练，不碰网络）
-//       node scripts/check-cron-health.mjs --inject-red   演习：注入一条假红，必须当场判红
+//       node scripts/check-cron-health.mjs --inject-red   演习：注入一条假红，必须当场判红（rc=1）
+//       node scripts/check-cron-health.mjs --inject-stale 演习：把册龄推到超限，C7 必须判"尺未验证"（rc=2）
+//       node scripts/check-cron-health.mjs --inject-step-drift [N] 演习：在册 step ⇄ 实测 step 人为错配
+//       node scripts/check-cron-health.mjs --require-reason-match  到期轮开关：C8 由"只报"升为"漂移即红"
+//       node scripts/check-cron-health.mjs --max-age-days=7        C7 阈值（缺省 = LOOKBACK_DAYS，同源不抄两份）
+// 三条演习分开、不叠在 --inject-red 上：C6 的回执是 rc=1（判红），C7 的回执是 rc=2（尺残）——
+// 合成一个开关会让先红的那条 exit 掉后一条的读数（本仓规矩：一条红不许洗掉另一条的读数）。
 import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { execFileSync } from 'node:child_process'
@@ -162,7 +168,50 @@ export function judgeScheduled({ declared, remote, runs, registry, nowIso, exclu
 }
 
 /** 纯判据门面。rows = 七条腿；per = 逐条 cron 的读数。registry 可为整份 JSON 或 entries 数组。 */
-export function evaluate({ workflows, remote, runsByName, registry, nowIso, inject = null, excludeRunId = null }) {
+/** 登记册龄期（天）。解不出 ⇒ null（**不得**返回 0，那会把"读不懂"伪装成"刚刚生成"）。 */
+export function ageOfRegistry(generatedUtc, nowIso) {
+  const g = Date.parse(String(generatedUtc || ''))
+  const n = Date.parse(String(nowIso || ''))
+  if (!Number.isFinite(g) || !Number.isFinite(n)) return null
+  return (n - g) / DAY_MS
+}
+
+/**
+ * C8 的取数：在册 `observed_failing_steps` ⇄ 当次实测失败 step 名，**双向**差集。
+ * 三种状态都不许折叠：
+ *   CONFIRMED 两侧集合相等
+ *   DRIFT     有一侧多/少（在册理由与今天的事实脱节）
+ *   未复核    册上没这个字段（首版册）/ 这次没去拉 / 拉失败 —— **绝不折进 CONFIRMED**
+ * @param entries   登记册条目
+ * @param live      { [workflowFile]: string[] | { error: string } | undefined }
+ * @param per       当次枚举面（用来判"这条今天该不该复核"）
+ */
+export function stepCensus(entries, live, per) {
+  // "该不该复核"有三个入口：今天判红 / 被具名豁免的红 / **册上已经声称复核过**（带 observed_failing_steps）。
+  // 第三个是第七十一轮补的：在册理由与事实脱节这件事，不该等到那条 cron 今天正好红才查一次。
+  const due = per.filter((p) => {
+    const e = entries.find((x) => x.workflow === p.file) || {}
+    return p.state === 'RED' || p.warned || Array.isArray(e.observed_failing_steps)
+  })
+  const out = { confirmed: 0, drift: 0, unreviewed: 0, driftRows: [], unreviewedRows: [], due: due.length }
+  for (const p of due) {
+    const e = entries.find((x) => x.workflow === p.file) || {}
+    const reg = e.observed_failing_steps
+    const l = live && live[p.file]
+    if (!Array.isArray(reg)) { out.unreviewed++; out.unreviewedRows.push({ file: p.file, why: '册上无 observed_failing_steps' }); continue }
+    if (l === undefined) { out.unreviewed++; out.unreviewedRows.push({ file: p.file, why: '本轮未取 step 明细' }); continue }
+    if (l === null || (l && l.error)) { out.unreviewed++; out.unreviewedRows.push({ file: p.file, why: `取 step 明细失败(${String((l && l.error) || '无返回').split('\n')[0]})` }); continue }
+    const a = [...new Set(reg)]
+    const b = [...new Set(l)]
+    const onlyReg = a.filter((x) => !b.includes(x))
+    const onlyLive = b.filter((x) => !a.includes(x))
+    if (!onlyReg.length && !onlyLive.length) out.confirmed++
+    else { out.drift++; out.driftRows.push({ file: p.file, onlyReg, onlyLive }) }
+  }
+  return out
+}
+
+export function evaluate({ workflows, remote, runsByName, registry, nowIso, inject = null, excludeRunId = null, failingSteps = null, maxAgeDays = null, requireReasonMatch = false }) {
   const rows = []
   const push = (id, ok, label, detail) => rows.push({ id, ok, label, detail })
   const entries = Array.isArray(registry) ? registry : ((registry && registry.entries) || [])
@@ -229,6 +278,36 @@ export function evaluate({ workflows, remote, runsByName, registry, nowIso, inje
       + `：${reds.map((p) => `${p.file}${causeOf(p.file) ? `[因 ${causeOf(p.file)}]` : '[未具名根因]'} — ${p.why}`).join(' ｜ ')}` : '')
     + (warns.length ? `；已具名豁免: ${warns.map((p) => `${p.file}(至 ${(entries.find((e) => e.workflow === p.file) || {}).accepts_red_until})`).join(' / ')}` : ''))
 
+  // C7（第七十一轮）：**登记册自己新鲜不新鲜**。一手实测：册上 generatedUtc 停在 2026-10-04，
+  // observed_last_run 落后现实 3 夜，而 grep 全仓**没有任何判据读这三个字段**（只有 --update 写它）。
+  // ⇒ 一条 cron 的"豁免理由"是人照着册上读数写的，读数过期 = 理由是照着旧事实写的，而 C4 只查它
+  // "可不可证伪"、不查它"还对不对得上今天"。同 S6 的 observed_utc 判法：过期的是**证据**，
+  // 不是某条 cron 病了 ⇒ 走 rc=2（UNVERIFIED），不许把工具缺陷伪装成产品故障。
+  const maxAge = Number.isFinite(Number(maxAgeDays)) && Number(maxAgeDays) > 0 ? Number(maxAgeDays) : LOOKBACK_DAYS
+  const regAge = ageOfRegistry(registry && registry.generatedUtc, nowIso)
+  // ok=false 有两种：龄期超限、或读不出时刻（缺字段/格式坏）。后者由 verdictOf 把 C7 归到 rc=2 那一列，
+  // 判成"尺未验证"而不是"cron 病了"——与 C1/C2/C5 同规。
+  push('C7', regAge !== null && regAge <= maxAge,
+    `C7 登记册读数新鲜度（龄期 <= ${maxAge}d；册上读数过期 ⇒ 豁免理由是照着旧事实写的）`,
+    !registry || !registry.generatedUtc
+      ? `册上没有 generatedUtc ⇒ 无法判新鲜度，不折算成"证据仍成立"；跑 \`${SELF} --update\``
+      : regAge === null
+        ? `generatedUtc="${registry.generatedUtc}" 解不出时刻 ⇒ 判未验证（解析器不许把读不懂当成 0 天）`
+        : `龄期 ${regAge.toFixed(2)}d（${registry.generatedUtc}）${regAge > maxAge ? ` ⇒ 超 ${maxAge}d ⇒ 重跑 --update，别改阈值` : ' ⇒ 在期限内'}`)
+
+  // C8（第七十一轮）：**在册的失败 step 名 ⇄ 当次实测的失败 step 名**，双向差集。
+  // 一手实况：uptime 的在册理由点名 `Backup chain liveness (…)`，本轮拉 /jobs 实测 step 7 正是它 failure
+  // ⇒ 理由今天仍然为真。但"为真"这件事此前**没人复核过**，只靠作者那一轮记不记得。
+  // 默认**不翻转 rc**（三个计数一律进门面行），到期轮（10-12）才用 --require-reason-match 把"理由与事实脱节"
+  // 变成红 —— 那才是 I-70-6「换一条可证伪理由」的机器形态，而不是靠人自觉。
+  const c8 = stepCensus(entries, failingSteps, per)
+  const c8ok = !requireReasonMatch ? true : c8.drift === 0
+  push('C8', c8ok, 'C8 在册失败 step ⇄ 当次实测失败 step 双向对账（默认只报，--require-reason-match 才拦）',
+    `应复核 ${c8.due} 条｜CONFIRMED ${c8.confirmed}｜漂移 ${c8.drift}｜未复核 ${c8.unreviewed}`
+    + (c8.drift ? `；漂移: ${c8.driftRows.map((d) => `${d.file} 只在册[${d.onlyReg.join('|')} || 只在实测[${d.onlyLive.join('|')}]`).join(' ; ')}` : '')
+    + (c8.unreviewed ? `；未复核: ${c8.unreviewedRows.map((u) => `${u.file}(${u.why})`).join(' / ')}` : '')
+    + (requireReasonMatch ? '｜档位=阻断（漂移即红）' : '｜档位=报告（漂移不拦，到期轮拧开关）'))
+
   return { rows, per }
 }
 
@@ -236,9 +315,9 @@ export function verdictOf(rows) {
   if (!rows.every((r) => typeof r.ok === 'boolean')) return { verdict: 'UNKNOWN', rc: 2 }
   const failed = rows.filter((r) => !r.ok)
   if (!failed.length) return { verdict: 'GREEN', rc: 0 }
-  // C1（枚举面空了）与 C2（块在却解不出 cron）、C5（取不到读数）同族：都是**尺子自己残**，
-  // 不是"某条 cron 病了"。判红会把工具缺陷伪装成产品故障 ⇒ 一律 rc=2（UNVERIFIED）。
-  return failed.some((r) => ['C1', 'C2', 'C5'].includes(r.id)) ? { verdict: 'UNVERIFIED', rc: 2 } : { verdict: 'RED', rc: 1 }
+  // C1（枚举面空了）与 C2（块在却解不出 cron）、C5（取不到读数）、C7（登记册读数过期或读不出时刻）同族：
+  // 都是**尺子自己残**，不是"某条 cron 病了"。判红会把工具缺陷伪装成产品故障 ⇒ 一律 rc=2（UNVERIFIED）。
+  return failed.some((r) => ['C1', 'C2', 'C5', 'C7'].includes(r.id)) ? { verdict: 'UNVERIFIED', rc: 2 } : { verdict: 'RED', rc: 1 }
 }
 
 function printRows(rows, per) {
@@ -259,14 +338,24 @@ async function main() {
   const argv = process.argv.slice(2)
   const update = argv.includes('--update')
   const inj = argv.includes('--inject-red')
+  const injStale = argv.includes('--inject-stale')
+  const injDrift = argv.includes('--inject-step-drift')
+  const reqMatch = argv.includes('--require-reason-match')
+  const maIdx = argv.findIndex((a) => a === '--max-age-days' || a.startsWith('--max-age-days='))
+  const maRaw = maIdx === -1 ? null : (argv[maIdx].includes('=') ? argv[maIdx].split('=')[1] : argv[maIdx + 1])
+  const maxAgeDays = maRaw === null ? null : Number(maRaw)
+  if (maRaw !== null && !(Number.isFinite(maxAgeDays) && maxAgeDays > 0)) {
+    console.error(`[cron-health] BLOCKED --max-age-days=${maRaw} 解不出正整数 ⇒ 不按默认值悄悄跑`); process.exit(2)
+  }
   const fxIdx = argv.indexOf('--fixture')
   const repo = process.env.GITHUB_REPOSITORY || process.env.CRON_HEALTH_REPO || ''
-  let workflows, remote, runsByName, registry, excludeRunId = null, nowIso = new Date().toISOString()
+  let workflows, remote, runsByName, registry, excludeRunId = null, nowIso = new Date().toISOString(), failingSteps = {}
   if (fxIdx !== -1) {
     const f = JSON.parse(readFileSync(argv[fxIdx + 1], 'utf8'))
     workflows = f.workflows; remote = f.remote; runsByName = f.runsByName; registry = f.registry
     excludeRunId = f.excludeRunId || null
     nowIso = f.nowIso || nowIso
+    failingSteps = f.failingSteps || {}
   } else {
     if (!repo) { console.error('[cron-health] BLOCKED 需要 GITHUB_REPOSITORY（或 --fixture 喂合成读数）⇒ 取不到不判绿'); process.exit(2) }
     workflows = readWorkflows()
@@ -293,9 +382,25 @@ async function main() {
     if (fetchFailed === declared.length) { console.error('[cron-health] BLOCKED 每条 cron 都取不到 ⇒ rc=2，不判健康'); process.exit(2) }
     const regPath = join(ROOT, REGISTRY)
     registry = existsSync(regPath) ? JSON.parse(readFileSync(regPath, 'utf8')) : { entries: [] }
+    // step 明细只在"今天要复核的那几条"上拉：当前 RED 或已具名豁免的红。成本有界（本机实测 2 次调用），
+    // 且这批正是到期轮要复核理由的那几条 —— 全量拉会把 5 条工作流都探一遍，为一把 report-only 的尺不值。
+    const pre = evaluate({ workflows, remote, runsByName, registry, nowIso, excludeRunId })
+    const claimed = new Set(((registry && registry.entries) || []).filter((e) => Array.isArray(e.observed_failing_steps)).map((e) => e.workflow))
+    failingSteps = {}
+    for (const p of pre.per.filter((x) => x.state === 'RED' || x.warned || claimed.has(x.file))) {
+      const rid = p.lastScheduled && p.lastScheduled.id
+      if (!rid) { failingSteps[p.file] = { error: '取不到 lastScheduled.id' }; continue }
+      try {
+        const j = ghApi(`repos/${repo}/actions/runs/${rid}/jobs`)
+        const steps = (j.jobs || []).flatMap((jb) => jb.steps || [])
+        const failed = steps.filter((s) => s.conclusion === 'failure').map((s) => s.name)
+        // 空数组有两种意思："这一步都没红（job 级红是别处来的）"与"我根本没看到 steps"。
+        // 后者必须判未复核，否则 C8 会把"取到空"读成"取到且没有失败"。
+        failingSteps[p.file] = steps.length ? failed : { error: `run ${rid} 没有 step 明细（jobs/steps 面为空）` }
+      } catch (e) { failingSteps[p.file] = { error: String(e && e.message ? e.message : e).split('\n')[0] } }
+    }
     if (update) {
-      const { rows, per } = evaluate({ workflows, remote, runsByName, registry, nowIso, excludeRunId })
-      void rows
+      const { per } = evaluate({ workflows, remote, runsByName, registry, nowIso, excludeRunId, failingSteps })
       const body = {
         schema: 'chaoshi-cron-health-v1',
         note: '本件由 `node scripts/check-cron-health.mjs --update` 生成；C4 拿它与 YAML 声明面双向对账，手改即红。accepts_red_* 是人填的豁免，--update 会保留同名条目已填的值。',
@@ -305,6 +410,9 @@ async function main() {
           return {
             workflow: p.file, name: p.name, cron: p.exprs.join(' | '), period_days: p.periodDays,
             observed_state: p.state, observed_last_run: p.lastScheduled || null,
+            // 机器字段（第七十一轮）：C8 拿它与当次实测的失败 step 名做双向差集。取不到时**不写这个键**
+            // （而不是写成 []）—— 缺键 = "未复核"，空数组 = "复核过且没有失败步骤"，两者不能同形。
+            ...(Array.isArray(failingSteps[p.file]) ? { observed_failing_steps: failingSteps[p.file] } : {}),
             accepts_red_until: old.accepts_red_until || '', accepts_red_reason: old.accepts_red_reason || '',
             root_cause: old.root_cause || '',
           }
@@ -316,11 +424,24 @@ async function main() {
   }
   const injIdx = argv.indexOf('--inject-red')
   const injFiles = injIdx !== -1 && argv[injIdx + 1] && !argv[injIdx + 1].startsWith('--') ? argv[injIdx + 1].split(',') : null
+  // 三条演习各自独立，不叠在同一个开关上：C6 的注入必须仍回 rc=1（判红），C7 的注入必须回 rc=2（尺残）。
+  // 把它们合进 --inject-red 会让 C6 的演习被 C7 先 exit 掉 —— 一条红不许洗掉另一条的读数。
+  if (injStale) registry = { ...registry, generatedUtc: new Date(Date.parse(nowIso) - (maxAgeDays || LOOKBACK_DAYS + 5) * DAY_MS).toISOString() }
+  if (injDrift) {
+    const tgt = (registry.entries || []).map((e) => e.workflow).filter(Boolean)
+    if (!tgt.length) { console.error('[cron-health] BLOCKED --inject-step-drift 需要册里有 entries ⇒ 没对象可注入，不许空跑报绿'); process.exit(2) }
+    failingSteps = { ...failingSteps }
+    for (const f of tgt) failingSteps[f] = Array.isArray(failingSteps[f]) ? [...failingSteps[f], 'INJECTED 演习步骤'] : ['INJECTED 演习步骤']
+    registry = { ...registry, entries: (registry.entries || []).map((e) => ({ ...e, observed_failing_steps: e.workflow === tgt[0] ? (e.observed_failing_steps || ['INJECTED 在册步骤']) : (e.observed_failing_steps || ['INJECTED 演习步骤']) })) }
+  }
   const { rows, per } = evaluate({
     workflows, remote, runsByName, registry, nowIso, excludeRunId,
+    failingSteps, maxAgeDays, requireReasonMatch: reqMatch,
     inject: inj ? { files: injFiles, tag: injFiles ? '指定文件' : '全量' } : null,
   })
   if (inj) console.log(`[cron-health] 演习通道：注入 ${per.filter((p) => String(p.why).startsWith('INJECTED')).length} 条假红 ⇒ C6 必须判红`)
+  if (injStale) console.log(`[cron-health] 演习通道：把册上 generatedUtc 改成超限龄期 ⇒ C7 必须判"尺未验证"（rc=2，不是"cron 病了"）`)
+  if (injDrift) console.log(`[cron-health] 演习通道：在册失败 step ⇄ 当次实测 step 人为错配 ⇒ C8 必须报漂移（默认报告档不拦，加 --require-reason-match 才判红）`)
   printRows(rows, per)
   const { verdict, rc } = verdictOf(rows)
   const matched = rows.filter((r) => r.ok === true).length

@@ -9,7 +9,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { copyGateScripts } from './helpers/copyGateScripts.mjs'
 import { assertCliRan } from './helpers/cliLeg.js'
-import { evaluate, latestRound, roundSetOf, changelogRounds, ORPHAN_BASELINE, roundsOf, cnNum, OUTER_MEMORY } from '../scripts/check-memory-pointer-sync.mjs'
+import { evaluate, latestRound, roundSetOf, changelogRounds, ORPHAN_BASELINE, roundsOf, cnNum, OUTER_MEMORY, reportRoundOf, parsePorcelainZ, makeGitRunner, OUTER_REPO } from '../scripts/check-memory-pointer-sync.mjs'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SELF = join(REPO, 'scripts', 'check-memory-pointer-sync.mjs')
@@ -51,7 +51,10 @@ describe('P1/P2 三态', () => {
   const outer36 = { round: 36, seen: [36], ambiguous: [] }
   it('跟上 ⇒ 四条都 PASS（P3 喂对齐的 CHANGELOG 面，不喂即 UNVERIFIED）', () => {
     const v = evaluate({ inner, outer: outer36, innerRounds: [36], clRounds: [...ORPHAN_BASELINE, 36] })
-    expect(v.map((r) => r.state)).toEqual(['PASS', 'PASS', 'PASS', 'PASS'])
+    // P5 不在这四条的断言面里：它判的是"归档仓有没有入库"，需要 git 通道，单独一个 describe 立它的牙齿。
+    expect(v.filter((r) => r.id !== 'P5').map((r) => r.state)).toEqual(['PASS', 'PASS', 'PASS', 'PASS'])
+    expect(row(v, 'P5').state).toBe('UNVERIFIED')
+    expect(row(v, 'P5').detail).toContain('禁止按')
   })
   it('不断言"没喂 CHANGELOG 也全绿"：缺第三面时 P3 必须写 UNVERIFIED', () => {
     const v = evaluate({ inner, outer: outer36 })
@@ -176,14 +179,15 @@ describe('真面与入口', () => {
     })
     if (present) {
       expect(outer, '本机外层目录存在 ⇒ 必须读出轮次，读不出就是取数面坏了').not.toBeNull()
-      expect(v.some((r) => r.state === 'UNVERIFIED'), `外层在本地可见却报未验证：${JSON.stringify(v)}`).toBe(false)
+      const mine = v.filter((r) => r.id !== 'P5')
+      expect(mine.some((r) => r.state === 'UNVERIFIED'), `外层在本地可见却报未验证：${JSON.stringify(mine)}`).toBe(false)
     } else {
       // CI：外层不在场 ⇒ 判据必须把"没比"写在脸上，且分母要降下来（不得印 检查 2/2）
       expect(row(v, 'P2').state).toBe('UNVERIFIED')
       const r = assertCliRan(spawnSync(process.execPath, [SELF], { cwd: REPO, encoding: 'utf8', timeout: 60_000 }), { label: 'memory-pointer-sync 外层不在场' })
       expect(r.status, r.stdout + r.stderr).toBe(0)
-      expect(r.stdout).toContain('已核对 3/4')
-      expect(r.stdout).toContain('未验证 P2')
+      expect(r.stdout).toContain('已核对 3/5')
+      expect(r.stdout).toContain('未验证 P2,P5')
       expect(r.stdout).not.toContain('检查 2/2')
     }
   })
@@ -197,8 +201,9 @@ describe('真面与入口', () => {
     expect(roundsOf(readFileSync(join(dir, '07-next-steps.md'), 'utf8'))).toEqual([inner.round])
     const same = assertCliRan(spawnSync(process.execPath, [SELF, '--outer', dir], { cwd: REPO, encoding: 'utf8', timeout: 60_000 }), { label: 'memory-pointer-sync 合成外层同轮' })
     expect(same.status, same.stdout + same.stderr).toBe(0)
-    expect(same.stdout).toContain('已核对 4/4')
-    expect(same.stdout).not.toContain('未验证')
+    // 合成外层没有配套归档仓 ⇒ P5 必须走未验证（不许悄悄去读**真**归档仓，那会让两套事实挤进同一行）
+    expect(same.stdout).toContain('已核对 4/5')
+    expect(same.stdout).toContain('未验证 P5')
     const behind = mkdtempSync(join(tmpdir(), 'smouter-'))
     tmpDirs.push(behind)
     writeFileSync(join(behind, '07-next-steps.md'), `## 2026-09-27 — 对标第${cn(Math.max(1, inner.round - 3))}轮（工作区级指针）\n`)
@@ -211,7 +216,7 @@ describe('真面与入口', () => {
     expect(r.status, r.stdout + r.stderr).toBe(0)
     expect(r.stdout).toContain('GATE-PASS memory-pointer-sync')
     const j = JSON.parse(assertCliRan(spawnSync(process.execPath, [SELF, '--json'], { cwd: REPO, encoding: 'utf8', timeout: 60_000 }), { label: 'memory-pointer-sync --json' }).stdout)
-    expect(j.rows.map((x) => x.id)).toEqual(['P1', 'P2', 'P3', 'P4'])
+    expect(j.rows.map((x) => x.id)).toEqual(['P1', 'P2', 'P3', 'P4', 'P5'])
     expect(j.checked + j.rows.filter((x) => x.state === 'UNVERIFIED').length).toBe(j.declared)
   })
   it('缺输入面：只有脚本、没有 memory/ 的假仓 ⇒ rc=2 且点名取不到（不得静默 0）', () => {
@@ -320,4 +325,101 @@ describe('E3 指针断更挪到提交那一刻（钩子必须拦）', () => {
       rmSync(dir, { recursive: true, force: true })
     }
   }, 240_000)
+})
+
+/**
+ * P5（第七十一轮）：外层**归档面**是否真入库。一手缺陷：第七十轮那份报告写在磁盘上、内容也对，
+ * 但它在外层 git 里是 `??`，台账改动一直是 `M` ⇒ P2 判"内容跟上了"是绿的，而账没还。
+ * 本块的 git 通道全部走注入表（夹具不建 git 仓、不碰真归档仓）。
+ */
+const repName = (r) => `GitHub开源项目对标分析报告-第${cn(r)}轮-2026-01-01.md`
+const archDirOf = (rounds) => {
+  const d = mkdtempSync(join(tmpdir(), 'smarch-'))
+  tmpDirs.push(d)
+  for (const r of rounds) writeFileSync(join(d, repName(r)), '# x\n', 'utf8')
+  return d
+}
+/** 归档面替身：tracked=跟踪册里有哪些路径；dirty=`git status --porcelain -z` 的原始记录。 */
+const archiveFace = ({ tracked = [], dirty = [], rc = 0 } = {}) => (args) => {
+  if (args[0] === 'ls-files') return { rc, stdout: `${tracked.join('\0')}${tracked.length ? '\0' : ''}` }
+  if (args[0] === 'status') return { rc, stdout: `${dirty.map((p) => ` M ${p}`).join('\0')}${dirty.length ? '\0' : ''}` }
+  return { rc: 1, stdout: '' }
+}
+
+describe('P5 外层归档面：产物必须真进归档仓（第七十一轮）', () => {
+  const inner = { round: 36, seen: [36], ambiguous: [] }
+  const outer36 = { round: 36, seen: [36], ambiguous: [] }
+  const base = (over) => evaluate({
+    inner, outer: outer36, innerRounds: [36], clRounds: [...ORPHAN_BASELINE, 36],
+    deliverablesDir: archDirOf([35, 36]), ...over,
+  })
+  it('文件名轮号解析与状态行解析各自成面', () => {
+    expect(reportRoundOf(repName(36))).toBe(36)
+    expect(reportRoundOf('对标报告-2026-09-30.md')).toBe(null)
+    expect(reportRoundOf('对标第二轮交付记录-2026-09-24.md')).toBe(2)
+    expect(parsePorcelainZ(' M 超市/memory/07-next-steps.md\0')).toEqual([{ xy: ' M', path: '超市/memory/07-next-steps.md' }])
+    expect(parsePorcelainZ('')).toEqual([])
+  })
+  it('正例：上一轮的报告已跟踪 + 归档面干净 ⇒ PASS', () => {
+    const v = base({ gitRunner: archiveFace({ tracked: [`deliverables/${repName(35)}`, '超市/memory/07-next-steps.md'] }) })
+    expect(row(v, 'P5').state).toBe('PASS')
+    expect(row(v, 'P5').detail).toContain('上一轮 35 已跟踪 是')
+  })
+  it('反例一：上一轮的报告在磁盘上但不在跟踪册 ⇒ FAIL，并把"到外层 add 哪个文件"写进结论', () => {
+    const v = base({ gitRunner: archiveFace({ tracked: ['超市/memory/07-next-steps.md'] }) })
+    expect(row(v, 'P5').state).toBe('FAIL')
+    expect(row(v, 'P5').detail).toContain('产物写了但没入库')
+    expect(row(v, 'P5').detail).toContain('git add')
+  })
+  it('反例二：归档面有未提交件（台账改了没落历史）⇒ FAIL 且逐件点名 XY 状态', () => {
+    const v = base({
+      gitRunner: archiveFace({ tracked: [`deliverables/${repName(35)}`], dirty: ['超市/memory/07-next-steps.md'] }),
+    })
+    expect(row(v, 'P5').state).toBe('FAIL')
+    expect(row(v, 'P5').detail).toContain('M 超市/memory/07-next-steps.md')
+  })
+  it('宽限一轮：本轮（36）那份报告 dirty 不拦 —— 循环次序本来就是 报告→内层提交→外层提交', () => {
+    const v = base({
+      gitRunner: archiveFace({ tracked: [`deliverables/${repName(35)}`], dirty: [`deliverables/${repName(36)}`] }),
+    })
+    expect(row(v, 'P5').state).toBe('PASS')
+  })
+  it('反向三（牙齿）：本轮报告既不在磁盘也不在跟踪册 ⇒ FAIL，"产物没落笔"不许被宽限规则盖住', () => {
+    const d = mkdtempSync(join(tmpdir(), 'smarch-'))
+    tmpDirs.push(d)
+    writeFileSync(join(d, repName(34)), '# x\n', 'utf8')
+    const v = evaluate({
+      inner, outer: outer36, innerRounds: [36], clRounds: [...ORPHAN_BASELINE, 36],
+      deliverablesDir: d, gitRunner: archiveFace({ tracked: [`deliverables/${repName(35)}`] }),
+    })
+    expect(row(v, 'P5').state).toBe('FAIL')
+    expect(row(v, 'P5').detail).toContain('产物没落笔')
+  })
+  it('未验证四态：git 通道没注入 / git 非零 / 外层目录不在 ⇒ 一律 UNVERIFIED，绝不折算成"都干净"', () => {
+    expect(row(base({ gitRunner: null }), 'P5').state).toBe('UNVERIFIED')
+    expect(row(base({ gitRunner: () => ({ rc: 128, stdout: '' }) }), 'P5').state).toBe('UNVERIFIED')
+    const gone = join(archDirOf([35, 36]), 'nope')
+    expect(row(base({ gitRunner: archiveFace({}), outerPath: gone }), 'P5').state).toBe('UNVERIFIED')
+  })
+  it('取数面读不出目录（deliverables 不在）⇒ UNVERIFIED 并点名那个目录', () => {
+    const v = evaluate({
+      inner, outer: outer36, innerRounds: [36], clRounds: [...ORPHAN_BASELINE, 36],
+      deliverablesDir: join(REPO, 'node_modules', 'no-such-archive-face'),
+      gitRunner: archiveFace({ tracked: [`deliverables/${repName(35)}`] }),
+    })
+    expect(row(v, 'P5').state).toBe('UNVERIFIED')
+    expect(row(v, 'P5').detail).toContain('no-such-archive-face')
+  })
+  it('真实归档面：本机外层可见 ⇒ P5 必须观测到（UNVERIFIED 在本机不是合法出口）', () => {
+    if (!existsSync(OUTER_MEMORY)) return
+    const real = latestRound(join(REPO, 'memory'))
+    const v = evaluate({
+      inner: real, outer: latestRound(OUTER_MEMORY), innerRounds: roundSetOf(join(REPO, 'memory')),
+      clRounds: changelogRounds(join(REPO, 'CHANGELOG.md')), changelogPath: join(REPO, 'CHANGELOG.md'),
+      gitRunner: makeGitRunner(OUTER_REPO),
+    })
+    const p5 = row(v, 'P5')
+    expect(['PASS', 'FAIL'], `本机归档面必须量到，实得 ${p5.state}：${p5.detail}`).toContain(p5.state)
+    expect(p5.detail).toMatch(/R=\d+/)
+  })
 })

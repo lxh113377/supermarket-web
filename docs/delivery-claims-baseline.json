@@ -1,0 +1,364 @@
+{
+  "schema": "chaoshi-delivery-claims-baseline-v1",
+  "note": "`node scripts/check-delivery-claims.mjs --update-baseline` 生成；判据拿它与当次读数做**双向差集**：不在册=新增判红，在册而当次取不到=幽灵豁免判红。手改即红。存量修法＝改报告正文再重跑本命令，禁直接往 rows 里加行消音。",
+  "generatedUtc": "2026-10-07T14:15:47.933Z",
+  "rows": [
+    {
+      "fp": "bafbbf986a575691",
+      "kind": "claim",
+      "file": "engineering-assurance/full-review-2026-08-24.md",
+      "heading": "📌 TL;DR（执行摘要）",
+      "needle": "- **演练预案**：Rex 已交付 SEV 标准 + 5 套剧本（A–E）+ 沟通/复盘模板 + 季度演练清单，可作为事故响应基线。"
+    },
+    {
+      "fp": "ec662003dbbadf1c",
+      "kind": "claim",
+      "file": "GitHub开源项目对标分析报告-2026-09-24.md",
+      "heading": "3. 改进建议清单（按优先级）",
+      "needle": "| C1 | 低 P2 | 库存字段 + 下单扣减防超卖 + 低库存预警（**需 D1 ALTER 迁移，须部署窗口执行**） | litemall/Medusa 库存 | ✅ **已上线（2026-09-24 裁决轮）** |"
+    },
+    {
+      "fp": "b5c13e6d71a2699a",
+      "kind": "claim",
+      "file": "GitHub开源项目对标分析报告-第七轮-2026-09-25.md",
+      "heading": "7.1 CI 与线上（收尾实测）",
+      "needle": "| 错图修复的产物级判据 | `assets/ProductDetailPage-BdoBI8bG.js` 内可见 `l = t.length===1 ? t[0] : s`（单图取调用方传入的那张，`u = l===s ? srcSet : void 0`），确认修复已上线而非只在本地 |"
+    },
+    {
+      "fp": "08d47c24330beaeb",
+      "kind": "claim",
+      "file": "GitHub开源项目对标分析报告-第九轮-2026-09-26.md",
+      "heading": "5. 本轮开工前遗留盘点纠偏",
+      "needle": "| 第八轮 H2 文档一致性门禁 | ✅ 已上线且**本轮两次生效**（拦住 README 的 `63 文件`→真值 65、拦住 CHANGELOG 里的完整假密钥形态） |"
+    },
+    {
+      "fp": "670140886f24e139",
+      "kind": "claim",
+      "file": "GitHub开源项目对标分析报告-第八轮-2026-09-26.md",
+      "heading": "Abstract",
+      "needle": "第七轮的队列 K1（门面故障路径测试）、K2（真渲染层进 CI）**已在磁盘上核实为已上线**（覆盖率棘轮 78/72/74/80、CI 新增 `e2e-cloud-stub` job、用例 560→631），所以本轮**不把第七轮的建议当现状**，重新实测后另立三件事："
+    },
+    {
+      "fp": "ef1212d69864ab89",
+      "kind": "claim",
+      "file": "GitHub开源项目对标分析报告-第八轮-2026-09-26.md",
+      "heading": "5. 本轮开工前的遗留待办盘点实测纠偏（A-project-better 前置）",
+      "needle": "| 第七轮 K1（auth/client/localStore 门面专项） | 待办 | ✅**已上线**：`0b9e405`，用例 560→631，棘轮 78/72/74/80，README:73 与 `vite.config.js:56-59` 一致 |"
+    },
+    {
+      "fp": "8a4297683bfd775d",
+      "kind": "claim",
+      "file": "GitHub开源项目对标分析报告-第六十七轮-2026-10-05.md",
+      "heading": "5. 可实施路径（含里程碑）",
+      "needle": "- **P1（下一轮，硬约束已知）**：M-67-3（已上线必须有回执，**纯 agent 侧可完成**）；"
+    },
+    {
+      "fp": "602bf48095a8c647",
+      "kind": "claim",
+      "file": "GitHub开源项目对标分析报告-第六十六轮-2026-10-04.md",
+      "heading": "0. 一句话结论",
+      "needle": "且 `braces` 在该 advisory 下**没有任何已发布修复版** —— `npm view braces versions` 最新即 `3.0.3`，"
+    },
+    {
+      "fp": "9726101cfb493d77",
+      "kind": "claim",
+      "file": "GitHub开源项目对标分析报告-第十二轮-2026-09-26.md",
+      "heading": "4. 改进建议清单（含优先级 + 处置）",
+      "needle": "| R12-H6 | 反哺技能链：`A-project-better` 核验铁律第⑤条（产物才算数，含\"守卫可达性\"与注释冒充键形态两条反例坑） | 中 | **已做完**：V1.11.0 → **V1.12.0**，经 rule_editor 落盘、镜像复检、selfcheck 五判据全过，全局技能仓 `f9d9bb9` 已推送 |"
+    },
+    {
+      "fp": "e1f48cd3cc2c3c3c",
+      "kind": "claim",
+      "file": "gstack/pre-launch-check-supermarket-2026-08-23.md",
+      "heading": "⚠️ 待完善 / 已知局限",
+      "needle": "- `ADMIN_KEY` 历史清理需 force-push，若仓库已推送远端/有 fork，需协调；"
+    },
+    {
+      "fp": "b6a056e93896f2ba",
+      "kind": "claim",
+      "file": "security-fix-2026-08-23.md",
+      "heading": "超市web 已知漏洞修复报告（2026-08-23）",
+      "needle": "**范围**：P0×3 全部修复 + P1×4 全部修复 + P2 关键项修复，已部署生产并线上验证"
+    },
+    {
+      "fp": "66adb6f727796690",
+      "kind": "claim",
+      "file": "todo-and-optimization-2026-09-05.md",
+      "heading": "P2 — 观察/触发型/业务待办（附触发条件，勿提前动手）",
+      "needle": "| 4 | vitest 4→5 major 评估（**本轮新发现**：5.0.0 已发布）✅ **已闭环（2026-09-05 19:50，提交 5b162cf）**：eval 实测 133/133 + tsc 零错 + vite 8.2.2 无 peer 冲突 → 按决策路径合入 main | 测试框架跟上上游，避免欠账两个 major | 评估步骤同旧报告 echarts 6 模式：独立分支升 vitest@5 → 跑 132 用例 + oxlint + tsc → 全"
+    },
+    {
+      "fp": "d21f24da593338f7",
+      "kind": "claim",
+      "file": "前端深度优化方案-2026-09-23.md",
+      "heading": "6.9 交付物",
+      "needle": "- 代码：`supermarket-web/`（`91c4fad` + `75b5f5e`，均已推送 origin/main）"
+    },
+    {
+      "fp": "1fcc766874ebe5bf",
+      "kind": "claim",
+      "file": "对标第二轮交付记录-2026-09-24.md",
+      "heading": "对标第二轮交付记录（2026-09-24）",
+      "needle": "> 提交：inner `59a4eab`（29 文件 +1018/−26）+ `73e83a8`（migrate 工具自修）；生产 D1 迁移已执行；双端已上线。"
+    },
+    {
+      "fp": "7810b1fcb74b6a77",
+      "kind": "claim",
+      "file": "对标轮交付记录-2026-09-24.md",
+      "heading": "对标轮交付记录（2026-09-24）",
+      "needle": "> 提交：inner `5db9efc`（24 文件）+ `14091c8`（记忆回写）；双端已上线。"
+    },
+    {
+      "fp": "c1275a96924079bf",
+      "kind": "ghost",
+      "file": "GitHub开源项目对标分析报告-第七轮-2026-09-25.md",
+      "heading": "超柿 Web × GitHub 优质开源项目对标分析（第七轮）— 测试纵深补完 + 一处真实错图缺陷",
+      "needle": "> 本轮提交：`fc06cd5`（07 队列标记）+ `e9d7665`（H1+H2 测试与 ProductGallery 修复）@@fc06cd5"
+    },
+    {
+      "fp": "27e72591922eba4a",
+      "kind": "ghost",
+      "file": "GitHub开源项目对标分析报告-第七轮-2026-09-25.md",
+      "heading": "超柿 Web × GitHub 优质开源项目对标分析（第七轮）— 测试纵深补完 + 一处真实错图缺陷",
+      "needle": "> 本轮提交：`fc06cd5`（07 队列标记）+ `e9d7665`（H1+H2 测试与 ProductGallery 修复）@@e9d7665"
+    },
+    {
+      "fp": "57321f6da872cb3e",
+      "kind": "ghost",
+      "file": "GitHub开源项目对标分析报告-第八轮-2026-09-26.md",
+      "heading": "超柿 Web × GitHub 优质开源项目对标分析（第八轮）— 换对标系：同架构（CF Pages + D1）项目群 + 三处\"承诺已写、判据未接\"的实账",
+      "needle": "> 本轮起点 HEAD：`d309117`（2026-09-25 22:10）｜外部数据实测时间：2026-09-26，`gh api` 认证态（scope `repo`）@@d309117"
+    },
+    {
+      "fp": "4b9507950ac4426a",
+      "kind": "ghost",
+      "file": "GitHub开源项目对标分析报告-第八轮-2026-09-26.md",
+      "heading": "7. 本轮执行结果（按 §6 的承诺逐项对账，全部实测）",
+      "needle": "提交：`085ec34`（23 文件 / +640 −66）+ `394d680`（视觉判据重锚）。备份 `_backup/pre-round8-2026-09-26/`（git bundle `--all` 10.7MB + 7 个待改文件原件）。@@085ec34"
+    },
+    {
+      "fp": "1d766e772c8b09f0",
+      "kind": "ghost",
+      "file": "GitHub开源项目对标分析报告-第八轮-2026-09-26.md",
+      "heading": "7. 本轮执行结果（按 §6 的承诺逐项对账，全部实测）",
+      "needle": "提交：`085ec34`（23 文件 / +640 −66）+ `394d680`（视觉判据重锚）。备份 `_backup/pre-round8-2026-09-26/`（git bundle `--all` 10.7MB + 7 个待改文件原件）。@@394d680"
+    },
+    {
+      "fp": "dd0b57d0219799df",
+      "kind": "ghost",
+      "file": "GitHub开源项目对标分析报告-第六轮-2026-09-24.md",
+      "heading": "超柿 Web × GitHub 优质开源项目对标分析（第六轮）— 可测性重构 + 门禁环境假设纠偏",
+      "needle": "> 本轮提交：`bcaba62`（测试与重构）+ `d1e139d`（CI 门禁治本）@@bcaba62"
+    },
+    {
+      "fp": "fdafdde4f3eee0bf",
+      "kind": "ghost",
+      "file": "GitHub开源项目对标分析报告-第六轮-2026-09-24.md",
+      "heading": "超柿 Web × GitHub 优质开源项目对标分析（第六轮）— 可测性重构 + 门禁环境假设纠偏",
+      "needle": "> 本轮提交：`bcaba62`（测试与重构）+ `d1e139d`（CI 门禁治本）@@d1e139d"
+    },
+    {
+      "fp": "90a4a592ad673061",
+      "kind": "ghost",
+      "file": "GitHub开源项目对标分析报告-第十二轮-2026-09-26.md",
+      "heading": "6. 执行结果（全部实跑回执，非预写）",
+      "needle": "| 共享工作树的一次意外 | `origin/main` 被并行会话**强制改写**（`5ecf7fa → a65da46`）。处置：先 `git patch-id` + 逐 hunk 比对确认本地 `c471971` 与远端 `6058de7` 为同一改动（3 文件 24+/2−，hunk 相同）才 `git rebase --onto origin/main 5ecf7fa`，只搬我那一条未推提交；**未使用任何 force 推送**，推后 `ls-remote` 与本地@@c471971"
+    },
+    {
+      "fp": "d076a747e9f395c0",
+      "kind": "ghost",
+      "file": "GitHub开源项目对标分析报告-第十轮-2026-09-26.md",
+      "heading": "GitHub 开源项目对标分析报告 · 第十轮（2026-09-26）",
+      "needle": "> 前置状态：内层 HEAD `000d1b3`、CI run `36233752551` + release-parity `36233832798` 全绿；备份 `_backup/pre-round10-2026-09-26/pre-round10.bundle`（10,788,109B，含全部历史）。@@000d1b3"
+    },
+    {
+      "fp": "0acc08b7b3d7d238",
+      "kind": "ghost",
+      "file": "前端深度优化方案-2026-09-23.md",
+      "heading": "6.1 交付与提交",
+      "needle": "| 提交 1（主体） | `91c4fad` — 39 files changed, **+1644 / −702**；新增 10 个文件 |@@91c4fad"
+    },
+    {
+      "fp": "c88fe1c6ef806a75",
+      "kind": "ghost",
+      "file": "前端深度优化方案-2026-09-23.md",
+      "heading": "6.1 交付与提交",
+      "needle": "| 提交 2（层级修正） | `75b5f5e` — 浮层层级重排 |@@75b5f5e"
+    },
+    {
+      "fp": "6a9e64f5589be5e6",
+      "kind": "ghost",
+      "file": "前端深度优化方案-2026-09-23.md",
+      "heading": "6.9 交付物",
+      "needle": "- 代码：`supermarket-web/`（`91c4fad` + `75b5f5e`，均已推送 origin/main）@@91c4fad"
+    },
+    {
+      "fp": "59655ace14b5bc39",
+      "kind": "ghost",
+      "file": "前端深度优化方案-2026-09-23.md",
+      "heading": "6.9 交付物",
+      "needle": "- 代码：`supermarket-web/`（`91c4fad` + `75b5f5e`，均已推送 origin/main）@@75b5f5e"
+    },
+    {
+      "fp": "181f1c607f5a71a9",
+      "kind": "ghost",
+      "file": "对标第二轮交付记录-2026-09-24.md",
+      "heading": "对标第二轮交付记录（2026-09-24）",
+      "needle": "> 提交：inner `59a4eab`（29 文件 +1018/−26）+ `73e83a8`（migrate 工具自修）；生产 D1 迁移已执行；双端已上线。@@59a4eab"
+    },
+    {
+      "fp": "19f5b5d4c98b8a71",
+      "kind": "ghost",
+      "file": "对标第二轮交付记录-2026-09-24.md",
+      "heading": "对标第二轮交付记录（2026-09-24）",
+      "needle": "> 提交：inner `59a4eab`（29 文件 +1018/−26）+ `73e83a8`（migrate 工具自修）；生产 D1 迁移已执行；双端已上线。@@73e83a8"
+    },
+    {
+      "fp": "8cf73a6115724ffa",
+      "kind": "ghost",
+      "file": "对标轮交付记录-2026-09-24.md",
+      "heading": "对标轮交付记录（2026-09-24）",
+      "needle": "> 提交：inner `5db9efc`（24 文件）+ `14091c8`（记忆回写）；双端已上线。@@5db9efc"
+    },
+    {
+      "fp": "43a8a2674ed57d18",
+      "kind": "ghost",
+      "file": "对标轮交付记录-2026-09-24.md",
+      "heading": "对标轮交付记录（2026-09-24）",
+      "needle": "> 提交：inner `5db9efc`（24 文件）+ `14091c8`（记忆回写）；双端已上线。@@14091c8"
+    },
+    {
+      "fp": "13d77ff8bf8a5a63",
+      "kind": "ghost",
+      "file": "第三轮全栈优化-2026-09-23.md",
+      "heading": "0. 交付物与提交",
+      "needle": "| 第三轮主体（11 项） | `supermarket-web` 提交 `2b73fbc`（20 文件 +204/−85） |@@2b73fbc"
+    },
+    {
+      "fp": "83195d5ccc414387",
+      "kind": "ghost",
+      "file": "第三轮全栈优化-2026-09-23.md",
+      "heading": "0. 交付物与提交",
+      "needle": "| 后续拍板项（限流 + 视觉） | `supermarket-web` 提交 `22b5e90`（6 文件 +71/−6） |@@22b5e90"
+    },
+    {
+      "fp": "6309ce9ab4f03cdb",
+      "kind": "ghost",
+      "file": "第三轮全栈优化-2026-09-23.md",
+      "heading": "0. 交付物与提交",
+      "needle": "| 记忆回写 | `ce424f8`（`memory/07-next-steps.md`） |@@ce424f8"
+    },
+    {
+      "fp": "62d76dd092e95a1d",
+      "kind": "measure",
+      "file": "GitHub开源项目对标分析报告-第九轮-2026-09-26.md",
+      "heading": "Abstract",
+      "needle": "外部实测给出的答案很干净：`microfeed` 把工作流文件当被测对象、`vendure` 给 CI 脚本配了自带失败注入的测试、`saleor` 的每条静态规则都带\"必须命中 + 必须不命中\"两类样本；而**跨两个托管目标核发布一致性，8 家 0 有**，**mutation testing 也"
+    },
+    {
+      "fp": "584374bca4f51f89",
+      "kind": "measure",
+      "file": "GitHub开源项目对标分析报告-第九轮-2026-09-26.md",
+      "heading": "6. 本轮执行结果（含 CI 抓回我自己的位置错误）",
+      "needle": "**验证状态**：`npm run verify` **exit 0** —— 65 文件 / **684 用例**、`verify:backend` 109/0、Functions 编译 88,648B、体积 3/3、文档事实 7 项、大小写 0 冲突；parity 脚本四向实测 rc=0 / 1"
+    },
+    {
+      "fp": "15794a7c473f0bbb",
+      "kind": "measure",
+      "file": "GitHub开源项目对标分析报告-第五十一轮-2026-09-29.md",
+      "heading": "1. 我的工作流在对标项目里的对应部分",
+      "needle": "| S7 / D7 的红因 | `psf/black`：`--check` 判\"漂没漂\"，`--diff` 把**漂在哪**打成输出（本轮实测命中文件 `src/black/__init__.py`，具体 help 文案 ❌未取到原文，不作为引用） | 我此前只印\"哪个脚本改了哪个产物\"。名字不是证"
+    },
+    {
+      "fp": "f44f245f47ccc218",
+      "kind": "measure",
+      "file": "GitHub开源项目对标分析报告-第五十五轮-2026-09-29.md",
+      "heading": "0. 一句话结论",
+      "needle": "报告在 `deliverables/…第五十四轮….md`，实测报告 **0 命中**、内层 **19 项未入库**、`npm test` **3 files/6 tests 红**。"
+    },
+    {
+      "fp": "590b714e17566ae1",
+      "kind": "measure",
+      "file": "GitHub开源项目对标分析报告-第五十六轮-2026-09-30.md",
+      "heading": "0. 一句话结论",
+      "needle": "本轮把欠账清偿到 0 之后同一动作实测 rc=0；`limitProvenance` L8 把常量值 `=40` 写进匹配串，值一改就 find 到 `undefined` 抛 TypeError；"
+    },
+    {
+      "fp": "7e5956b817946c03",
+      "kind": "measure",
+      "file": "GitHub开源项目对标分析报告-第八轮-2026-09-26.md",
+      "heading": "5. 本轮开工前的遗留待办盘点实测纠偏（A-project-better 前置）",
+      "needle": "| 07「仓库已 public，'私有仓'表述须更正」 | 待办 | ❌未做，实测 6 处命中 → 本轮 H2 |"
+    },
+    {
+      "fp": "f162768abfca3f67",
+      "kind": "measure",
+      "file": "GitHub开源项目对标分析报告-第八轮-2026-09-26.md",
+      "heading": "7. 本轮执行结果（按 §6 的承诺逐项对账，全部实测）",
+      "needle": "**每条新判据都做了反向变异自证**（禁只跑正向）：H5 改回直返引用 → 3 条红；H2 把 31 改回 30 + 塞回数字徽章 → FAIL 3 项并精确指到 `README.md:17` / `ARCHITECTURE.md:16` / `README.md:6`；H4 改名 `functio"
+    },
+    {
+      "fp": "4b99813314289204",
+      "kind": "measure",
+      "file": "GitHub开源项目对标分析报告-第六十七轮-2026-10-05.md",
+      "heading": "6. 证据与时刻（当次实测，全部可复跑）",
+      "needle": "| ⚠️ 关于读那个日志 | 该日志是 **UTF-16LE**（本机 `>` 重定向默认），而 rc 以 ASCII 尾追加 ⇒ 普通文本搜索**搜不到** `VERIFY_RC`。本轮为此白花一轮，改按字节读才拿到 `VERIFY_RC=0` |"
+    },
+    {
+      "fp": "d710f76c1e8b7f81",
+      "kind": "measure",
+      "file": "GitHub开源项目对标分析报告-第六十四轮-2026-10-03.md",
+      "heading": "0. 一句话结论",
+      "needle": "或 `memory/07-next-steps*.md` 里出现过没有」——动手前实测：`OrdersTab` 在 `CHANGELOG@HEAD~1` 命中 **9 次**、"
+    },
+    {
+      "fp": "4f651690f600dfad",
+      "kind": "measure",
+      "file": "GitHub开源项目对标分析报告-第十二轮-2026-09-26.md",
+      "heading": "GitHub 开源项目对标分析报告 · 第十二轮（2026-09-26）",
+      "needle": "> **取证等级**：【自】= 我本人开文件/跑命令/读官方文档核到；【委】= 子代理开文件、我核过引用形态；【否】= 否定式检索；【推翻】= 我上一轮的结论被本轮实测推翻。"
+    },
+    {
+      "fp": "e8e51d33a162641c",
+      "kind": "measure",
+      "file": "GitHub开源项目对标分析报告-第四十九轮-2026-09-28.md",
+      "heading": "3. 逐项差距说明与本轮处置",
+      "needle": "- 处置：只扫 `export const products` 之后那段；找不到该锚点 ⇒ **rc=2 + 点名\"分面锚点丢失\"，禁止退回整文件扫描**"
+    },
+    {
+      "fp": "746afaf6320a02d7",
+      "kind": "measure",
+      "file": "GitHub开源项目对标分析报告-第四十八轮-2026-09-28.md",
+      "heading": "7. 自我纠正（本轮我自己的，失败面同条登记）",
+      "needle": "形状与\"0 命中须先证输入非空\"同族：**新加的读数第一次出现 0，先怀疑自己看不见，再宣布没有**。"
+    },
+    {
+      "fp": "a4c66bfaa29dad1b",
+      "kind": "measure",
+      "file": "前端深度优化方案-2026-09-23.md",
+      "heading": "6.5 遗留待办台账执行结果",
+      "needle": "| L7 | `docs/security/` 4 份文档断链 | ✅ 已处置：两份引用文档各加**校正注**（记录 4 份文件实测不存在、全盘 0 命中、内容不可恢复；并声明其描述的 CloudBase 云函数形态**已迁移到 Cloudflare Pages Functions**，发现项不可沿"
+    },
+    {
+      "fp": "7da0c0dd11719a2a",
+      "kind": "measure",
+      "file": "双向迭代升级机制-2026-09-18.md",
+      "heading": "5. 双向清单索引",
+      "needle": "| R6 | B2A | 看板缓存（写失效）+ 批量操作批量化 + 计数断言 | P1 | ✅ **已落地并上线**（commit `3dd8ab3`，部署 `2b781d0f`）：看板 60s 缓存**按 rangeDays 分键** + 15 类写操作失效（`DASHBOARD_WRITE_AC"
+    },
+    {
+      "fp": "809d7d6d519f8c76",
+      "kind": "measure",
+      "file": "对标第二轮交付记录-2026-09-24.md",
+      "heading": "已落地（报告建议 → 实际执行）",
+      "needle": "| A1 下单幂等（高） | `orders.idempotencyKey` + **部分唯一索引**（`WHERE ... IS NOT NULL`）；键 = `房间号@requestId#fnv1a(载荷指纹)`；无 requestId 走 90s 内容指纹兜底；去重判定在扣库存**之前**；真"
+    },
+    {
+      "fp": "6d88773fd565d3b0",
+      "kind": "measure",
+      "file": "对标第二轮交付记录-2026-09-24.md",
+      "heading": "已落地（报告建议 → 实际执行）",
+      "needle": "| A3 echarts XSS（高） | GHSA-fgmj-fm8m-jvvx（<6.1.0）实测命中，真实汇点 = 营收柱 tooltip 把入库文本拼成 HTML → 统一 `renderMode:'plainText'` + 新增 `tests/chartXss.test.ts` 5 条静"
+    }
+  ]
+}

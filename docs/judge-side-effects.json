@@ -1,11 +1,11 @@
 {
   "schema": "chaoshi-judge-side-effects-v1",
   "note": "由 `node scripts/check-judge-side-effects.mjs --update` 生成——**跑出来的**，不是推出来的。entries[].writes = 显式写盘开关实测碰过的受控路径（含\"写了同样字节\"，幂等生成器也算写过）；generators = 默认 args 即改写产物的正当生成器通道（永不进自动探针面）；unprobeable / conditional_writers / allow_stale 是人填的具名例外，理由须含实测数字或可复跑命令。",
-  "observed_utc": "2026-09-28T10:04:15.742Z",
+  "observed_utc": "2026-10-07T14:59:06.747Z",
   "counts": {
-    "candidates": 10,
-    "blind": 4,
-    "receipts": 10,
+    "candidates": 15,
+    "blind": 8,
+    "receipts": 15,
     "observedWrites": 5
   },
   "entries": [
@@ -24,7 +24,7 @@
       ],
       "writes_identical": [],
       "unverified": null,
-      "face_files": 719,
+      "face_files": 873,
       "double_ran": true,
       "idempotent_drift": []
     },
@@ -39,7 +39,22 @@
       "writes": [],
       "writes_identical": [],
       "unverified": null,
-      "face_files": 719,
+      "face_files": 873,
+      "double_ran": false,
+      "idempotent_drift": null
+    },
+    {
+      "file": "scripts/benchmark-peers.mjs",
+      "blind": true,
+      "write_flags": [],
+      "default_rc": 2,
+      "default_dirty": [],
+      "write_rc": null,
+      "write_flag": null,
+      "writes": [],
+      "writes_identical": [],
+      "unverified": null,
+      "face_files": 873,
       "double_ran": false,
       "idempotent_drift": null
     },
@@ -56,7 +71,7 @@
       "writes": [],
       "writes_identical": [],
       "unverified": null,
-      "face_files": 719,
+      "face_files": 873,
       "double_ran": false,
       "idempotent_drift": null
     },
@@ -76,7 +91,7 @@
       ],
       "writes_identical": [],
       "unverified": null,
-      "face_files": 719,
+      "face_files": 873,
       "double_ran": true,
       "idempotent_drift": []
     },
@@ -95,9 +110,26 @@
       ],
       "writes_identical": [],
       "unverified": null,
-      "face_files": 719,
+      "face_files": 873,
       "double_ran": true,
       "idempotent_drift": []
+    },
+    {
+      "file": "scripts/check-delivery-claims.mjs",
+      "blind": true,
+      "write_flags": [
+        "--update-baseline"
+      ],
+      "default_rc": 0,
+      "default_dirty": [],
+      "write_rc": 0,
+      "write_flag": "--update-baseline",
+      "writes": [],
+      "writes_identical": [],
+      "unverified": null,
+      "face_files": 873,
+      "double_ran": false,
+      "idempotent_drift": null
     },
     {
       "file": "scripts/check-doc-commands.mjs",
@@ -113,11 +145,30 @@
         "README.md",
         "docs/doc-commands.json"
       ],
-      "writes_identical": [],
+      "writes_identical": [
+        "README.md"
+      ],
       "unverified": null,
-      "face_files": 719,
+      "face_files": 873,
       "double_ran": true,
       "idempotent_drift": []
+    },
+    {
+      "file": "scripts/check-remote-divergence.mjs",
+      "blind": false,
+      "write_flags": [
+        "--update"
+      ],
+      "default_rc": null,
+      "default_dirty": [],
+      "write_rc": null,
+      "write_flag": null,
+      "writes": [],
+      "writes_identical": [],
+      "unverified": "HEAD 快照里没有这个文件（本轮新增件，入库后自动可探）",
+      "face_files": 873,
+      "double_ran": false,
+      "idempotent_drift": null
     },
     {
       "file": "scripts/check-staged-syntax.mjs",
@@ -130,7 +181,22 @@
       "writes": [],
       "writes_identical": [],
       "unverified": null,
-      "face_files": 719,
+      "face_files": 873,
+      "double_ran": false,
+      "idempotent_drift": null
+    },
+    {
+      "file": "scripts/collect-live-perf.mjs",
+      "blind": true,
+      "write_flags": [],
+      "default_rc": 0,
+      "default_dirty": [],
+      "write_rc": null,
+      "write_flag": null,
+      "writes": [],
+      "writes_identical": [],
+      "unverified": null,
+      "face_files": 873,
       "double_ran": false,
       "idempotent_drift": null
     },
@@ -147,7 +213,22 @@
       "writes": [],
       "writes_identical": [],
       "unverified": null,
-      "face_files": 719,
+      "face_files": 873,
+      "double_ran": false,
+      "idempotent_drift": null
+    },
+    {
+      "file": "scripts/quarantine-unreached-perf.mjs",
+      "blind": true,
+      "write_flags": [],
+      "default_rc": 2,
+      "default_dirty": [],
+      "write_rc": null,
+      "write_flag": null,
+      "writes": [],
+      "writes_identical": [],
+      "unverified": null,
+      "face_files": 873,
       "double_ran": false,
       "idempotent_drift": null
     },
@@ -162,7 +243,7 @@
       "writes": [],
       "writes_identical": [],
       "unverified": null,
-      "face_files": 719,
+      "face_files": 873,
       "double_ran": false,
       "idempotent_drift": null
     },
@@ -177,7 +258,7 @@
       "writes": [],
       "writes_identical": [],
       "unverified": null,
-      "face_files": 719,
+      "face_files": 873,
       "double_ran": false,
       "idempotent_drift": null
     }
@@ -196,6 +277,10 @@
     {
       "file": "check-judge-side-effects.mjs",
       "reason": "同上：本轮新增、HEAD 里没有它；且它自己会在临时树里再 git archive 一次，真跑到也会因缺 .git 走 rc!=0 分支 ⇒ 按不可探针具名（实测快照文件数 0 命中）。"
+    },
+    {
+      "file": "check-remote-divergence.mjs",
+      "reason": "第七十一轮新建、本轮尚未入库 ⇒ 本判据的取数面是 `git archive HEAD`，快照里没有这个文件（实测 rc=128 形态的\"取不到\"）。入库后自动可探，不需人记。当下已有的实测：入口骨架 rc=2 / 0.1s（无 GITHUB_REPOSITORY 且无 --fixture 即在门口 bail，git 与 gh 都在其后）；它的 --update 落盘通道由 tests/remoteDivergence.test.js 以 --fixture 注入快照被子进程真跑（24 条，含 rc 0/1/2 三档与\"计数未成立时拒绝落盘\"那条）。"
     }
   ],
   "conditional_writers": [

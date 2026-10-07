@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url'
 import { assertCliRan } from './helpers/cliLeg.js'
 import {
   sectionsOf, quotedSpans, insideAnySpan, claimHits, receiptsOf, judgeDeliveries, selfCheckAdmission,
+  classifyShaToken, shaFindings, selfCheckGhost, fpOf, normalizeLine,
 } from '../scripts/check-delivery-claims.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -135,7 +136,7 @@ describe('CLI：三档退出码与注入演习都实测（只 import 纯函数 �
     const r = runCli(['--dir', dir, '--inject-red'])
     expect(r.status).toBe(1)
     const out = String(r.stdout) + String(r.stderr)
-    expect(out).toContain('--inject-red 已注入一条假主张')
+    expect(out).toContain('--inject-red 已注入两处假')
     expect(out).toContain('INJECTED')
   })
   it('--limit 写成非数字 ⇒ rc=2，不许悄悄回落默认值', () => {
@@ -166,5 +167,141 @@ describe('CLI：三档退出码与注入演习都实测（只 import 纯函数 �
     const r = runCli(['--dir', tmpDir()])
     expect(r.status).toBe(1)
     expect(String(r.stdout) + String(r.stderr)).toContain('0 份 .md')
+  })
+})
+
+/**
+ * D5（第七十一轮）：一手缺陷 —— 第七十轮 §7 写「内层提交：`f5b22d2`」，而该 sha 被同轮
+ * `git commit --amend` 顶掉（`git merge-base --is-ancestor f5b22d2 HEAD` 实测 rc=1）。
+ * D1~D4 全过：那句话的 run 号、结论、必需 job、线上 deploy 锚都是真的；
+ * **假的只有"本轮交付物本体"，而那恰恰是下一轮唯一能复算的锚。**
+ * 下面的 resolve 表用真孤儿 `f5b22d2` 当样本 —— 演习不需要造假对象。
+ */
+const SHA_TABLE = { f5b22d2: 'ghost', '96679fb': 'reachable', deadbeef: 'unknown' }
+const shaFn = (s) => SHA_TABLE[s] || 'unknown'
+const secsOf = (name, text) => sectionsOf(text).map((s) => ({ ...s, file: name }))
+
+describe('D5 结构性分类：先分面，再判定（豁免靠形状，不靠名单）', () => {
+  it('纯十进制 = run 号；带点 = 部署 id / 区间；非十六进制字符 = 另一形；其余才是 commit', () => {
+    expect(classifyShaToken('37503202951')).toBe('run-id')
+    expect(classifyShaToken('37fbb600.supermarket-web.pages.dev')).toBe('dotted')
+    expect(classifyShaToken('23c6630..3f55e61')).toBe('dotted')
+    expect(classifyShaToken('dead_beef-123')).toBe('other-set')
+    expect(classifyShaToken('f5b22d2')).toBe('commit')
+  })
+  it('run 号形如十六进制也绝不当 commit 判（`37503202951` 每个字符都是合法十六进制位）', () => {
+    const r = shaFindings(secsOf('a.md', '## 7. 交付回执\n\n- run `37503202951` `completed/success`\n'), shaFn)
+    expect(r.census['run-id']).toBe(1)
+    expect(r.census.commit).toBe(0)
+    expect(r.ghosts.length + r.unknown.length).toBe(0)
+  })
+})
+
+describe('D5 幽灵 sha：判红那一半与放行那一半必须同时成立', () => {
+  it('正例：回执点名的 sha 对象存在但不在链上 ⇒ 判红并点名是哪份文件哪一节', () => {
+    const r = shaFindings(secsOf('r70.md', '## 7. 交付回执\n\n- **内层提交**：`f5b22d2`（工作树干净）\n'), shaFn)
+    expect(r.ghosts.length).toBe(1)
+    expect(r.ghosts[0]).toMatchObject({ file: 'r70.md', sha: 'f5b22d2' })
+    expect(r.annotated).toEqual([])
+  })
+  it('反向一：就地更正过的（同一行既有标注词、又有一个可达真锚）⇒ 不判红、单独计数', () => {
+    const text = '## 7. 交付回执\n\n- **内层提交**：`96679fb`。更正留痕：原文写 `f5b22d2`，那枚已被 `--amend` 顶掉，是幽灵 sha。\n'
+    const r = shaFindings(secsOf('r70.md', text), shaFn)
+    expect(r.ghosts).toEqual([])
+    expect(r.annotated.length).toBe(1)
+  })
+  it('反向二（牙齿）：只写「幽灵」二字而没有可达真锚 ⇒ 照判红。否则补个词就能绕过，等于把闸拆了', () => {
+    const r = shaFindings(secsOf('x.md', '## 7. 交付回执\n\n- **内层提交**：`f5b22d2`（幽灵）\n'), shaFn)
+    expect(r.annotated).toEqual([])
+    expect(r.ghosts.length).toBe(1)
+  })
+  it('反向三：两个根都取不到的 sha 判「未定位」，只计数不判红（报告引用对手仓属正常）', () => {
+    const r = shaFindings(secsOf('y.md', '## 7. 交付回执\n\n- 对手仓锚点 `deadbeef`（medusa）\n'), shaFn)
+    expect(r.unknown.length).toBe(1)
+    expect(r.ghosts).toEqual([])
+    expect(r.census.commit).toBe(1)
+  })
+  it('不注入 resolve ⇒ D5 整条不参与，并明写 ran=false（绝不把"没跑"记成"没幽灵"）', () => {
+    const r = shaFindings(secsOf('z.md', '## 7. 交付回执\n\n- **内层提交**：`f5b22d2`\n'), null)
+    expect(r.ran).toBe(false)
+    expect(r.ghosts).toEqual([])
+    expect(Object.values(r.census).reduce((a, b) => a + b, 0)).toBe(0)
+  })
+  it('D5 自证四方向必须同时成立（尺自己有洞就不许报绿）', () => {
+    expect(selfCheckGhost()).toEqual({
+      rejectsGhost: true, admitsCorrection: true, rejectsNakedAnnotation: true, ignoresUnknown: true,
+    })
+  })
+})
+
+describe('D5 存量指纹册：双向差集两个方向都要拦，且键不许锚行号', () => {
+  const J = JOBS
+  const withGhost = [{ name: 'a.md', text: '## 7. 交付回执\n\n- **内层提交**：`f5b22d2`\n' }]
+  it('fp 取 kind+file+heading+归一化整行，不取行号：同一句在同一节里挪位置，fp 不变', () => {
+    expect(normalizeLine('   - a   b  ')).toBe(normalizeLine('- a b'))
+    const tail = '## 7. 交付回执\n\n- **内层提交**：`f5b22d2`（工作树干净）\n'
+    const at = judgeDeliveries({ files: [{ name: 'a.md', text: tail }], requiredJobs: J, resolveFn: shaFn }).ghosts[0].fp
+    // 同一段落前面多两行（行号整体后移 2），fp 必须仍是同一个 —— 否则改上面任何人写的东西都会让存量册集体失配
+    const moved = judgeDeliveries({
+      files: [{ name: 'a.md', text: '## 6. 别的\n\n甲\n\n乙\n\n' + tail }], requiredJobs: J, resolveFn: shaFn,
+    }).ghosts[0].fp
+    expect(moved).toBe(at)
+    expect(fpOf({ kind: 'ghost', file: 'a.md', heading: 'h', needle: 'n' }))
+      .not.toBe(fpOf({ kind: 'ghost', file: 'b.md', heading: 'h', needle: 'n' }))
+  })
+  it('新增（不在册）判红，且明细里能看见是哪个 sha', () => {
+    const r = judgeDeliveries({ files: withGhost, requiredJobs: J, resolveFn: shaFn, baseline: { rows: [] } })
+    expect(r.state).toBe('FAIL')
+    expect(r.fresh.length).toBe(1)
+    expect(r.fresh[0].kind).toBe('ghost')
+    expect(r.stale).toEqual([])
+  })
+  it('存量在册 ⇒ 新增 0 ⇒ PASS（存量不刷明细，只在门面行给计数）', () => {
+    const bare = judgeDeliveries({ files: withGhost, requiredJobs: J, resolveFn: shaFn })
+    const rows = bare.ghosts.map((b) => ({ fp: b.fp, kind: 'ghost', file: b.file, heading: b.heading, needle: `${b.line}@@${b.sha}` }))
+    expect(rows.length).toBe(1)
+    const r = judgeDeliveries({ files: withGhost, requiredJobs: J, resolveFn: shaFn, baseline: { rows } })
+    expect(r.state).toBe('PASS')
+    expect(r.fresh).toEqual([])
+  })
+  it('反向：册上挂着而当次取不到的行 = 基线死行，同样判红（死豁免不许留在册上）', () => {
+    const r = judgeDeliveries({
+      files: withGhost, requiredJobs: J, resolveFn: shaFn,
+      baseline: { rows: [{ fp: 'ffffffffffffffff', kind: 'claim', file: 'gone.md', heading: 'x', needle: 'y' }] },
+    })
+    expect(r.state).toBe('FAIL')
+    expect(r.stale.length).toBe(1)
+    expect(r.fresh.length).toBe(1)
+  })
+  it('requiredJobs 取不到 / 取数面为空 ⇒ 一律 FAIL，不许"没标准 = 通过"', () => {
+    expect(judgeDeliveries({ files: [], requiredJobs: J }).state).toBe('FAIL')
+    expect(judgeDeliveries({ files: withGhost, requiredJobs: [] }).state).toBe('FAIL')
+  })
+})
+
+describe('D5 CLI：真实面与夹具面分开对待（存量册是版面的）', () => {
+  it('夹具面 + 空册 ⇒ rc=1，并把幽灵 sha 的所在文件与 sha 本体一起点名', () => {
+    const dir = writeFix(tmpDir(), { 'a.md': '## 7. 交付回执\n\n- **内层提交**：`f5b22d2`（工作树干净）\n' })
+    const base = join(dir, 'base.json')
+    writeFileSync(base, '{"schema":"t","rows":[]}\n', 'utf8')
+    const r = runCli(['--dir', dir, '--baseline', base])
+    expect(r.status).toBe(1)
+    const out = String(r.stdout) + String(r.stderr)
+    expect(out).toContain('幽灵 sha `f5b22d2`')
+    expect(out).toContain('a.md')
+  })
+  it('夹具面不载默认存量册 ⇒ 干净夹具仍 rc=0（回归：拿默认面对账会把整册读成死行，夹具全灭）', () => {
+    const dir = writeFix(tmpDir(), { 'a.md': GOOD })
+    const r = runCli(['--dir', dir])
+    expect(r.status).toBe(0)
+    expect(String(r.stdout)).toContain('基线未装载')
+  })
+  it('真实面 ⇒ 必须印出 D5 的三个分面计数与存量在册数，且本机走的是阻断档', () => {
+    const r = runCli([])
+    const out = String(r.stdout) + String(r.stderr)
+    expect(out).toMatch(/D5 sha 引用候选 \d+（commit \d+／run-id \d+／点号形 \d+／非十六进制 \d+/)
+    expect(out).toMatch(/存量在册 \d+｜D4 自证/)
+    expect(out).toContain('D5 自证 判红=true 认更正=true 拒裸标注=true 容未知=true')
+    expect(out).toContain('档位=阻断')
   })
 })

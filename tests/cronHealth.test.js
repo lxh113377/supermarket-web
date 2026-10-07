@@ -1,4 +1,4 @@
-// 第四十二轮夹具：**每条 cron 的"最近一次"是不是红的**（C1~C6 七道腿）。
+// 第四十二轮夹具：**每条 cron 的"最近一次"是不是红的**（C1~C8 九道腿；C7/C8 由第七十一轮补）。
 // 立它的读数（本机实测 @2026-09-28）：`gh run list --workflow=Uptime` 第一行 = run 36299454141
 // @2026-09-27T06:13:21Z event=schedule **failure**，而旧尺 `LIVENESS_MODE=presence ... check-backup-liveness.mjs`
 // 对同一时刻实跑 **rc=0**（它认的是 09-26 的一次 workflow_dispatch）。⇒ "窗口内成功过"与"最近一次红"
@@ -12,7 +12,7 @@ import { writeFileSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { evaluate, verdictOf, cronPeriodDays, enumerateScheduled } from '../scripts/check-cron-health.mjs'
+import { evaluate, verdictOf, cronPeriodDays, enumerateScheduled, ageOfRegistry, stepCensus } from '../scripts/check-cron-health.mjs'
 
 const ROOT = resolve(fileURLToPath(import.meta.url), '../..')
 const SCRIPT = join('scripts', 'check-cron-health.mjs')
@@ -33,7 +33,7 @@ function cli(args, env = {}) {
 const GREEN_FIXTURE = () => ({
   workflows: WF, remote: REMOTE, nowIso: NOW,
   runsByName: { 'd1-backup.yml': [run()], 'uptime.yml': [run({ id: 2 })] },
-  registry: { entries: [{ workflow: 'd1-backup.yml' }, { workflow: 'uptime.yml' }] },
+  registry: { generatedUtc: NOW, entries: [{ workflow: 'd1-backup.yml' }, { workflow: 'uptime.yml' }] },
 })
 
 const WF = {
@@ -56,21 +56,25 @@ const entries = (over = {}) => [
 const state = (rows, id) => rows.find((r) => r.id === id)
 
 function base({ runs = {}, registry = entries(), ...rest } = {}) {
+  // C7 判的是"册上读数几时生成的"，而老夹具传的是裸数组（没有 generatedUtc 这种册级字段）。
+  // 这里统一包成对象并给一个"刚刚生成"的时刻 ⇒ 其余各腿的断言面不被 C7 污染；C7 自己的正/反例单独造。
+  const reg = Array.isArray(registry) ? { generatedUtc: rest.nowIso || NOW, entries: registry } : registry
   const out = evaluate({
     workflows: WF, remote: REMOTE, nowIso: NOW,
     runsByName: {
       'd1-backup.yml': runs.backup ?? [run()],
       'uptime.yml': runs.uptime ?? [run({ id: 2, event: 'schedule' })],
     },
-    registry, ...rest,
+    registry: reg, ...rest,
   })
   return out
 }
 
 describe('cron 普查 · 正例', () => {
-  it('两条 cron 全绿 ⇒ 七道腿（C1/C2/C3/C3b/C4/C5/C6）全过、rc=0', () => {
+  it('两条 cron 全绿 ⇒ 九道腿（C1/C2/C3/C3b/C4/C5/C6/C7/C8）全过、rc=0', () => {
     const { rows } = base()
     expect(rows.filter((r) => r.ok !== true).map((r) => r.id)).toEqual([])
+    expect(rows.length).toBe(9)
     expect(verdictOf(rows)).toEqual({ verdict: 'GREEN', rc: 0 })
     expect(state(rows, 'C6').detail).toContain('OK 2')
   })
@@ -224,11 +228,12 @@ describe('cron 周期解析（口径本身要能反例）', () => {
 })
 
 describe('入口通道真跑（子进程 + 三档退出码；第二十四轮立的规矩：只 import 纯函数不算跑过入口）', () => {
-  it('喂绿色合成读数 ⇒ rc=0，门面行印"声明 2 条"与 7/7', () => {
+  it('喂绿色合成读数 ⇒ rc=0，门面行印"声明 2 条"与 9/9', () => {
     const f = fixtureFile('green.json', GREEN_FIXTURE())
     const { rc, out } = cli(['--fixture', f])
     expect(rc, out.slice(-600)).toBe(0)
     expect(out).toContain('GATE-PASS cron-health')
+    expect(out).toContain('检查 9/9 通过，0 失败')
     expect(out).toContain('声明 2 条')
   })
 
@@ -251,5 +256,128 @@ describe('入口通道真跑（子进程 + 三档退出码；第二十四轮立�
     const { rc, out } = cli(['--fixture', fixtureFile('inj.json', GREEN_FIXTURE()), '--inject-red'])
     expect(rc, out.slice(-600)).toBe(1)
     expect(out).toContain('INJECTED')
+  })
+})
+
+/**
+ * C7 / C8（第七十一轮）。一手实况：`docs/cron-health.json` 的 generatedUtc 停在 2026-10-04，
+ * observed_last_run 落后现实 3 夜，而 grep 全仓**没有任何判据读这三个字段**（只有 --update 写它）。
+ * ⇒ 人填的豁免理由是照着册上读数写的，读数过期 = 理由是照着旧事实写的，此前没人复核。
+ * C7 走 rc=2（过期的是证据，不是某条 cron 病了）；C8 默认只报，`--require-reason-match` 才拦。
+ */
+const DAY = 86_400_000
+const iso = (msAgo) => new Date(Date.parse(NOW) - msAgo).toISOString()
+const regOf = (per, generatedUtc = NOW) => ({
+  generatedUtc,
+  entries: entries().map((e) => ({ ...e, ...(per[e.workflow] ? { observed_failing_steps: per[e.workflow] } : {}) })),
+})
+
+describe('C7 登记册读数新鲜度（没人读的字段现在有人读了）', () => {
+  it('龄期在限内 ⇒ PASS，且把龄期数字印出来（不是只印一个状态词）', () => {
+    const { rows } = base({ registry: regOf({}, iso(DAY)) })
+    expect(state(rows, 'C7').ok).toBe(true)
+    expect(state(rows, 'C7').detail).toContain('龄期 1.00d')
+  })
+  it('超限 ⇒ ok=false，且 verdictOf 折成 rc=2（UNVERIFIED）而不是 rc=1（RED）', () => {
+    const { rows } = base({ registry: regOf({}, iso(12 * DAY)) })
+    expect(state(rows, 'C7').ok).toBe(false)
+    expect(state(rows, 'C7').detail).toContain('超 7d')
+    expect(verdictOf(rows)).toEqual({ verdict: 'UNVERIFIED', rc: 2 })
+  })
+  it('册上没有 generatedUtc ⇒ 判"无法判新鲜度"，不得折算成证据仍成立', () => {
+    const { rows } = base({ registry: { entries: entries() } })
+    expect(state(rows, 'C7').ok).toBe(false)
+    expect(state(rows, 'C7').detail).toContain('无法判新鲜度')
+  })
+  it('generatedUtc 是一坨读不懂的串 ⇒ 也判未验证；解析器禁止返回 0 天（那会伪装成"刚刚生成"）', () => {
+    const { rows } = base({ registry: regOf({}, '昨天下午') })
+    expect(state(rows, 'C7').ok).toBe(false)
+    expect(state(rows, 'C7').detail).toContain('解不出时刻')
+    expect(ageOfRegistry('昨天下午', NOW)).toBe(null)
+    expect(ageOfRegistry(undefined, NOW)).toBe(null)
+    expect(ageOfRegistry(NOW, NOW)).toBe(0)
+  })
+  it('阈值是读出来的：--max-age-days 收紧到 0.5 天，同一份 1 天前的册必须转红', () => {
+    const looser = base({ registry: regOf({}, iso(DAY)), maxAgeDays: 2 })
+    const tighter = base({ registry: regOf({}, iso(DAY)), maxAgeDays: 0.5 })
+    expect(state(looser.rows, 'C7').ok).toBe(true)
+    expect(state(tighter.rows, 'C7').ok).toBe(false)
+    expect(state(tighter.rows, 'C7').detail).toContain('超 0.5d')
+  })
+})
+
+describe('C8 在册失败 step ⇄ 当次实测失败 step（双向差集）', () => {
+  const redUptime = { runs: { uptime: [run({ id: 55, conclusion: 'failure', event: 'schedule' })] } }
+  it('两侧相等（含乱序）⇒ CONFIRMED，且不因 C6 判红而少报', () => {
+    const c = stepCensus(
+      [{ workflow: 'uptime.yml', observed_failing_steps: ['A', 'B'] }, { workflow: 'd1-backup.yml' }],
+      { 'uptime.yml': ['B', 'A'] },
+      [{ file: 'uptime.yml', state: 'RED', warned: false }, { file: 'd1-backup.yml', state: 'OK', warned: false }],
+    )
+    expect({ due: c.due, confirmed: c.confirmed, drift: c.drift, unreviewed: c.unreviewed }).toEqual({ due: 1, confirmed: 1, drift: 0, unreviewed: 0 })
+  })
+  it('两侧不等 ⇒ 漂移，并**两个方向各自点名**（只在册 / 只在实测）', () => {
+    const c = stepCensus(
+      [{ workflow: 'uptime.yml', observed_failing_steps: ['旧理由点名的那一步'] }],
+      { 'uptime.yml': ['今天真正红的那一步'] },
+      [{ file: 'uptime.yml', state: 'RED', warned: false }],
+    )
+    expect(c.drift).toBe(1)
+    expect(c.driftRows[0]).toEqual({ file: 'uptime.yml', onlyReg: ['旧理由点名的那一步'], onlyLive: ['今天真正红的那一步'] })
+  })
+  it('册上没字段 / 本轮没取 / 取失败 ⇒ 三种都记未复核，一律不得折进 CONFIRMED', () => {
+    const per = [{ file: 'uptime.yml', state: 'RED', warned: false }]
+    const noField = stepCensus([{ workflow: 'uptime.yml' }], { 'uptime.yml': ['A'] }, per)
+    const notFetched = stepCensus([{ workflow: 'uptime.yml', observed_failing_steps: ['A'] }], {}, per)
+    const fetchErr = stepCensus([{ workflow: 'uptime.yml', observed_failing_steps: ['A'] }], { 'uptime.yml': { error: 'boom' } }, per)
+    expect([noField.unreviewed, notFetched.unreviewed, fetchErr.unreviewed]).toEqual([1, 1, 1])
+    expect([noField.confirmed, notFetched.confirmed, fetchErr.confirmed]).toEqual([0, 0, 0])
+    expect(fetchErr.unreviewedRows[0].why).toContain('boom')
+  })
+  it('两侧都是"没有失败步骤"⇒ CONFIRMED（空集相等是真相等，不是没数据）', () => {
+    const c = stepCensus([{ workflow: 'uptime.yml', observed_failing_steps: [] }], { 'uptime.yml': [] }, [{ file: 'uptime.yml', state: 'RED', warned: false }])
+    expect(c.confirmed).toBe(1)
+    expect(c.unreviewed).toBe(0)
+  })
+  it('报告档：漂移不翻 rc；拧上 --require-reason-match 才拦（到期轮的那颗开关）', () => {
+    const reg = regOf({ 'uptime.yml': ['旧理由点名的那一步'] })
+    const live = { 'uptime.yml': ['今天真正红的那一步'] }
+    const report = base({ ...redUptime, registry: reg, failingSteps: live })
+    expect(state(report.rows, 'C8').ok).toBe(true)
+    expect(state(report.rows, 'C8').detail).toContain('漂移 1')
+    expect(report.rows.filter((r) => r.ok !== true).map((r) => r.id)).toEqual(['C6'])
+    const gated = base({ ...redUptime, registry: reg, failingSteps: live, requireReasonMatch: true })
+    expect(state(gated.rows, 'C8').ok).toBe(false)
+    expect(state(gated.rows, 'C8').detail).toContain('档位=阻断')
+    expect(verdictOf(gated.rows)).toEqual({ verdict: 'RED', rc: 1 })
+  })
+  it('册上已声称复核过的条目，即使今天不红也必须复核（脱节不该等今天正好红才查）', () => {
+    const { rows } = base({ registry: regOf({ 'uptime.yml': ['一条今天已经不红的步骤'] }), failingSteps: { 'uptime.yml': [] } })
+    expect(state(rows, 'C8').detail).toContain('应复核 1')
+    expect(state(rows, 'C8').detail).toContain('漂移 1')
+  })
+})
+
+describe('C7 / C8 的演习通道（子进程真跑入口）', () => {
+  it('--inject-stale ⇒ rc=2 且点名 C7（尺残不是 cron 病）', () => {
+    const { rc, out } = cli(['--fixture', fixtureFile('stale.json', GREEN_FIXTURE()), '--inject-stale'])
+    expect(rc, out.slice(-600)).toBe(2)
+    expect(out).toContain('C7')
+    expect(out).toContain('超 7d')
+  })
+  it('--inject-step-drift ⇒ 报告档仍 rc=0，但门面行必须印出漂移条数', () => {
+    const { rc, out } = cli(['--fixture', fixtureFile('drift1.json', GREEN_FIXTURE()), '--inject-step-drift'])
+    expect(rc, out.slice(-600)).toBe(0)
+    expect(out).toMatch(/C8 .*漂移 [1-9]/)
+  })
+  it('同一份注入 + --require-reason-match ⇒ rc=1（开关真的有牙）', () => {
+    const { rc, out } = cli(['--fixture', fixtureFile('drift2.json', GREEN_FIXTURE()), '--inject-step-drift', '--require-reason-match'])
+    expect(rc, out.slice(-600)).toBe(1)
+    expect(out).toContain('档位=阻断')
+  })
+  it('--max-age-days 写成非正数 ⇒ rc=2，不许悄悄回落默认值', () => {
+    const { rc, out } = cli(['--fixture', fixtureFile('age.json', GREEN_FIXTURE()), '--max-age-days=abc'])
+    expect(rc, out.slice(-500)).toBe(2)
+    expect(out).toContain('解不出正整数')
   })
 })

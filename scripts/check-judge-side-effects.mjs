@@ -51,7 +51,7 @@ export const SELF = 'check-judge-side-effects.mjs'
 export const REGISTRY = 'docs/judge-side-effects.json'
 export const ENTRY_REG = 'docs/cli-entrypoints.md'
 const USAGE_RCS = [null, 126, 127, 128, 129]
-export const WRITE_FLAGS = ['--write', '--update-write-quota', '--update', '--apply', '--fix']
+export const WRITE_FLAGS = ['--write', '--update-write-quota', '--update', '--update-baseline', '--apply', '--fix']
 const fwd = (p) => String(p).split('\\').join('/')
 const base = (f) => String(f).replace(/^scripts\//, '')
 /**
