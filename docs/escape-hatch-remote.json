@@ -1,0 +1,393 @@
+{
+  "schema": "chaoshi-escape-hatch-remote-v1",
+  "note": "`node scripts/check-escape-hatch-log.mjs --update-remote` 生成；联网取数（gh api），**永不进阻断链**（网络不通时它会把一次正常提交判红而本地无可自愈处置，户内规⑩）。判决面 = `.ci/contract.json` 的 `workflow` 字段（当前 CI）；别的 workflow 的红只作旁证印出、不进判决（C9 判覆盖：账本有而读数无 = 未覆盖，读数有而账本无 = 死读数；C10 判结论：判决面 RED 且无 `disposition.why` = 待处置）。",
+  "generatedUtc": "2026-10-08T04:24:19.408Z",
+  "scopeWorkflow": "CI",
+  "repository": "https://github.com/lxh113377/supermarket-web.git",
+  "rows": [
+    {
+      "id": "R#1",
+      "head": "3c8df89a728ddbae2f0745b8bf57ee8e31e7d4c1",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#1 head=3c8df89 branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
+    },
+    {
+      "id": "R#3",
+      "head": "a88a9b4fbdf3b56bad2415c1a12d9e5a7ded1949",
+      "state": "CANCELLED",
+      "ok": false,
+      "unverified": true,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 1,
+      "sideRed": [],
+      "detail": "#3 head=a88a9b4 branch=main｜判决面「CI」1 条：success 0／failure 0／cancelled 1／未结束 0｜**CI 从来没给出结论**（被平台作业上限掐断）⇒ 不算绿也不算红，不据此记谁欠账"
+    },
+    {
+      "id": "R#4",
+      "head": "54963fe0730194b566945b3be2231ad4a16ea273",
+      "state": "RED",
+      "ok": false,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [
+        "CI"
+      ],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#4 head=54963fe branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）",
+      "disposition": {
+        "why": "run 36770177369 的 build-and-test 红在 Test (vitest, with v8 coverage)；基座判红时修复推不上去，故绕过。治本提交 9f19bef 只做落账，随后 CI 在 37670886613 之前的下一次成功 run 回绿。",
+        "until": ""
+      }
+    },
+    {
+      "id": "R#5",
+      "head": "339f4e6f7eac536552509bc22ee2c2a68d7c39fd",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#5 head=339f4e6 branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
+    },
+    {
+      "id": "R#6",
+      "head": "59f17d5b327915b7e3370063d39ff39f2ec12a8b",
+      "state": "RED",
+      "ok": false,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [
+        "CI"
+      ],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#6 head=59f17d5 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）",
+      "disposition": {
+        "why": "run 36999505316 的 build-and-test 红在 Test (vitest, with v8 coverage)；该笔是记账类提交，绕过的目的是让 00b92d4 能先落地，随后 2b7155c 订正 action 数与单测文件数把红因摘掉。",
+        "until": ""
+      }
+    },
+    {
+      "id": "R#7",
+      "head": "00b92d432db3b2347fa8f08638768cd9fcd44bec",
+      "state": "RED",
+      "ok": false,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [
+        "CI"
+      ],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#7 head=00b92d4 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）",
+      "disposition": {
+        "why": "run 37001054827 的 build-and-test 红在 Doc facts consistency gate（/web action 数与单测文件数在文档里写旧了）；治本提交 2b7155c 逐字订正为 35 与 123。",
+        "until": ""
+      }
+    },
+    {
+      "id": "R#8",
+      "head": "2b7155ce4ace00e666ec74c9b9d51f6e89c754a9",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#8 head=2b7155c branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
+    },
+    {
+      "id": "R#9",
+      "head": "ccebafaa8b87492555c0f55448da6543cc2ce0b6",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#9 head=ccebafa branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
+    },
+    {
+      "id": "R#10",
+      "head": "89a67dbb0fc8f7daefb212a6ac47165f60ffe02a",
+      "state": "RED",
+      "ok": false,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [
+        "CI"
+      ],
+      "cancelledRuns": 0,
+      "sideRed": [
+        "Uptime",
+        "D1 Daily Backup"
+      ],
+      "detail": "#10 head=89a67db branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）｜旁证（非判决面）：Uptime、D1 Daily Backup 红 2 条 —— 与「CI 有没有绿」无关，不计入判决",
+      "disposition": {
+        "why": "run 37146129990 的 build-and-test 红在 Test (vitest, with v8 coverage)；治本提交 57e36de 把台账漂移判挪到提交那一刻（pre-commit 增第 4 条腿），不再依赖事后补记。",
+        "until": ""
+      }
+    },
+    {
+      "id": "R#11",
+      "head": "63482daabb4e5ab99986b58254ca47afef8f76f0",
+      "state": "CANCELLED",
+      "ok": false,
+      "unverified": true,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 1,
+      "sideRed": [],
+      "detail": "#11 head=63482da branch=main｜判决面「CI」1 条：success 0／failure 0／cancelled 1／未结束 0｜**CI 从来没给出结论**（被平台作业上限掐断）⇒ 不算绿也不算红，不据此记谁欠账"
+    },
+    {
+      "id": "R#12",
+      "head": "ecdc92d36c3cc09ee819115eaddd265573593153",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [
+        "Uptime",
+        "D1 Daily Backup"
+      ],
+      "detail": "#12 head=ecdc92d branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0｜旁证（非判决面）：Uptime、D1 Daily Backup 红 4 条 —— 与「CI 有没有绿」无关，不计入判决"
+    },
+    {
+      "id": "R#13",
+      "head": "e6266a78357c13b79ed924f022b1ea25a838edd1",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#13 head=e6266a7 branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
+    },
+    {
+      "id": "R#14",
+      "head": "aaf17dba3371ddac6e02e28f6239f3f2a38e535a",
+      "state": "RED",
+      "ok": false,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [
+        "CI"
+      ],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#14 head=aaf17db branch=HEAD｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）",
+      "disposition": {
+        "why": "run 37649381961 的 build-and-test 红在 Test (vitest, with v8 coverage)；治本提交 95eee6f 新增打印页 3D 实景导航与 9 文件上传，并把新增页面的测试一并补上。",
+        "until": ""
+      }
+    },
+    {
+      "id": "R#15",
+      "head": "27fdfebfe8ba154fadcfb82f855ee49c7df01f4f",
+      "state": "RED",
+      "ok": false,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [
+        "CI"
+      ],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#15 head=27fdfeb branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）",
+      "disposition": {
+        "why": "run 37661212505 的 build-and-test 红在 Line-ending purity gate (npm run verify:eol)；glTF 资产缺 .gitattributes 的 binary 声明。治本提交 cf23d78 把 binary 声明与资产同笔落地。",
+        "until": ""
+      }
+    },
+    {
+      "id": "R#16",
+      "head": "cf23d78898a9a2a28c1e63e9bf17cc8b5f147d33",
+      "state": "RED",
+      "ok": false,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [
+        "CI"
+      ],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#16 head=cf23d78 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）",
+      "disposition": {
+        "why": "run 37661798942 的 build-and-test 红在 Test (vitest, with v8 coverage)；根因是打印直传的 mod「upload」未登记进 docs/logging.md。治本提交 3ddc211 补登记（run id 即本条依据）。",
+        "until": ""
+      }
+    },
+    {
+      "id": "R#17",
+      "head": "3ddc21126bd12631ee583dfbdf29dd9cc3b16572",
+      "state": "CANCELLED",
+      "ok": false,
+      "unverified": true,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 1,
+      "sideRed": [],
+      "detail": "#17 head=3ddc211 branch=main｜判决面「CI」1 条：success 0／failure 0／cancelled 1／未结束 0｜**CI 从来没给出结论**（被平台作业上限掐断）⇒ 不算绿也不算红，不据此记谁欠账"
+    },
+    {
+      "id": "R#18",
+      "head": "dd20a8a1ae2b091507711610290803e8a2c4a968",
+      "state": "RED",
+      "ok": false,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [
+        "CI"
+      ],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#18 head=dd20a8a branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）",
+      "disposition": {
+        "why": "run 37667074618 的 build-and-test 红在 Test (vitest, with v8 coverage)；根因是打印页 DOM 装配层把覆盖率分母推高、棘轮阈值被顶破。治本提交 fff16dc 把该层纳入豁免。",
+        "until": ""
+      }
+    },
+    {
+      "id": "R#19",
+      "head": "fff16dca04a5df4ee5c9f6490c4d58fb86d9fcd0",
+      "state": "CANCELLED",
+      "ok": false,
+      "unverified": true,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 1,
+      "sideRed": [],
+      "detail": "#19 head=fff16dc branch=main｜判决面「CI」1 条：success 0／failure 0／cancelled 1／未结束 0｜**CI 从来没给出结论**（被平台作业上限掐断）⇒ 不算绿也不算红，不据此记谁欠账"
+    },
+    {
+      "id": "R#20",
+      "head": "23256f986dec094871ff447bc7d8e2083954afaf",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#20 head=23256f9 branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
+    },
+    {
+      "id": "R#21",
+      "head": "db2bcec98cb45d3d187b23b8f11e2324af456ca0",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#21 head=db2bcec branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
+    },
+    {
+      "id": "R#22",
+      "head": "db2bcec98cb45d3d187b23b8f11e2324af456ca0",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#22 head=db2bcec branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
+    },
+    {
+      "id": "R#23",
+      "head": "6e4f65bfb54e5c9d46f5f1cef5e239a2e3e67cc6",
+      "state": "CANCELLED",
+      "ok": false,
+      "unverified": true,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 1,
+      "sideRed": [],
+      "detail": "#23 head=6e4f65b branch=main｜判决面「CI」1 条：success 0／failure 0／cancelled 1／未结束 0｜**CI 从来没给出结论**（被平台作业上限掐断）⇒ 不算绿也不算红，不据此记谁欠账"
+    },
+    {
+      "id": "R#24",
+      "head": "6e4f65bfb54e5c9d46f5f1cef5e239a2e3e67cc6",
+      "state": "CANCELLED",
+      "ok": false,
+      "unverified": true,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 1,
+      "sideRed": [],
+      "detail": "#24 head=6e4f65b branch=main｜判决面「CI」1 条：success 0／failure 0／cancelled 1／未结束 0｜**CI 从来没给出结论**（被平台作业上限掐断）⇒ 不算绿也不算红，不据此记谁欠账"
+    },
+    {
+      "id": "R#25",
+      "head": "6a8ffa9178404f39b3ad07b72cb2c58d4d3ea310",
+      "state": "RED",
+      "ok": false,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [
+        "CI"
+      ],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#25 head=6a8ffa9 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）",
+      "disposition": {
+        "why": "run 37673508810 的 build-and-test 红在 Test (vitest, with v8 coverage)；根因是供应链卫生测试要求 actions/cache 钉提交 SHA，而该笔只用了标签。治本提交 ddd6de0 把 actions/cache 钉到 v4.3.0 的提交 SHA。",
+        "until": ""
+      }
+    },
+    {
+      "id": "R#26",
+      "head": "ddd6de09dde00c4fc0f27c13269de67a6d715d39",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#26 head=ddd6de0 branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
+    },
+    {
+      "id": "R#27",
+      "head": "ddd6de09dde00c4fc0f27c13269de67a6d715d39",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#27 head=ddd6de0 branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
+    },
+    {
+      "id": "R#28",
+      "head": "4349d9956f49995a6499d57b75bfa63946b24788",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#28 head=4349d99 branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
+    }
+  ]
+}

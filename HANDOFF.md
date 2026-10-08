@@ -25,7 +25,7 @@
 | 数据库  | D1（SQLite，7 表）+ Workers KV（限流计数）                              |
 | 双前端  | Cloudflare Pages（同源）/ GitHub Pages（dispatch CI 双发）            |
 | Lint | oxlint                                                        |
-| 测试   | vitest（132 文件；**用例条数以 `npm test` 当场输出为准，本文不写死**——写死即第二真相源，此处原记的 631/126 已落后十余轮）+ `scripts/verify-backend.mjs`（断言数以 `npm run verify:backend` 当场输出为准，原记 102 已过期）+ Playwright 三层（`tests/e2e` 演示模式 / `tests/e2e-visual` 生产构建几何 / `tests/e2e-stub` 云端模式真渲染，条数以各自命令输出为准） |
+| 测试   | vitest（133 文件；**用例条数以 `npm test` 当场输出为准，本文不写死**——写死即第二真相源，此处原记的 631/126 已落后十余轮）+ `scripts/verify-backend.mjs`（断言数以 `npm run verify:backend` 当场输出为准，原记 102 已过期）+ Playwright 三层（`tests/e2e` 演示模式 / `tests/e2e-visual` 生产构建几何 / `tests/e2e-stub` 云端模式真渲染，条数以各自命令输出为准） |
 
 ## 三、项目结构
 
@@ -53,7 +53,7 @@ supermarket-web/
 │   ├── utils/              # businessHours / reviewImages（评价图压缩+base64）
 │   ├── components/         # UI 组件（含管理端 InlineEditForm 内联编辑）
 │   └── pages/              # 顾客端 + 管理端页面
-├── tests/                  # vitest 单测（132 文件；用例条数以 `npm test` 当场输出为准）
+├── tests/                  # vitest 单测（133 文件；用例条数以 `npm test` 当场输出为准）
 ├── public/                 # 商品图 webp + sm/ 小图、sw.js、manifest、收款码
 ├── .github/workflows/      # ci.yml（门禁）+ dispatch.yml（github.io 双发）
 ├── wrangler.toml           # Pages 构建输出 + D1/KV 绑定

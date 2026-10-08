@@ -18,6 +18,7 @@ import { assertCliRan } from './helpers/cliLeg.js'
 import {
   sectionsOf, quotedSpans, insideAnySpan, claimHits, receiptsOf, judgeDeliveries, selfCheckAdmission,
   classifyShaToken, shaFindings, selfCheckGhost, fpOf, normalizeLine,
+  requiredJobsOf, fileDateOf, aliasUsable, SHAPE_FROM_UTC,
 } from '../scripts/check-delivery-claims.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -350,5 +351,121 @@ describe('D5 CLI：真实面与夹具面分开对待（存量册是版面的）'
     expect(out).toMatch(/D5 sha 引用候选 \d+/)
     // 注入的那枚 `f5b22d2` 在合成仓里取不到 ⇒ 走"未定位"分支；两个分支都算 D5 收到了这条注入
     expect(out).toMatch(/幽灵 sha `f5b22d2`|未定位 [1-9]/)
+  })
+})
+
+/**
+ * 第七十二轮 · requiredJobAliases：认历史名，但只在它还算现行的那段时间里认。
+ * 一手红因（本轮开工实测，不是编的形状）：4349d99 把 CI 的 `build-and-test` 改名 `gates`，
+ * 而 `.ci/contract.json` 的 requiredJobs 是**今天**的名单 ⇒ 拿今天的名单判历史报告，
+ * 第四十二轮 §8 那段（run 号有、结论有、四个 job 名齐、只有 `gates` 缺席）被判成「新增 1」，
+ * `npm run verify` 末腿由绿转红。判据不许把"改名之前的真话"读成缺件，也不许让别名变成永久豁免。
+ */
+describe('第七十二轮 · 历史别名的时态面', () => {
+  const ALIASES = [{ job: 'build-and-test', aliasOf: 'gates', untilUtc: '2026-10-07' }]
+  const OLD_NAME = '## 8. 远端回执\n\n| 事 | 回执 |\n|---|---|\n| H-1 **已上线** | run `36364894565`，`completed/success`；`build-and-test` success、`e2e` success、`e2e-cloud-stub` success、`visual` success、`deploy` success |\n'
+  it('改名之前的报告用旧名 ⇒ 认（本轮真实 red→green 的那一段）', () => {
+    const r = receiptsOf(OLD_NAME, JOBS, { fileDate: '2026-09-28', aliases: ALIASES })
+    expect(r.ok, JSON.stringify(r)).toBe(true)
+    expect(r.usedAlias).toEqual(['build-and-test→gates'])
+    expect(r.missingJobs).toEqual([])
+  })
+  it('改名之后的报告只写旧名 ⇒ 照判红（别名是时段，不是永久豁免）', () => {
+    const r = receiptsOf(OLD_NAME, JOBS, { fileDate: '2026-10-08', aliases: ALIASES })
+    expect(r.ok).toBe(false)
+    expect(r.missingJobs).toEqual(['gates'])
+    expect(r.usedAlias).toEqual([])
+  })
+  it('不传 ctx ⇒ 逐字回到第七十一轮行为（默认不放宽）', () => {
+    expect(receiptsOf(OLD_NAME, JOBS).ok).toBe(false)
+  })
+  it('文件名解不出日期 ⇒ 不认别名，且把"未定位日期"计数摊出而不是静默按旧名单放过', () => {
+    expect(fileDateOf('GitHub开源项目对标分析报告-第七十一轮-2026-10-07.md')).toBe('2026-10-07')
+    expect(fileDateOf('no-date-here.md')).toBe(null)
+    const r = judgeDeliveries({ files: [{ name: 'no-date.md', text: OLD_NAME }], requiredJobs: JOBS, aliases: ALIASES })
+    expect(r.matched).toBe(0)
+    expect(r.shape.dateUnknown).toBe(1)
+  })
+  it('aliasUsable：日期边界两侧各一态', () => {
+    expect(aliasUsable(ALIASES[0], '2026-10-07')).toBe(true)
+    expect(aliasUsable(ALIASES[0], '2026-10-08')).toBe(false)
+    expect(aliasUsable(ALIASES[0], null)).toBe(false)
+  })
+  it('半张的别名册 ⇒ 整把尺 BLOCKED（缺 untilUtc / aliasOf 无主 / 不是数组，一律不猜）', () => {
+    const cases = [
+      { requiredJobs: JOBS, requiredJobAliases: [{ job: 'x', aliasOf: 'gates' }] },
+      { requiredJobs: JOBS, requiredJobAliases: [{ job: 'x', aliasOf: 'no-such-job', untilUtc: '2026-01-01' }] },
+      { requiredJobs: JOBS, requiredJobAliases: 'not-an-array' },
+    ]
+    for (const [i, c] of cases.entries()) {
+      const p = join(tmpDir(), 'contract.json')
+      writeFileSync(p, JSON.stringify(c), 'utf8')
+      const cj = requiredJobsOf(p)
+      expect(cj.error, `case ${i} 应 fail-closed，实得 ${JSON.stringify(cj)}`).toBeTruthy()
+      expect(cj.aliases).toEqual([])
+    }
+  })
+  it('生产面：.ci/contract.json 的别名册良构且 aliasOf 都在现行名单里', () => {
+    const cj = requiredJobsOf(join(ROOT, '.ci', 'contract.json'))
+    expect(cj.error, String(cj.error)).toBe(null)
+    expect(cj.aliases.length, '改名之后必须留下别名册，否则历史回执集体被判红').toBeGreaterThanOrEqual(1)
+    for (const a of cj.aliases) {
+      expect(cj.jobs).toContain(a.aliasOf)
+      expect(/^\d{4}-\d{2}-\d{2}$/.test(a.untilUtc), `${a.job} 的 untilUtc 不是日期`).toBe(true)
+      expect(a.job).not.toBe(a.aliasOf)
+    }
+  })
+})
+
+/**
+ * 第七十二轮 · D6「接受侧自证」+ 回执形状位。
+ * 一手取数（本轮现算，取数器 = node + 本判据自己的 sectionsOf/claimHits）：
+ * `../deliverables` 80 份 md 里标题含「回执/交付」的段 **49** 个（≥2026-09-28 的 28 个），
+ * 而词面 claimHits 在这 28 个里只命中 **1** 个 ⇒ 判据自第 68 轮立起到本轮，matched 在真实面上
+ * **从来没有过一条样本**（本轮开工实测 matched=0）。"能认出一份合格回执"只在夹具串上证明过。
+ */
+describe('第七十二轮 · D6 接受侧零样本不许读成通过', () => {
+  const noClaimFace = [{ name: `x-${SHAPE_FROM_UTC}.md`, text: MENTION }]
+  it('非空面 matched=0 且开了 requirePositiveSample ⇒ UNVERIFIED（不是 PASS）', () => {
+    expect(judgeDeliveries({ files: noClaimFace, requiredJobs: JOBS }).state).toBe('PASS')
+    expect(judgeDeliveries({ files: noClaimFace, requiredJobs: JOBS, requirePositiveSample: true }).state).toBe('UNVERIFIED')
+  })
+  it('面上有一条合格回执 ⇒ D6 不介入（正反两向都要有，否则等于把闸关掉）', () => {
+    const r = judgeDeliveries({ files: [{ name: `g-${SHAPE_FROM_UTC}.md`, text: GOOD }], requiredJobs: JOBS, requirePositiveSample: true })
+    expect(r.matched).toBe(1)
+    expect(r.positiveBlind).toBe(false)
+    expect(r.state).toBe('PASS')
+  })
+  it('D6 不掩盖真红：面里有缺件主张时仍判 FAIL（红优先于未验证）', () => {
+    expect(judgeDeliveries({ files: [{ name: 'b.md', text: BAD }], requiredJobs: JOBS, requirePositiveSample: true }).state).toBe('FAIL')
+  })
+  it('CLI 腿：--require-positive-sample 在合成面上真能翻出 rc=2 与 GATE-UNVERIFIED D6', () => {
+    const dir = writeFix(tmpDir(), { 'mention.md': MENTION })
+    const r = runCli(['--dir', dir, '--require-positive-sample'])
+    const out = String(r.stdout) + String(r.stderr)
+    expect(r.status, out.slice(-700)).toBe(2)
+    expect(out).toContain('GATE-UNVERIFIED D6')
+    expect(out).toContain('matched=0')
+  })
+})
+
+describe('第七十二轮 · 回执形状位：把真正写回执的那一半纳入取数面', () => {
+  const SHAPE_TEXT = '## 7. 交付回执\n\n- 本轮内层提交已推平，CI 全绿，顾客端也发了。\n'
+  it(`shapeFrom（=${SHAPE_FROM_UTC}）及以后的文件：标题含「回执」而三件套不齐 ⇒ 进 mismatched`, () => {
+    const r = judgeDeliveries({ files: [{ name: `报告-${SHAPE_FROM_UTC}.md`, text: SHAPE_TEXT }], requiredJobs: JOBS })
+    expect(r.mismatched).toBe(1)
+    expect(r.badClaims[0].claim).toContain('回执形状段')
+    expect(r.shape.sites).toBe(1)
+  })
+  it('不溯及既往：同一段落落在 shapeFrom 之前 ⇒ 形状位不扫（扩面不许把历史报告刷成新增）', () => {
+    const r = judgeDeliveries({ files: [{ name: '报告-2026-09-01.md', text: SHAPE_TEXT }], requiredJobs: JOBS })
+    expect(r.mismatched).toBe(0)
+    expect(r.shape.sites).toBe(0)
+  })
+  it('形状位认合格回执：带齐三件套的 §回执 段进 matched（本轮报告自己就走这条线）', () => {
+    const ok = '## 7. 交付回执\n\n| 事 | 回执 |\n|---|---|\n| H-1 | run `37677572509`，`completed/success`；gates／e2e／e2e-cloud-stub／visual／deploy 各 success；线上 {"deploy":"55829a1"} |\n'
+    const r = judgeDeliveries({ files: [{ name: `报告-${SHAPE_FROM_UTC}.md`, text: ok }], requiredJobs: JOBS })
+    expect(r.matched).toBe(1)
+    expect(r.mismatched).toBe(0)
   })
 })

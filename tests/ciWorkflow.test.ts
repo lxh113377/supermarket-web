@@ -16,7 +16,8 @@
  * 或改掉一个必需 step 名 ⇒ 本文件对应用例变红。
  */
 import { describe, it, expect } from 'vitest'
-import { readFileSync, readdirSync } from 'node:fs'
+import { readFileSync, readdirSync, existsSync } from 'node:fs'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { join } from 'node:path'
 
 const WF_DIR = join(__dirname, '..', '.github', 'workflows')
@@ -750,5 +751,152 @@ describe('advisory job 接线契约（没接线的判据等于没有判据）', 
     const wrongCmd = dispatch.replace('npm run report:pr-tests', 'npm run lint')
     expect(advisoryJobProblems(wrongCmd).join()).toContain('report:pr-tests')
     expect(advisoryJobProblems('jobs:\n  other:\n    runs-on: x\n').join()).toContain('已没有 pr-advisory')
+  })
+})
+
+/**
+ * 第七十二轮 G-72-1：**每一段 CI 都必须有墙上时钟上界，且浏览器下载不得三路并发。**
+ *
+ * 为什么值得占一个 describe（本仓判据预算有限，每条都要有"不立会怎样"的一手事实）：
+ *   远端 run 37677572509 的 e2e 与 e2e-cloud-stub 都卡死在 `Install Chromium`：
+ *   6h00m25s / 6h00m13s，被 GitHub 的 6 小时作业硬上限判 `cancelled`
+ *   ⇒ deploy 因 needs 被掐掉 skipped ⇒ CI 终态 cancelled ⇒ release-parity（只在 success 时跑）也 skipped。
+ *   同一分钟起跑的 visual 的同一步 13m45s 就成功了 ⇒ 三路并发拉同一 CDN 是必要条件之一。
+ *   而当时 `ci.yml` 里 `timeout-minutes` 出现次数为 **0** —— 没有任何一处判过"这一步挂多久算异常"。
+ *
+ * 三条不变量的来源：
+ *   ① 有界：`timeout-minutes` 覆盖全部 job。取值按各 job 实测时长 × 余量，不是拍脑袋
+ *      （gates 124/141/144s、e2e 57/97/107s、e2e-cloud-stub 84/124/169s、visual 54/59/73s、deploy 24/29/33s；
+ *        冷缓存那次仅 Chromium 单步就 825s）。
+ *   ② 排队：三个 Playwright job 共用一个 job 级 concurrency 组且 `cancel-in-progress: false`
+ *      （true 会让后两个被前一个的完成事件取消掉，队列塌成只跑一个）。
+ *   ③ 单一逻辑：仓内只有一份浏览器安装逻辑，且它带重试/单次超时/产物自证；
+ *      裸 `npx playwright install` 回来 = 6 小时挂死请回来。
+ */
+const BROWSER_SCRIPT = 'scripts/ci-install-browser.sh'
+
+/** 某个 job 块（从 `\n  <name>:\n` 到下一个同级 job 或文件尾）。 */
+function jobBlock(text: string, name: string): string {
+  const m = new RegExp(`\\n  ${name}:\\n([\\s\\S]*?)(?=\\n  [a-zA-Z0-9_-]+:\\n|$)`).exec(text)
+  return m?.[1] ?? ''
+}
+
+/** 把某个 job 块整体换掉（夹具要"抽掉 job 内的某一行"时用，比按行号改稳）。 */
+function replaceJobBlock(text: string, name: string, next: string): string {
+  const re = new RegExp(`\\n  ${name}:\\n[\\s\\S]*?(?=\\n  [a-zA-Z0-9_-]+:\\n|$)`)
+  if (!re.test(text)) throw new Error(`夹具依赖：ci.yml 里找不到 job ${name}`)
+  return text.replace(re, `\n  ${name}:\n${next}`)
+}
+
+/** 取 job 块里的 timeout-minutes 值（没写返回 null）。 */
+function jobTimeout(text: string, name: string): number | null {
+  const m = /^[ \t]*timeout-minutes:[ \t]*(\d+)[ \t]*$/m.exec(jobBlock(text, name))
+  return m ? Number(m[1]) : null
+}
+
+function boundednessProblems(text: string): string[] {
+  const problems: string[] = []
+  const jobs = jobNames(text)
+  if (!jobs.length) return ['ci.yml 里取不到 job 名单（分母为 0 ⇒ 本判据会退化成空转真）']
+  for (const j of jobs) {
+    const t = jobTimeout(text, j)
+    if (t === null) {
+      problems.push(`job ${j} 没声明 timeout-minutes ⇒ 一次第三方 CDN 抖动就能让它跑到 6 小时硬上限被判 cancelled（run 37677572509 一手）`)
+    } else if (t < 5 || t > 60) {
+      problems.push(`job ${j} 的 timeout-minutes=${t} 不在 [5, 60] ⇒ 要么必然误杀，要么等于没设`)
+    }
+  }
+  // ② 三个 Playwright job 必须共队列且不互砍。
+  //    组名允许含空格（`ci-browser-install-${{ github.ref }}` 里就有）⇒ 用 `.+?` + 行尾锚，
+  //    不用 `\S+`：后者匹配不到带空格的表达式，会让本判据在真面上就报"没有 group"（恒红）。
+  const PLAYWRIGHT_JOBS = ['e2e', 'e2e-cloud-stub', 'visual']
+  const groups = new Set<string>()
+  for (const j of PLAYWRIGHT_JOBS) {
+    const block = jobBlock(text, j)
+    const g = /^[ \t]*group:[ \t]*(.+?)[ \t]*$/m.exec(block)?.[1]
+    if (!g) { problems.push(`Playwright job ${j} 没有 job 级 concurrency.group ⇒ 三个 job 会并发拉同一个 CDN（run 37677572509 一手：两路挂 6h）`); continue }
+    groups.add(g)
+    if (!/^[ \t]*cancel-in-progress:[ \t]*false[ \t]*$/m.test(block)) {
+      problems.push(`Playwright job ${j} 的 cancel-in-progress 不是 false ⇒ true 会让后两个被前一个的完成事件取消，队列塌成只跑一个`)
+    }
+  }
+  if (groups.size > 1) problems.push(`三个 Playwright job 的 concurrency 组名不一致（${[...groups].join(' / ')}）⇒ 它们不在同一队列里`)
+  return problems
+}
+
+describe('CI 的时间上界与浏览器下载单一逻辑（G-72-1）', () => {
+  it('本仓 ci.yml 现状必须合格', () => {
+    expect(boundednessProblems(ci)).toEqual([])
+  })
+
+  it('反例：抽掉任一 job 的 timeout-minutes ⇒ 逐条点名', () => {
+    // 按 job 块整体改，不按行号/相邻行 replace：ci.yml 里 5 个 timeout-minutes 行形状一致，
+    // 靠"整段文本里第一次出现"去删，删掉的必然是 gates 那一条，另外四个会静默留着
+    // （本仓同族坑第四次：变异定位必须锚在被测对象上）。
+    for (const j of ['gates', 'e2e', 'e2e-cloud-stub', 'visual', 'deploy']) {
+      const block = jobBlock(ci, j)
+      expect(block, `夹具依赖：ci.yml 里找不到 job ${j}`).not.toBe('')
+      const stripped = block.replace(/^[ \t]*timeout-minutes:[ \t]*\d+[ \t]*\n/m, '')
+      expect(stripped, `夹具依赖：${j} 的 timeout-minutes 行形状已变`).not.toBe(block)
+      expect(jobTimeout(ci, j), `夹具依赖：${j} 的 timeout-minutes 实得 ${jobTimeout(ci, j)}`).not.toBeNull()
+      const mutated = replaceJobBlock(ci, j, stripped)
+      expect(boundednessProblems(mutated).join(), `抽掉 ${j} 的超时后没点名`).toContain(`job ${j} 没声明 timeout-minutes`)
+    }
+  })
+
+  it('反例：超时取到离谱值（1 分钟 / 120 分钟）必须点名 —— "写了"不等于"有用"', () => {
+    const tooSmall = ci.replace(/^([ \t]*)timeout-minutes: 20$/m, '$1timeout-minutes: 1')
+    expect(tooSmall).not.toBe(ci)
+    expect(boundednessProblems(tooSmall).join()).toContain('不在 [5, 60]')
+    const tooBig = ci.replace(/^([ \t]*)timeout-minutes: 20$/m, '$1timeout-minutes: 120')
+    expect(tooBig).not.toBe(ci)
+    expect(boundednessProblems(tooBig).join()).toContain('不在 [5, 60]')
+  })
+
+  it('反例：队列互砍 / 组名不一致 / 队列整个摘掉，三条都要点名', () => {
+    // 变异同样按 job 块做：ci.yml 里 workflow 级也有 `cancel-in-progress: true`，
+    // 拿"第一次出现"去改必然改中 workflow 级那一条 ⇒ 变异落空、断言假过。
+    const nukeBlock = (j: string) => replaceJobBlock(ci, j,
+      jobBlock(ci, j).replace(/^([ \t]*)cancel-in-progress:[ \t]*false[ \t]*$/m, '$1cancel-in-progress: true'))
+    const nuke = nukeBlock('e2e')
+    expect(jobBlock(nuke, 'e2e'), '变异体没造出来').toContain('cancel-in-progress: true')
+    expect(boundednessProblems(nuke).join()).toContain('cancel-in-progress 不是 false')
+
+    const split = ci.replace(/group: ci-browser-install-\$\{\{ github\.ref \}\}/, 'group: ci-browser-install-visual-${{ github.ref }}')
+    expect(split).not.toBe(ci)
+    expect(boundednessProblems(split).join()).toContain('不在同一队列里')
+
+    const noGroup = replaceJobBlock(ci, 'e2e', jobBlock(ci, 'e2e').replace(/^[ \t]*group:[ \t]*.*$/m, ''))
+    expect(jobBlock(noGroup, 'e2e'), '变异体没造出来').not.toContain('group:')
+    expect(boundednessProblems(noGroup).join()).toContain('没有 job 级 concurrency.group')
+  })
+
+  it('③ 浏览器安装逻辑仓内只有一份：workflow 里不得回到裸 npx，且脚本必须在提交面里', () => {
+    const bare: string[] = []
+    for (const [file, text] of allWorkflows) {
+      const hits = text.split('\n').filter((l) => /npx\s+playwright\s+install/.test(l) && !/^\s*#/.test(l))
+      if (hits.length) bare.push(`${file}: ${hits.join(' | ')}`)
+    }
+    expect(bare, `裸 npx playwright install 回来了 ⇒ 6 小时挂死请回来：${bare.join(' | ')}`).toEqual([])
+
+    const refs = ci.split('\n').filter((l) => l.includes(BROWSER_SCRIPT) && /run:/.test(l))
+    expect(refs.length, 'ci.yml 里引用安装脚本的 run 行数不对').toBe(3)
+
+    // 脚本必须在**提交面**里解得出：未跟踪文件在 CI 检出里根本不存在（pre-push 的 head-closure 同理）。
+    const tracked = execFileSync('git', ['ls-files', '--error-unmatch', BROWSER_SCRIPT], { cwd: join(WF_DIR, '..', '..'), encoding: 'utf8' })
+    expect(tracked.trim()).toBe(BROWSER_SCRIPT)
+  })
+
+  it('④ 安装脚本自证过（4/4）—— 它的"快红"腿必须当场复跑，不接受"我写完了"', () => {
+    // 只在有 bash 的机器上跑；没 bash 不静默跳过（跳过 = 这条判据在本机退化成空转真），
+    // 而是显式 skip 并说明原因，让读数的人自己判断。
+    const bash = process.platform === 'win32' ? 'C:\\Program Files\\Git\\bin\\bash.exe' : 'bash'
+    if (!existsSync(bash) && process.platform === 'win32') {
+      console.warn('[ciWorkflow] 本机无 Git Bash ⇒ 安装脚本自证腿未复跑（非阻断，须在有 bash 的机器/CI 上复跑）')
+      return
+    }
+    const r = spawnSync(bash, [join(WF_DIR, '..', '..', BROWSER_SCRIPT), '--selftest'], { encoding: 'utf8' })
+    expect(r.status, `安装脚本自证未过 rc=${r.status}\n${r.stdout}\n${r.stderr}`).toBe(0)
+    expect(r.stdout).toContain('自证 4/4')
   })
 })

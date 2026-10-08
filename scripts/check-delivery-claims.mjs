@@ -19,7 +19,8 @@
  *
  * 用法：node scripts/check-delivery-claims.mjs [--dir <路径>] [--limit=N] [--json] [--inject-red]
  *                                     [--advisory] [--update-baseline] [--baseline <路径>]
- * 退出码：0=PASS 或 UNVERIFIED（取数面不在）/ 1=判红 / 2=取数面或基线册指定了却取不到
+ *                                     [--require-positive-sample]
+ * 退出码：0=PASS 或 UNVERIFIED（取数面不在）/ 1=判红 / 2=取数面或基线册指定了却取不到，**或 D6 接受侧零样本**
  * 档位：**阻断（第七十一轮升）**。升档前置＝第七十轮 I-70-5 的「先量一轮误报率」，本轮实测口径：
  *   回执面 commit 候选 186、幽灵 21（其中 20 是前约定时代存量、1 是第七十轮自己的 `f5b22d2`）、
  *   未定位仅 4 ⇒ 假阳面极窄，故存量进 `docs/delivery-claims-baseline.json` 指纹册、
@@ -85,17 +86,46 @@ export const MEASURE_CLAIM_RE = /实测|测得|读数|普通文本|任何工具|
 export const TOOL_RE = /\b(?:grep|rg|ripgrep|Select-String|findstr|PowerShell|pwsh|curl|gh\b|node\b|wc\b|git\b|Read\b|Grep\b)\b/
 
 /** `.ci/contract.json` 的 requiredJobs 是唯一权威 —— 这里**导入**而不是重抄一份，
- *  否则改契约的人只需改一处，而本判据会在没人注意的地方悄悄换标准（derive-not-duplicate）。 */
+ *  否则改契约的人只需改一处，而本判据会在没人注意的地方悄悄换标准（derive-not-duplicate）。
+ *
+ *  同文件里的 `requiredJobAliases` 是**同一把尺的第二半**（第七十二轮）：job 改名之后，
+ *  改名之前写的回执用的是当时的名字。判据若不认这个时态，就会把历史真话读成缺件 ——
+ *  一手：4349d99 把 `build-and-test` 改名 `gates` 当天，`npm run verify` 末腿由绿转红，
+ *  红在第四十二轮 §8（那段 hasRun/hasConclusion 均为真，`missingJobs` 恰好只有 `gates` 一项）。
+ *  别名**不无限生效**：只对被判定日期 ≤ `untilUtc` 的文件认，之后的文件只认现行名。 */
 export function requiredJobsOf(contractPath) {
-  if (!existsSync(contractPath)) return { jobs: [], error: `读不到 ${contractPath}` }
+  if (!existsSync(contractPath)) return { jobs: [], aliases: [], error: `读不到 ${contractPath}` }
   try {
     const j = JSON.parse(readFileSync(contractPath, 'utf8'))
     const jobs = Array.isArray(j.requiredJobs) ? j.requiredJobs.filter((x) => typeof x === 'string') : []
-    if (!jobs.length) return { jobs: [], error: 'contract.requiredJobs 为空或不是字符串数组' }
-    return { jobs, error: null }
+    if (!jobs.length) return { jobs: [], aliases: [], error: 'contract.requiredJobs 为空或不是字符串数组' }
+    const raw = j.requiredJobAliases
+    if (raw === undefined) return { jobs, aliases: [], error: null }
+    if (!Array.isArray(raw)) return { jobs, aliases: [], error: 'contract.requiredJobAliases 不是数组 ⇒ 宁可不判也不猜' }
+    const aliases = []
+    for (const [i, a] of raw.entries()) {
+      const bad = !a || typeof a !== 'object' || typeof a.job !== 'string' || typeof a.aliasOf !== 'string'
+        || !/^\d{4}-\d{2}-\d{2}$/.test(String(a.untilUtc))
+      if (bad) return { jobs, aliases: [], error: `contract.requiredJobAliases[${i}] 缺 job/aliasOf 或 untilUtc 不是 YYYY-MM-DD ⇒ 半张的别名册比没有更坏（它会静默放宽判定面）` }
+      if (!jobs.includes(a.aliasOf)) return { jobs, aliases: [], error: `contract.requiredJobAliases[${i}] 的 aliasOf=${a.aliasOf} 不在现行 requiredJobs 里 ⇒ 该别名无主，删掉它或把现行名补进名单` }
+      aliases.push(a)
+    }
+    return { jobs, aliases, error: null }
   } catch (e) {
-    return { jobs: [], error: `contract.json 解析失败：${String(e.message || e).split('\n')[0]}` }
+    return { jobs: [], aliases: [], error: `contract.json 解析失败：${String(e.message || e).split('\n')[0]}` }
   }
+}
+
+/** 报告文件名尾部的 `YYYY-MM-DD` = 该份报告的工作日标签（本仓命名约定）。解不出 ⇒ null，调用方按现行名单判并把"未定位日期"计数摊出，**不静默按别名放宽**。 */
+export function fileDateOf(name) {
+  const m = String(name || '').matchAll(/\d{4}-\d{2}-\d{2}/g)
+  let last = null
+  for (const x of m) last = x[0]
+  return last
+}
+/** 该文件是否可用某个历史别名（无日期 ⇒ 不可用，宁严勿宽）。 */
+export function aliasUsable(alias, fileDate) {
+  return !!fileDate && String(fileDate) <= String(alias.untilUtc)
 }
 
 /** 按 markdown 标题切段：一段 = 一个标题到下一个标题之前。"同段"是本判据的粒度。 */
@@ -111,16 +141,26 @@ export function sectionsOf(md) {
   return out
 }
 
-/** 回执三件套：run 号 + 结论 + （必需 job 全点名 或 线上 deploy 锚）。 */
-export function receiptsOf(text, requiredJobs) {
+/** 回执三件套：run 号 + 结论 + （必需 job 全点名 或 线上 deploy 锚）。
+ *  `ctx = { fileDate, aliases }`：必需 job 可用现行名**或**该文件日期内生效的历史别名点齐 ——
+ *  缺省（不传 ctx）时只用现行名，与第七十一轮之前的行为逐字一致。 */
+export function receiptsOf(text, requiredJobs, ctx = {}) {
   const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const hasRun = /\brun\D{0,12}\d{8,}/i.test(text)
   const hasConclusion = /completed\s*\/\s*(?:success|failure|cancelled)|conclusion[^\n]{0,12}(?:success|failure)/i.test(text)
-  const named = requiredJobs.filter((j) => new RegExp(`\\b${esc(j)}\\b`).test(text))
+  const aliases = Array.isArray(ctx.aliases) ? ctx.aliases : []
+  const usedAlias = []
+  const named = requiredJobs.filter((j) => {
+    if (new RegExp(`\\b${esc(j)}\\b`).test(text)) return true
+    const hit = aliases.find((a) => a.aliasOf === j && aliasUsable(a, ctx.fileDate) && new RegExp(`\\b${esc(a.job)}\\b`).test(text))
+    if (hit) { usedAlias.push(`${hit.job}→${hit.aliasOf}`); return true }
+    return false
+  })
   const deployAnchor = /["']?deploy["']?\s*[:=]\s*["']?[0-9a-f]{7,40}/i.test(text)
   return {
     hasRun, hasConclusion,
     missingJobs: requiredJobs.filter((j) => !named.includes(j)),
+    usedAlias: [...new Set(usedAlias)],
     deployAnchor,
     ok: hasRun && hasConclusion && (named.length === requiredJobs.length || deployAnchor),
   }
@@ -215,6 +255,24 @@ export function shaFindings (sections, resolveFn) {
 }
 
 /**
+ * 主张位的**第二种形状**（第七十二轮）：只认词面会漏掉真正写回执的那一半。
+ * 一手取数：`../deliverables` 80 份 md 里标题含「回执/交付」的段实测 **49** 段（≥2026-09-28 的 28 段），
+ * 而 `claimHits()` 的词面在这些段里只命中 **1** 段 ⇒ 判据自第 68 轮立起到现在，
+ * 接受侧（matched）在真实面上**从来没有过一条样本**（本轮实测 matched=0），
+ * 它的"能认出一份合格回执"这件事只在夹具字符串上被证明过。
+ * 与 job 改名同一口径：**不溯及既往** —— 形状位只对 `shapeFrom` 及以后的文件生效，
+ * 否则一次扩面会把 27 段历史报告刷成"新增"，那是拿判据的进化去罚写报告的人。
+ *
+ * ⚠️ 口径收紧（本轮实测抓到的**假阳**）：初版用 `/回执|交付/`，结果把
+ * 「§G-72-1（…）· CI **交付**链没有任何一段有时间上界」这类差距小节也算成回执段 ——
+ * 判据自己的报告被判红，而那节根本不是回执。**一个会误伤自己产物的判据必须先改判据**。
+ * 现在只认「回执」二字（真回执段无论叫「交付回执」还是「§7 交付回执」都含这两个字），
+ * 而「交付」单独出现不再触发 —— 它在中文里太泛（交付面/交付链/可交付性）。
+ */
+export const SHAPE_HEADING_RE = /回执/
+export const SHAPE_FROM_UTC = '2026-10-08'
+
+/**
  * 纯判据。files = [{ name, text }]，requiredJobs = 字符串数组。
  * 返回 { state, matched, mismatched, badClaims[], badMeasures[], ghosts[], faceSize }。
  * matched = 带齐回执的交付主张条数；mismatched = 缺回执的条数。**两个数都要印**——
@@ -223,33 +281,41 @@ export function shaFindings (sections, resolveFn) {
  * `baseline` = 存量在册指纹数组（[{fp}]）。三类不合格一律先与基线做**双向差集**：
  * 不在基线上的 = 新增（判红），基线上已不存在的 = 幽灵豁免（也判红，死豁免不许留在册上）。
  */
-export function judgeDeliveries({ files, requiredJobs, limit = 6, resolveFn = null, baseline = null }) {
+export function judgeDeliveries({ files, requiredJobs, limit = 6, resolveFn = null, baseline = null, aliases = [], requirePositiveSample = false, shapeFrom = SHAPE_FROM_UTC }) {
   const badClaims = []
   const badMeasures = []
   let matched = 0
   let mismatched = 0
-  if (!Array.isArray(files)) return { state: 'FAIL', matched, mismatched, badClaims: [{ file: '(取数面)', why: 'files 不是数组' }], badMeasures, faceSize: 0 }
+  const shape = { sites: 0, wordHits: 0, aliasApplied: 0, dateUnknown: 0 }
+  if (!Array.isArray(files)) return { state: 'FAIL', matched, mismatched, badClaims: [{ file: '(取数面)', why: 'files 不是数组' }], badMeasures, faceSize: 0, shape }
   // 零输入的检查放在**纯函数**里，不放 CLI 外面：只把洞堵在 main() 上，
   // 下一个调用方（CI 门面、别的脚本、测试）import 到的是那条会报 PASS 的空尺。
-  if (!files.length) return { state: 'FAIL', matched, mismatched, badClaims: [{ file: '(取数面)', why: '取数面 0 份文件 ⇒ 零输入不折算通过' }], badMeasures, faceSize: 0 }
-  if (!requiredJobs.length) return { state: 'FAIL', matched, mismatched, badClaims: [{ file: '(取数面)', why: 'requiredJobs 取不到 ⇒ 回执的"必需 job"那一半无从判，不允许按"不需要"放过' }], badMeasures, faceSize: files.length }
+  if (!files.length) return { state: 'FAIL', matched, mismatched, badClaims: [{ file: '(取数面)', why: '取数面 0 份文件 ⇒ 零输入不折算通过' }], badMeasures, faceSize: 0, shape }
+  if (!requiredJobs.length) return { state: 'FAIL', matched, mismatched, badClaims: [{ file: '(取数面)', why: 'requiredJobs 取不到 ⇒ 回执的"必需 job"那一半无从判，不允许按"不需要"放过' }], badMeasures, faceSize: files.length, shape }
 
   for (const f of files) {
+    const fileDate = fileDateOf(f.name)
+    if (!fileDate) shape.dateUnknown += 1
+    const ctx = { fileDate, aliases }
     const secs = sectionsOf(f.text).map((s) => ({ ...s, file: f.name }))
     for (const s of secs) {
       const body = s.lines.join('\n')
       const hits = claimHits(body)
-      if (hits.length) {
-        const r = receiptsOf(body, requiredJobs)
+      shape.wordHits += hits.length ? 1 : 0
+      const shapeSite = !!shapeFrom && !!fileDate && fileDate >= shapeFrom && SHAPE_HEADING_RE.test(s.heading)
+      if (shapeSite && !hits.length) shape.sites += 1
+      if (hits.length || shapeSite) {
+        const r = receiptsOf(body, requiredJobs, ctx)
+        shape.aliasApplied += r.usedAlias.length
         if (r.ok) matched += 1
         else {
           mismatched += 1
           const miss = []
           if (!r.hasRun) miss.push('缺 run 号')
           if (!r.hasConclusion) miss.push('缺 status/conclusion（completed/success 之类）')
-          if (!r.deployAnchor && r.missingJobs.length) miss.push(`必需 job 未全点名（缺 ${r.missingJobs.join('、')}），且没有线上 "deploy":"<sha>" 锚`)
-          const firstClaimLine = s.lines.find((l) => claimHits(l).length) || ''
-          badClaims.push({ file: f.name, heading: s.heading, claim: [...new Set(hits)].join('/'), why: miss.join('；'), line: normalizeLine(firstClaimLine) })
+          if (!r.deployAnchor && r.missingJobs.length) miss.push(`必需 job 未全点名（缺 ${r.missingJobs.join('、')}，历史别名亦不适用），且没有线上 "deploy":"<sha>" 锚`)
+          const firstClaimLine = s.lines.find((l) => claimHits(l).length) || s.lines.find((l) => l.trim()) || ''
+          badClaims.push({ file: f.name, heading: s.heading, claim: hits.length ? [...new Set(hits)].join('/') : '回执形状段（无词面主张）', why: miss.join('；'), line: normalizeLine(firstClaimLine) })
         }
       }
       for (const line of s.lines) {
@@ -282,8 +348,14 @@ export function judgeDeliveries({ files, requiredJobs, limit = 6, resolveFn = nu
     stale = baseline.rows.filter((r) => !liveFps.has(r.fp))
   }
   const state = fresh.length || stale.length ? 'FAIL' : 'PASS'
+  // D6 接受侧自证（第七十二轮）：非空面上 `matched=0` 意味着这条尺**一条合格回执都没认出来过**。
+  // 那不是"没有主张"，是"取数面里那条正向腿没人行使过"——本仓口径：未观测不得读成通过，
+  // 也不得读成产品故障，故走 rc=2 UNVERIFIED（与 C7「过期的是证据不是某条 cron 病了」同一条处置）。
+  const positiveBlind = files.length > 0 && matched === 0
+  const finalState = state === 'FAIL' ? 'FAIL' : (requirePositiveSample && positiveBlind ? 'UNVERIFIED' : 'PASS')
   return {
-    state, matched, mismatched,
+    finalState, positiveBlind, shape,
+    state: finalState, matched, mismatched,
     badClaims: findings.filter((b) => b.kind === 'claim'),
     badMeasures: findings.filter((b) => b.kind === 'measure'),
     ghosts: findings.filter((b) => b.kind === 'ghost'),
@@ -465,7 +537,14 @@ function main() {
     baseline = lb.baseline
   }
 
-  const r = judgeDeliveries({ files, requiredJobs: cj.jobs, limit, resolveFn, baseline })
+  const r = judgeDeliveries({
+    files, requiredJobs: cj.jobs, limit, resolveFn, baseline, aliases: cj.aliases,
+    // D6 默认只对**默认版面（真实交付面）**要求正向样本：夹具面按构造只有几条合成文件，
+    // 拿它当"真实面"判会既误伤又自欺（--dir 指到别处 = 不是那块面）。
+    // `--require-positive-sample` 是显式演习开关：让"这条腿有牙"这件事能在合成面上被复算，
+    // 而不必等真实面恰好变空（CI 上没有 ../deliverables，默认面那条分支在 CI 不可达）。
+    requirePositiveSample: isDefaultDir || argv.includes('--require-positive-sample'),
+  })
   const self = selfCheckAdmission()
   const ghost = selfCheckGhost()
   // D4 自证失败 ⇒ 本判据自己不可信，直接判红：不允许"尺没牙但报绿"。
@@ -493,15 +572,18 @@ function main() {
       state: r.state, faceSize: r.faceSize, matched: r.matched, mismatched: r.mismatched,
       badClaims: r.badClaims, badMeasures: r.badMeasures, ghosts: r.ghosts,
       d5: { ran: r.d5.ran, census: r.d5.census, annotated: r.d5.annotated.length, unknown: r.d5.unknown.length },
+      positiveBlind: r.positiveBlind, shape: r.shape, aliasCount: cj.aliases.length,
       fresh: r.fresh.length, stale: r.stale.length, baselineRows: r.baselineRows,
       selfCheck: self, ghostCheck: ghost, injected: inject, tier: advisory ? 'advisory' : 'blocking',
     }, null, 2))
   } else {
-    console.log(`[delivery-claims] 取数面 ${dir}｜md ${r.faceSize} 份｜requiredJobs ${cj.jobs.join(',')}（来源 .ci/contract.json）`)
+    console.log(`[delivery-claims] 取数面 ${dir}｜md ${r.faceSize} 份｜requiredJobs ${cj.jobs.join(',')}（来源 .ci/contract.json）`
+      + `｜历史别名 ${cj.aliases.length} 条在册${cj.aliases.length ? `（${cj.aliases.map((a) => `${a.job}→${a.aliasOf}≤${a.untilUtc}`).join('、')}）` : ''}`)
     const d5face = !r.d5.ran
       ? 'D5 sha 面未参与本轮判定（两根 git 都取不到 ⇒ 这是"没跑"，不是"没幽灵"）'
       : `D5 sha 引用候选 ${Object.values(r.d5.census).reduce((a, b) => a + b, 0)}（commit ${r.d5.census.commit}／run-id ${r.d5.census['run-id']}／点号形 ${r.d5.census.dotted}／非十六进制 ${r.d5.census['other-set']}，后三类结构性不判）｜未定位 ${r.d5.unknown.length}｜已就地更正 ${r.d5.annotated.length}`
     console.log(`[delivery-claims] 交付主张 matched=${r.matched} mismatched=${r.mismatched}`
+      + `｜D6 接受侧 blind=${r.positiveBlind}（词面命中段 ${r.shape.wordHits}／形状位新增段 ${r.shape.sites}／别名生效 ${r.shape.aliasApplied}／文件名解不出日期 ${r.shape.dateUnknown}）`
       + `｜测量句缺尺 ${r.badMeasures.length} 条｜幽灵 sha ${r.ghosts.length} 条`
       + `｜${d5face}`
       + (r.baselineRows === null
@@ -534,6 +616,13 @@ function main() {
       + `｜处置=${advice}`)
     if (advisory) process.exit(0)
     process.exit(1)
+  }
+  if (r.state === 'UNVERIFIED') {
+    console.error('[delivery-claims] GATE-UNVERIFIED D6 :: 非空真实取数面上 matched=0 ⇒ 这条尺从来没有认出一份合格回执，'
+      + '它报的"绿"只是"没看到主张"。处置＝让当轮报告的 §回执 带齐三件套（run 号 / completed/结论 / 必需 job 全名或线上 "deploy":"<sha>" 锚），'
+      + '**不是**把 D6 关掉，也不是往词面里塞豁免')
+    if (advisory) process.exit(0)
+    process.exit(2)
   }
   console.log(`[delivery-claims] GATE-PASS delivery-claims :: 新增 0｜基线死行 0｜存量在册 ${r.baselineRows === null ? '未装载' : r.baselineRows}`
     + `（其中幽灵 sha ${r.ghosts.length} 条按整行指纹挂册）｜已就地更正 ${r.d5.annotated.length}｜未定位 ${r.d5.unknown.length}${inject ? '｜注入态本应判红，见上' : ''}`)

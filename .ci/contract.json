@@ -2,6 +2,14 @@
   "branch": "main",
   "workflow": "CI",
   "requiredJobs": ["gates", "e2e", "e2e-cloud-stub", "visual", "deploy"],
+  "requiredJobAliases": [
+    {
+      "job": "build-and-test",
+      "aliasOf": "gates",
+      "untilUtc": "2026-10-07",
+      "why": "该 job 于 4349d99（2026-10-07T19:38:34Z / 本地 2026-10-08T03:38）改名为 gates。改名之前的报告写 build-and-test 是当时的真话，拿今天的名单去判它就等于把历史回执读成缺件 —— 第七十二轮一手：`check:delivery-claims` 因此把第四十二轮 §8 判成「新增 1」，`npm run verify` rc=1。生效面 = 文件名日期 ≤ untilUtc；改名之后的报告只准用现行名，别名一律不认（反例腿见 tests/deliveryClaims.test.js）。"
+    }
+  ],
   "graceMinutes": 90,
   "escapeHatch": "CI_GREEN_SKIP",
   "why": "pre-push 只认远端回执（gh run view 的 conclusion/jobs），不认本地退出码。实证代价：d1RoundTrips 缺 @vitest-environment node 让 CI 连红 7 个 commit、deploy 被 needs 掐住，而期间的报告写着 CI 全绿。2026-10-08 分层 CI：build-and-test 拆为 gates（快链）+ ci-deep.yml（独立深门禁链，不在本契约的必需面内 —— 它不挡 deploy）；**job 改名必须同笔改本文件**，否则 verdictOf 判 BLOCKED「缺少必需 job」（改名当天实测：旧名单让普通推送必被挡，只有逃生门能过）。该同步现已由 tests/ciWorkflow.test.ts 的桥接判据钉住。"

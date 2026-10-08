@@ -22,6 +22,14 @@ permissions:
 jobs:
   gates:
     runs-on: ubuntu-latest
+    # 第七十二轮 G-72-1（本文件第一次出现 job 级超时）。取值来自**实测**而非拍脑袋：
+    #   run 37676042103 / 37674315887 / 37669921149 三次成功 run 的本 job 分别 124s / 144s / 141s
+    #   （内含全量 vitest + v8 coverage + 全树依赖审计 + build + 分项体积预算）。
+    # 20 分钟 ≈ 实测上限的 8 倍余量，冷启动/审计端点慢时仍宽裕；而没有它时，
+    # 一次第三方 CDN 抖动就能让作业跑到 GitHub 的 6 小时硬上限被判 cancelled
+    #   （一手：run 37677572509 的 e2e / e2e-cloud-stub 各卡 6h00m ⇒ deploy skipped
+    #    ⇒ CI 终态 cancelled ⇒ release-parity 也 skipped ⇒ 交付面全线停摆）。
+    timeout-minutes: 20
     steps:
       # 固定到提交 SHA（OpenSSF Pinned-Dependencies）：防止上游标签被移动导致供应链投毒
       # fetch-depth: 0（六轮实测必需）：CHANGELOG 门禁要比对上一个提交 / PR base，
@@ -215,6 +223,20 @@ jobs:
   # 改页面结构/文案需同步更新 tests/e2e/。
   e2e:
     runs-on: ubuntu-latest
+    # 见 gates 的 G-72-1 注：本 job 实测 57s / 97s / 107s（三次成功 run），
+    # 冷缓存那次仅 Install Chromium 就花了 13m45s ⇒ 25 分钟能容下一次冷下载 + 重试，
+    # 仍远低于 6 小时（原事故里本 job 卡在同一步 6h00m25s 被 cancelled）。
+    timeout-minutes: 25
+    # 第七十二轮 G-72-1 的第二个动作：**不再三路并发下载同一个 CDN**。
+    # 一手：run 37677572509 三个 Playwright job 在同一秒起跑，同一个 Install Chromium 步骤
+    #   visual 13m45s 成功、e2e 与 e2e-cloud-stub 各挂 6h ⇒ 并发本身就是事故的必要条件之一。
+    # 处置＝用 job 级 concurrency 把三个 job 串进同一队列（cancel-in-progress: false 是关键：
+    #   true 会让后两个被前一个的完成事件取消掉，队列直接塌成只跑一个）。
+    # 代价（约 6 分钟墙钟）写在明面上：三个 job 实测 54–169s，串行约 8 分钟；
+    # 换来的是「一路装好、其余命中 actions/cache」，冷下载只发生一次。
+    concurrency:
+      group: ci-browser-install-${{ github.ref }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -233,8 +255,13 @@ jobs:
           path: ~/.cache/ms-playwright
           key: ms-playwright-${{ hashFiles('package-lock.json') }}
 
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Install Chromium (bounded + retried + artifact-verified)
+        # 第七十二轮 G-72-1：仓内**唯一**一份安装逻辑搬进带重试/单次超时/产物自证的脚本。
+        # 为什么不留在 yml 里裸跑 npx：裸跑时它可以无限期挂着（实测 6h00m13s），
+        # 平台只能给出 `cancelled` 这一个零信息量的结论；脚本化之后它在十几分钟内
+        # 给出 rc=1 + 归因行（缓存面/并发面/供应链面/上游面四查）。
+        # 退路：本脚本可 `bash scripts/ci-install-browser.sh --selftest` 自证 4/4。
+        run: bash scripts/ci-install-browser.sh
 
       - name: Run e2e smoke
         run: npm run test:e2e
@@ -260,6 +287,13 @@ jobs:
   # 回滚（若本 job 误拦部署）：把下面 deploy 的 needs 里被移走的深门禁加回来即可退回非阻断。
   e2e-cloud-stub:
     runs-on: ubuntu-latest
+    # 见 gates / e2e 的 G-72-1 注：本 job 实测 84s / 124s / 169s，另含一次 build:stub ⇒ 25 分钟。
+    # 原事故里本 job 的 Install Chromium 挂了 6h00m13s。
+    timeout-minutes: 25
+    # 与 e2e / visual 共用同一队列 ⇒ 三个 Playwright job 不并发下载同一个 CDN。理由见 e2e 处的注。
+    concurrency:
+      group: ci-browser-install-${{ github.ref }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -278,8 +312,9 @@ jobs:
           path: ~/.cache/ms-playwright
           key: ms-playwright-${{ hashFiles('package-lock.json') }}
 
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Install Chromium (bounded + retried + artifact-verified)
+        # 与 e2e 同一个脚本、同一份逻辑；理由见 e2e 处 G-72-1 的注。
+        run: bash scripts/ci-install-browser.sh
 
       # webServer 自带 build:stub，产物在本 job 内现建（dist-stub 是 gitignored 派生件）
       - name: Run cloud-mode e2e (stub backend)
@@ -300,6 +335,13 @@ jobs:
   # webServer 自带 build，产物本 job 现建。
   visual:
     runs-on: ubuntu-latest
+    # 见 gates / e2e 的 G-72-1 注：本 job 实测 54s / 59s / 73s，但冷缓存那次仅
+    # Install Chromium 就 13m45s ⇒ 20 分钟。
+    timeout-minutes: 20
+    # 与 e2e / e2e-cloud-stub 共用同一队列（三个 Playwright job 串行，不并发下 CDN）。理由见 e2e 处的注。
+    concurrency:
+      group: ci-browser-install-${{ github.ref }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -318,8 +360,9 @@ jobs:
           path: ~/.cache/ms-playwright
           key: ms-playwright-${{ hashFiles('package-lock.json') }}
 
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Install Chromium (bounded + retried + artifact-verified)
+        # 与 e2e 同一个脚本、同一份逻辑；理由见 e2e 处 G-72-1 的注。
+        run: bash scripts/ci-install-browser.sh
 
       - name: Run visual & a11y assertions
         run: npm run test:visual
@@ -346,6 +389,9 @@ jobs:
     needs: [gates, e2e, e2e-cloud-stub, visual]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
+    # 第七十二轮 G-72-1：deploy 也必须有上界。实测 24s / 29s / 33s，
+    # 但它的失败路径含 smoke 重试 + 自动回滚（sleep 15 + curl --retry 3）⇒ 15 分钟。
+    timeout-minutes: 15
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       # L2 候选：可改 secret 收敛；当前保持常量现状（改 secret 需先在仓库配置，否则部署失败）
