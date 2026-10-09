@@ -4,6 +4,21 @@
 
 ## [未发布]
 
+### 2026-10-09 第 73 轮补充：CI 全绿契约新增「恢复性提交」承认通道（治护栏自锁）
+
+- **自锁形态**：`scripts/ci-green-contract.mjs` 只认远端基线回执，基线 `183ba0c` 的 run `37747723889`
+  是 `cancelled` ⇒ 修那次 cancelled 的提交 `a52ea94` 被那次 cancelled 永久挡在门外（6 次 push 同一结论，
+  `.git/push-failure.log` 不存在，非网络）。第 72 轮 §3 记过同一形态，当时靠逃生门过去 —— 两轮都发生
+  说明不是偶发，是契约缺通道。
+- **四条前提全部机器可查，且只在护栏因"缺判决"而拦时成立**：① 基线终态 ∈
+  `NO_VERDICT_CONCLUSIONS`（`cancelled`/`timed_out`/`neutral`/`action_required`，即 CI 从没对这次改动下过
+  判决；**真判据红 `failure` 一律不认**）；② 提交说明带 `ci-green-recover: <runId>` 且 runId 就是被拦那次
+  （写错号＝张冠李戴，拒）；③ 被推的 diff 真改到出事的那个 workflow；④ 自限：近 20 笔用过 >2 次即拒，
+  放行次数是判据不是 discretion。留痕＝git 历史里的标记，不另立台账（避免再造一个"声明了没人读"的面）。
+- **8 条反例腿**（`tests/ciGreenContract.test.js`）逐条钉住"不许过"的形态，其中`failure` 那一格是整条通道
+  最要紧的边界。`npm run verify` VERIFY_RC=0、`Test Files 133 passed`、lint 0 错。
+
+
 ### 2026-10-09 第 73 轮四项改造：拆掉自伤串行 + 终态全覆盖 + 状态列落地凭据 + 尺的分母补齐
 
 - **动机（一手，非推测）**：第 72 轮声称"解除交付面锁死"，实测却是由那次修复**重新锁死**。

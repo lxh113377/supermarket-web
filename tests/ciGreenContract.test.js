@@ -11,7 +11,7 @@ import { assertCliRan } from './helpers/cliLeg.js'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { verdictOf, loadContract, parseRefLines, CONTRACT_FILE, jobNamesOf, ciJobNamesAt, WORKFLOW_PATH } from '../scripts/ci-green-contract.mjs'
+import { verdictOf, loadContract, parseRefLines, CONTRACT_FILE, jobNamesOf, ciJobNamesAt, WORKFLOW_PATH, recoveryAdmission, recoveryUseCount, NO_VERDICT_CONCLUSIONS, RECOVER_MARKER_RE, RECOVER_MAX } from '../scripts/ci-green-contract.mjs'
 
 const contract = loadContract()
 const SHA = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
@@ -397,3 +397,64 @@ afterAll(() => {
 })
 
 function joinTmp() { return './__no_such_dir_for_test__' }
+
+/**
+ * 第七十三轮 · 恢复通道（治护栏自锁）。这是一次**放宽闸门**，所以每条"不许过"的形态
+ * 都必须单独有一条腿钉住 —— 否则下一轮没人知道这条通道到底被收窄到什么程度。
+ * 一手动因见 recoveryAdmission 的注释（run 37747723889 cancelled 把修它的提交挡在门外）。
+ */
+describe('第七十三轮 · 恢复通道的四条前提与自限', () => {
+  const RUN = 37747723889
+  const base = (over = {}) => ({ databaseId: RUN, conclusion: 'cancelled', status: 'completed', jobs: allJobs(), ...over })
+  const pend = (over = {}) => ({ files: [WORKFLOW_PATH], message: `ci-green-recover: ${RUN}\n修那次 cancelled`, ...over })
+  const vWith = (b, p, markerCount = 1) => verdictOf({ sha: SHA, runs: [run({ ...b, jobs: b.jobs || allJobs() })], contract, pending: p, markerCount })
+
+  it('正向：基线 cancelled + 标记点名同一次 + diff 改了 ci.yml ⇒ RECOVER（而不是继续 RED）', () => {
+    const v2 = vWith(base(), pend())
+    expect(v2.state, v2.reason).toBe('RECOVER')
+    expect(v2.reason).toContain('承认恢复')
+  })
+  it('前提①：基线是 **failure（CI 下过判决）** ⇒ 通道不成立，照判 RED —— 这是整条通道最要紧的一格', () => {
+    const v2 = vWith(base({ conclusion: 'failure' }), pend())
+    expect(v2.state).toBe('RED')
+    expect(v2.reason).toMatch(/下过判决|不认/)
+    expect(v2.reason).not.toMatch(/承认恢复/)
+  })
+  it('前提②：没有 ci-green-recover 标记 ⇒ RED；标记写的是**别的 run** ⇒ 也 RED（张冠李戴不放行）', () => {
+    expect(vWith(base(), { files: [WORKFLOW_PATH], message: '普通提交' }).state).toBe('RED')
+    const wrong = vWith(base(), pend({ message: `ci-green-recover: 37700000000` }))
+    expect(wrong.state).toBe('RED')
+    expect(wrong.reason).toMatch(/张冠李戴/)
+  })
+  it('前提③：声称修这次事故但 diff 没碰出事的 workflow ⇒ RED（空口不算）', () => {
+    const v2 = vWith(base(), pend({ files: ['README.md'] }))
+    expect(v2.state).toBe('RED')
+    expect(v2.reason).toMatch(/没改/)
+  })
+  it('前提④自限：近 RECOVER_WINDOW 笔里用过 RECOVER_MAX+1 次 ⇒ 拒，并说清"该停下来修流水线"', () => {
+    const v2 = vWith(base(), pend(), RECOVER_MAX + 1)
+    expect(v2.state).toBe('RED')
+    expect(v2.reason).toMatch(/停下来修流水线|上限/)
+  })
+  it('没喂 pending（夹具面 / 取不到 diff）⇒ 行为与修复前逐字一致：RED，不因为"没看见"就放行', () => {
+    expect(verdictOf({ sha: SHA, runs: [run({ conclusion: 'cancelled', jobs: allJobs() })], contract }).state).toBe('RED')
+    expect(recoveryAdmission({ best: base(), pending: null }).ok).toBe(false)
+    expect(recoveryAdmission({ best: null, pending: pend() }).ok).toBe(false)
+  })
+  it('NO_VERDICT 名单就是判据本体：四种无判决终态都承认，其余都不', () => {
+    for (const c of NO_VERDICT_CONCLUSIONS) {
+      expect(recoveryAdmission({ best: base({ conclusion: c }), pending: pend() }).ok, `${c} 应被承认为"没下过判决"`).toBe(true)
+    }
+    for (const c of ['failure', 'success', 'skipped', '']) {
+      expect(recoveryAdmission({ best: base({ conclusion: c }), pending: pend() }).ok, `${c || '空'} 不该走恢复通道`).toBe(false)
+    }
+  })
+  it('marker 词面单一来源：正则与承认判据共用一个常量，措辞不许两处各写一遍', () => {
+    const root = join(dirname(fileURLToPath(import.meta.url)), '..')
+    expect(typeof recoveryUseCount('HEAD', root)).toBe('number')
+    expect(RECOVER_MARKER_RE.source).toContain('ci-green-recover')
+    expect(RECOVER_MARKER_RE.test('ci-green-recover: 37747723889')).toBe(true)
+    expect(RECOVER_MARKER_RE.test('恢复了 37747723889')).toBe(false)
+    expect(RECOVER_MARKER_RE.test('ci-green-recover: 123')).toBe(false)
+  })
+})

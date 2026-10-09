@@ -110,6 +110,52 @@ export function loadContract(dir = root) {
   try { return JSON.parse(readFileSync(p, 'utf8')) } catch { return 'PARSE_ERROR' }
 }
 
+/**
+ * ── 恢复性提交的承认通道（第七十三轮，治护栏的自锁）。
+ *
+ * 一手动因（本轮实测，6 次 push 同一结论）：本契约只认**远端基线**的回执，而基线 `183ba0c` 的
+ * run `37747723889` 是 `cancelled` ⇒ "修好那次 cancelled 的那笔提交"被"那次 cancelled"永久挡在门外。
+ * 第 72 轮 §3 已经写下过同一形态（"本轮接手时 HEAD 与远端同 sha 且该 sha 的 CI 是红的 ⇒ pre-push
+ * 会把下一次推送一并锁死"），当时靠逃生门过去；两轮之后它又发生 ⇒ **这不是偶发，是契约缺一条通道**。
+ *
+ * 为什么不放开逃生门就完事：`CI_GREEN_SKIP` 是"人宣布一次 + 落台账"，判据无法核验宣称与事实是否相符；
+ * 本通道的四条前提全部机器可查，且**只在护栏因"缺判决"而拦的时候**成立：
+ *   ① 基线终态 ∈ cancelled/timed_out/neutral/action_required —— CI **从没对这次改动下过判决**，
+ *      护栏此刻拦的是"证据缺席"，不是"证据说红"。**真判据红（failure）一律不承认**，
+ *      那种情况要么先把 CI 修绿、要么走逃生门并留下 C9/C10 读得到的处置。
+ *   ② 提交说明必须带 `ci-green-recover: <runId>`，且该 runId **就是被拦的那一次**（点名才有历史可查，
+ *      写错号就是张冠李戴，直接拒）。
+ *   ③ 被推的那段 diff 必须真的改到出事的那个 workflow 文件 —— 声称修它却不碰它，就是空口。
+ *   ④ 自限：近 20 笔里用这条通道超过 2 次 ⇒ 拒。CI 连续没判决说明流水线本身坏了，
+ *      正确动作是停下来修流水线，不是继续往里推。**放行次数是判据，不是 discretion。**
+ */
+export const NO_VERDICT_CONCLUSIONS = ['cancelled', 'timed_out', 'neutral', 'action_required']
+export const RECOVER_MARKER_RE = /ci-green-recover:\s*(\d{8,})/
+export const RECOVER_WINDOW = 20
+export const RECOVER_MAX = 2
+
+export function recoveryAdmission ({ best, pending, markerCount = 0, workflowFile = '.github/workflows/ci.yml' }) {
+  if (!best) return { ok: false, why: ['没有基线 run 可对照 ⇒ 无从承认恢复'] }
+  if (!pending) return { ok: false, why: ['调用方没给要推的那笔（files/message）⇒ 不承认恢复，宁严勿宽'] }
+  const concl = String(best.conclusion || '')
+  if (!NO_VERDICT_CONCLUSIONS.includes(concl)) {
+    return { ok: false, why: [`基线终态是 ${concl || '未知'} —— 那是 CI **下过判决**的红，本通道不认；要么先把 CI 修绿，要么走逃生门并在台账写处置`] }
+  }
+  const m = RECOVER_MARKER_RE.exec(String(pending.message || ''))
+  if (!m) return { ok: false, why: [`提交说明里没有 \`${RECOVER_MARKER_RE.source.replace(/\\/g, '')}\` 标记 ⇒ 这笔没打算把"修的是哪一次事故"写进 git 历史`] }
+  if (Number(m[1]) !== Number(best.databaseId)) {
+    return { ok: false, why: [`标记点名的 run ${m[1]} 不是被拦的那次 ${best.databaseId} ⇒ 张冠李戴，拒`] }
+  }
+  const files = Array.isArray(pending.files) ? pending.files : []
+  if (!files.includes(workflowFile)) {
+    return { ok: false, why: [`被推的 diff 没改 ${workflowFile} ⇒ 声称修这次事故，却没动出事的那个 workflow`] }
+  }
+  if (markerCount > RECOVER_MAX) {
+    return { ok: false, why: [`近 ${RECOVER_WINDOW} 笔里有 ${markerCount} 笔在用恢复通道 ⇒ CI 已连续没判决，该停下来修流水线，不是继续往里推`] }
+  }
+  return { ok: true, why: [`承认恢复：基线 run ${best.databaseId} 终态 ${concl}（CI 没下过判决）+ 标记点名同一次事故 + diff 改了 ${workflowFile}（近 ${RECOVER_WINDOW} 笔第 ${markerCount} 次用通道，上限 ${RECOVER_MAX}）`] }
+}
+
 /** 纯判据：喂远端回执，出四态。可被夹具喂合成输入（判据拆纯函数的既有口径）。
  *
  *  `availableJobs`（第七十三轮新增）= **被评的那个提交自己的** ci.yml 里真实存在的 job 名集合。
@@ -119,7 +165,7 @@ export function loadContract(dir = root) {
  *  这与 `.ci/contract.json` 里 requiredJobAliases 记过的改名旧雷**是同一颗**：拿今天的名单判昨天的 run。
  *  正解不是再手抄一张"哪些 job 属于哪个时刻"的册子，而是**让分母由被评提交自己交出**（读该 commit 的 yml）。
  *  取不到（对象不在本地 / 文件不在该 commit）⇒ 传 null ⇒ 回落现行名单，**宁严勿宽**。 */
-export function verdictOf({ sha, runs, contract, availableJobs = null }) {
+export function verdictOf({ sha, runs, contract, availableJobs = null, pending = null, workflowFile = '.github/workflows/ci.yml', markerCount = 0 }) {
   const declared = contract?.requiredJobs || []
   let need = declared
   if (contract && contract !== 'PARSE_ERROR' && availableJobs) {
@@ -147,7 +193,10 @@ export function verdictOf({ sha, runs, contract, availableJobs = null }) {
   if (missing.length) return { state: 'BLOCKED', reason: `${who} 缺少必需 job: ${missing.join(', ')}（needs 断了就是没发出去）` }
   const red = jobs.filter((j) => need.includes(j.name) && j.conclusion !== 'success').map((j) => `${j.name}=${j.conclusion}`)
   if (best.conclusion !== 'success' || red.length) {
-    return { state: 'RED', reason: `${who} conclusion=${best.conclusion}${red.length ? '；失败 job: ' + red.join(', ') : ''}` }
+    const why0 = `${who} conclusion=${best.conclusion}${red.length ? '；失败 job: ' + red.join(', ') : ''}`
+    const ad = recoveryAdmission({ best, pending, workflowFile, markerCount })
+    if (ad.ok) return { state: 'RECOVER', reason: `${why0} ⇒ 恢复性提交被承认：${ad.why.join('；')}` }
+    return { state: 'RED', reason: why0 + (pending ? `｜恢复通道不成立：${ad.why.join('；')}` : '') }
   }
   return { state: 'GREEN', reason: `${who} 全绿，必需 job 齐备：${need.join(', ')}` }
 }
@@ -162,6 +211,27 @@ export function jobNamesOf(workflowText) {
     if (m) out.push(m[1])
   }
   return out
+}
+
+/** 把"要推的那一段"摊成承认通道要的形态：改动文件清单 + 末端提交说明。取不到返回 null。 */
+export function recoveryFaceOf (baseSha, localSha, dir = root) {
+  if (!/^[0-9a-f]{7,40}$/i.test(String(baseSha || '')) || !/^[0-9a-f]{7,40}$/i.test(String(localSha || ''))) return null
+  if (/^0+$/.test(String(localSha || ''))) return null
+  try {
+    const files = execFileSync('git', ['-c', 'core.quotepath=false', 'diff', '--name-only', `${baseSha}..${localSha}`],
+      { cwd: dir, encoding: 'utf8', timeout: 20_000 }).split(/\r?\n/).map((x) => x.trim()).filter(Boolean)
+    const message = execFileSync('git', ['log', '-1', '--format=%B', localSha], { cwd: dir, encoding: 'utf8', timeout: 20_000 })
+    if (!files.length || !message) return null
+    return { files, message: String(message) }
+  } catch { return null }
+}
+
+/** 近 window 笔里有多少笔用过恢复通道（放行次数是判据，不是 discretion）。 */
+export function recoveryUseCount (localSha, dir = root, window = RECOVER_WINDOW) {
+  try {
+    const log = execFileSync('git', ['log', `-${window}`, '--format=%B', localSha], { cwd: dir, encoding: 'utf8', timeout: 20_000 })
+    return String(log).split(RECOVER_MARKER_RE).slice(1).filter((x) => /^\d{8,}/.test(x.trim())).length
+  } catch { return window }
 }
 
 /** 取某个提交自己的 ci.yml job 名单；任何一步不成都返回 null（调用方回落现行名单 ⇒ 宁严勿宽）。
@@ -301,11 +371,22 @@ export function main({ pushRef = null, remoteSha = null } = {}) {
     // 分母由**被评的那个提交**自己的 ci.yml 交出（见 verdictOf 的 availableJobs 注）：
     // 拿今天的名单判昨天的 run，就是在要求一份当时不可能存在的回执。
     const face = ciJobNamesAt(base)
-    const v = verdictOf({ sha: base, runs: [got.run], contract, availableJobs: face })
+    // 要推的那笔（base..local_sha）摊成 pending 喂给承认通道：改了哪些文件 + 提交说明里的 runId 标记。
+    // 取不到 ⇒ pending=null ⇒ 通道不成立（宁严勿宽），而不是"看不见就放行"。
+    const pending = recoveryFaceOf(base, r.localSha)
+    const markerCount = recoveryUseCount(r.localSha)
+    const v = verdictOf({ sha: base, runs: [got.run], contract, availableJobs: face, pending, markerCount })
     const line = `${tag} ${v.state} base=${base.slice(0, 7)} local=${(r.localSha || '-').slice(0, 7)} :: ${v.reason}` +
       (got.jobsError ? `（job 明细拉取失败：${got.jobsError}）` : '') +
       (face ? `｜分母取自该 commit 的 ci.yml（${[...face].length} 个 job）` : '｜该 commit 的 ci.yml 取不到 ⇒ 回落现行名单，不放宽')
     if (v.state === 'GREEN') { console.log(line); continue }
+    if (v.state === 'RECOVER') {
+      console.log(line.replace(` ${v.state} `, ' RECOVER '))
+      console.log(`${tag} ⚠ 恢复通道放行 1 次（近 ${RECOVER_WINDOW} 笔第 ${markerCount} 次，上限 ${RECOVER_MAX}）`
+        + `｜它只在基线"从未下过判决"时才成立，真判据红走不到这里`
+        + `｜留痕 = 提交说明里的 ci-green-recover: <runId>，git 历史里查得到，不另立台账`)
+      continue
+    }
     console.error(line)
     rc = 1
   }
