@@ -261,7 +261,7 @@ jobs:
 
       - run: npm ci
 
-      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: ms-playwright-${{ hashFiles('package-lock.json') }}
@@ -291,7 +291,7 @@ jobs:
       # Playwright 浏览器缓存（2026-10-08）：三个 e2e job 各自下载 Chromium（~150MB），
       # CDN 慢时单步卡 10 分钟+（run 37671123138 一手：Install Chromium 卡 12 分钟+）。
       # 键 = package-lock 哈希：升 playwright 才换缓存；命中时 install 幂等跳过下载，只补系统依赖。
-      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: ms-playwright-${{ hashFiles('package-lock.json') }}
@@ -346,7 +346,7 @@ jobs:
       # Playwright 浏览器缓存（2026-10-08）：三个 e2e job 各自下载 Chromium（~150MB），
       # CDN 慢时单步卡 10 分钟+（run 37671123138 一手：Install Chromium 卡 12 分钟+）。
       # 键 = package-lock 哈希：升 playwright 才换缓存；命中时 install 幂等跳过下载，只补系统依赖。
-      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: ms-playwright-${{ hashFiles('package-lock.json') }}
@@ -392,7 +392,7 @@ jobs:
       # Playwright 浏览器缓存（2026-10-08）：三个 e2e job 各自下载 Chromium（~150MB），
       # CDN 慢时单步卡 10 分钟+（run 37671123138 一手：Install Chromium 卡 12 分钟+）。
       # 键 = package-lock 哈希：升 playwright 才换缓存；命中时 install 幂等跳过下载，只补系统依赖。
-      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: ms-playwright-${{ hashFiles('package-lock.json') }}
