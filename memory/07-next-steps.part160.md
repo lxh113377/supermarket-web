@@ -28,3 +28,19 @@
 - `.ci/escape-hatch.jsonl` 被他路会话持续追加（27→30 行、始终 ` M`），C9 因此在一次链内报「未覆盖 1」
   而单跑 GREEN；`verify:restore-drill` 同轮也出现链内 FAIL／单跑 PASS。三次 `verify` 差集比对确认
   非本轮改动引入，终态 VERIFY_RC=0。**多写入方竞态只准拆槽或复算，不许调阈值求绿。**
+
+## ②-B/②-C 续账（同轮稍后：恢复通道已上线并两侧兑现）
+
+- 通道**该放行的放行**（基线 cancelled ⇒ `RECOVER ... 近 20 笔第 1 次用通道，上限 2`，推送通过）、
+  **该拦的拦住**（基线 failure ⇒ 打印"那是 CI 下过判决的红，本通道不认"并拒推）⇒ 放宽没变成后门。
+- 真判据红那一段经老大授权走 `CI_GREEN_SKIP=1`。**我在这里制造了一条假证据**：重试循环 grep 判据与
+  break 条件没对齐 ⇒ 同一笔推两次、`.ci/escape-hatch.jsonl` 落两行相同绕过记录，第二行是
+  `base==head` 的 no-op，不构成绕过却被计量（两行 utc 相隔 9 秒）。**未删行**（删共享台账会毁掉
+  他路会话 3 行在途记录，且"抹掉计量"是本仓最反对的动作）。
+- **下一轮 P0（新增，写死可证伪）**：`scripts/ci-green-contract.mjs` 在
+  `local_sha == remote_sha`（无可推之物）时**不得写绕过行**；重试循环必须以
+  `git ls-remote` 复算决定是否再推，禁止用 grep 自己的 stdout 当成功判据。
+- 终态一手：`run 37870711072@4fdb4c9` CI `completed/success`，六 job 逐个 success
+  （含 `e2e-cloud-stub=success(12 步)` —— 上轮那个 0 步 1s cancelled 的 job）、
+  `deploy=success(9 步)`；`check:live-shape` **3/3 PASS、漂移 0**，线上 `4fdb4c9` == HEAD。
+  ⇒ 四项改造**已上线**，且"已上线"由判据自己说出（`ci:status` 的「部署判定：已发生」）。
