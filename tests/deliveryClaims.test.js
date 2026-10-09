@@ -157,7 +157,12 @@ describe('CLI：三档退出码与注入演习都实测（只 import 纯函数 �
     const dir = writeFix(tmpDir(), { 'a.md': GOOD })
     const clean = runCli(['--dir', dir])
     expect(clean.status).toBe(0)
-    const r = runCli(['--dir', dir, '--inject-red'])
+    // 演习面必须选在**两根都存在**的地方：本腿原来用默认根（本机 = 代码仓 + 同级归档仓），
+    // 而 CI 的 actions/checkout 只有代码仓 ⇒ 注入的孤儿 sha 走"未定位"分支而不是"幽灵"分支，
+    // 于是"注入 2 必须被判红"这句在 CI 上永远兑现不了（第七十三轮 CI 一手：本机绿、CI 红）。
+    // 同文件 :351 那条腿早就为这件事自建了合成 git 仓 —— 本腿向它对齐，而不是把断言写松。
+    const { path } = orphanRepo()
+    const r = runCli(['--dir', dir, '--inject-red'], { DELIVERY_CLAIMS_ROOTS: path })
     expect(r.status).toBe(1)
     const out = String(r.stdout) + String(r.stderr)
     expect(out).toContain('--inject-red 已注入 4 处假')
@@ -165,7 +170,10 @@ describe('CLI：三档退出码与注入演习都实测（只 import 纯函数 �
     // 三处注入必须**逐个**被点名。只断言 rc=1 的话，其中一处注入死掉、红完全由另外两处供给，
     // 这条演习腿照样绿 —— 那是"有演习"和"演习有牙"的差别（本仓 R-ENUM：判据要能各自独立成红）。
     expect(out, '注入 1：空口已上线').toContain('(注入演习) synthetic.md')
-    expect(out, '注入 2：幽灵 sha').toMatch(/f5b22d2/)
+    // 与 :351 同口径：注入的孤儿 sha 在**合成仓**里根本没有对象 ⇒ 走"未定位"分支，只有真仓才走"幽灵"分支。
+    // 两个分支都算 D5 收到了这条注入；写成单一分支会在 CI（只检出代码仓）上永远兑现不了。
+    expect(out, '注入 2：幽灵 sha 或未定位，两条分支都得承认收到了这条注入').toMatch(/幽灵 sha `f5b22d2`|未定位 [1-9]/)
+    expect(out).toMatch(/D5 sha 引用候选 \d+/)
     expect(out, '注入 3：结论自相矛盾').toMatch(/自相矛盾/)
     expect(out, '注入 4：本轮已做缺落地凭据').toMatch(/交不出落地凭据/)
     expect(out).toMatch(/cancelled/)

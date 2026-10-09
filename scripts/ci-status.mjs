@@ -163,7 +163,7 @@ const report = {
   repo: `${OWNER}/${REPO}`, runs: [],
   // 分类桶必须**穷尽 GitHub Actions 的全部 conclusion 取值**，且总数要能对上（unclassified 兜底并点名）。
   // 第七十三轮实测：旧版只有 green/realRed/infraRed 三个桶，skipped 有类无账、cancelled 连类都没有。
-  classes: { green: 0, realRed: 0, infraRed: 0, cancelled: 0, timedOut: 0, skipped: 0, other: 0, total: 0 },
+  classes: { green: 0, realRed: 0, infraRed: 0, cancelled: 0, timedOut: 0, skipped: 0, running: 0, other: 0, total: 0 },
   deploy: [], hasStepFailJob: false, blockedBy: null,
 }
 const KNOWN_CONCLUSIONS = ['success', 'failure', 'cancelled', 'skipped', 'neutral', 'timed_out', 'action_required', 'stale']
@@ -194,7 +194,10 @@ for (const run of runs) {
     const nSteps = (job.steps || []).length
     const dur = job.started_at && job.completed_at ? secs(job.started_at, job.completed_at) : null
     let cls = 'other'
-    if (job.conclusion === 'success') cls = 'green'
+    // conclusion 为 null 而 status 未 completed ＝ **正在跑**，不是"取数面出现了未知终态"。
+    // 不认这一格就会把一次正常在途的推送报成"枚举需要扩"⇒ 自己造的桶反过来产生假警报（第七十三轮实测）。
+    if (job.status && job.status !== 'completed' && !job.conclusion) cls = 'running'
+    else if (job.conclusion === 'success') cls = 'green'
     else if (job.conclusion === 'skipped') cls = 'skipped'
     // **cancelled 必须有自己的桶**（第七十三轮一手）：run 37747723889 的 e2e-cloud-stub
     // 是 0 步、1 秒、cancelled，而当时的分类只认 failure 系 ⇒ 它既不进绿也不进红，
@@ -213,6 +216,7 @@ for (const run of runs) {
     else if (cls === 'cancelled') { report.classes.cancelled++; probeBanner(job.check_run_url) }
     else if (cls === 'timedOut') report.classes.timedOut++
     else if (cls === 'skipped') report.classes.skipped++
+    else if (cls === 'running') report.classes.running++
     else report.classes.other++
     if (!KNOWN_CONCLUSIONS.includes(String(job.conclusion))) {
       entry.unknownConclusions = (entry.unknownConclusions || []).concat([`${job.name}=${job.conclusion}`])
@@ -230,23 +234,28 @@ else {
     console.log(`run ${r.id}  ${r.name}  head=${r.head}  ${r.conclusion}  attempt=${r.attempt}` + (r.note ? `  (${r.note})` : ''))
     for (const job of r.jobs) {
       const mark = job.cls === 'green' ? 'OK  ' : job.cls === 'skipped' ? '--  '
-        : job.cls === 'infra-0step' ? 'INFRA' : job.cls === 'cancelled' ? 'CNCL' : job.cls === 'timedOut' ? 'TL90' : 'RED '
+        : job.cls === 'infra-0step' ? 'INFRA' : job.cls === 'cancelled' ? 'CNCL' : job.cls === 'timedOut' ? 'TL90' : job.cls === 'running' ? 'RUN ' : 'RED '
       console.log(`   [${mark}] ${job.name.padEnd(18)} ${String(job.conclusion).padEnd(9)} steps=${String(job.steps).padStart(3)} secs=${job.secs ?? '?'}`)
     }
   }
   const c = report.classes
   console.log(`\n分类计数：绿=${c.green}  真判据红(有 step)=${c.realRed}  账号级(0 step ≤12s)=${c.infraRed}`
-    + `  cancelled=${c.cancelled}  timed_out=${c.timedOut}  skipped=${c.skipped}  落桶外=${c.other}`
+    + `  cancelled=${c.cancelled}  timed_out=${c.timedOut}  skipped=${c.skipped}  在跑=${c.running}  落桶外=${c.other}`
     + `｜总数=${c.total}`)
   // **每个桶都得有人认领**：旧版这里只印三个数，cancelled/skipped 有类无账，
   // 于是"绿=7 真判据红=0"这句话在 9 个 job 的面上既没撒谎也没说全（第七十三轮一手）。
   if (c.cancelled > 0) console.log('→ 存在 cancelled：被取消的 job **没有结论**（既不是绿也不是判据红），它下游 needs 到的 job 全部被掐成 skipped ⇒ 交付面可能整段没跑。'
     + '取消原因不在 job 明细里，在 check-run annotations（见下方"平台原文"行），别把它读成"没事"。')
   if (c.timedOut > 0) console.log('→ 存在 timed_out：某 job 撞上了本轮 I-73-4 刚补的 timeout-minutes 上界 ⇒ 是真慢，不是没配完。')
+  if (c.running > 0) console.log('→ 在跑：这些 job 还没有 conclusion（不是异常，也不是结论）⇒ 想要终态请复跑本命令或加 --run <id>。')
   if (c.other > 0) console.log(`→ 落桶外 ${c.other} 个：conclusion 取值超出已知枚举 ${KNOWN_CONCLUSIONS.join('/')} ⇒ 本判据的取数面需要扩，不许按"没有"处理。`)
   // 「部署到底有没有发生」是这条链上唯一的问题句，而它此前只能靠人自己去看 deploy 那一行。
   const deploys = report.runs.filter((r) => r.hasDeployJob)
-  if (!deploys.length) console.log('→ 部署判定：取回的 run 里**没有 deploy job**（workflow 改名或全部为旁支链）⇒ 无从判定，不读成"没部署也没事"。')
+  const awaiting = report.runs.filter((r) => !r.hasDeployJob && String(r.conclusion) !== 'success' && String(r.conclusion) !== 'skipped')
+  if (!deploys.length) {
+    if (awaiting.length) console.log(`→ 部署判定：${awaiting.map((r) => `${r.id}@${r.head}`).join('、')} 还没有 deploy job ⇒ 上游仍在跑（deploy 是 needs 到齐后才创建的），**不读成"没部署也没事"，也不读成"部署坏了"**。`)
+    else console.log('→ 部署判定：取回的 run 里**根本没有 deploy job**（workflow 改名或全是旁支链）⇒ 无从判定，不读成"没部署也没事"。')
+  }
   for (const r of deploys) {
     const verdict = r.deploy === 'success' ? '已发生（deploy success）'
       : r.deploy === 'skipped' ? `**未发生**（deploy skipped：上游 ${r.jobs.filter((j) => j.conclusion !== 'success' && j.conclusion !== 'skipped').map((j) => `${j.name}=${j.conclusion}`).join('、') || '无红灯 job'}；skipped 意味着流水线根本没走到发布这一步）`
