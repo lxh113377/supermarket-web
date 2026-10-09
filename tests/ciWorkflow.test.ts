@@ -57,11 +57,13 @@ const JOBS = jobNames(ci)
 const NEEDS = deployNeeds(ci)
 
 describe('deploy 的阻断链（注释说阻断不算，看 needs）', () => {
-  it('CI 至少含这五个 job', () => {
+  it('CI 至少含这六个 job', () => {
     // 2026-10-08 分层 CI：build-and-test 拆为 gates（快门禁，推送阻断+部署闸），
     // 深门禁移入独立链 ci-deep.yml（夜兜底 + 后端相关路径触发），见下方 deep 段断言。
+    // 2026-10-09 第七十三轮 I-73-1：新增 browser-install（浏览器冷下载的唯一发生地），
+    // 名单变更必须与 .ci/contract.json 的 requiredJobs 同笔 —— 下方桥接判据钉着这条。
     expect(new Set(JOBS)).toEqual(
-      new Set(['gates', 'e2e', 'e2e-cloud-stub', 'visual', 'deploy']),
+      new Set(['gates', 'browser-install', 'e2e', 'e2e-cloud-stub', 'visual', 'deploy']),
     )
   })
 
@@ -152,6 +154,11 @@ describe('关键 step 存在性（改名即红，防"门禁静默消失"）', ()
     'Static HTML CSP gate (no dead inline styles)',
     'Import cycle check',
     'API contract drift check',
+    // 第七十三轮 I-73-4：第七十二轮立的两条闸当时只进本地 verify 链、没进 CI 阻断链。
+    // 把它们写进这份"一个都不能少"的名单，就是拿既有判据把**接线本身**判住 ——
+    // 不另立新闸（one-fact-one-judge），也不靠下一轮人肉 grep 发现"其实没接上"。
+    'Contract breakage diff check',
+    'Local-CI gate parity check',
     'Doc facts consistency gate',
     'Numeric limit provenance gate',
     'Error semantics registry gate',
@@ -794,34 +801,69 @@ function jobTimeout(text: string, name: string): number | null {
   return m ? Number(m[1]) : null
 }
 
-function boundednessProblems(text: string): string[] {
+/**
+ * 时间上界（第七十三轮拆通用）。
+ * 第七十二轮立的这条尺当时**只对 ci.yml 调了一次**（旧 :829），而它自己的 G-72-1 证据点名的是
+ * "ci.yml / ci-deep.yml / d1-backup.yml / uptime.yml 四个 workflow 的 timeout-minutes 出现次数均为 0"
+ * ⇒ 修的时候只修了被点名的四个里的一个，另外三个没人再量，因为**尺的分母和被修面不同轮扩过**。
+ * 本轮把它拆成通用函数并遍历 allWorkflows：新增 workflow 文件自动进分母，不需要再改判据。
+ * （这一拆当场又逮到第五个：`dispatch.yml` 的两个 job 只有一个有界 —— 那是旧尺从来没看过的另一半。）
+ */
+function timeoutProblems(file: string, text: string): string[] {
   const problems: string[] = []
   const jobs = jobNames(text)
-  if (!jobs.length) return ['ci.yml 里取不到 job 名单（分母为 0 ⇒ 本判据会退化成空转真）']
+  if (!jobs.length) return [`${file} 里取不到 job 名单（分母为 0 ⇒ 本判据会退化成空转真）`]
   for (const j of jobs) {
     const t = jobTimeout(text, j)
     if (t === null) {
-      problems.push(`job ${j} 没声明 timeout-minutes ⇒ 一次第三方 CDN 抖动就能让它跑到 6 小时硬上限被判 cancelled（run 37677572509 一手）`)
+      problems.push(`${file} 的 job ${j} 没声明 timeout-minutes ⇒ 一次第三方 CDN 抖动就能让它跑到 6 小时硬上限被判 cancelled（run 37677572509 一手）`)
     } else if (t < 5 || t > 60) {
-      problems.push(`job ${j} 的 timeout-minutes=${t} 不在 [5, 60] ⇒ 要么必然误杀，要么等于没设`)
+      problems.push(`${file} 的 job ${j} 的 timeout-minutes=${t} 不在 [5, 60] ⇒ 要么必然误杀，要么等于没设`)
     }
   }
-  // ② 三个 Playwright job 必须共队列且不互砍。
-  //    组名允许含空格（`ci-browser-install-${{ github.ref }}` 里就有）⇒ 用 `.+?` + 行尾锚，
-  //    不用 `\S+`：后者匹配不到带空格的表达式，会让本判据在真面上就报"没有 group"（恒红）。
-  const PLAYWRIGHT_JOBS = ['e2e', 'e2e-cloud-stub', 'visual']
-  const groups = new Set<string>()
+  return problems
+}
+
+const PLAYWRIGHT_JOBS = ['e2e', 'e2e-cloud-stub', 'visual']
+
+/** 浏览器下载的单一发生地（只对**含 Playwright job 的那个 workflow** 生效；其余文件没有这类 job ⇒ 不适用 ≠ 合格）。 */
+function browserQueueProblems(text: string): string[] {
+  const problems: string[] = []
+  // ② 第七十三轮 I-73-1：浏览器只能"装一次"，且先后顺序必须用 needs 表达，
+  //    **不得**再用 job 级 concurrency 组把同一 run 内的兄弟 job 串起来。
+  //    这条取代第 72 轮的"三 job 共组"断言。一手证据（为什么原设计是错的）：
+  //    run 37747723889 的 e2e-cloud-stub 起跑 08:07:08Z、08:07:09Z 止、steps=0、cancelled，
+  //    check-run 113213111629 的 annotation 原文
+  //    「Canceling since a higher priority waiting request for ci-browser-install-refs/heads/main exists」
+  //    ⇒ job 级 concurrency 的语义是"新请求挤掉旧等待请求"，不是"排队"；同 run 内三 job 争同组
+  //    就是把其中一个当场判 cancelled，代价经 needs 传导到 deploy。原判据只验"三组名一致 +
+  //    cancel-in-progress 是 false"这种**内部自洽**，从没问过"这个组到底会不会取消兄弟"，
+  //    于是一个错误的决策被测试锁成了不变量（本轮 §6 的方法论收获）。
+  //    断言按**结构**取（`concurrency:` 是否出现在 job 体内），不按裸子串扫 `ci-browser-install`：
+  //    该字面量还会在本 job 的注释里作为证据出现，裸子串扫描会把证据当成配置。
+  const WARMER = 'browser-install'
+  if (!jobNames(text).includes(WARMER)) {
+    problems.push(`没有 ${WARMER} job ⇒ 冷下载没有唯一发生地，三个 Playwright job 会各自去拉同一个 CDN（run 37677572509 一手：两路各挂 6h）`)
+  }
   for (const j of PLAYWRIGHT_JOBS) {
     const block = jobBlock(text, j)
-    const g = /^[ \t]*group:[ \t]*(.+?)[ \t]*$/m.exec(block)?.[1]
-    if (!g) { problems.push(`Playwright job ${j} 没有 job 级 concurrency.group ⇒ 三个 job 会并发拉同一个 CDN（run 37677572509 一手：两路挂 6h）`); continue }
-    groups.add(g)
-    if (!/^[ \t]*cancel-in-progress:[ \t]*false[ \t]*$/m.test(block)) {
-      problems.push(`Playwright job ${j} 的 cancel-in-progress 不是 false ⇒ true 会让后两个被前一个的完成事件取消，队列塌成只跑一个`)
+    if (/^[ \t]*concurrency:/m.test(block)) {
+      problems.push(`Playwright job ${j} 带 job 级 concurrency ⇒ 同 run 内争同一个组会被"higher priority waiting request"当场判 cancelled（run 37747723889 一手：本 job 0 步 1s 即挂，deploy 因 needs 被 skipped）`)
+    }
+    const needsRaw = /^[ \t]*needs:[ \t]*\[([^\]]*)\]/m.exec(block)?.[1] ?? ''
+    const needs = needsRaw.split(',').map((s) => s.trim()).filter(Boolean)
+    if (!needs.includes(WARMER)) {
+      problems.push(`Playwright job ${j} 的 needs 里没有 ${WARMER} ⇒ 它会在缓存预热完成前起跑，冷下载落回它自己头上（并发又回来了）`)
     }
   }
-  if (groups.size > 1) problems.push(`三个 Playwright job 的 concurrency 组名不一致（${[...groups].join(' / ')}）⇒ 它们不在同一队列里`)
   return problems
+}
+
+/** 一个 workflow 的完整有界性检查：时间上界对所有文件生效；浏览器单一发生地只对含 Playwright job 的文件生效。 */
+function boundednessProblems(text: string, file = 'ci.yml'): string[] {
+  const out = timeoutProblems(file, text)
+  if (PLAYWRIGHT_JOBS.some((j) => jobNames(text).includes(j))) out.push(...browserQueueProblems(text))
+  return out
 }
 
 describe('CI 的时间上界与浏览器下载单一逻辑（G-72-1）', () => {
@@ -829,11 +871,19 @@ describe('CI 的时间上界与浏览器下载单一逻辑（G-72-1）', () => {
     expect(boundednessProblems(ci)).toEqual([])
   })
 
+  it('第七十三轮：上界判据遍历**全部** workflow 文件（旧版只对 ci.yml 调一次，另外三个文件从没被量过）', () => {
+    const offenders: string[] = []
+    for (const [file, text] of allWorkflows) offenders.push(...boundednessProblems(text, file))
+    expect(offenders, offenders.join('\n')).toEqual([])
+    // 分母必须真的等于盘上的文件数：0 个文件时上面那句也会"全绿"，那是空转真不是合格。
+    expect(allWorkflows.length).toBeGreaterThanOrEqual(6)
+  })
+
   it('反例：抽掉任一 job 的 timeout-minutes ⇒ 逐条点名', () => {
     // 按 job 块整体改，不按行号/相邻行 replace：ci.yml 里 5 个 timeout-minutes 行形状一致，
     // 靠"整段文本里第一次出现"去删，删掉的必然是 gates 那一条，另外四个会静默留着
     // （本仓同族坑第四次：变异定位必须锚在被测对象上）。
-    for (const j of ['gates', 'e2e', 'e2e-cloud-stub', 'visual', 'deploy']) {
+    for (const j of ['gates', 'browser-install', 'e2e', 'e2e-cloud-stub', 'visual', 'deploy']) {
       const block = jobBlock(ci, j)
       expect(block, `夹具依赖：ci.yml 里找不到 job ${j}`).not.toBe('')
       const stripped = block.replace(/^[ \t]*timeout-minutes:[ \t]*\d+[ \t]*\n/m, '')
@@ -853,22 +903,29 @@ describe('CI 的时间上界与浏览器下载单一逻辑（G-72-1）', () => {
     expect(boundednessProblems(tooBig).join()).toContain('不在 [5, 60]')
   })
 
-  it('反例：队列互砍 / 组名不一致 / 队列整个摘掉，三条都要点名', () => {
-    // 变异同样按 job 块做：ci.yml 里 workflow 级也有 `cancel-in-progress: true`，
-    // 拿"第一次出现"去改必然改中 workflow 级那一条 ⇒ 变异落空、断言假过。
-    const nukeBlock = (j: string) => replaceJobBlock(ci, j,
-      jobBlock(ci, j).replace(/^([ \t]*)cancel-in-progress:[ \t]*false[ \t]*$/m, '$1cancel-in-progress: true'))
-    const nuke = nukeBlock('e2e')
-    expect(jobBlock(nuke, 'e2e'), '变异体没造出来').toContain('cancel-in-progress: true')
-    expect(boundednessProblems(nuke).join()).toContain('cancel-in-progress 不是 false')
+  it('反例：共组互砍 / needs 缺失 / 预热 job 整个摘掉，三条都要点名（第七十三轮 I-73-1）', () => {
+    // 变异同样按 job 块做，不按"全文第一次出现"去改：ci.yml 里 workflow 级也有 `concurrency:`，
+    // 拿第一次出现去改必然改中 workflow 级那一条 ⇒ 变异落空、断言假过（本仓同族坑）。
+    const addBackGroup = replaceJobBlock(ci, 'e2e',
+      `    concurrency:\n      group: ci-browser-install-\${{ github.ref }}\n      cancel-in-progress: false\n` + jobBlock(ci, 'e2e'))
+    expect(jobBlock(addBackGroup, 'e2e'), '变异体没造出来').toContain('concurrency:')
+    expect(boundednessProblems(addBackGroup).join()).toContain('带 job 级 concurrency')
 
-    const split = ci.replace(/group: ci-browser-install-\$\{\{ github\.ref \}\}/, 'group: ci-browser-install-visual-${{ github.ref }}')
-    expect(split).not.toBe(ci)
-    expect(boundednessProblems(split).join()).toContain('不在同一队列里')
+    const dropNeeds = replaceJobBlock(ci, 'visual',
+      jobBlock(ci, 'visual').replace(/^[ \t]*needs:[ \t]*\[browser-install\][ \t]*\n/m, ''))
+    expect(jobBlock(dropNeeds, 'visual'), '变异体没造出来').not.toContain('needs: [browser-install]')
+    expect(boundednessProblems(dropNeeds).join()).toContain('needs 里没有 browser-install')
 
-    const noGroup = replaceJobBlock(ci, 'e2e', jobBlock(ci, 'e2e').replace(/^[ \t]*group:[ \t]*.*$/m, ''))
-    expect(jobBlock(noGroup, 'e2e'), '变异体没造出来').not.toContain('group:')
-    expect(boundednessProblems(noGroup).join()).toContain('没有 job 级 concurrency.group')
+    // "整个摘掉"要连引用一起摘（GitHub 会在解析期拒"needs 指向不存在的 job"，
+    // 所以真实的手误是两者一起没）—— 摘干净之后，缺预热 job 与三个 job 缺 needs 应**同时**点名。
+    const dropWarmer = ci
+      .replace(/\n  browser-install:\n[\s\S]*?(?=\n  e2e:\n)/, '\n')
+      .replace(/^[ \t]*needs: \[browser-install\][ \t]*\n/gm, '')
+    expect(dropWarmer).not.toBe(ci)
+    expect(jobNames(dropWarmer)).not.toContain('browser-install')
+    expect(boundednessProblems(dropWarmer).join()).toContain('没有 browser-install job')
+    // 一条事故不该只报一半：三个 Playwright job 各出一行
+    expect(boundednessProblems(dropWarmer).join().match(/needs 里没有 browser-install/g)).toHaveLength(3)
   })
 
   it('③ 浏览器安装逻辑仓内只有一份：workflow 里不得回到裸 npx，且脚本必须在提交面里', () => {
@@ -880,7 +937,10 @@ describe('CI 的时间上界与浏览器下载单一逻辑（G-72-1）', () => {
     expect(bare, `裸 npx playwright install 回来了 ⇒ 6 小时挂死请回来：${bare.join(' | ')}`).toEqual([])
 
     const refs = ci.split('\n').filter((l) => l.includes(BROWSER_SCRIPT) && /run:/.test(l))
-    expect(refs.length, 'ci.yml 里引用安装脚本的 run 行数不对').toBe(3)
+    // 第七十三轮 I-73-1 后是 **4** 处：browser-install 真下载一次 + 三个 Playwright job 各调一次
+    // （命中缓存时 `npx playwright install` 自身幂等，不再拉 CDN）。
+    // 这条计数判的是"逻辑只有一份脚本"，不是"只调用一次" —— 别把两者混成一句话。
+    expect(refs.length, 'ci.yml 里引用安装脚本的 run 行数不对').toBe(4)
 
     // 脚本必须在**提交面**里解得出：未跟踪文件在 CI 检出里根本不存在（pre-push 的 head-closure 同理）。
     const tracked = execFileSync('git', ['ls-files', '--error-unmatch', BROWSER_SCRIPT], { cwd: join(WF_DIR, '..', '..'), encoding: 'utf8' })

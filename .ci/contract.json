@@ -1,13 +1,20 @@
 {
   "branch": "main",
   "workflow": "CI",
-  "requiredJobs": ["gates", "e2e", "e2e-cloud-stub", "visual", "deploy"],
+  "requiredJobs": ["gates", "browser-install", "e2e", "e2e-cloud-stub", "visual", "deploy"],
   "requiredJobAliases": [
     {
       "job": "build-and-test",
       "aliasOf": "gates",
       "untilUtc": "2026-10-07",
       "why": "该 job 于 4349d99（2026-10-07T19:38:34Z / 本地 2026-10-08T03:38）改名为 gates。改名之前的报告写 build-and-test 是当时的真话，拿今天的名单去判它就等于把历史回执读成缺件 —— 第七十二轮一手：`check:delivery-claims` 因此把第四十二轮 §8 判成「新增 1」，`npm run verify` rc=1。生效面 = 文件名日期 ≤ untilUtc；改名之后的报告只准用现行名，别名一律不认（反例腿见 tests/deliveryClaims.test.js）。"
+    }
+  ],
+  "requiredJobSince": [
+    {
+      "job": "browser-install",
+      "sinceUtc": "2026-10-09",
+      "why": "该 job 由第七十三轮 I-73-1 引入（拆掉第七十二轮的三 Playwright job 共用 ci-browser-install concurrency 组 —— 那个组把 e2e-cloud-stub 在起跑 1 秒、0 步时判成 cancelled，deploy 因 needs 被 skipped，见第七十二轮报告 §7 更正）。**新增 job 与改名是同一颗雷**：本文件上方 requiredJobAliases 的 why 早已为改名写过「拿今天的名单判昨天的回执 = 把历史真话读成缺件」，缺的是增员那一半 —— 第七十二轮那份回执不可能点到当时还不存在的 job，要求它点名就是在逼作者补一句假话。生效面与别名对称且**方向相反**：文件名日期 < sinceUtc 免名，当日及以后照常点名；免掉的项由 check-delivery-claims 以「新 job 免名 N 处」照印，不静默缩分母。反例腿见 tests/deliveryClaims.test.js。"
     }
   ],
   "graceMinutes": 90,

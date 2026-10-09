@@ -446,3 +446,51 @@ describe('P5 外层归档面：产物必须真进归档仓（第七十一轮）'
     }
   })
 })
+
+/**
+ * 第七十三轮 · 钩子环境不许污染跨仓取数。
+ * 一手红因（可复现，不是竞态）：pre-commit 里 P5 报「第 72 轮报告不在外层跟踪册里」，
+ * 而 `npm run verify:pointers` 直跑同盘面 PASS。差别 = git 给钩子注入的 GIT_DIR/GIT_INDEX_FILE
+ * 被子进程继承 ⇒ `git -C <外层仓>` 仍以**内层仓**为根，外层 ls-files 读成空集。
+ * 这类"直跑绿 / 钩子红"的根因不在判据逻辑，在子进程继承了它不该继承的上下文。
+ */
+describe('makeGitRunner 的环境隔离（钩子内 vs 直跑）', () => {
+  const capture = () => {
+    const calls = []
+    const spawn = (cmd, args, opts) => { calls.push({ cmd, args, opts }); return { status: 0, stdout: '' } }
+    return { calls, spawn }
+  }
+  const OUTER = resolve(join(REPO, '..'))
+  it('钩子环境（GIT_DIR 指向别的仓）⇒ 剥掉 GIT_* 再 spawn，否则 -C 会被 ambient 仓库根吃掉', () => {
+    const { calls, spawn } = capture()
+    const env = { GIT_DIR: resolve(join(REPO, '.git')), GIT_INDEX_FILE: '/tmp/x', GIT_WORK_TREE: REPO, PATH: 'p' }
+    const runner = makeGitRunner(OUTER, { spawn, env })
+    runner(['ls-files', '-z', '--', 'deliverables'])
+    const o = calls[0].opts
+    expect(o.env, '跨仓取数必须带净化过的 env').toBeTruthy()
+    for (const k of ['GIT_DIR', 'GIT_INDEX_FILE', 'GIT_WORK_TREE', 'GIT_PREFIX']) {
+      expect(o.env, `${k} 还留在 env 里 ⇒ 子进程会打到错的仓`).not.toHaveProperty(k)
+    }
+    expect(o.env.PATH).toBe('p')
+  })
+  it('ambient GIT_DIR 就是目标仓自己 ⇒ **不许**剥（那是另一种失明）：--staged 那类判据必须能看见钩子的 index', () => {
+    const { calls, spawn } = capture()
+    const env = { GIT_DIR: resolve(join(OUTER, '.git')), PATH: 'p' }
+    makeGitRunner(OUTER, { spawn, env })(['status', '--porcelain', '-z'])
+    expect(calls[0].opts.env, '同仓时不该改动 env').toBeUndefined()
+  })
+  it('压根没有 GIT_DIR（直跑）⇒ env 不动，行为与修复前逐字一致', () => {
+    const { calls, spawn } = capture()
+    makeGitRunner(OUTER, { spawn, env: { PATH: 'p' } })(['ls-files'])
+    expect(calls[0].opts.env).toBeUndefined()
+  })
+  it('**只设 GIT_INDEX_FILE**（不设 GIT_DIR）也必须净化 —— `git commit --only` 的钩子环境就是这一形态', () => {
+    // 第一版修复只认 GIT_DIR，这条形态整个漏网：钩子里 P5 照旧报"第 72 轮报告没入库"。
+    // 实测对照：GIT_INDEX_FILE=<内层>/.git/index 时 `git -C 外层 ls-files -- deliverables` = **0 条**。
+    const { calls, spawn } = capture()
+    const env = { GIT_INDEX_FILE: resolve(join(REPO, '.git', 'index')), PATH: 'p' }
+    makeGitRunner(OUTER, { spawn, env })(['ls-files', '-z', '--', 'deliverables'])
+    expect(calls[0].opts.env, '只设 GIT_INDEX_FILE 时也必须净化，否则跨仓读的是内层的 index').toBeTruthy()
+    expect(calls[0].opts.env).not.toHaveProperty('GIT_INDEX_FILE')
+  })
+})

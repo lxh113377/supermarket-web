@@ -23,6 +23,7 @@
 //
 // 三态退出码：0 = 对齐 / 1 = 有未登记的错位 / 2 = 某一面读不到（不折算成"对齐"）。
 import { readFileSync, existsSync } from 'node:fs'
+import { reasonDefects } from './lib/registry-reason.mjs'
 import { join, dirname, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
@@ -53,6 +54,10 @@ export function ciJudgeSteps (ciText, jobName = 'gates') {
     const body = lines.slice(i, e).join('\n')
     const run = /^[ \t]*run:[ \t]*(.+)$/m.exec(body)?.[1]?.trim()
     if (!run || NON_JUDGE.test(name)) continue
+    // advisory step（continue-on-error: true）**永远不可能把 CI 判红** ⇒ 它不属于
+    // "CI 的阻断面 ⊆ 本地链"这个事实的取数面。把它纳入分母就是造一条永远修不好的假阳。
+    const advisory = /^[ \t]*continue-on-error:[ \t]*true[ \t]*$/m.test(body)
+    if (advisory) continue
     // 判据型 run 的三种形态。`npm test` / `npm run verify` 是裸 `npm`，不带 `run ` ——
     // 只写 /npm run / 会把整条测试面漏出分母（本轮自证①当场抓到：3 条 step 只认出 2 条）。
     if (/npm run /.test(run) || /^npm (test|verify)\b/.test(run)
@@ -131,17 +136,46 @@ function normalizeCmd (def, pkg) {
  *       按别名名分类会漏掉它：`npx vitest run --coverage` 根本没有别名。
  *   NOT_IN_LOCAL_CHAIN：本地连基命令都没有。
  */
-export function gateParity ({ ciText, pkg }) {
-  const steps = ciJudgeSteps(ciText, 'gates')
-  // 零分母守卫放在纯函数里：ci.yml 里 gates job 一旦改名/挪位，`steps` 会空，
+/**
+ * 按 token 剥 flag 取基命令。规则：词首是 `-x` / `--xxx` 的 token 剥掉；
+ * 若该 flag 不带 `=` 且下一个 token 既不是 flag 也不像路径/命令（无 `/` 无 `.`），
+ * 视为它的取值一并剥掉（`--base main` / `--limit 6`）。
+ * 文件名里的连字符不受影响：`check-cron-health.mjs` 的 `-health` 不在词首。
+ */
+export function baseCommandOf (cmd) {
+  const toks = String(cmd || '').trim().split(/\s+/).filter(Boolean)
+  const out = []
+  for (let i = 0; i < toks.length; i += 1) {
+    const t = toks[i]
+    const isFlag = t === '--' || (/^-/.test(t) && t.length > 1 && !/^-[\d.]/.test(t))
+    if (!isFlag) { out.push(t); continue }
+    const next = toks[i + 1]
+    if (!t.includes('=') && next && !/^-/.test(next) && !/[/.]/.test(next)) i += 1
+  }
+  return out.join(' ')
+}
+
+export function gateParity ({ ciText, pkg, deepText = null }) {
+  // 分母（第七十三轮 I-73-4）：从"只读 ci.yml 的 gates"扩到 **ci.yml:gates + ci-deep.yml:deep-gates**。
+  // 旧版硬编码单文件单 job（:290 `join(ROOT, '.github', 'workflows', 'ci.yml')` + :135 `ciJudgeSteps(ciText, 'gates')`），
+  // 而 `check:gate-parity` 自己的名字就叫"门禁面对齐" —— 它对齐的从来只是**一半门禁面**：
+  // ci-deep.yml 的 24 条判据 step 从没进过对账。一把尺的名字比它的取数面大，就是虚判。
+  const sources = [{ file: 'ci.yml', job: 'gates', text: ciText }]
+  if (deepText) sources.push({ file: 'ci-deep.yml', job: 'deep-gates', text: deepText })
+  const steps = sources.flatMap((src) => ciJudgeSteps(src.text, src.job).map((x) => ({ ...x, file: src.file })))
+  // 零分母守卫放在纯函数里：job 一旦改名/挪位，`steps` 会空，
   // 而"0 条判据要对齐"会被读成"已对齐"—— 那是一次长得和真绿一模一样的假绿。
   if (!steps.length) return null
   const chains = localChainsOf(pkg)
   const forms = localForms(pkg, chains)
   const misalign = []
   const seen = new Set()
-  /** 基命令 = 剥掉全部 flag 后的命令本体（`vitest run --coverage` → `vitest run`）。 */
-  const baseOf = (c) => String(c || '').replace(/--?[A-Za-z][\w-]*(?:[= ][^\s]+)?/g, '').replace(/\s+/g, ' ').trim()
+  /** 基命令 = 剥掉全部 flag 后的命令本体（`vitest run --coverage` → `vitest run`）。
+   *  旧实现那条 `--?[A-Za-z][\w-]*` 的**可选单连字符**会把文件名里的 `-health` / `-case`
+   *  当 flag 剥掉 ⇒ `check-cron-health.mjs` 与 `check-case-collision.mjs` 双双归一成
+   *  `check.mjs`，两条毫不相干的判据被报成「同名不同物」（第七十三轮把分母扩到 ci-deep.yml
+   *  时实测出 4 条错位，逐条核下来只有 1 条是真的）。改成按空白切 token、只剥词首 flag。 */
+  const baseOf = (c) => baseCommandOf(c)
   const allForms = [...forms].map((f) => ({ raw: f, norm: normalizeCmd(f, pkg) }))
   for (const s of steps) {
     const key = shapeKey(s.run)
@@ -159,7 +193,7 @@ export function gateParity ({ ciText, pkg }) {
         seen.add(id)
         misalign.push({
           id, kind: 'SAME_NAME_DIFFERENT_FORM',
-          detail: `CI「${s.name}」跑 \`${s.run}\`（形态 \`${target}\`），本地同基命令的形态是 \`${sib.norm}\` —— 同名不同物：CI 侧生效的那半本地不生效`,
+          detail: `CI「${s.file || 'ci.yml'}:${s.name}」跑 \`${s.run}\`（形态 \`${target}\`），本地同基命令的形态是 \`${sib.norm}\` —— 同名不同物：CI 侧生效的那半本地不生效`,
         })
       }
       continue
@@ -169,7 +203,7 @@ export function gateParity ({ ciText, pkg }) {
       seen.add(id)
       misalign.push({
         id, kind: 'NOT_IN_LOCAL_CHAIN',
-        detail: `CI「${s.name}」跑 \`${s.run}\`，本地 ${LOCAL_CHAINS.join(' / ')} 三条链里连基命令都没有（形态键 = ${key}）`,
+        detail: `CI「${s.file || 'ci.yml'}:${s.name}」跑 \`${s.run}\`，本地 ${LOCAL_CHAINS.join(' / ')} 三条链里连基命令都没有（形态键 = ${key}）`,
       })
     }
   }
@@ -190,6 +224,8 @@ export function registryOf (contractPath) {
         || typeof a.why !== 'string' || !a.why.trim()
         || !/^\d{4}-\d{2}-\d{2}$/.test(String(a.untilUtc))
       if (bad) return { items: [], error: `contract.gateParityExceptions[${i}] 缺 id/why，或 untilUtc 不是 YYYY-MM-DD` }
+      const rd = reasonDefects(`gateParityExceptions[${i}]（${a.id}）`, a.why)
+      if (rd.length) return { items: [], error: `contract.gateParityExceptions[${i}] 的理由不合格 ⇒ ${rd.join('；')}` }
       items.push(a)
     }
     return { items, error: null }
@@ -271,6 +307,37 @@ function selftest () {
       const r = gateParity({ ciText: ci, pkg: pkg2 })
       return r.misalign.length === 1 && r.misalign[0].kind === 'SAME_NAME_DIFFERENT_FORM'
     }],
+    ['⑧ 基命令归一化不得把两个不同文件认成同一个（第七十三轮修掉的那族假阳）', () => {
+      // 旧正则 `--?[A-Za-z][\w-]*` 里那个**可选的单连字符**会把文件名中的 `-health` / `-case`
+      // 当 flag 剥掉 ⇒ 两条毫不相干的判据双双归一成 `check.mjs`，被报成「同名不同物」。
+      const a = baseCommandOf('node scripts/check-cron-health.mjs --json')
+      const b = baseCommandOf('node scripts/check-case-collision.mjs')
+      return a === 'node scripts/check-cron-health.mjs' && b === 'node scripts/check-case-collision.mjs' && a !== b
+    }],
+    ['⑨ 带空格的 flag 取值一起剥掉，但路径型参数不许被误剥', () =>
+      baseCommandOf('npm run check:contract-diff --base main') === 'npm run check:contract-diff'
+      && baseCommandOf('node x.mjs --limit 6') === 'node x.mjs'
+      && baseCommandOf('node x.mjs --json docs/a.json') === 'node x.mjs docs/a.json'],
+    ['⑩ advisory step（continue-on-error: true）不进分母 —— 它永远不可能把 CI 判红', () => {
+      const ci = ciWith([
+        '      - name: A', '        run: npm run verify:a',
+        '      - name: Advisory-only gate', '        continue-on-error: true', '        run: npm run verify:zzz',
+      ])
+      // 排除若回归，那条本地根本不存在的 verify:zzz 会立刻变成第 2 条 step ⇒ 本腿翻红
+      return ciJudgeSteps(ci, 'gates').length === 1 && gateParity({ ciText: ci, pkg }).misalign.length === 0
+    }],
+    ['⑪ 分母真的含 ci-deep.yml:deep-gates；且旧版"只认 gates 这一个 job 名"的失明可复现', () => {
+      const ci = ciWith(['      - name: A', '        run: npm run verify:a'])
+      const deep = ['name: CI Deep', 'jobs:', '  deep-gates:', '    runs-on: ubuntu-latest', '    steps:',
+        '      - name: D', '        run: npm run verify:b', ''].join('\n')
+      const withDeep = gateParity({ ciText: ci, pkg, deepText: deep })
+      const without = gateParity({ ciText: ci, pkg })
+      // 把深链正文喂给旧口径（job 名写死 'gates'）⇒ 取到 0 条 step ⇒ 返回 null。
+      // 这一行就是"第 72 轮那版为什么量不到深链"的可复现证据：不是漏跑，是**根本看不见**。
+      const blind = gateParity({ ciText: deep, pkg })
+      return withDeep.checked.ciJudgeSteps === 2 && without.checked.ciJudgeSteps === 1
+        && withDeep.misalign.length === 0 && blind === null
+    }],
   ]
   let bad = 0
   for (const [label, check] of cases) {
@@ -288,8 +355,10 @@ function main (argv = process.argv.slice(2)) {
   if (argv.includes('--selftest')) return selftest()
   const advisory = argv.includes('--advisory')
   const ciPath = join(ROOT, '.github', 'workflows', 'ci.yml')
+  const deepPath = join(ROOT, '.github', 'workflows', 'ci-deep.yml')
   const pkgPath = join(ROOT, 'package.json')
   let ciText
+  let deepText = null
   let pkg
   try {
     ciText = readFileSync(ciPath, 'utf8')
@@ -298,10 +367,13 @@ function main (argv = process.argv.slice(2)) {
     console.error(`[gate-parity] UNVERIFIED 取数面读不动（ci.yml / package.json）：${String(e.message || e).split('\n')[0]} ⇒ 不折算成"已对齐"`)
     return 2
   }
+  // 深链读不到 ⇒ 分母退回单文件，但**必须把"只量了一半"印出来**：
+  // 静默按 ci.yml 报 GREEN 就是拿半面的读数冒充全面的结论（本仓「失明不等于零」同族）。
+  try { deepText = readFileSync(deepPath, 'utf8') } catch { deepText = null }
   const reg = registryOf(join(ROOT, REGISTRY))
   if (reg.error) { console.error(`[gate-parity] UNVERIFIED ${reg.error}`); return 2 }
 
-  const r = gateParity({ ciText, pkg })
+  const r = gateParity({ ciText, pkg, deepText })
   if (r === null) {
     console.error('[gate-parity] UNVERIFIED ci.yml 里取不到 gates job（分母为 0）⇒ 不折算成"已对齐"。处置＝同步本判据的 job 名，或确认 ci.yml 结构变了')
     return 2
@@ -313,7 +385,10 @@ function main (argv = process.argv.slice(2)) {
   if (argv.includes('--json')) {
     console.log(JSON.stringify({ checked: r.checked, misalign: r.misalign.length, fresh: fresh.length, covered: covered.length, findings: fresh }, null, 2))
   } else {
-    console.log(`[gate-parity] CI 判决面判据 step ${r.checked.ciJudgeSteps} 条｜本地三条链（${LOCAL_CHAINS.join(' / ')}）摊出可执行形态 ${r.checked.localForms} 种｜对齐方向：CI ⊆ 本地`)
+    const faces = deepText ? 'ci.yml:gates + ci-deep.yml:deep-gates' : '仅 ci.yml:gates'
+    console.log(`[gate-parity] CI 判决面判据 step ${r.checked.ciJudgeSteps} 条（取数面 = ${faces}）`
+      + `｜本地三条链（${LOCAL_CHAINS.join(' / ')}）摊出可执行形态 ${r.checked.localForms} 种｜对齐方向：CI ⊆ 本地`)
+    if (!deepText) console.error('[gate-parity] ⚠ 半面读数：ci-deep.yml 取不到 ⇒ 本轮只对上了一半门禁面，这个 GREEN 不等于"门禁面已对齐"')
     console.log(`[gate-parity] 错位 ${r.misalign.length} 条 = 未登记 ${fresh.length} + 在册 ${covered.length}（登记册 ${reg.items.length} 条）`)
     for (const f of fresh) console.log(`  FAIL    ${f.kind} :: ${f.detail}`)
     for (const c of covered) console.log(`  PASS    ${c.kind} :: ${c.detail}（在册至 ${c.untilUtc}：${c.why}）`)

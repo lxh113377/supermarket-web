@@ -11,7 +11,7 @@ import { assertCliRan } from './helpers/cliLeg.js'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { verdictOf, loadContract, parseRefLines, CONTRACT_FILE } from '../scripts/ci-green-contract.mjs'
+import { verdictOf, loadContract, parseRefLines, CONTRACT_FILE, jobNamesOf, ciJobNamesAt, WORKFLOW_PATH } from '../scripts/ci-green-contract.mjs'
 
 const contract = loadContract()
 const SHA = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
@@ -324,6 +324,71 @@ describe('CLI 入口（子进程真跑）', () => {
     const { out } = runCli({ script, input: ref('aa') + ref('bb') })
     expect(out).toContain('branch=aa')
     expect(out).not.toContain('branch=bb')
+  })
+})
+
+/**
+ * 第七十三轮 · 分母由被评提交自己交出（availableJobs）。
+ * 一手红因（本轮开工实测，不是编的形状）：I-73-1 往 ci.yml 加 `browser-install` 并把
+ * `.ci/contract.json` 的 requiredJobs 同笔变成六个之后，pre-push 评的是**远端已有基线**
+ * `183ba0c` 那次 run —— 它当然没有当时还不存在的 job ⇒ `missing=[browser-install]` ⇒ BLOCKED
+ * ⇒ 我连"修好这件事的那笔提交"都推不上去。这与 requiredJobAliases 记过的改名旧雷是同一颗：
+ * **拿今天的名单判昨天的 run**。手抄一张"哪个时刻有哪些 job"的册子一定会漂，
+ * 所以正解是去读那个提交自己的 ci.yml。
+ */
+describe('第七十三轮 · 名单按被评提交收窄（不是放宽）', () => {
+  const FIVE = contract.requiredJobs.filter((j) => j !== 'browser-install')
+  const jobsOf = (names, c = 'success') => names.map((name) => ({ name, conclusion: c }))
+  const greenRun = (names) => [run({ jobs: jobsOf(names) })]
+
+  it('正向：新 job 还没出生时，旧基线的五个 job 全绿就该放行（今天的名单不罚昨天的 run）', () => {
+    const v2 = verdictOf({ sha: SHA, runs: greenRun(FIVE), contract, availableJobs: new Set(FIVE) })
+    expect(v2.state, JSON.stringify(v2)).toBe('GREEN')
+    expect(v2.reason).not.toContain('browser-install')
+  })
+  it('收窄不是放宽：该提交本来有六个而 run 里少一个 ⇒ 照判 BLOCKED', () => {
+    const six = [...FIVE, 'browser-install']
+    const v2 = verdictOf({ sha: SHA, runs: greenRun(FIVE), contract, availableJobs: new Set(six) })
+    expect(v2.state).toBe('BLOCKED')
+    expect(v2.reason).toContain('browser-install')
+  })
+  it('交集为空 ⇒ BLOCKED，不读成"没有要求"（零分母不折算放行）', () => {
+    const v2 = verdictOf({ sha: SHA, runs: greenRun(FIVE), contract, availableJobs: new Set(['totally-unrelated']) })
+    expect(v2.state).toBe('BLOCKED')
+    expect(v2.reason).toMatch(/收窄后为空|不读成/)
+  })
+  it('availableJobs 缺省/null ⇒ 逐字回到旧行为（用现行名单，宁严勿宽）', () => {
+    expect(verdictOf({ sha: SHA, runs: greenRun(FIVE), contract }).state).toBe('BLOCKED')
+    expect(verdictOf({ sha: SHA, runs: greenRun(FIVE), contract, availableJobs: null }).state).toBe('BLOCKED')
+  })
+  it('红 job 仍按收窄后的名单判 —— 收窄不许把失败 job 一起洗掉', () => {
+    const v2 = verdictOf({
+      sha: SHA, runs: [run({ conclusion: 'failure', jobs: [...jobsOf(FIVE), { name: 'e2e', conclusion: 'failure' }] })],
+      contract, availableJobs: new Set(FIVE),
+    })
+    expect(v2.state).toBe('RED')
+    expect(v2.reason).toContain('e2e=failure')
+  })
+  it('jobNamesOf 纯函数：只认 jobs: 下两空格缩进的键，注释与 step 名不误收', () => {
+    const yml = 'name: X\non:\n  push:\njobs:\n  gates:\n    runs-on: x\n  browser-install: # 预热\n    steps:\n      - name: gates\n  deploy:\n    needs: [gates]\n'
+    expect(jobNamesOf(yml)).toEqual(['gates', 'browser-install', 'deploy'])
+    expect(jobNamesOf('no jobs section')).toEqual([])
+    expect(jobNamesOf('')).toEqual([])
+  })
+  it('生产面（提交面，不是工作树）：HEAD 的 ci.yml 取得出名单，且与契约名单同向', () => {
+    const root = join(dirname(fileURLToPath(import.meta.url)), '..')
+    const at = ciJobNamesAt('HEAD', root)
+    expect(at, `HEAD 的 ${WORKFLOW_PATH} 取不到 ⇒ 收窄通道形同不存在`).toBeTruthy()
+    expect([...at]).toContain('gates')
+    expect([...at]).toContain('deploy')
+    // HEAD 面上存在的 job 必须在契约名单里 —— 否则契约与 yml 在提交面上已经脱节（工作树自洽不算）
+    for (const j of at) expect(contract.requiredJobs, `HEAD 的 yml 有 ${j} 而契约没登记`).toContain(j)
+  })
+  it('取不到就返回 null，不返回空集（空集会被上层读成"这个提交没有 job"）', () => {
+    const root = join(dirname(fileURLToPath(import.meta.url)), '..')
+    expect(ciJobNamesAt('deadbeefdeadbeefdeadbeefdeadbeefdeadbeef', root)).toBe(null)
+    expect(ciJobNamesAt('not-a-sha', root)).toBe(null)
+    expect(ciJobNamesAt('HEAD', join(root, '__no_such_dir__'))).toBe(null)
   })
 })
 

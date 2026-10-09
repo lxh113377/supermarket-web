@@ -4,6 +4,71 @@
 
 ## [未发布]
 
+### 2026-10-09 第 73 轮四项改造：拆掉自伤串行 + 终态全覆盖 + 状态列落地凭据 + 尺的分母补齐
+
+- **动机（一手，非推测）**：第 72 轮声称"解除交付面锁死"，实测却是由那次修复**重新锁死**。
+  `gh api actions/runs/37747723889/jobs` 显示 `e2e-cloud-stub` 起跑 08:07:08Z、止 08:07:09Z、
+  steps=0、`cancelled`，`deploy` 因 `needs` 被 `skipped`；取消原因取自
+  `check-runs/113213111629/annotations` 原文 `Canceling since a higher priority waiting request
+  for ci-browser-install-refs/heads/main exists` —— 那个 concurrency 组正是第 72 轮 I-72-1 ③
+  为"三路并发下载"新加的。`check:live-shape` 另一条一手：线上 `deploy=4349d99` 而 HEAD=`183ba0c`
+  ⇒ **第 72 轮从未上线**。
+- **I-73-1（高）串行改 needs**：删 `ci.yml` 三处 job 级 `ci-browser-install` 组，新增
+  `browser-install` 预热 job 独占地装一次浏览器 + 写 `actions/cache`，三个 Playwright job 改
+  `needs: [browser-install]`。根因是**语义用错**：job 级 concurrency 的含义是"新请求挤掉旧等待
+  请求"，不是"排队"；要先后顺序就该用 `needs`（DAG），不该用互斥（concurrency）。
+  `tests/ciWorkflow.test.ts` 原来把"三 job 共组 + cancel-in-progress: false"当不变量守着 ——
+  它验的是内部自洽，从没问过"这个组到底会不会取消兄弟"，于是把一个错误决策锁成了绿。
+- **I-73-2（高）终态全覆盖**：`scripts/ci-status.mjs` 分类桶原只有 绿/真判据红/账号级 三个，
+  `cancelled` 连类都没有、`skipped` 有类无账 ⇒ 一次 9 个 job 的读数只数到 7，并印出
+  「绿=7 真判据红=0」这种既没撒谎也没说全的行。现补 `cancelled`/`timed_out`/落桶外 三态 +
+  总数守恒 + **每个 run 一行「部署判定」**（deploy 结论直说"未发生/已发生/已尝试但失败"）。
+  `check:live-shape` 保持 advisory 不翻转成拦门（免费档时通时不通 + 本仓"看守不得成拦任务闸门"），
+  本轮只把它的读数升级为 §7 必引凭据，并在门面写明"线上哪一版不由本件判"（one-fact-one-judge）。
+  `check-delivery-claims` 另加**结论自相矛盾**腿：同一行既写 run 终态非 success 又写 deploy success
+  ⇒ 判红。点了 job 名 ≠ 如实转述结论；本仓曾在 CI 连红七笔期间写"CI 全绿"，那批句子
+  run 号/job 名/结论词样样齐全，缺的正是这一半。口径按行取，跨行转述多个 run 的诚实写法不误伤。
+- **I-73-3（中）状态列必须有落地凭据**：第 72 轮 §4 给 I-72-4 写「本轮已做」，实测
+  `docs/extensions.json` 不存在、`verify:extensions` 别名 ABSENT、三面全量 grep 命中 0。
+  没被拦下是因为 `CLAIM_RE` **故意**不收「已做/已完成」（注释原文：那是工作项状态词不是对外交付
+  声明）—— 口子留在那儿，§4 状态列整列就在扫描面之外。本腿**不改词表**（把"已完成"收进
+  `CLAIM_RE` 会误伤散文，作者学会改措辞而不是改事实），另立三重门收面：文件名日期
+  ≥ `CREDENTIAL_FROM_UTC=2026-10-09`（不溯及既往，与 `SHAPE_FROM_UTC` 同口径）∧ 节标题含
+  「改进建议」∧ 行首为 `|`；凭据必须是机器可当场解出的标识符（`package.json` 的 scripts 键
+  ‖ 磁盘或提交面里的路径），散文里"见上文"不算。**8 腿自证 + `--inject-red` 第四处注入**
+  证明它会红。同一轮把本仓最后三张登记册（`requiredJobAliases` / `requiredJobSince` /
+  `gateParityExceptions` / `contractBreakageExceptions`）的理由校验收敛到
+  `lib/registry-reason.mjs` 一份实现 —— 项目规则 R5 早写了"例外理由必须可证伪、共用一份实现"，
+  此前每处只判"why 非空"，占位理由一路绿灯。学习轴 `python-jsonschema/check-jsonschema`
+  的复现落点即在此（一个 schema 管多张登记册）。
+- **I-73-4（中）尺的分母补齐**：① `tests/ciWorkflow.test.ts` 的有界性检查原**只对 ci.yml 调一次**，
+  而它自己那条 G-72-1 证据点名的是四个 workflow ⇒ 拆成 `timeoutProblems(file, text)` 通用函数并
+  遍历 `allWorkflows`；泛化当场又逮到第五个缺口（`dispatch.yml` 的 `dispatch` job 无上界）。
+  超时取值按 `gh run list` 实测 p95（ci-deep 0.6m / d1-backup 0.8m / uptime 0.4m）配余量，
+  不拍脑袋。② `check-gate-parity.mjs` 的 `baseOf` 那条 `--?[A-Za-z][\w-]*` 里**可选的单连字符**
+  会把文件名中的 `-health` / `-case` 当 flag 剥 ⇒ 两条不相干判据双双归一成 `check.mjs`；
+  改成按空白切 token、只剥词首 flag。分母从硬编码 `ci.yml:gates` 扩到
+  `ci.yml:gates + ci-deep.yml:deep-gates`（**24 → 35 条判据 step**，另 11 条此前从没被对齐过），
+  并把 `continue-on-error: true` 的 advisory step 排除出分母（它永远不可能把 CI 判红，纳入即假阳）；
+  深链正文用旧口径喂会得到 `null` —— 那副"看不见"的形态现在被自证腿 ⑪ 钉住。
+  ③ `check:contract-diff` / `check:gate-parity` 两条闸第 72 轮立了却只在本地链，
+  `grep .github/workflows/` 命中 0 ⇒ 接进 `ci.yml`，并追加进既有 `REQUIRED_STEPS`
+  名单（拿"一个都不能少"判住接线本身，不为接线再立一道闸）。④ `--inject-red` 的注入条数
+  由数组长度算出，不再写死"两处"。
+- **附带修的三处自身缺陷（都是判据当场逮的）**：`oxlint prefer-const` 一个多余 `let`；
+  新增 `browser-install` 后 `.ci/contract.json` 的 `requiredJobs` 必须同笔变六个，而这会让
+  第 72 轮那份"当时不可能点到它"的真回执被判缺件 ⇒ 新增 `requiredJobSince` 时态面（与
+  `requiredJobAliases` 对称、方向相反）+ `verdictOf` 的 `availableJobs`：pre-push 的名单
+  **由被评提交自己的 ci.yml 交出**，不手抄时刻表（否则今天的名单永远判不通过昨天的 run）；
+  `newJudgeEntrypoints` 那条入口腿把"自证 7/7"钉成字面量，我加自证腿这个正确动作反而把它判红
+  ⇒ 改成断"N/N 且 N≥11"+ 点腿名，向同文件既有形态对齐。
+- **验证**：`npm run verify` **VERIFY_RC=0**；`Test Files 133 passed`／`Tests 1972 passed`；
+  `check-gate-parity` 错位 **0**（分母 35）、自证 **11/11**；`check-delivery-claims` rc=0、
+  双向差集新增 0、`matched` 1→**2**（该判据自第 68 轮立起第一次在真实面上有了合格回执样本）。
+- **未修（agent 无权，报告里明写拦在哪）**：branch protection 实测 `NOT_ENFORCED`；
+  `CF_D1_BACKUP_TOKEN` / `BACKUP_PASSPHRASE` 凭据缺口（`docs/cron-health.json` 两条 RED，
+  2026-10-12 到期）。
+
 ### 2026-10-08 分层 CI：推送阻断链收窄为快门禁，深门禁独立成链（夜兜底 + 后端路径触发）
 
 - **动机（用户拍板"动防护结构"）**：CI 单轮实测 3.4 分钟（并非 10 分钟），但深门禁

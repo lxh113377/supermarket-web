@@ -159,7 +159,14 @@ if (wantRun) {
 }
 if (!runs.length) fail('该仓没有任何匹配 run（不是"CI 绿"）', 4)
 
-const report = { repo: `${OWNER}/${REPO}`, runs: [], classes: { green: 0, realRed: 0, infraRed: 0 }, hasStepFailJob: false, blockedBy: null }
+const report = {
+  repo: `${OWNER}/${REPO}`, runs: [],
+  // 分类桶必须**穷尽 GitHub Actions 的全部 conclusion 取值**，且总数要能对上（unclassified 兜底并点名）。
+  // 第七十三轮实测：旧版只有 green/realRed/infraRed 三个桶，skipped 有类无账、cancelled 连类都没有。
+  classes: { green: 0, realRed: 0, infraRed: 0, cancelled: 0, timedOut: 0, skipped: 0, other: 0, total: 0 },
+  deploy: [], hasStepFailJob: false, blockedBy: null,
+}
+const KNOWN_CONCLUSIONS = ['success', 'failure', 'cancelled', 'skipped', 'neutral', 'timed_out', 'action_required', 'stale']
 // 0-step 秒红的"为什么"不在 jobs 里，在 check-run annotations 里（2026-09-25 实测：
 // 本仓拿不到 runner 的原文就是这么取到的，不必再靠人工开已登录浏览器看红条）。
 // 只取第一条 failure annotation，取不到不影响判类（看守判据默认 fail-open + 记 UNVERIFIED）。
@@ -189,13 +196,31 @@ for (const run of runs) {
     let cls = 'other'
     if (job.conclusion === 'success') cls = 'green'
     else if (job.conclusion === 'skipped') cls = 'skipped'
+    // **cancelled 必须有自己的桶**（第七十三轮一手）：run 37747723889 的 e2e-cloud-stub
+    // 是 0 步、1 秒、cancelled，而当时的分类只认 failure 系 ⇒ 它既不进绿也不进红，
+    // 总账行印出「绿=7 真判据红=0 账号级=0」，9 个 job 只数到 7 —— 少的那两个正是
+    // "被挤掉的那个" 与 "因此没跑成的 deploy"。**"没算进任何桶"不是"没事"**，
+    // 它把一次交付面锁死读成了"没有红灯"。deploy 因 needs 被 skipped 也落在同一个盲区里。
+    else if (job.conclusion === 'cancelled') cls = 'cancelled'
+    else if (job.conclusion === 'timed_out') cls = 'timedOut'
     else if (job.conclusion === 'failure' && nSteps === 0 && dur !== null && dur <= 12) cls = 'infra-0step'
     else if (job.conclusion === 'failure') cls = 'real-red'
     entry.jobs.push({ name: job.name, conclusion: job.conclusion, steps: nSteps, secs: dur == null ? null : Math.round(dur), cls })
+    report.classes.total++
     if (cls === 'infra-0step') { report.classes.infraRed++; probeBanner(job.check_run_url) }
-    if (cls === 'real-red') { report.classes.realRed++; report.hasStepFailJob = true }
-    if (cls === 'green') report.classes.green++
+    else if (cls === 'real-red') { report.classes.realRed++; report.hasStepFailJob = true }
+    else if (cls === 'green') report.classes.green++
+    else if (cls === 'cancelled') { report.classes.cancelled++; probeBanner(job.check_run_url) }
+    else if (cls === 'timedOut') report.classes.timedOut++
+    else if (cls === 'skipped') report.classes.skipped++
+    else report.classes.other++
+    if (!KNOWN_CONCLUSIONS.includes(String(job.conclusion))) {
+      entry.unknownConclusions = (entry.unknownConclusions || []).concat([`${job.name}=${job.conclusion}`])
+    }
   }
+  const dj = jobs.find((j) => j.name === 'deploy')
+  entry.deploy = dj ? dj.conclusion : null
+  entry.hasDeployJob = !!dj
   report.runs.push(entry)
 }
 
@@ -204,19 +229,40 @@ else {
   for (const r of report.runs) {
     console.log(`run ${r.id}  ${r.name}  head=${r.head}  ${r.conclusion}  attempt=${r.attempt}` + (r.note ? `  (${r.note})` : ''))
     for (const job of r.jobs) {
-      const mark = job.cls === 'green' ? 'OK  ' : job.cls === 'skipped' ? '--  ' : job.cls === 'infra-0step' ? 'INFRA' : 'RED '
+      const mark = job.cls === 'green' ? 'OK  ' : job.cls === 'skipped' ? '--  '
+        : job.cls === 'infra-0step' ? 'INFRA' : job.cls === 'cancelled' ? 'CNCL' : job.cls === 'timedOut' ? 'TL90' : 'RED '
       console.log(`   [${mark}] ${job.name.padEnd(18)} ${String(job.conclusion).padEnd(9)} steps=${String(job.steps).padStart(3)} secs=${job.secs ?? '?'}`)
     }
   }
   const c = report.classes
-  console.log(`\n分类计数：绿=${c.green}  真判据红(有 step)=${c.realRed}  账号级(0 step ≤12s)=${c.infraRed}`)
+  console.log(`\n分类计数：绿=${c.green}  真判据红(有 step)=${c.realRed}  账号级(0 step ≤12s)=${c.infraRed}`
+    + `  cancelled=${c.cancelled}  timed_out=${c.timedOut}  skipped=${c.skipped}  落桶外=${c.other}`
+    + `｜总数=${c.total}`)
+  // **每个桶都得有人认领**：旧版这里只印三个数，cancelled/skipped 有类无账，
+  // 于是"绿=7 真判据红=0"这句话在 9 个 job 的面上既没撒谎也没说全（第七十三轮一手）。
+  if (c.cancelled > 0) console.log('→ 存在 cancelled：被取消的 job **没有结论**（既不是绿也不是判据红），它下游 needs 到的 job 全部被掐成 skipped ⇒ 交付面可能整段没跑。'
+    + '取消原因不在 job 明细里，在 check-run annotations（见下方"平台原文"行），别把它读成"没事"。')
+  if (c.timedOut > 0) console.log('→ 存在 timed_out：某 job 撞上了本轮 I-73-4 刚补的 timeout-minutes 上界 ⇒ 是真慢，不是没配完。')
+  if (c.other > 0) console.log(`→ 落桶外 ${c.other} 个：conclusion 取值超出已知枚举 ${KNOWN_CONCLUSIONS.join('/')} ⇒ 本判据的取数面需要扩，不许按"没有"处理。`)
+  // 「部署到底有没有发生」是这条链上唯一的问题句，而它此前只能靠人自己去看 deploy 那一行。
+  const deploys = report.runs.filter((r) => r.hasDeployJob)
+  if (!deploys.length) console.log('→ 部署判定：取回的 run 里**没有 deploy job**（workflow 改名或全部为旁支链）⇒ 无从判定，不读成"没部署也没事"。')
+  for (const r of deploys) {
+    const verdict = r.deploy === 'success' ? '已发生（deploy success）'
+      : r.deploy === 'skipped' ? `**未发生**（deploy skipped：上游 ${r.jobs.filter((j) => j.conclusion !== 'success' && j.conclusion !== 'skipped').map((j) => `${j.name}=${j.conclusion}`).join('、') || '无红灯 job'}；skipped 意味着流水线根本没走到发布这一步）`
+        : `已尝试但结论 ${r.deploy}`
+    console.log(`→ 部署判定 run ${r.id}@${r.head}：${verdict}`)
+  }
+  console.log('→ 「线上现在是哪一版」不由本件判（one-fact-one-judge）：看 `npm run check:live-shape` 的 L3；「本地几笔没到远端」看 `npm run check:remote-divergence`。三件各答一个问题。')
   if (c.realRed > 0) console.log('→ 有真判据红：去 GitHub 看该 job 的 step 日志，改代码，别改判据。')
   if (c.infraRed > 0) console.log('→ 存在 0-step 秒红：**没拿到 runner**，与本次改动无关。')
-  if (c.infraRed > 0 && report.blockedBy) console.log(`  平台原文（check-run annotations）：${report.blockedBy}`)
+  if ((c.infraRed > 0 || c.cancelled > 0) && report.blockedBy) console.log(`  平台原文（check-run annotations）：${report.blockedBy}`)
   if (c.infraRed > 0 && c.realRed === 0) console.log('  已排除项见 docs/ci-triage-runbook.md；禁止本地绕过 CI 发版（除非用户点名）。')
 }
 
 if (report.classes.realRed > 0) process.exit(1)
 if (report.classes.infraRed > 0) process.exit(3)
+// cancelled 单独一档退出码：它不是"判据红"，但它是"交付没发生"，与两者都不同（旧版把它读成无事）。
+if (report.classes.cancelled > 0 || report.classes.timedOut > 0) process.exit(5)
 if (report.classes.green === 0) fail('没有任何成功 job，无法判定"绿"（按 R247 不得静默 PASS）', 4)
 process.exit(0)

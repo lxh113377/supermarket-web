@@ -19,6 +19,11 @@ permissions:
 jobs:
   backup:
     runs-on: ubuntu-latest
+    # 第七十三轮 I-73-4：备份链补时间上界。取值依据（一手）：近 16 次 run 耗时 p95 = **0.8 分钟**
+    # （其中 14 次 failure 是 CF_D1_BACKUP_TOKEN 缺位那条在册红，见 docs/cron-health.json，与时长无关）。
+    # 上界取 10 分钟 = p95 的 12 倍：本 job 真配好 token 后要导出整库 + 加密 + 传 artifact，
+    # 那是它第一次真跑，没有历史读数可依 ⇒ 按"数据量未知的网络产物"给余量，不按 p95×3 卡死它。
+    timeout-minutes: 10
     # 本 job 除备份外还要反查巡检链是否还在跑（API 需 actions: read）
     permissions:
       contents: read

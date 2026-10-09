@@ -41,6 +41,13 @@ permissions:
 jobs:
   deep-gates:
     runs-on: ubuntu-latest
+    # 第七十三轮 I-73-4：深门禁链也要有时间上界（第七十二轮 §3 的 G-72-1 点名四个 workflow，
+    # 当时只补了 ci.yml，本文件与 d1-backup / uptime 三个仍为 0 ⇒ "有界化"其实兑现了 1/4）。
+    # 取值依据（一手，非拍脑袋）：`gh run list --workflow ci-deep.yml` 近 4 次全部 success，
+    # run 级耗时 p95 = **0.6 分钟**；job 明细实测 deep-gates 23 步 / 30–33s。
+    # 上界取 20 分钟 = p95 的 33 倍，与 ci.yml 的 `gates`（实测 87s 也给 20 分钟）同档，
+    # 容得下一次冷 npm ci 与一次网络重取；本 job 里有多条联网判据（restore-drill / live-shape）。
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

@@ -94,7 +94,7 @@
     "collect:live-perf": "node scripts/collect-live-perf.mjs",
     "quarantine:perf": "node scripts/quarantine-unreached-perf.mjs",
     "preflight": "npm run lint && npm run typecheck && npm run verify:eol && npm run verify:errors && npm run verify:limits && npm run verify:logs && npm run verify:docs && npm run verify:licenses && npm run verify:contract && npm run verify:registry && npm run audit:deps && npm run check:gate-parity",
-    "preflight:ci": "npm run build && npm run check:size && npm run report:item-budgets && npx vitest run --coverage && npm run verify:backend && npm run verify:functions"
+    "preflight:ci": "npm run build && npm run check:size && npm run report:item-budgets && npx vitest run --coverage && npm run verify:backend && npm run verify:functions && npm run check:judge-side-effects -- --blind-only"
   },
   "dependencies": {
     "@react-three/fiber": "^9.8.1",

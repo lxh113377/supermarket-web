@@ -44,6 +44,11 @@ jobs:
         run: npm run report:pr-tests
   dispatch:
     runs-on: ubuntu-latest
+    # 第七十三轮 I-73-4：泛化时间上界判据之后被点名的一路（此前 dispatch.yml 两个 job 只有一个有界）。
+    # 本 job 只做一次 repository_dispatch 投递，实测 4s 内完成
+    # （`npm run ci:status` 读回：run 37747723744 的 dispatch job steps=3 secs=4）⇒ 取判据下界 5 分钟，
+    # 已是实测的 75 倍；它若真跑到 5 分钟只能是卡在网络上，那正是该断的地方。
+    timeout-minutes: 5
     steps:
       - name: Dispatch deploy event to github.io
         # 不再经 actions/github-script（v7 可用但 v9 实测假成功：workflow success 却不投递事件；

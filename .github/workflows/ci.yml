@@ -120,6 +120,22 @@ jobs:
       - name: API contract drift check
         run: npm run verify:contract
 
+      # 第七十三轮 I-73-4：这两条闸第七十二轮就立了，但**只活在本地链**
+      # （`grep -rn "contract-diff|gate-parity" .github/workflows/` 命中 0）。
+      # 一条不进阻断链的判据按本仓口径就是半成品 —— 它会绿，但绿得没人负责。
+      # 接线这件事本身由下方 tests/ciWorkflow.test.ts 的 REQUIRED_STEPS 判住（"一个都不能少"），
+      # 不另立新闸：同一事实只许一处判。
+      - name: Contract breakage diff check
+        # 对标 saleor `graphql-inspector.yml`：判"相对 base 分支是不是破坏性变更"，
+        # 与上一行 verify:contract 的"与盘面一致"是两半不同的事实，不互斥也不重复。
+        # rc=2（取数根读不动）在本仓口径里不判绿，见 docs/ci-triage-runbook.md。
+        run: npm run check:contract-diff
+
+      - name: Local-CI gate parity check
+        # 方向 = CI ⊆ 本地；本轮把它的分母从"仅 ci.yml:gates"扩到 ci-deep.yml:deep-gates，
+        # 35 条判据 step 一起对账（第七十二轮那版只量了 24 条，另 11 条从没被看过）。
+        run: npm run check:gate-parity
+
       # 对标第三十五轮：登记表 ⇄ 生产者（代码分发面）双向差集。
       # 立它的一手事实：docs/sql-baseline.json 43 键 vs 分发面 39 条，4 个键长期没人解释，
       # 其中 amortized:audit-retention-purge 迟到 6 轮才入册；反向（登记有、代码已无）此前无人守。
@@ -221,22 +237,47 @@ jobs:
   # 2026-09-24 起移除 continue-on-error，但当时 deploy.needs 只有 gates ⇒ 本 job 红了
   # 仍然照常部署，"阻断性门禁"那句 CHANGELOG/ci.yml 注释与实际不符（本轮 K2 才真正接入 needs）。
   # 改页面结构/文案需同步更新 tests/e2e/。
+  # 第七十三轮 I-73-1：浏览器下载收敛到**这一个 job** 里发生一次，其余三个 Playwright job 只从
+  # actions/cache 恢复。取代第 72 轮的「三 job 共用一个 job 级 concurrency 组」。
+  # 一手（为什么必须拆掉共享组，不是"换个写法"）：run 37747723889 的 e2e-cloud-stub
+  #   起跑 08:07:08Z、08:07:09Z 止、steps=0、conclusion=cancelled，deploy 因 needs 被 skipped；
+  #   check-run 113213111629 的 annotation 原文
+  #   「Canceling since a higher priority waiting request for ci-browser-install-refs/heads/main exists」
+  #   ⇒ job 级 concurrency 组的语义是"新请求挤掉旧等待请求"，**不是"排队"**；
+  #   同一 run 内三个 job 争同一个组，就把其中一个当场判 cancelled。第 72 轮那次"解除交付面锁死"
+  #   实际是把锁子换了个样子，而且锁子是我们自己加的（详见第七十二轮报告 §7 更正）。
+  # 现在的形态：需要先后顺序 ⇒ 用 needs（GitHub 原生的 DAG 语义），不用 concurrency（互斥语义）。
+  browser-install:
+    runs-on: ubuntu-latest
+    # 冷下载实测 13m45s（run 37677572509 的 visual 那一路），加 npm ci 与重试预算 ⇒ 20 分钟。
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ms-playwright-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Chromium (bounded + retried + artifact-verified)
+        run: bash scripts/ci-install-browser.sh
+
   e2e:
     runs-on: ubuntu-latest
     # 见 gates 的 G-72-1 注：本 job 实测 57s / 97s / 107s（三次成功 run），
     # 冷缓存那次仅 Install Chromium 就花了 13m45s ⇒ 25 分钟能容下一次冷下载 + 重试，
     # 仍远低于 6 小时（原事故里本 job 卡在同一步 6h00m25s 被 cancelled）。
     timeout-minutes: 25
-    # 第七十二轮 G-72-1 的第二个动作：**不再三路并发下载同一个 CDN**。
-    # 一手：run 37677572509 三个 Playwright job 在同一秒起跑，同一个 Install Chromium 步骤
-    #   visual 13m45s 成功、e2e 与 e2e-cloud-stub 各挂 6h ⇒ 并发本身就是事故的必要条件之一。
-    # 处置＝用 job 级 concurrency 把三个 job 串进同一队列（cancel-in-progress: false 是关键：
-    #   true 会让后两个被前一个的完成事件取消掉，队列直接塌成只跑一个）。
-    # 代价（约 6 分钟墙钟）写在明面上：三个 job 实测 54–169s，串行约 8 分钟；
-    # 换来的是「一路装好、其余命中 actions/cache」，冷下载只发生一次。
-    concurrency:
-      group: ci-browser-install-${{ github.ref }}
-      cancel-in-progress: false
+    # 第七十三轮 I-73-1：不再与本 workflow 的兄弟 job 共用 concurrency 组（理由见 browser-install 的注）；
+    # 改成 needs 那个唯一的预热 job ⇒ 冷下载只发生一次，且发生在一个不会互相挤掉的位置。
+    needs: [browser-install]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -290,10 +331,8 @@ jobs:
     # 见 gates / e2e 的 G-72-1 注：本 job 实测 84s / 124s / 169s，另含一次 build:stub ⇒ 25 分钟。
     # 原事故里本 job 的 Install Chromium 挂了 6h00m13s。
     timeout-minutes: 25
-    # 与 e2e / visual 共用同一队列 ⇒ 三个 Playwright job 不并发下载同一个 CDN。理由见 e2e 处的注。
-    concurrency:
-      group: ci-browser-install-${{ github.ref }}
-      cancel-in-progress: false
+    # 与 e2e / visual 一样只从 browser-install 预热好的缓存恢复浏览器（第七十三轮 I-73-1，理由见该 job 的注）。
+    needs: [browser-install]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -338,10 +377,8 @@ jobs:
     # 见 gates / e2e 的 G-72-1 注：本 job 实测 54s / 59s / 73s，但冷缓存那次仅
     # Install Chromium 就 13m45s ⇒ 20 分钟。
     timeout-minutes: 20
-    # 与 e2e / e2e-cloud-stub 共用同一队列（三个 Playwright job 串行，不并发下 CDN）。理由见 e2e 处的注。
-    concurrency:
-      group: ci-browser-install-${{ github.ref }}
-      cancel-in-progress: false
+    # 与 e2e / e2e-cloud-stub 一样只从 browser-install 预热好的缓存恢复浏览器（第七十三轮 I-73-1）。
+    needs: [browser-install]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -386,7 +423,7 @@ jobs:
     # + e2e-cloud-stub（生产构建真渲染）。此前 needs 只有 build-and-test ⇒ e2e 红了照样部署，
     # 属"判据假安全感"（2026-09-24 那起 19 天空白事故的检测失效模式）。
     # 第八轮 M4 加入 visual（生产构建上的布局/对比度/焦点环 16 条），改样式自此有红绿可言。
-    needs: [gates, e2e, e2e-cloud-stub, visual]
+    needs: [gates, browser-install, e2e, e2e-cloud-stub, visual]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     # 第七十二轮 G-72-1：deploy 也必须有上界。实测 24s / 29s / 33s，

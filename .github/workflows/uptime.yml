@@ -27,6 +27,10 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
+    # 第七十三轮 I-73-4：巡检链补时间上界。取值依据（一手）：近 20 次 run 耗时 p95 = **0.4 分钟**。
+    # 上界取 10 分钟 = p95 的 25 倍：本 job 每一步都是**外部网络往返**（探两个域名的 /_health + 读 run 历史），
+    # 对端挂住时 curl 自身不超时 ⇒ 没有这个上界，一次上游停滞会把巡检读成"还在跑"而不是"卡住了"。
+    timeout-minutes: 10
     # 本 job 除探活外还要读备份工作流的 run 历史（API 需 actions: read；
     # 只有 contents: read 时读 /actions/... 会 403 —— 第十一轮 pr-advisory 的同一课）。
     permissions:

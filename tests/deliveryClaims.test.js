@@ -18,13 +18,13 @@ import { assertCliRan } from './helpers/cliLeg.js'
 import {
   sectionsOf, quotedSpans, insideAnySpan, claimHits, receiptsOf, judgeDeliveries, selfCheckAdmission,
   classifyShaToken, shaFindings, selfCheckGhost, fpOf, normalizeLine,
-  requiredJobsOf, fileDateOf, aliasUsable, SHAPE_FROM_UTC,
+  requiredJobsOf, fileDateOf, aliasUsable, sinceUsable, SHAPE_FROM_UTC,
 } from '../scripts/check-delivery-claims.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SCRIPT = resolve(ROOT, 'scripts', 'check-delivery-claims.mjs')
 const JOBS = ['gates', 'e2e', 'e2e-cloud-stub', 'visual', 'deploy']
-const GOOD = '## 9. 远端回执\n\n| 事 | 回执 |\n|---|---|\n| H-1 **已上线** | run `37228542182`，`completed/success`；`gates` success、`e2e` success、`e2e-cloud-stub` success、`visual` success、`deploy` success |\n'
+const GOOD = '## 9. 远端回执\n\n| 事 | 回执 |\n|---|---|\n| H-1 **已上线** | run `37228542182`，`completed/success`；`gates` success、`browser-install` success、`e2e` success、`e2e-cloud-stub` success、`visual` success、`deploy` success |\n'
 const BAD = '## 4. 改进建议清单\n\n| # | 状态 |\n|---|---|\n| H-1 | **本轮已上线** |\n'
 const MENTION = '## 3. 逐项差距\n\n- 「已交付」的判定从来没有被机器管住；把"已推送"当"已上线"是上一轮的病。\n'
 const MEASURE = '## 6. 证据与时刻\n\n| 主张 | 取证 |\n|---|---|\n| 读日志 | 该日志是 UTF-16LE ⇒ 普通文本搜索**搜不到** `VERIFY_RC` |\n'
@@ -160,8 +160,15 @@ describe('CLI：三档退出码与注入演习都实测（只 import 纯函数 �
     const r = runCli(['--dir', dir, '--inject-red'])
     expect(r.status).toBe(1)
     const out = String(r.stdout) + String(r.stderr)
-    expect(out).toContain('--inject-red 已注入两处假')
+    expect(out).toContain('--inject-red 已注入 4 处假')
     expect(out).toContain('INJECTED')
+    // 三处注入必须**逐个**被点名。只断言 rc=1 的话，其中一处注入死掉、红完全由另外两处供给，
+    // 这条演习腿照样绿 —— 那是"有演习"和"演习有牙"的差别（本仓 R-ENUM：判据要能各自独立成红）。
+    expect(out, '注入 1：空口已上线').toContain('(注入演习) synthetic.md')
+    expect(out, '注入 2：幽灵 sha').toMatch(/f5b22d2/)
+    expect(out, '注入 3：结论自相矛盾').toMatch(/自相矛盾/)
+    expect(out, '注入 4：本轮已做缺落地凭据').toMatch(/交不出落地凭据/)
+    expect(out).toMatch(/cancelled/)
   })
   it('--limit 写成非数字 ⇒ rc=2，不许悄悄回落默认值', () => {
     const dir = writeFix(tmpDir(), { 'a.md': BAD })
@@ -346,7 +353,7 @@ describe('D5 CLI：真实面与夹具面分开对待（存量册是版面的）'
     const r = runCli(['--dir', dir, '--inject-red'], { DELIVERY_CLAIMS_ROOTS: path })
     const out = String(r.stdout) + String(r.stderr)
     expect(r.status, out.slice(-700)).toBe(1)
-    expect(out).toContain('--inject-red 已注入两处假')
+    expect(out).toContain('--inject-red 已注入 4 处假')
     expect(out).toContain('INJECTED')
     expect(out).toMatch(/D5 sha 引用候选 \d+/)
     // 注入的那枚 `f5b22d2` 在合成仓里取不到 ⇒ 走"未定位"分支；两个分支都算 D5 收到了这条注入
@@ -414,6 +421,136 @@ describe('第七十二轮 · 历史别名的时态面', () => {
       expect(/^\d{4}-\d{2}-\d{2}$/.test(a.untilUtc), `${a.job} 的 untilUtc 不是日期`).toBe(true)
       expect(a.job).not.toBe(a.aliasOf)
     }
+  })
+})
+
+/**
+ * 第七十三轮 · requiredJobSince：**新增 job 与改名是同一颗雷**，而上一块只治了改名那一半。
+ * 一手红因（本轮开工实测）：I-73-1 往 ci.yml 加了 `browser-install`，`.ci/contract.json` 的
+ * requiredJobs 按桥接判据同笔变成六个之后，第七十二轮那份回执立刻被判「必需 job 未全点名」——
+ * 而那个 job 在第 72 轮**根本不存在**，要求回执点到它就是逼作者补一句假话。
+ * 判据拒真话却只放行虚报的写法 = 判据缺陷，不是报告缺陷。
+ * 生效面与别名**对称且方向相反**：别名管"日期 ≤ untilUtc 认旧名"，免名管"日期 < sinceUtc 免点新名"。
+ */
+describe('第七十三轮 · 新增 job 的时态面（requiredJobSince）', () => {
+  const SINCES = [{ job: 'browser-install', sinceUtc: '2026-10-09' }]
+  const SIX = [...JOBS, 'browser-install']
+  const FIVE = '`gates` success、`e2e` success、`e2e-cloud-stub` success、`visual` success、`deploy` success'
+  const SIX_NAMED = `${FIVE}、\`browser-install\` success`
+  // 结论取 success：本块量的是"时态面/免名"这一维，回执正文要保持自洽。
+  // （写 completed/cancelled 又把各 job 报成 success，会被同轮的「结论自相矛盾」腿判红 ——
+  //  这条规则上线的第一次命中就是本夹具自己，属于判据把作者的 sloppiness 抓出来了。）
+  const receipt = (named) => `## 7. 交付回执\n\n| 事 | 回执 |\n|---|---|\n| H-1 **已上线** | run \`37747723889\`，\`completed/success\`；${named} |\n`
+
+  it('引入日之前的回执点不到新 job ⇒ 免名为 ok，且 skippedSince 照印（不许静默缩分母）', () => {
+    const r = receiptsOf(receipt(FIVE), SIX, { fileDate: '2026-10-08', since: SINCES })
+    expect(r.ok, JSON.stringify(r)).toBe(true)
+    expect(r.skippedSince).toEqual(['browser-install'])
+    expect(r.missingJobs).toEqual([])
+  })
+  it('引入日当天不点名 ⇒ 照判红 —— 免名是时段，不是永久豁免', () => {
+    const r = receiptsOf(receipt(FIVE), SIX, { fileDate: '2026-10-09', since: SINCES })
+    expect(r.ok).toBe(false)
+    expect(r.missingJobs).toEqual(['browser-install'])
+    expect(r.skippedSince).toEqual([])
+  })
+  it('引入日当天点名六个 ⇒ ok（同一段文本，只改日期就能翻转 ⇒ 判据真在解析日期）', () => {
+    const r = receiptsOf(receipt(SIX_NAMED), SIX, { fileDate: '2026-10-09', since: SINCES })
+    expect(r.ok, JSON.stringify(r)).toBe(true)
+    expect(r.skippedSince).toEqual([])
+  })
+  it('不传 ctx ⇒ 六个里只认五个现行名（默认不放宽，与第七十一轮行为逐字一致）', () => {
+    const r = receiptsOf(receipt(FIVE), SIX)
+    expect(r.ok).toBe(false)
+    expect(r.missingJobs).toEqual(['browser-install'])
+  })
+  it('文件名解不出日期 ⇒ 不免名（宁严勿宽），与别名同口径', () => {
+    expect(sinceUsable(SINCES[0], '2026-10-08')).toBe(true)
+    expect(sinceUsable(SINCES[0], '2026-10-09')).toBe(false)
+    expect(sinceUsable(SINCES[0], null)).toBe(false)
+    const r = judgeDeliveries({ files: [{ name: 'no-date.md', text: receipt(FIVE) }], requiredJobs: SIX, since: SINCES })
+    expect(r.matched).toBe(0)
+    expect(r.shape.dateUnknown).toBe(1)
+    expect(r.shape.sinceExempt).toBe(0)
+  })
+  it('免名口径会传导到 judgeDeliveries 的计数（印面而非只改判面）', () => {
+    const r = judgeDeliveries({ files: [{ name: 'r72-2026-10-08.md', text: receipt(FIVE) }], requiredJobs: SIX, since: SINCES })
+    expect(r.matched).toBe(1)
+    expect(r.shape.sinceExempt).toBe(1)
+  })
+  it('半张的免名册 ⇒ 整把尺 BLOCKED（缺 sinceUtc / job 无主 / 不是数组 / 与别名同 job，一律不猜）', () => {
+    const cases = [
+      { requiredJobs: SIX, requiredJobSince: [{ job: 'browser-install' }] },
+      { requiredJobs: SIX, requiredJobSince: [{ job: 'no-such-job', sinceUtc: '2026-01-01' }] },
+      { requiredJobs: SIX, requiredJobSince: 'not-an-array' },
+      { requiredJobs: SIX, requiredJobAliases: [{ job: 'browser-install', aliasOf: 'gates', untilUtc: '2026-10-07' }], requiredJobSince: [{ job: 'browser-install', sinceUtc: '2026-10-09' }] },
+    ]
+    for (const [i, c] of cases.entries()) {
+      const p = join(tmpDir(), 'contract.json')
+      writeFileSync(p, JSON.stringify(c), 'utf8')
+      const cj = requiredJobsOf(p)
+      expect(cj.error, `case ${i} 应 fail-closed，实得 ${JSON.stringify(cj)}`).toBeTruthy()
+      expect(cj.since).toEqual([])
+    }
+  })
+  it('生产面：免名册只许含"确实晚于历史回执"的新 job ⇒ 老 job 不许塞进来（那是拿时态面偷缩分母）', () => {
+    const cj = requiredJobsOf(join(ROOT, '.ci', 'contract.json'))
+    expect(cj.error, String(cj.error)).toBe(null)
+    for (const a of cj.since) {
+      expect(cj.jobs, `${a.job} 的免名无主`).toContain(a.job)
+      expect(/^\d{4}-\d{2}-\d{2}$/.test(a.sinceUtc), `${a.job} 的 sinceUtc 不是日期`).toBe(true)
+      expect(a.why, `${a.job} 的免名必须写明理由，否则下一轮没人敢删`).toBeTruthy()
+    }
+    for (const legacy of ['gates', 'e2e', 'e2e-cloud-stub', 'visual', 'deploy']) {
+      expect(cj.since.map((a) => a.job), `${legacy} 是第 72 轮之前就存在的 job，不许进免名册`).not.toContain(legacy)
+    }
+    expect(cj.since.map((a) => a.job), '本轮新增的 browser-install 必须在册，否则历史回执集体不可满足').toContain('browser-install')
+  })
+})
+
+/**
+ * 第七十三轮 · 回执的**结论一致性**：点了 job 名 ≠ 如实转述它的结论。
+ * 一手背景（不是假想）：本仓曾在 CI 连红七笔的期间于三份报告写"CI 全绿"（见 ciGreenContract.test.js 顶部），
+ * 而那批句子 run 号/job 名/结论词样样齐全 —— `named` 查的是"点没点名"，从没查过"点的名与给的结论互相打脸"。
+ * 口径按**行**取，因为一份诚实的回执常要同时转述多个 run（旧的 cancelled + 新的 success）。
+ */
+describe('第七十三轮 · 回执结论自相矛盾（cancelled 却写 deploy success）', () => {
+  const FIVE = '`gates` success、`e2e` success、`e2e-cloud-stub` success、`visual` success、`deploy` success'
+  it('同一行既写 run 终态 cancelled 又写 deploy success ⇒ 判红并把原行引出来', () => {
+    const bad = `## 7. 交付回执\n\n| 事 | 回执 |\n|---|---|\n| H-1 **已上线** | run \`37747723889\` \`completed/cancelled\`，deploy success；${FIVE} |\n`
+    const r = receiptsOf(bad, JOBS)
+    expect(r.ok).toBe(false)
+    expect(r.contradictions.length, JSON.stringify(r)).toBe(1)
+    expect(r.contradictions[0]).toMatch(/cancelled/)
+  })
+  it('写法换成 `conclusion=cancelled` 同样要抓到（词面不只一种就能被绕过）', () => {
+    const r = receiptsOf(`## 7. 交付回执\n\n| H-1 **已上线** | run \`37747723889\` conclusion=cancelled，deploy 已上线；${FIVE} |\n`, JOBS)
+    expect(r.contradictions.length).toBe(1)
+  })
+  it('反例·不许误伤：两个 run 分行转述（旧的那次 cancelled，新的一次 deploy success）⇒ 不判红', () => {
+    const honest = '## 7. 交付回执\n\n'
+      + '| 上一笔 | run `37747723889` `completed/cancelled`，deploy skipped |\n'
+      + `| 本笔 **已上线** | run \`37800000000\`，\`completed/success\`；${FIVE}；deploy success |\n`
+    const r = receiptsOf(honest, JOBS)
+    expect(r.contradictions, JSON.stringify(r.contradictions)).toEqual([])
+  })
+  it('反例·诚实写法不判红：run cancelled 且如实写 deploy skipped（第七十二轮回执的真实形状）', () => {
+    // 名单显式列，不用 FIVE.split('、deploy')去切 —— 原文是「、`deploy`」带反引号，
+    // 按 '、deploy' 切**切不开**，会把 `deploy` success 留在"诚实"夹具里，
+    // 于是这条反例腿自己就变成了它所反对的那种写法（第七十三轮实测：本腿第一版就这么假红过）。
+    const honestFour = '`gates` success、`e2e` success、`e2e-cloud-stub` success、`visual` success'
+    const honest = `## 7. 交付回执\n\n| H-1 | run \`37747723889\`，\`completed/cancelled\`；${honestFour}、\`deploy\` **skipped**；线上 "deploy":"4349d99" |\n`
+    const r = receiptsOf(honest, JOBS)
+    expect(r.contradictions, JSON.stringify(r.contradictions)).toEqual([])
+    expect(r.deployAnchor, '线上锚要认得这种写法').toBe(true)
+    expect(r.ok, JSON.stringify(r)).toBe(true)
+  })
+  it('矛盾要传导到 judgeDeliveries 的 mismatched 与明细，且能在 --inject-red 之外独立成红', () => {
+    const bad = `## 7. 交付回执\n\n| 事 | 回执 |\n|---|---|\n| H-1 **已上线** | run \`37747723889\` \`completed/cancelled\`，deploy success；${FIVE} |\n`
+    const r = judgeDeliveries({ files: [{ name: 'x-2026-10-09.md', text: bad }], requiredJobs: JOBS })
+    expect(r.matched).toBe(0)
+    expect(r.mismatched).toBe(1)
+    expect(r.badClaims[0].why).toMatch(/自相矛盾|cancelled/)
   })
 })
 

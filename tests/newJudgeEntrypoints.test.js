@@ -75,10 +75,20 @@ describe('check-contract-diff 的入口通道（第七十二轮 I-72-3）', () =
 })
 
 describe('check-gate-parity 的入口通道（第七十二轮 I-72-4）', () => {
-  it('--selftest 子进程真跑 ⇒ rc=0 且自证 7/7', () => {
+  it('--selftest 子进程真跑 ⇒ rc=0 且自证腿全过（腿数只要求下界，不钉死具体值）', () => {
+    // 第七十三轮实测：本腿原来断的是字面量 `自证 7/7`，而 I-73-4 把 baseOf/advisory/深链分母
+    // 三件事各补了一条反例腿（7 → 11），于是**加自证腿这个正确动作本身把入口腿判红了**。
+    // 断"7"是钉一个会随质量上升而过期的数；断"N/N 且 N≥7"才是在断行为（全过 + 分母非零）。
+    // 同文件上方 contract-diff 那条腿用的就是"点腿名"的形态，本腿向它对齐。
     const r = runScript('check-gate-parity.mjs', ['--selftest'])
-    expect(r.all, `rc=${r.status}\n${r.all}`).toContain('自证 7/7')
     expect(r.status, r.all).toBe(0)
+    const m = /自证 (\d+)\/(\d+)/.exec(r.all)
+    expect(m, `门面没印出「自证 N/N」这样的可读结论：\n${r.all.slice(-400)}`).toBeTruthy()
+    expect(Number(m[1]), `自证有腿没通过（${m[1]}/${m[2]}）`).toBe(Number(m[2]))
+    expect(Number(m[2]), '自证腿数不得倒退（第七十三轮后应 ≥11）').toBeGreaterThanOrEqual(11)
+    for (const leg of ['⑧ 基命令归一化不得把两个不同文件认成同一个', '⑪ 分母真的含 ci-deep.yml:deep-gates']) {
+      expect(r.all, `自证面必须实跑过「${leg}」这条腿`).toContain(leg)
+    }
     expect(r.all).not.toMatch(/有腿没咬住/)
   })
 

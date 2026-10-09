@@ -28,6 +28,7 @@
 //   登记只对 `id` 精确匹配，且必须带到期时刻——**历史不是永久豁免**（与 check-doc-commands 的归档面同规）。
 import { readFileSync, existsSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
+import { reasonDefects } from './lib/registry-reason.mjs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
@@ -170,6 +171,10 @@ export function registryOf (contractPath) {
         || typeof a.why !== 'string' || !a.why.trim()
         || !/^\d{4}-\d{2}-\d{2}$/.test(String(a.untilUtc))
       if (bad) return { items: [], error: `contract.contractBreakageExceptions[${i}] 缺 id/why，或 untilUtc 不是 YYYY-MM-DD ⇒ 半张的登记册比没有更坏` }
+      // 理由必须**可证伪**（R5：含实测数字或反引号命令）。本仓登记册此前各写一遍信封校验，
+      // 三处都只判"why 非空"，于是"以后再说"这类占位理由能一路过关 —— 共用 lib/registry-reason 一份实现。
+      const rd = reasonDefects(`contractBreakageExceptions[${i}]（${a.id}）`, a.why)
+      if (rd.length) return { items: [], error: `contract.${'contractBreakageExceptions'}[${i}] 的理由不合格 ⇒ ${rd.join('；')}` }
       items.push(a)
     }
     return { items, error: null }

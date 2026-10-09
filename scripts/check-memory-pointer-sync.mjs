@@ -18,7 +18,7 @@
  */
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { bail } from './lib/preflight.mjs'
 
@@ -35,9 +35,38 @@ export const DELIVERABLES = join(root, '..', 'deliverables')
 /** 外层归档仓根（P5 的 git 取数面）。 */
 export const OUTER_REPO = join(root, '..')
 /** 生产侧 git 取数：只在归档仓根上跑，禁 -C 到别处；取不到 ⇒ rc!==0，由 P5 折成 UNVERIFIED。 */
-export function makeGitRunner (repoRoot, { spawn = spawnSync, timeoutMs = 20_000 } = {}) {
+export function makeGitRunner (repoRoot, { spawn = spawnSync, timeoutMs = 20_000, env = process.env } = {}) {
+  // **钩子环境会把跨仓取数打到错的仓上**（第七十三轮一手，可复现不是竞态）：
+  // git 跑 pre-commit 时会往环境里注入 GIT_DIR / GIT_INDEX_FILE / GIT_WORK_TREE / GIT_PREFIX，
+  // 而 `git -C <外层仓>` 的子进程**继承**它们 ⇒ git 仍以**内层仓**为仓库根，只是把工作目录换到外层，
+  // 于是 `ls-files -- deliverables` 查的是内层（那儿根本没有 deliverables/）⇒ 外层跟踪册读成空
+  // ⇒ P5 报「第 72 轮报告不在跟踪册里」，而它其实已随 `35c6636` 入库。
+  // 实测对照：`npm run verify:pointers` 直跑 PASS（无 GIT_DIR），钩子里 FAIL（有 GIT_DIR）——
+  // 同一份代码、同一个盘面、两种结论，差别只在环境。**这类"本地绿 CI 红 / 直跑绿钩子红"的根因
+  // 不在判据逻辑，在子进程继承了它不该继承的上下文。**
+  // 只剥"目标仓 != 环境指向的仓"这一种情形：check-staged-syntax / scan-secrets --staged 那类
+  // 必须看见钩子的 index，剥了就读不到暂存面（那是把一种失明换成另一种）。
+  const GIT_ENV_KEYS = ['GIT_DIR', 'GIT_INDEX_FILE', 'GIT_WORK_TREE', 'GIT_PREFIX', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES']
+  const present = GIT_ENV_KEYS.filter((k) => String(env[k] || '').trim())
+  const target = resolve(repoRoot)
+  // **只设 GIT_INDEX_FILE 也足以把跨仓取数打到错的仓上**（第七十三轮实测，两次纠错才定位到）：
+  //   GIT_DIR=".git"（相对）            -> `git -C 外层 ls-files -- deliverables` = 84 条（git 按 -C 重解析，没事）
+  //   GIT_DIR=<内层>/.git（绝对）        -> 0 条
+  //   **只设 GIT_INDEX_FILE=<内层/index>** -> 0 条  ← `git commit --only` 的钩子环境正是这一形态
+  // 钩子里 P5 报「第 72 轮报告不在跟踪册里」而直跑 PASS，根因就在这里：子进程继承了内层仓的 index
+  // 上下文，`-C` 只换工作目录不换仓库 ⇒ 外层跟踪册被读成空集。
+  // 第一版修复只认 GIT_DIR（且把相对值拿"目标仓"解析），于是这条形态整个漏网 ——
+  // **判据的修复必须按被卡的那个真实形态验，不能只验自己想到的那种。**
+  const sameRepo = present.length === 0 || resolve(target) === resolve(process.cwd())
+    || present.some((k) => {
+      const v = resolve(isAbsolute(env[k]) ? env[k] : join(process.cwd(), env[k]))
+      return v === join(target, '.git') || v === target
+    })
+  const cleanEnv = sameRepo ? undefined : (() => { const o = { ...env }; for (const k of GIT_ENV_KEYS) delete o[k]; return o })()
   return (args) => {
-    const r = spawn('git', ['-C', repoRoot, ...args], { encoding: 'utf8', timeout: timeoutMs, stdio: ['ignore', 'pipe', 'pipe'] })
+    const opts = { encoding: 'utf8', timeout: timeoutMs, stdio: ['ignore', 'pipe', 'pipe'] }
+    if (cleanEnv) opts.env = cleanEnv
+    const r = spawn('git', ['-C', repoRoot, ...args], opts)
     if (!r || typeof r.status !== 'number') return null
     return { rc: r.status, stdout: String(r.stdout || '') }
   }

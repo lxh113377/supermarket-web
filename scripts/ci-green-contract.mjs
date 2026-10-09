@@ -18,6 +18,7 @@ import { fileURLToPath } from 'node:url'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
 export const CONTRACT_FILE = '.ci/contract.json'
+export const WORKFLOW_PATH = '.github/workflows/ci.yml'
 
 // ── 逃生门计量（第五十三轮 E3 / 内层 R53-H5）────────────────────────────────
 // 一手：下面 `main()` 里那句「这笔账会留在 CI 与台账里」在写它的那天起就是**假主张**——同文件
@@ -109,9 +110,22 @@ export function loadContract(dir = root) {
   try { return JSON.parse(readFileSync(p, 'utf8')) } catch { return 'PARSE_ERROR' }
 }
 
-/** 纯判据：喂远端回执，出四态。可被夹具喂合成输入（判据拆纯函数的既有口径）。 */
-export function verdictOf({ sha, runs, contract }) {
-  const need = contract?.requiredJobs || []
+/** 纯判据：喂远端回执，出四态。可被夹具喂合成输入（判据拆纯函数的既有口径）。
+ *
+ *  `availableJobs`（第七十三轮新增）= **被评的那个提交自己的** ci.yml 里真实存在的 job 名集合。
+ *  一手：I-73-1 往 ci.yml 加了 `browser-install` 并把 `.ci/contract.json` 的 requiredJobs 同笔变成六个，
+ *  而 pre-push 评的是**远端已有基线**（`183ba0c`）那一次 run —— 它的 job 名单里当然没有新 job，
+ *  于是 `missing=[browser-install]` ⇒ BLOCKED ⇒ 下一次推送被"我还没推上去的东西"挡死。
+ *  这与 `.ci/contract.json` 里 requiredJobAliases 记过的改名旧雷**是同一颗**：拿今天的名单判昨天的 run。
+ *  正解不是再手抄一张"哪些 job 属于哪个时刻"的册子，而是**让分母由被评提交自己交出**（读该 commit 的 yml）。
+ *  取不到（对象不在本地 / 文件不在该 commit）⇒ 传 null ⇒ 回落现行名单，**宁严勿宽**。 */
+export function verdictOf({ sha, runs, contract, availableJobs = null }) {
+  const declared = contract?.requiredJobs || []
+  let need = declared
+  if (contract && contract !== 'PARSE_ERROR' && availableJobs) {
+    const face = availableJobs instanceof Set ? availableJobs : new Set(availableJobs)
+    need = declared.filter((j) => face.has(j))
+  }
   if (!contract) return { state: 'UNKNOWN', reason: `缺 ${CONTRACT_FILE} 或 JSON 不可解析 ⇒ 无法判定，按红处理` }
   if (contract === 'PARSE_ERROR') return { state: 'UNKNOWN', reason: `${CONTRACT_FILE} JSON 解析失败` }
   const mine = (runs || []).filter((r) => r.headSha === sha)
@@ -124,6 +138,11 @@ export function verdictOf({ sha, runs, contract }) {
   if (best.status !== 'completed') return { state: 'BLOCKED', reason: `${who} 仍在跑（status=${best.status}）⇒ 无结论，不放行` }
   const jobs = best.jobs || []
   const have = new Set(jobs.map((j) => j.name))
+  // 交集为空 = 那个提交根本没有名单里的任何 job ⇒ 这不是"没有要求"，是取数面错位
+  // （名单与 yml 不同笔、或 workflow 被整体改名）。零分母不折算成放行。
+  if (!need.length && declared.length) {
+    return { state: 'BLOCKED', reason: `${who} 的必需名单按该 commit 的 ci.yml 收窄后为空（在册 ${declared.length} ⇒ 现存 0）⇒ 名单与 workflow 已脱节，不读成"没有要求"` }
+  }
   const missing = need.filter((j) => !have.has(j))
   if (missing.length) return { state: 'BLOCKED', reason: `${who} 缺少必需 job: ${missing.join(', ')}（needs 断了就是没发出去）` }
   const red = jobs.filter((j) => need.includes(j.name) && j.conclusion !== 'success').map((j) => `${j.name}=${j.conclusion}`)
@@ -131,6 +150,35 @@ export function verdictOf({ sha, runs, contract }) {
     return { state: 'RED', reason: `${who} conclusion=${best.conclusion}${red.length ? '；失败 job: ' + red.join(', ') : ''}` }
   }
   return { state: 'GREEN', reason: `${who} 全绿，必需 job 齐备：${need.join(', ')}` }
+}
+
+/** 从一段 workflow 正文里取 job 名（`jobs:` 下两空格缩进的键）。纯函数，便于夹具喂文本。 */
+export function jobNamesOf(workflowText) {
+  const start = String(workflowText || '').indexOf('\njobs:\n')
+  if (start < 0) return []
+  const out = []
+  for (const line of workflowText.slice(start + 7).split(/\r?\n/)) {
+    const m = /^  ([a-zA-Z0-9_-]+):[ \t]*(?:#.*)?$/.exec(line)
+    if (m) out.push(m[1])
+  }
+  return out
+}
+
+/** 取某个提交自己的 ci.yml job 名单；任何一步不成都返回 null（调用方回落现行名单 ⇒ 宁严勿宽）。
+ *  ref 形态不做"必须是十六进制"的假设：本函数要被 `HEAD`、被 tag 名、被短 sha 调，
+ *  而 `HEAD` 里的 `H` 就不是十六进制字符 —— 第一版按 sha 正值守卫，直接把这条通道写成永不生效
+ *  （新加的夹具腿当场把它抓到，见 tests/ciGreenContract.test.js「生产面」那条）。
+ *  真正的不存在/取不到由 git 自己的非 0 退出兜住，比自造词法检查可靠。 */
+export function ciJobNamesAt(sha, dir = root) {
+  const ref = String(sha || '')
+  if (!ref || ref.length > 80 || /\s|\.\.|\^|:/.test(ref)) return null
+  try {
+    const text = execFileSync('git', ['-c', 'core.quotepath=false', 'show', `${ref}:${WORKFLOW_PATH}`], {
+      cwd: dir, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024, timeout: 20_000,
+    })
+    const names = jobNamesOf(text)
+    return names.length ? new Set(names) : null
+  } catch { return null }
 }
 
 function ghJson(args) {
@@ -250,9 +298,13 @@ export function main({ pushRef = null, remoteSha = null } = {}) {
       rc = 1
       continue
     }
-    const v = verdictOf({ sha: base, runs: [got.run], contract })
+    // 分母由**被评的那个提交**自己的 ci.yml 交出（见 verdictOf 的 availableJobs 注）：
+    // 拿今天的名单判昨天的 run，就是在要求一份当时不可能存在的回执。
+    const face = ciJobNamesAt(base)
+    const v = verdictOf({ sha: base, runs: [got.run], contract, availableJobs: face })
     const line = `${tag} ${v.state} base=${base.slice(0, 7)} local=${(r.localSha || '-').slice(0, 7)} :: ${v.reason}` +
-      (got.jobsError ? `（job 明细拉取失败：${got.jobsError}）` : '')
+      (got.jobsError ? `（job 明细拉取失败：${got.jobsError}）` : '') +
+      (face ? `｜分母取自该 commit 的 ci.yml（${[...face].length} 个 job）` : '｜该 commit 的 ci.yml 取不到 ⇒ 回落现行名单，不放宽')
     if (v.state === 'GREEN') { console.log(line); continue }
     console.error(line)
     rc = 1
