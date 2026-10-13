@@ -157,6 +157,8 @@ jobs:
   #   ③ 提交后必须显式触发一次 CI：GitHub 用 `GITHUB_TOKEN` 做的 push **不会**触发 workflow，
   #      而 `check-head-closure`/`ci-green-contract` 认的是「被推基座有没有回执」——一个没有 run 的
   #      bot 提交会把下一次人工推送判成 UNKNOWN 拦下，正是本 job 要消灭的那个形态。
+  #      ref 形态由实测钉死：给 40 位 commit SHA 会被 API 拒 HTTP 422「No ref found」，只有分支名可用
+  #      （2026-10-14 本机实测：SHA 拒 → 改 main 立刻建出 run 38481928532）⇒ 下面那一步按 main 触发。
   receipt-refresh:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -164,7 +166,12 @@ jobs:
     # （本机实测 0.42s / 0.14s，可忽略）。联网取数按"网络产物"给余量，取 15 分钟（在 [5,60] 档内）。
     timeout-minutes: 15
     permissions:
-      contents: write   # 全仓唯一写回 main 的 job：写入路径逐条点名，禁 git add -A
+      # contents: write —— 写回读数；actions: write —— 最后那步要用 API 创建 workflow_dispatch 事件。
+      # 后者不是猜的：dispatch 走的是 Actions 端点，GITHUB_TOKEN 在本 job 的 permissions 块被整体替换后
+      # 若不点名 actions，那个 POST 就没有写权限（GitHub 官方 workflow_dispatch 端点说明只列了 classic token
+      # 的 repo scope，未逐字印 actions:write ⇒ 本条按端点归属给权，真实回执看今晚调度后有没有产生 CI run）。
+      contents: write
+      actions: write
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -240,13 +247,18 @@ jobs:
 
       # 上面那条 push 用的是 GITHUB_TOKEN ⇒ GitHub 不会为它启动任何 workflow。不补这一脚，
       # 远端 main 的尖端就长期处于"没有回执"态，下一次人工推送会被判 UNKNOWN 拦下（同本 job 要治的病）。
-      - name: Trigger CI for the pushed sha
+      - name: Trigger CI on main for the pushed commit
         if: steps.commit.outputs.pushed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # 经 env 传值而不是在 run: 里内联 ${{ }} —— 本仓 tests/ciWorkflow.test.ts 有注入扫描腿
           REFRESHED_SHA: ${{ steps.commit.outputs.SHA }}
         run: |
-          gh workflow run ci.yml --ref "$REFRESHED_SHA"
-          echo "[refresh] 已对 $REFRESHED_SHA 触发一次 CI：GITHUB_TOKEN 的 push 本身不启动 workflow，"
-          echo "[refresh] 不补这一脚，远端尖端就长期处于「没有回执」态，下次人工推送会被判 UNKNOWN 拦下。"
+          # 实测（2026-10-14 本机）：`gh workflow run ci.yml --ref <40位SHA>` 回 HTTP 422
+          # `No ref found for: 68ddb9a2...`；同一命令换 `--ref main` 立刻建出 run 38481928532。
+          # 所以这里按**分支名**触发：本步刚刚把 REFRESHED_SHA 推成 main 的尖端，
+          # 若中途有别人抢先推过，我们上面那次 push 就已经非快进失败、根本走不到这一步。
+          gh workflow run ci.yml --ref main
+          echo "[refresh] 已对 main 触发一次 CI，期望覆盖的 sha=$REFRESHED_SHA"
+          echo "[refresh] 为什么必须补这一脚：GITHUB_TOKEN 的 push 本身不启动 workflow ⇒"
+          echo "[refresh] 远端尖端会长期处于「没有回执」态，下次人工推送被 ci-green-contract 判 UNKNOWN 拦下。"

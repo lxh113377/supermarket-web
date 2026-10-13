@@ -17,9 +17,18 @@
   写入路径逐条点名，禁 `git add -A`）；② **取数失败绝不提交** —— 一次 CF 抖动若把 `VERIFIED` 覆盖成
   `UNREACHABLE`，登记册声明当场落后 ⇒ 下一个提交又被判红，那等于把这条 job 变成新的自锁源；闸门就是
   逐条实跑 `.ci/contract.json` 里登记的 verify 腿（同一事实只许一处判，不重抄文件名单也不另定"什么算新鲜"），
-  任一不绿则整步跳过、保留上一份新鲜读数；③ 提交后**必须显式对那个 sha 触发一次 CI** —— GitHub 用
+  任一不绿则整步跳过、保留上一份新鲜读数；③ 提交后**必须再触发一次 CI** —— GitHub 用
   `GITHUB_TOKEN` 做的 push 不启动 workflow，一个「没有回执」的 bot 尖端会把下一次人工推送判成 UNKNOWN 拦下，
   正是本 job 要消灭的那个形态。
+- **上线当轮就实测出的两处缺陷（本笔修，不静默）**：拿行为回执时（手动 `gh workflow run ci-deep.yml --ref main`
+  与推送后的 push 事件各一次）发现——① 那条触发步原本写的是 `--ref <40位SHA>`，实测被 API 拒
+  `HTTP 422: No ref found for: 68ddb9a2...`，同一命令换 `--ref main` 立刻建出 run `38481928532` ⇒ 改成按分支名触发
+  （刚 push 完 main 就指向我们那笔；若中途有人抢先，上面那次 push 已非快进失败，走不到这一步）；
+  ② 该步要走 Actions 的 dispatch 端点，而 permissions 块里只给了 `contents: write` ⇒ 补 `actions: write`。
+  官方那页对 dispatch 端点只印了 classic token 的 `repo` scope、没逐字给 `actions:write`，所以这条按端点归属给权，
+  **真回执是"调度后有没有产出一次 CI run"**，不是权限说明本身。
+  另一条已成立的行为回执：push 事件那次 `deep-gates=success` 而 `receipt-refresh=skipped` ⇒ 前提①（只在
+  schedule/dispatch 跑）在真面上生效，不是只在 YAML 里写着。
 - **凭据**：双 YAML `yaml.safe_load` 解析通过（`ci-deep.yml` 现有 jobs = deep-gates, receipt-refresh）；
   `npx vitest run tests/ciWorkflow.test.ts` ⇒ 41 passed（含「每条 job 都声明 timeout-minutes 且在 [5,60] 档内」
   「非 ci.yml 的链不得出现 needs」「所有 uses 钉 40 位 SHA」「run: 内不得内联 `${{ }}`」四条对本 job 同样成立）。
