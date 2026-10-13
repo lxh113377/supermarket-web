@@ -17,6 +17,18 @@
       "why": "该 job 由第七十三轮 I-73-1 引入（拆掉第七十二轮的三 Playwright job 共用 ci-browser-install concurrency 组 —— 那个组把 e2e-cloud-stub 在起跑 1 秒、0 步时判成 cancelled，deploy 因 needs 被 skipped，见第七十二轮报告 §7 更正）。**新增 job 与改名是同一颗雷**：本文件上方 requiredJobAliases 的 why 早已为改名写过「拿今天的名单判昨天的回执 = 把历史真话读成缺件」，缺的是增员那一半 —— 第七十二轮那份回执不可能点到当时还不存在的 job，要求它点名就是在逼作者补一句假话。生效面与别名对称且**方向相反**：文件名日期 < sinceUtc 免名，当日及以后照常点名；免掉的项由 check-delivery-claims 以「新 job 免名 N 处」照印，不静默缩分母。反例腿见 tests/deliveryClaims.test.js。"
     }
   ],
+  "receiptRecovery": [
+    {
+      "file": "docs/d1-remote-usage.json",
+      "verify": "node scripts/check-d1-roundtrips.mjs",
+      "why": "该读数由 `scripts/check-d1-remote-usage.mjs --write` 生成，`check-d1-roundtrips.mjs` 的 A11 按 `REMOTE_MAX_AGE_DAYS=7` 判它的龄。一手：回执停在 2026-10-06T00:32:22.549Z ⇒ b153b33 自己的 run 跑在保险丝内、下一个提交（56d737c，只往台账追加 4 行）跨了线被判 failure，而把红治掉的那笔（刷新读数）按 requiredJobs 的「别在红基座上叠加」永远推不上去 —— 与 requiredJobAliases/requiredJobSince 记的是同一族雷：**判据的分母里含「今天」，历史提交就被未来的读数判红**。本在册面只放机器生成的读数件，代码/workflow 混进来一律不认。"
+    },
+    {
+      "file": "docs/escape-hatch-remote.json",
+      "verify": "node scripts/check-escape-hatch-log.mjs",
+      "why": "该读数由 `check-escape-hatch-log.mjs --update-remote` 逐条联网取终态生成；C9 的双向对账以它为分母，账本新增绕过而行没跟着重生 ⇒ 同样只会越放越旧，重跑取数才是唯一自愈通道。与上一件同规格：它自己那条 C9 判据默认面不阻断（`--require-covered` 缺省不开），所以这里按 rc=0 收它。"
+    }
+  ],
   "graceMinutes": 90,
   "escapeHatch": "CI_GREEN_SKIP",
   "why": "pre-push 只认远端回执（gh run view 的 conclusion/jobs），不认本地退出码。实证代价：d1RoundTrips 缺 @vitest-environment node 让 CI 连红 7 个 commit、deploy 被 needs 掐住，而期间的报告写着 CI 全绿。2026-10-08 分层 CI：build-and-test 拆为 gates（快链）+ ci-deep.yml（独立深门禁链，不在本契约的必需面内 —— 它不挡 deploy）；**job 改名必须同笔改本文件**，否则 verdictOf 判 BLOCKED「缺少必需 job」（改名当天实测：旧名单让普通推送必被挡，只有逃生门能过）。该同步现已由 tests/ciWorkflow.test.ts 的桥接判据钉住。"

@@ -11,7 +11,7 @@
 // gh 不可用、网络失败）拒 —— **裸静音判红**，绝不把"没查到"读成"没问题"。
 // 逃生门：CI_GREEN_SKIP=1 才可绕过，且必须同时给 CI_GREEN_REASON，输出面 loudly 留痕。
 import { readFileSync, existsSync, appendFileSync, mkdirSync } from 'node:fs'
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -234,6 +234,105 @@ export function recoveryUseCount (localSha, dir = root, window = RECOVER_WINDOW)
   } catch { return window }
 }
 
+/**
+ * ── 读数刷新通道（治「过期红 self-lock」，与上面的恢复通道并列、互不抵扣）。
+ *
+ * 一手动因（本轮实测，不是推演）：`56d737c` 只往 `.ci/escape-hatch.jsonl` 追加 4 行，它自己的 CI run
+ * `38464977451` 却被判 `gates=failure` —— 挂的是 `check-d1-roundtrips.mjs` 的 **A11**，判据里含「今天」：
+ * `docs/d1-remote-usage.json` 的 `retrievedAtUtc` 停在 2026-10-06T00:32:22Z，而 `REMOTE_MAX_AGE_DAYS=7`。
+ * 于是 `b153b33` 那次 run（保险丝内）绿、下一个提交（保险丝外）红。治它的那笔＝重生读数，而重生读数的
+ * 提交必须推在这块红基座上 ⇒ 按「别在红基座上叠加」永久进不去。
+ * 实测排掉的两条假出路：① 重跑基线那次 run 变不了绿 —— `git show 56d737c:docs/d1-remote-usage.json`
+ * 里就是那份过期读数，判据今天再跑照样跨线；② 上面的 `ci-green-recover` 通道不认 `failure`
+ * （那是 CI 下过判决的红），且要求 diff 碰 `.github/workflows/ci.yml`，读数刷新根本不该碰它。
+ *
+ * 与逃生门的分工：`CI_GREEN_SKIP` 是"人宣布一次 + 落台账"，判据无法核验宣称与事实是否相符；
+ * 本通道的每一条前提都机器可查，而且**窄到只能刷读数**：
+ *   ① 基线终态必须是 `failure`（其余终态要么绿、要么归恢复通道）。
+ *   ② 提交说明带 `ci-green-receipt: <runId>`，且点名的是**被拦的那一次**（写错号=张冠李戴，拒）。
+ *   ③ 要推的 diff **全部**落在 `.ci/contract.json` 的 `receiptRecovery` 在册件里 ⇒ 代码、workflow、
+ *      文档混进任何一个都拒。这条是整道闸的牙齿：本通道结构上就不可能用来推逻辑改动。
+ *   ④ 本地事实三件：工作树干净 + HEAD 就是被推那笔 + 每条在册读数对应的判据实跑 rc=0。
+ *      前两件让"我本地跑绿的这个面"与"要推的那个面"逐字节同一；第三件把"红因确实是过期"变成
+ *      被推面上的一次实测，而不是提交说明里的一句宣称。
+ *   ⑤ 自限：近 20 笔里用满 2 次 ⇒ 拒。读数反复过期该去接自动重取（cron/工作流），不是继续手推。
+ * 静态前提（①②③⑤）零子进程零磁盘，先判；只有静态成立才取④的事实，普通推送不为此付成本。
+ */
+export const RECEIPT_MARKER_RE = /ci-green-receipt:\s*(\d{8,})/
+export const RECEIPT_RECOVER_WINDOW = 20
+export const RECEIPT_RECOVER_MAX = 2
+
+/** 纯函数：读数刷新通道的承认判据。`facts=null` 时只做静态前提并回 `needFacts`（调用方据此决定要不要起子进程）。 */
+export function receiptAdmission ({ best, pending, registry, localSha = null, markerCount = 0, facts = null }) {
+  const rej = (...why) => ({ ok: false, needFacts: false, why })
+  const reg = Array.isArray(registry) ? registry.filter((r) => r && r.file && r.verify) : []
+  if (!reg.length) return rej('在册面 receiptRecovery 缺失或为空 ⇒ 通道没接线，不读成"不限文件"')
+  if (!best) return rej('没有基线 run 可对照 ⇒ 无从承认')
+  if (String(best.conclusion || '') !== 'failure') {
+    return rej(`基线终态是 ${best.conclusion || '未知'} ⇒ 本通道只治 CI 判了 failure 且红因是读数过期的那一类，其余终态归 ci-green-recover 或照常拦`)
+  }
+  if (!pending || !Array.isArray(pending.files) || !pending.files.length) return rej('取不到要推的那段 diff ⇒ 不承认，宁严勿宽')
+  const m = RECEIPT_MARKER_RE.exec(String(pending.message || ''))
+  if (!m) return rej('提交说明里没有 ci-green-receipt: <runId> 标记 ⇒ 这笔没打算把"刷的是哪一次红"写进 git 历史')
+  if (Number(m[1]) !== Number(best.databaseId)) {
+    return rej(`标记点名的 run ${m[1]} 不是被拦的那次 ${best.databaseId} ⇒ 张冠李戴，拒`)
+  }
+  const outside = pending.files.filter((f) => !reg.some((r) => r.file === f))
+  if (outside.length) return rej(`diff 里有未在册的件：${outside.join(', ')} ⇒ 本通道只允许纯读数刷新，代码/workflow/文档混进来一律拒`)
+  if (markerCount > RECEIPT_RECOVER_MAX) {
+    return rej(`近 ${RECEIPT_RECOVER_WINDOW} 笔里已用 ${markerCount} 次（上限 ${RECEIPT_RECOVER_MAX}）⇒ 读数反复过期该去接自动重取，不是继续手推`)
+  }
+  if (!facts) return { ok: false, needFacts: true, why: ['静态前提已成立，待本地事实（工作树是否干净 / HEAD 是否就是被推那笔 / 在册判据实跑 rc）'] }
+  if (facts.treeClean !== true) return rej('工作树有未提交改动 ⇒ 本地跑绿的那个面不等于要推的面')
+  if (facts.headEqPushed !== true) return rej(`HEAD 不等于被推的 sha（${String(localSha || '-').slice(0, 7)}）⇒ 验的不是要推的那笔`)
+  if (!Array.isArray(facts.verify) || facts.verify.length !== reg.length) {
+    return rej(`在册 ${reg.length} 条而实跑结果 ${Array.isArray(facts.verify) ? facts.verify.length : 0} 条 ⇒ 取数不全不判通过`)
+  }
+  const bad = facts.verify.filter((v) => Number(v.rc) !== 0)
+  if (bad.length) return rej(`在册判据实跑仍红：${bad.map((v) => `${v.file}→rc=${v.rc}`).join(', ')} ⇒ 读数并没有把红真的治掉`)
+  return {
+    ok: true,
+    needFacts: false,
+    why: [`承认读数刷新：基线 run ${best.databaseId} 判 failure 而红因是读数过期 + 标记点名同一次 + diff 仅含 ${pending.files.length} 份在册读数（${pending.files.join(', ')}）`
+      + ` + 工作树干净且 HEAD 即被推面 + ${facts.verify.length} 条在册判据实跑 rc=0（近 ${RECEIPT_RECOVER_WINDOW} 笔第 ${markerCount} 次，上限 ${RECEIPT_RECOVER_MAX}）`],
+  }
+}
+
+/** 近 window 笔里有多少笔用过读数刷新通道（与恢复通道各自计数，互不抵扣）。 */
+export function receiptUseCount (localSha, dir = root, window = RECEIPT_RECOVER_WINDOW) {
+  try {
+    const log = execFileSync('git', ['log', `-${window}`, '--format=%B', localSha], { cwd: dir, encoding: 'utf8', timeout: 20_000 })
+    return String(log).split(RECEIPT_MARKER_RE).slice(1).filter((x) => /^\d{8,}/.test(x.trim())).length
+  } catch { return window + 1 }
+}
+
+/** 取④的本地事实。verify 命令按空格切成 argv 直接 spawn（禁 shell:true ⇒ 在册内容被改也造不出注入面）；
+ *  子进程取不到/超时一律记非 0 rc —— "没跑到"永远不折算成"跑过了"。 */
+export function receiptFacts (registry, localSha, dir = root) {
+  let dirty = null
+  try {
+    dirty = String(execFileSync('git', ['status', '--porcelain'], { cwd: dir, encoding: 'utf8', timeout: 20_000 })).trim()
+  } catch { dirty = 'git status 取不到' }
+  let head = ''
+  try { head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: dir, encoding: 'utf8', timeout: 20_000 }).trim() } catch { head = '' }
+  const verify = (Array.isArray(registry) ? registry : []).map((r) => {
+    const argv = String(r.verify).trim().split(/\s+/)
+    const res = spawnSync(argv[0], argv.slice(1), { cwd: dir, encoding: 'utf8', timeout: 120_000 })
+    return { file: r.file, cmd: r.verify, rc: (res.error || res.status === null) ? -1 : res.status }
+  })
+  return { treeClean: dirty === '', headEqPushed: !!localSha && head === localSha, verify }
+}
+
+/** 两段式判定：静态先行（零子进程），静态成立才取本地事实。调用方只有 main() 的 RED 分支。 */
+export function receiptStage ({ run, contract, pending, localSha, dir = root }) {
+  const registry = contract && contract !== 'PARSE_ERROR' && Array.isArray(contract.receiptRecovery) ? contract.receiptRecovery : null
+  const markerCount = receiptUseCount(localSha, dir)
+  const first = receiptAdmission({ best: run, pending, registry, localSha, markerCount })
+  if (!first.needFacts) return { ...first, markerCount }
+  const facts = receiptFacts(registry, localSha, dir)
+  return { ...receiptAdmission({ best: run, pending, registry, localSha, markerCount, facts }), markerCount }
+}
+
 /** 取某个提交自己的 ci.yml job 名单；任何一步不成都返回 null（调用方回落现行名单 ⇒ 宁严勿宽）。
  *  ref 形态不做"必须是十六进制"的假设：本函数要被 `HEAD`、被 tag 名、被短 sha 调，
  *  而 `HEAD` 里的 `H` 就不是十六进制字符 —— 第一版按 sha 正值守卫，直接把这条通道写成永不生效
@@ -385,6 +484,21 @@ export function main({ pushRef = null, remoteSha = null } = {}) {
       console.log(`${tag} ⚠ 恢复通道放行 1 次（近 ${RECOVER_WINDOW} 笔第 ${markerCount} 次，上限 ${RECOVER_MAX}）`
         + `｜它只在基线"从未下过判决"时才成立，真判据红走不到这里`
         + `｜留痕 = 提交说明里的 ci-green-recover: <runId>，git 历史里查得到，不另立台账`)
+      continue
+    }
+    // RED 才试读数刷新通道：BLOCKED/UNKNOWN 的处置不是"刷读数"，别把两条通道混成一条。
+    // 静态前提（在册面 + 基线终态 + 标记 + diff 名单 + 次数）零子进程先判，只有全成立才起子进程取事实。
+    if (v.state === 'RED' && got.run) {
+      const rs = receiptStage({ run: got.run, contract, pending, localSha: r.localSha })
+      if (rs.ok) {
+        console.log(`${tag} RECOVER-RECEIPT base=${base.slice(0, 7)} local=${(r.localSha || '-').slice(0, 7)} :: ${rs.why.join('；')}`)
+        console.log(`${tag} ⚠ 读数刷新通道放行（上限 ${RECEIPT_RECOVER_MAX} 次 / 近 ${RECEIPT_RECOVER_WINDOW} 笔）`
+          + `｜牙齿在③：diff 必须**全部**落在 .ci/contract.json 的 receiptRecovery 在册件里 ⇒ 这条通道结构上推不了代码`
+          + `｜留痕 = 提交说明里的 ci-green-receipt: ${got.run.databaseId}，git 历史里查得到`)
+        continue
+      }
+      console.error(`${line}｜读数刷新通道不成立：${rs.why.join('；')}`)
+      rc = 1
       continue
     }
     console.error(line)

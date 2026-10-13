@@ -4,6 +4,30 @@
 
 ## [未发布]
 
+### 2026-10-14 补充：CI 全绿契约新增「读数刷新」承认通道（治过期红 self-lock）
+
+- **自锁形态（一手实测，非推演）**：`56d737c` 只往 `.ci/escape-hatch.jsonl` 追加 4 行，它自己的 run
+  `38464977451` 却判 `gates=failure` —— 挂的是 `check-d1-roundtrips.mjs` 的 A11，那条判据里含「今天」
+  （`REMOTE_MAX_AGE_DAYS=7`），而 `docs/d1-remote-usage.json` 的 `retrievedAtUtc` 停在 2026-10-06T00:32:22Z。
+  于是前一个提交的 run（保险丝内）绿、下一个提交（保险丝外）红；而把红治掉的那笔＝重生读数，它必须推在
+  这块红基座上 ⇒ 按「别在红基座上叠加」永久进不去。实测排掉两条假出路：① 重跑基线那次 run 变不了绿 ——
+  `git show 56d737c:docs/d1-remote-usage.json` 里就是那份过期读数；② `ci-green-recover` 通道不认 `failure`
+  （那是 CI 下过判决的红），且要求 diff 碰 `.github/workflows/ci.yml`，刷读数根本不该碰它。
+- **新通道 `receiptRecovery`（在册在 `.ci/contract.json`）五条前提全部机器可查**：① 基线终态必须是
+  `failure`；② 提交说明带 `ci-green-receipt: <runId>` 且点名的就是被拦那一次；③ **要推的 diff 必须全部落在
+  在册读数件里** —— 这条是整道闸的牙齿：代码、workflow、文档、绕过台账混进任何一个都拒，通道结构上就推不了
+  逻辑改动；④ 本地事实三件：工作树干净 + HEAD 就是被推那笔 + 每条在册读数对应的判据实跑 rc=0（前两件把
+  「本地跑绿的那个面」与「要推的那个面」钉成逐字节同一，第三件把「红因确实是过期」从提交说明里的宣称变成
+  被推面上的一次实测）；⑤ 自限：近 20 笔用满 2 次即拒 —— 读数反复过期该去接自动重取，不是继续手推。
+  静态前提（①②③⑤）零子进程零磁盘先判，只有全成立才起子进程取④ ⇒ 普通推送不为此付成本。
+- **在册两条读数件各自带 why**：`docs/d1-remote-usage.json`（实跑 `node scripts/check-d1-roundtrips.mjs`）、
+  `docs/escape-hatch-remote.json`（实跑 `node scripts/check-escape-hatch-log.mjs`）。
+- **凭据**：`npx vitest run tests/ciGreenContract.test.js` ⇒ 55 passed（新增 10 条腿：正例、两段式
+  needFacts、越界件四类反例、基线终态逐条、marker 互不认账、本地事实四缺其一、自限与零输入不折算放行、
+  main() 接线、真跑面起子进程）。
+- **本笔没能自举（如实记，不静默）**：这次改动本身含脚本与测试，前提③ 按设计拒绝它 ⇒ 落地这一次仍需一条带
+  理由的 `CI_GREEN_SKIP` 计量绕过（进 `.ci/escape-hatch.jsonl` 台账）；通道要等下一次同类过期红才真正生效。
+
 ### 2026-10-09 第 73 轮补充：CI 全绿契约新增「恢复性提交」承认通道（治护栏自锁）
 
 - **自锁形态**：`scripts/ci-green-contract.mjs` 只认远端基线回执，基线 `183ba0c` 的 run `37747723889`

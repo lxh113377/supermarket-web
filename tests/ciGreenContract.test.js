@@ -11,7 +11,7 @@ import { assertCliRan } from './helpers/cliLeg.js'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { verdictOf, loadContract, parseRefLines, CONTRACT_FILE, jobNamesOf, ciJobNamesAt, WORKFLOW_PATH, recoveryAdmission, recoveryUseCount, NO_VERDICT_CONCLUSIONS, RECOVER_MARKER_RE, RECOVER_MAX } from '../scripts/ci-green-contract.mjs'
+import { verdictOf, loadContract, parseRefLines, CONTRACT_FILE, jobNamesOf, ciJobNamesAt, WORKFLOW_PATH, recoveryAdmission, recoveryUseCount, NO_VERDICT_CONCLUSIONS, RECOVER_MARKER_RE, RECOVER_MAX, ESCAPE_LEDGER, receiptAdmission, receiptFacts, receiptUseCount, RECEIPT_MARKER_RE, RECEIPT_RECOVER_MAX } from '../scripts/ci-green-contract.mjs'
 
 const contract = loadContract()
 const SHA = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
@@ -456,5 +456,102 @@ describe('第七十三轮 · 恢复通道的四条前提与自限', () => {
     expect(RECOVER_MARKER_RE.test('ci-green-recover: 37747723889')).toBe(true)
     expect(RECOVER_MARKER_RE.test('恢复了 37747723889')).toBe(false)
     expect(RECOVER_MARKER_RE.test('ci-green-recover: 123')).toBe(false)
+  })
+})
+
+/**
+ * 读数刷新通道（治「过期红 self-lock」）。这又是一次**放宽闸门**，所以按上一条的同一规矩：
+ * 每个"不许过"的形态单独钉一格 —— 尤其前提③（diff 必须全部落在在册读数件里）是整道闸唯一的牙齿，
+ * 它决定这条通道是"只能刷机器生成的读数"还是"什么都能推"。
+ * 一手动因见 scripts/ci-green-contract.mjs 里 receiptAdmission 的注释（run 38464977451 的 A11 过期红）。
+ */
+describe('读数刷新通道：五条前提、一条牙齿、一次自限', () => {
+  const RUN = 38464977451
+  const root = join(dirname(fileURLToPath(import.meta.url)), '..')
+  const reg = contract.receiptRecovery
+  const files = reg.map((r) => r.file)
+  const best = (over = {}) => ({ databaseId: RUN, conclusion: 'failure', status: 'completed', ...over })
+  const pend = (over = {}) => ({ files, message: `ci-green-receipt: ${RUN} 刷过期读数`, ...over })
+  const facts = (over = {}) => ({ treeClean: true, headEqPushed: true, verify: reg.map((r) => ({ file: r.file, rc: 0 })), ...over })
+  const adm = (over = {}) => receiptAdmission({ best: best(), pending: pend(), registry: reg, localSha: SHA, markerCount: 1, facts: facts(), ...over })
+
+  it('在册面不许悬空：每条登记的读数件在盘上、它的 verify 脚本也在盘上、理由足以复算', () => {
+    expect(Array.isArray(reg) && reg.length > 0, 'receiptRecovery 缺失或为空 ⇒ 通道等于没接线').toBe(true)
+    for (const r of reg) {
+      expect(existsSync(join(root, r.file)), `${r.file} 不在盘上 ⇒ 在册面指向了一个不存在的读数`).toBe(true)
+      const script = String(r.verify).trim().split(/\s+/).slice(1).join('/')
+      expect(existsSync(join(root, script)), `${r.verify} 的脚本不在盘上`).toBe(true)
+      expect(typeof r.why === 'string' && r.why.length > 20, `${r.file} 的在册理由不足以复算`).toBe(true)
+    }
+  })
+  it('正例：基线 failure + 标记点名同一次 + diff 全在册 + 三条本地事实齐 ⇒ 承认', () => {
+    const r = adm()
+    expect(r.ok, r.why.join('；')).toBe(true)
+    expect(r.why.join('；')).toContain('承认读数刷新')
+  })
+  it('两段式：静态前提成立但没喂事实 ⇒ 既不承认也不拒死，回 needFacts（普通推送不为此付子进程钱）', () => {
+    const r = receiptAdmission({ best: best(), pending: pend(), registry: reg, localSha: SHA, markerCount: 1 })
+    expect(r.ok).toBe(false)
+    expect(r.needFacts).toBe(true)
+  })
+  it('牙齿③：diff 混进任何一个非在册件（脚本 / workflow / 文档 / 绕过台账本身）⇒ 一律拒且点名', () => {
+    for (const f of ['scripts/ci-green-contract.mjs', WORKFLOW_PATH, 'README.md', ESCAPE_LEDGER]) {
+      const r = adm({ pending: pend({ files: [...files, f] }) })
+      expect(r.ok, `${f} 混进来的那笔不该被承认`).toBe(false)
+      expect(r.why.join('；'), '拒时不点名就没法复核').toContain(f)
+    }
+    // 反例的反例：把在册件整体换成"只改一个在册件"仍然成立 —— ③ 判的是"有没有越界"，不是"够不够多"
+    expect(adm({ pending: pend({ files: [files[0]] }) }).ok).toBe(true)
+  })
+  it('前提①：基线终态不是 failure ⇒ 拒（cancelled 那类归恢复通道，success 根本不该走到这里）', () => {
+    for (const c of ['cancelled', 'timed_out', 'success', 'skipped', '']) {
+      const r = adm({ best: best({ conclusion: c }) })
+      expect(r.ok, `${c || '空'} 不该走读数刷新通道`).toBe(false)
+      expect(r.why.join('；')).toContain('基线终态')
+    }
+  })
+  it('前提②：没有标记 / 标记点的是别的 run ⇒ 拒；与恢复通道的 marker 互不认账', () => {
+    expect(adm({ pending: pend({ message: '普通提交' }) }).ok).toBe(false)
+    const wrong = adm({ pending: pend({ message: `ci-green-receipt: 38460000000 手滑` }) })
+    expect(wrong.ok).toBe(false)
+    expect(wrong.why.join('；')).toContain('张冠李戴')
+    // 恢复通道的 marker 不许被本通道认（两条通道各管一类红），反之亦然
+    expect(adm({ pending: pend({ message: `ci-green-recover: ${RUN}` }) }).ok).toBe(false)
+    expect(RECEIPT_MARKER_RE.test(`ci-green-recover: ${RUN}`)).toBe(false)
+    expect(RECOVER_MARKER_RE.test(`ci-green-receipt: ${RUN}`)).toBe(false)
+  })
+  it('前提④：本地事实四缺其一都拒 —— 脏树 / HEAD 不是被推那笔 / 实跑仍红 / 实跑条数不齐', () => {
+    expect(adm({ facts: facts({ treeClean: false }) }).why.join('；')).toContain('工作树')
+    expect(adm({ facts: facts({ headEqPushed: false }) }).why.join('；')).toContain('HEAD')
+    const redLeg = adm({ facts: facts({ verify: reg.map((r, i) => ({ file: r.file, rc: i === 0 ? 1 : 0 })) }) })
+    expect(redLeg.ok).toBe(false)
+    expect(redLeg.why.join('；')).toContain('rc=1')
+    expect(adm({ facts: facts({ verify: [{ file: files[0], rc: 0 }] }) }).why.join('；')).toContain('取数不全')
+  })
+  it('前提⑤自限 + 零输入不折算放行：用满上限拒、在册面缺失拒、pending 取不到拒', () => {
+    expect(adm({ markerCount: RECEIPT_RECOVER_MAX + 1 }).why.join('；')).toContain('上限')
+    expect(adm({ registry: undefined }).why.join('；')).toContain('没接线')
+    expect(adm({ registry: [] }).why.join('；')).toContain('没接线')
+    expect(adm({ pending: null }).why.join('；')).toContain('宁严勿宽')
+    expect(adm({ best: null }).why.join('；')).toContain('没有基线')
+  })
+  it('接线：main() 的 RED 分支真的调 receiptStage 并印 RECOVER-RECEIPT（没接线的通道=半成品，同 H5 口径）', () => {
+    const src = readFileSync(join(root, 'scripts/ci-green-contract.mjs'), 'utf8')
+    const body = src.slice(src.indexOf('export function main'))
+    expect(body.length, 'main() 取不到 ⇒ 这条接线检查本身失效').toBeGreaterThan(0)
+    expect(body).toContain('receiptStage({')
+    expect(body).toContain('RECOVER-RECEIPT')
+    expect(body).toContain('读数刷新通道不成立')
+    expect(src).toContain('export function receiptFacts')
+  })
+  it('真跑面（起子进程）：在册 verify 命令逐条真跑，取数条数=在册条数；HEAD 面自证', () => {
+    const head = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim()
+    const f = receiptFacts(reg, head, root)
+    expect(f.verify.length).toBe(reg.length)
+    // 每条都必须是真 rc（-1 = 起不来/超时，判据不许把"没跑到"折算成"跑过了"）
+    for (const v2 of f.verify) expect(v2.rc, `${v2.file} 的 verify 起不来（rc=${v2.rc}）`).not.toBe(-1)
+    expect(receiptFacts(reg, 'ffffffffffffffffffffffffffffffffffffffff', root).headEqPushed).toBe(false)
+    expect(typeof receiptUseCount('HEAD', root)).toBe('number')
+    expect(RECEIPT_MARKER_RE.source).toContain('ci-green-receipt')
   })
 })
