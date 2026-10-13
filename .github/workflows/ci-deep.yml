@@ -141,3 +141,112 @@ jobs:
       - name: Branch protection census (advisory)
         continue-on-error: true
         run: node scripts/check-branch-protection.mjs
+
+  # ── 读数刷新：把「带时刻的committed 读数」的生产者接到调度上（治过期红 self-lock）───────
+  # 立它的实测（不是推演）：`docs/d1-remote-usage.json` 的 `retrievedAtUtc` 停在 2026-10-06T00:32:22Z，
+  # 而 `check-d1-roundtrips.mjs` 的 A11 里含「今天」（`REMOTE_MAX_AGE_DAYS=7`）⇒ 一个**什么都没改**的
+  # 后续提交（`56d737c`，只往绕过台账追加 4 行）被它自己的 run `38464977451` 判 `gates=failure`。
+  # 能把红治掉的那笔＝重生读数，而重生读数必须推在这块红基座上 ⇒ 按「别在红基座上叠加」永久进不去
+  # （重跑那次 run 也变不了绿：过期读数就写在那个提交里）。
+  # 正解是**补生产者，不是削尺**：A11 仍是硬闸，本 job 只保证它永远量不到 7 天那么老。
+  # 三条设计约束（每条都有一手理由）：
+  #   ① 只在 schedule / workflow_dispatch 跑 —— push 事件由 deep-gates 承担，本 job 不重复拿写权限。
+  #   ② **取数失败绝不提交**：取数步骤 continue-on-error 只为了把红留在日志里，真正的闸门是下面那条
+  #      「在册 verify 腿」—— 一次 CF 抖动若把 VERIFIED 覆盖成 UNREACHABLE，登记册声明会当场落后，
+  #      下一个提交就又被判红 ⇒ 那等于把本 job 变成新的自锁源，所以宁可保留上一份新鲜读数。
+  #   ③ 提交后必须显式触发一次 CI：GitHub 用 `GITHUB_TOKEN` 做的 push **不会**触发 workflow，
+  #      而 `check-head-closure`/`ci-green-contract` 认的是「被推基座有没有回执」——一个没有 run 的
+  #      bot 提交会把下一次人工推送判成 UNKNOWN 拦下，正是本 job 要消灭的那个形态。
+  receipt-refresh:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    # 一手依据：本 job = 一次冷 `npm ci` + D1 GraphQL 取数 + `gh` 逐条取 31 次 run 终态 + 两条判据实跑
+    # （本机实测 0.42s / 0.14s，可忽略）。联网取数按"网络产物"给余量，取 15 分钟（在 [5,60] 档内）。
+    timeout-minutes: 15
+    permissions:
+      contents: write   # 全仓唯一写回 main 的 job：写入路径逐条点名，禁 git add -A
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Refresh D1 cumulative usage receipt
+        continue-on-error: true
+        env:
+          CLOUDFLARE_ACCOUNT_ID: 04b1466b2606b678a332fe6f26aa87ec
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node scripts/check-d1-remote-usage.mjs --write
+
+      - name: Refresh escape-hatch terminal readings
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/check-escape-hatch-log.mjs --update-remote
+
+      # 闸门：读 `.ci/contract.json` 的 `receiptRecovery` 逐条实跑它登记的判据（同一事实只许一处判 ——
+      # 这里不重抄文件名单，也不另定"什么算新鲜"）。任一条不绿 ⇒ 后面那步整步跳过，旧读数原样保留。
+      - name: Run each registered receipt's verify leg
+        id: verify
+        continue-on-error: true
+        run: |
+          node --input-type=module -e '
+          import { readFileSync } from "node:fs";
+          import { spawnSync } from "node:child_process";
+          const reg = (JSON.parse(readFileSync(".ci/contract.json", "utf8")).receiptRecovery) || [];
+          if (!reg.length) { console.error("[refresh-gate] receiptRecovery 为空或未在册 ⇒ 不提交（通道没接线）"); process.exit(2); }
+          let rc = 0;
+          for (const r of reg) {
+            const argv = String(r.verify).trim().split(/\s+/);
+            const res = spawnSync(argv[0], argv.slice(1), { stdio: "inherit" });
+            const code = res.error ? -1 : res.status;
+            console.log("[refresh-gate] " + r.file + " -> rc=" + String(code));
+            if (code !== 0) rc = 1;
+          }
+          process.exit(rc);
+          '
+
+      - name: Commit refreshed receipts (only changed paths, only when the gate is green)
+        id: commit
+        if: steps.verify.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PATHS="docs/d1-remote-usage.json docs/escape-hatch-remote.json"
+          if git diff --quiet -- $PATHS; then
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
+            echo "[refresh] 两份读数与提交面逐字节相同 ⇒ 不制造空提交"
+            exit 0
+          fi
+          git diff --name-only -- $PATHS
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- $PATHS
+          git commit -m "chore(cron): 每晚刷新两份带时刻的读数 —— 让过期红没有出生的机会
+
+          由 ci-deep.yml 的 receipt-refresh job 生成。A11（check-d1-roundtrips.mjs）与 C9
+          （check-escape-hatch-log.mjs）判的都是读数龄期，7 天保险丝一到就把下一个**内容无关**的
+          提交判红，而治红的提交又必须推在那块红基座上（一手：run 38464977451）。
+          本 job 只在两条在册 verify 腿都 rc=0 时才提交 —— 取数失败一律保留上一份新鲜读数。"
+          git push origin HEAD:main
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+          echo "SHA=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # 上面那条 push 用的是 GITHUB_TOKEN ⇒ GitHub 不会为它启动任何 workflow。不补这一脚，
+      # 远端 main 的尖端就长期处于"没有回执"态，下一次人工推送会被判 UNKNOWN 拦下（同本 job 要治的病）。
+      - name: Trigger CI for the pushed sha
+        if: steps.commit.outputs.pushed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 经 env 传值而不是在 run: 里内联 ${{ }} —— 本仓 tests/ciWorkflow.test.ts 有注入扫描腿
+          REFRESHED_SHA: ${{ steps.commit.outputs.SHA }}
+        run: |
+          gh workflow run ci.yml --ref "$REFRESHED_SHA"
+          echo "[refresh] 已对 $REFRESHED_SHA 触发一次 CI：GITHUB_TOKEN 的 push 本身不启动 workflow，"
+          echo "[refresh] 不补这一脚，远端尖端就长期处于「没有回执」态，下次人工推送会被判 UNKNOWN 拦下。"

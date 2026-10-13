@@ -4,6 +4,26 @@
 
 ## [未发布]
 
+### 2026-10-14 补充二：`ci-deep.yml` 新增 `receipt-refresh` job —— 给「带时刻的读数」补上生产者
+
+- **换的是哪一把尺**：上一条（读数刷新承认通道）治的是「红已经发生之后怎么进去」；本条治的是
+  **让这类红没有出生的机会**。A11 的 7 天保险丝一行没动 —— 补的是生产者，不是削尺。
+- **一手事实**：`ci-deep.yml` 每晚 03:20 UTC 本来就带着 `CLOUDFLARE_API_TOKEN` 跑
+  `node scripts/check-d1-remote-usage.mjs`，但**没加 `--write`** ⇒ 查了不写回，
+  `docs/d1-remote-usage.json` 从 2026-10-06T00:32:22Z 起再没人动过，7 天后就把一个内容无关的提交判红。
+  这条链上「有凭据、有调度、有取数」三样齐全，缺的只是最后一公里。
+- **三条设计约束各有一手理由**（写在 workflow 注释里，不留含糊）：① 只在 `schedule`/`workflow_dispatch`
+  跑，push 事件仍由 `deep-gates` 承担，本 job 不重复拿写权限（它是全仓唯一 `contents: write` 的 job，
+  写入路径逐条点名，禁 `git add -A`）；② **取数失败绝不提交** —— 一次 CF 抖动若把 `VERIFIED` 覆盖成
+  `UNREACHABLE`，登记册声明当场落后 ⇒ 下一个提交又被判红，那等于把这条 job 变成新的自锁源；闸门就是
+  逐条实跑 `.ci/contract.json` 里登记的 verify 腿（同一事实只许一处判，不重抄文件名单也不另定"什么算新鲜"），
+  任一不绿则整步跳过、保留上一份新鲜读数；③ 提交后**必须显式对那个 sha 触发一次 CI** —— GitHub 用
+  `GITHUB_TOKEN` 做的 push 不启动 workflow，一个「没有回执」的 bot 尖端会把下一次人工推送判成 UNKNOWN 拦下，
+  正是本 job 要消灭的那个形态。
+- **凭据**：双 YAML `yaml.safe_load` 解析通过（`ci-deep.yml` 现有 jobs = deep-gates, receipt-refresh）；
+  `npx vitest run tests/ciWorkflow.test.ts` ⇒ 41 passed（含「每条 job 都声明 timeout-minutes 且在 [5,60] 档内」
+  「非 ci.yml 的链不得出现 needs」「所有 uses 钉 40 位 SHA」「run: 内不得内联 `${{ }}`」四条对本 job 同样成立）。
+
 ### 2026-10-14 补充：CI 全绿契约新增「读数刷新」承认通道（治过期红 self-lock）
 
 - **自锁形态（一手实测，非推演）**：`56d737c` 只往 `.ci/escape-hatch.jsonl` 追加 4 行，它自己的 run

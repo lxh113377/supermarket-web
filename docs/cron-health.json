@@ -1,18 +1,36 @@
 {
   "schema": "chaoshi-cron-health-v1",
   "note": "本件由 `node scripts/check-cron-health.mjs --update` 生成；C4 拿它与 YAML 声明面双向对账，手改即红。accepts_red_* 是人填的豁免，--update 会保留同名条目已填的值。",
-  "generatedUtc": "2026-10-07T14:41:26.130Z",
+  "generatedUtc": "2026-10-13T21:41:41.554Z",
   "lookback_days": 7,
   "entries": [
+    {
+      "workflow": "ci-deep.yml",
+      "name": "CI Deep Gates",
+      "cron": "20 3 * * *",
+      "period_days": 1,
+      "observed_state": "RED",
+      "observed_last_run": {
+        "id": 38384976855,
+        "at": "2026-10-13T10:40:29Z",
+        "conclusion": "failure"
+      },
+      "observed_failing_steps": [
+        "D1 round-trip complexity gate (slope vs input size)"
+      ],
+      "accepts_red_until": "",
+      "accepts_red_reason": "",
+      "root_cause": ""
+    },
     {
       "workflow": "d1-backup.yml",
       "name": "D1 Daily Backup",
       "cron": "0 20 * * *",
       "period_days": 1,
-      "observed_state": "OK",
+      "observed_state": "RED",
       "observed_last_run": {
-        "id": 37547610367,
-        "at": "2026-10-06T23:37:52Z",
+        "id": 38334159584,
+        "at": "2026-10-13T01:51:57Z",
         "conclusion": "failure"
       },
       "observed_failing_steps": [
@@ -27,14 +45,15 @@
       "name": "Uptime",
       "cron": "0 1 * * *",
       "period_days": 1,
-      "observed_state": "OK",
+      "observed_state": "RED",
       "observed_last_run": {
-        "id": 37583776662,
-        "at": "2026-10-07T06:50:43Z",
+        "id": 38362152466,
+        "at": "2026-10-13T07:21:35Z",
         "conclusion": "failure"
       },
       "observed_failing_steps": [
-        "Backup chain liveness (did the nightly run really produce an artifact)"
+        "Backup chain liveness (did the nightly run really produce an artifact)",
+        "Every scheduled workflow - last scheduled run + red streak"
       ],
       "accepts_red_until": "2026-10-12",
       "accepts_red_reason": "本条红是**搬运**不是自坏：该 run 里唯一失败的 step 是 `Backup chain liveness (did the nightly run really produce an artifact)`（`gh run view 36299454141 --json jobs` 实测 failed steps 长度 1），其日志原文 `✗ 最近 4 次 run 里没有任何一次满足…` ⇒ 与 d1-backup.yml 同一个根因，不是巡检链自己坏。",
