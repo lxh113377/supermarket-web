@@ -262,3 +262,18 @@ jobs:
           echo "[refresh] 已对 main 触发一次 CI，期望覆盖的 sha=$REFRESHED_SHA"
           echo "[refresh] 为什么必须补这一脚：GITHUB_TOKEN 的 push 本身不启动 workflow ⇒"
           echo "[refresh] 远端尖端会长期处于「没有回执」态，下次人工推送被 ci-green-contract 判 UNKNOWN 拦下。"
+
+      # 响亮失败腿（一手：run 38483138112 / job 115590281378 实测）。上面闸门把 blind 读数拦在外面是对的，
+      # 但那次跑完整个 job 报的是 **success**：取数步与闸门步都带 continue-on-error，后两步记 skipped
+      # ⇒ `check-cron-health` 会把一个"什么都没刷新的夜更"读成健康，7 天保险丝照样再爆，而这次连报警都没有。
+      # 闸门的"拒"必须是可见的失败，否则这条链越安静，下一次过期红来得越准。
+      # 分档（不许把两档折成一档）：读数逐字节相同（不制造空提交）⇒ 仍算成功；取不到/在册判据仍红 ⇒ 判红。
+      - name: Fail loudly when the gate refused to refresh
+        if: steps.verify.outcome != 'success'
+        run: |
+          echo "::error::[refresh] 在册 verify 腿未全绿 ⇒ 本夜更**没有**刷新任何读数（原文见上一步的 rc 与 A11/U3）。"
+          echo "[refresh] 实测最可能形态：CF 令牌对该账户无 GraphQL 读权限"
+          echo "[refresh]   （run 38483138112 原文：graphql=UNREACHABLE reason=authz not authorized for that account）。"
+          echo "[refresh] 为什么这里不静默：读数无人喂 ⇒ 判据里的「今天」迟早跨线，"
+          echo "[refresh]   而那块红基座又会把下一次人工推送锁死（原病 run 38464977451）。"
+          exit 1

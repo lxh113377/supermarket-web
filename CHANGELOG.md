@@ -20,13 +20,26 @@
   任一不绿则整步跳过、保留上一份新鲜读数；③ 提交后**必须再触发一次 CI** —— GitHub 用
   `GITHUB_TOKEN` 做的 push 不启动 workflow，一个「没有回执」的 bot 尖端会把下一次人工推送判成 UNKNOWN 拦下，
   正是本 job 要消灭的那个形态。
-- **上线当轮就实测出的两处缺陷（本笔修，不静默）**：拿行为回执时（手动 `gh workflow run ci-deep.yml --ref main`
+- **上线当轮就实测出的三处缺陷（本笔修，不静默）**：拿行为回执时（手动 `gh workflow run ci-deep.yml --ref main`
   与推送后的 push 事件各一次）发现——① 那条触发步原本写的是 `--ref <40位SHA>`，实测被 API 拒
   `HTTP 422: No ref found for: 68ddb9a2...`，同一命令换 `--ref main` 立刻建出 run `38481928532` ⇒ 改成按分支名触发
   （刚 push 完 main 就指向我们那笔；若中途有人抢先，上面那次 push 已非快进失败，走不到这一步）；
   ② 该步要走 Actions 的 dispatch 端点，而 permissions 块里只给了 `contents: write` ⇒ 补 `actions: write`。
   官方那页对 dispatch 端点只印了 classic token 的 `repo` scope、没逐字给 `actions:write`，所以这条按端点归属给权，
-  **真回执是"调度后有没有产出一次 CI run"**，不是权限说明本身。
+  **真回执是"调度后有没有产出一次 CI run"**，不是权限说明本身；
+  ③ **闸门拒了而 job 报绿**（run `38483138112` / job `115590281378` 原文）：CI 里 `--write` 取数失败
+  （`graphql=UNREACHABLE｜authz not authorized for that account`）却照样把 `verdict=RED` 的 blind 读数写了盘，
+  随后在册 verify 腿当场判 `rc=1`（A11：登记册写 VERIFIED 而回执推导应为 UNVERIFIED ⇒ 声明落后），
+  `if: steps.verify.outcome == 'success'` 于是把提交步 **skip** 掉——拦截本身正确，但因为前面几步都带
+  `continue-on-error`、后两步记 skipped，**整个 job 结论是 success** ⇒ `check-cron-health` 会把一个
+  "什么都没刷新的夜更"读成健康，7 天保险丝照样再爆而这次连报警都没有。补一条响亮失败腿
+  `if: steps.verify.outcome != 'success'` ⇒ `::error::` + `exit 1`；分档不折叠——读数逐字节相同
+  （不制造空提交）仍算成功，取不到/仍红才算红。
+- **同轮成立的一条正面回执**：设计约束②（blind 写绝不入库）不是只在单测里，上面那次真面跑就是它兑现的现场。
+- **仍欠的外部前提（如实登记，非本仓可自解）**：GitHub 侧 `CLOUDFLARE_API_TOKEN` 对该账户没有
+  GraphQL Analytics 读权限 ⇒ 本机靠 wrangler OAuth 取得到、CI 取不到，夜间 D1 刷新在授权修好前必然报红
+  （现在是**响亮红**，不是静默绿）。补权限要在 Cloudflare 侧给该 token 加「读 / 账户 / 分析 / 仅读取」范围——
+  属第三方账号授权，不由 agent 代做。
   另一条已成立的行为回执：push 事件那次 `deep-gates=success` 而 `receipt-refresh=skipped` ⇒ 前提①（只在
   schedule/dispatch 跑）在真面上生效，不是只在 YAML 里写着。
 - **凭据**：双 YAML `yaml.safe_load` 解析通过（`ci-deep.yml` 现有 jobs = deep-gates, receipt-refresh）；
