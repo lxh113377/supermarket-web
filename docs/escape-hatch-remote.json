@@ -1,7 +1,7 @@
 {
   "schema": "chaoshi-escape-hatch-remote-v1",
   "note": "`node scripts/check-escape-hatch-log.mjs --update-remote` 生成；联网取数（gh api），**永不进阻断链**（网络不通时它会把一次正常提交判红而本地无可自愈处置，户内规⑩）。判决面 = `.ci/contract.json` 的 `workflow` 字段（当前 CI）；别的 workflow 的红只作旁证印出、不进判决（C9 判覆盖：账本有而读数无 = 未覆盖，读数有而账本无 = 死读数；C10 判结论：判决面 RED 且无 `disposition.why` = 待处置）。",
-  "generatedUtc": "2026-10-08T04:24:19.408Z",
+  "generatedUtc": "2026-10-13T20:52:11.908Z",
   "scopeWorkflow": "CI",
   "repository": "https://github.com/lxh113377/supermarket-web.git",
   "rows": [
@@ -388,6 +388,58 @@
       "cancelledRuns": 0,
       "sideRed": [],
       "detail": "#28 head=4349d99 branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
+    },
+    {
+      "id": "R#29",
+      "head": "183ba0ced0242f41ed655c02acd51980336568a5",
+      "state": "CANCELLED",
+      "ok": false,
+      "unverified": true,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 1,
+      "sideRed": [
+        "D1 Daily Backup"
+      ],
+      "detail": "#29 head=183ba0c branch=main｜判决面「CI」1 条：success 0／failure 0／cancelled 1／未结束 0｜**CI 从来没给出结论**（被平台作业上限掐断）⇒ 不算绿也不算红，不据此记谁欠账｜旁证（非判决面）：D1 Daily Backup 红 1 条 —— 与「CI 有没有绿」无关，不计入判决"
+    },
+    {
+      "id": "R#30",
+      "head": "183ba0ced0242f41ed655c02acd51980336568a5",
+      "state": "CANCELLED",
+      "ok": false,
+      "unverified": true,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 1,
+      "sideRed": [
+        "D1 Daily Backup"
+      ],
+      "detail": "#30 head=183ba0c branch=main｜判决面「CI」1 条：success 0／failure 0／cancelled 1／未结束 0｜**CI 从来没给出结论**（被平台作业上限掐断）⇒ 不算绿也不算红，不据此记谁欠账｜旁证（非判决面）：D1 Daily Backup 红 1 条 —— 与「CI 有没有绿」无关，不计入判决"
+    },
+    {
+      "id": "R#31",
+      "head": "4fdb4c91c965230faaa1be9ce92b6a3c582976ac",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#31 head=4fdb4c9 branch=HEAD｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
+    },
+    {
+      "id": "R#32",
+      "head": "4fdb4c91c965230faaa1be9ce92b6a3c582976ac",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#32 head=4fdb4c9 branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
     }
   ]
 }
