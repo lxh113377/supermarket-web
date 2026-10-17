@@ -2,7 +2,7 @@
 
 > 最后更新：2026-10-17（架构：Cloudflare Pages + D1，README 为准；CloudBase 历史记录见文末存档）
 >
-> ✅ **最后实测验证：2026-10-17** —— main@9cdf0dc（第 74 轮：逃生门对偶 + cron 豁免换理由 + 性能重采），CI run 39030653008 `completed/success`（六个必需 job 全 success，含 `deploy=success`），线上 `/_health` 回 `deploy=9cdf0dc` **与本仓 HEAD 逐字相同**；`npm run verify` VERIFY_RC=0、`verify:backend` **204 通过 / 0 失败**、vitest **133 文件**（用例条数以 `npm test` 当场输出为准）；`check-live-shape` 3/3 PASS、漂移 0。复算三通道：`node scripts/ci-status.mjs`（run 终态与部署判定）、`node scripts/check-live-shape.mjs`（线上 sha ⇄ HEAD）、`npm run verify`（本机全链）。**ADMIN_KEY 已回退固定值**：09-05 轮换为随机串后用户拍板恢复 `supermarket-admin-****（掩码；真值见 .dev.vars / Pages secret）`（线上 secret + .dev.vars 同值，login code 0 实测通过）。**事故记录**：5 提交推送触发 CI 自动部署，因 ci.yml 缺 VITE_CB_API_BASE 注入产出未烘焙版（坑 27 复发）→ 已修 ci.yml（两处 Build step 注入 env）并手动部署烘焙版救火。本文档中早于该日期的状态描述若与本戳冲突，**以本戳和磁盘实测为准**。
+> ✅ **最后实测验证：2026-10-17** —— main@9cdf0dc（第 74 轮：逃生门对偶 + cron 豁免换理由 + 性能重采），CI run 39030653008 `completed/success`（六个必需 job 全 success，含 `deploy=success`），线上 `/_health` 回 `deploy=9cdf0dc` **与本仓 HEAD 逐字相同**；`npm run verify` VERIFY_RC=0、`verify:backend` **204 通过 / 0 失败**、vitest **136 文件**（用例条数以 `npm test` 当场输出为准）；`check-live-shape` 3/3 PASS、漂移 0。复算三通道：`node scripts/ci-status.mjs`（run 终态与部署判定）、`node scripts/check-live-shape.mjs`（线上 sha ⇄ HEAD）、`npm run verify`（本机全链）。**ADMIN_KEY 已回退固定值**：09-05 轮换为随机串后用户拍板恢复 `supermarket-admin-****（掩码；真值见 .dev.vars / Pages secret）`（线上 secret + .dev.vars 同值，login code 0 实测通过）。**事故记录**：5 提交推送触发 CI 自动部署，因 ci.yml 缺 VITE_CB_API_BASE 注入产出未烘焙版（坑 27 复发）→ 已修 ci.yml（两处 Build step 注入 env）并手动部署烘焙版救火。本文档中早于该日期的状态描述若与本戳冲突，**以本戳和磁盘实测为准**。
 
 ## 一、项目概述
 
@@ -25,7 +25,7 @@
 | 数据库  | D1（SQLite，7 表）+ Workers KV（限流计数）                              |
 | 双前端  | Cloudflare Pages（同源）/ GitHub Pages（dispatch CI 双发）            |
 | Lint | oxlint                                                        |
-| 测试   | vitest（133 文件；**用例条数以 `npm test` 当场输出为准，本文不写死**——写死即第二真相源，此处原记的 631/126 已落后十余轮）+ `scripts/verify-backend.mjs`（断言数以 `npm run verify:backend` 当场输出为准，原记 102 已过期）+ Playwright 三层（`tests/e2e` 演示模式 / `tests/e2e-visual` 生产构建几何 / `tests/e2e-stub` 云端模式真渲染，条数以各自命令输出为准） |
+| 测试   | vitest（136 文件；**用例条数以 `npm test` 当场输出为准，本文不写死**——写死即第二真相源，此处原记的 631/126 已落后十余轮）+ `scripts/verify-backend.mjs`（断言数以 `npm run verify:backend` 当场输出为准，原记 102 已过期）+ Playwright 三层（`tests/e2e` 演示模式 / `tests/e2e-visual` 生产构建几何 / `tests/e2e-stub` 云端模式真渲染，条数以各自命令输出为准） |
 
 ## 三、项目结构
 
@@ -53,7 +53,7 @@ supermarket-web/
 │   ├── utils/              # businessHours / reviewImages（评价图压缩+base64）
 │   ├── components/         # UI 组件（含管理端 InlineEditForm 内联编辑）
 │   └── pages/              # 顾客端 + 管理端页面
-├── tests/                  # vitest 单测（133 文件；用例条数以 `npm test` 当场输出为准）
+├── tests/                  # vitest 单测（136 文件；用例条数以 `npm test` 当场输出为准）
 ├── public/                 # 商品图 webp + sm/ 小图、sw.js、manifest、收款码
 ├── .github/workflows/      # ci.yml（门禁）+ dispatch.yml（github.io 双发）
 ├── wrangler.toml           # Pages 构建输出 + D1/KV 绑定

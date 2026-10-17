@@ -51,7 +51,7 @@ describe('现网性能读数腿：按 页面×批次 分组，判产物面与立
   it('判据自证 21/21（含零输入两档、三态分列、立线条件成对、时效成对）', () => {
     const r = cli(['--selftest'])
     expect(r.status, r.stdout + r.stderr).toBe(0)
-    expect(r.stdout).toContain('[report:live-perf] 自证 21/21')
+    expect(r.stdout).toContain('[report:live-perf] 自证 25/25')
   })
 
   it('合成面：两份齐全样本 ⇒ GREEN 且把 4.5× 这种倍差印出来（单样本会把它藏掉）', () => {
@@ -220,6 +220,42 @@ describe('现网性能读数腿：按 页面×批次 分组，判产物面与立
     expect(Number(rosterReal.cadence?.maxBatchAgeDays), '取数节奏没声明 ⇒ 时效腿永不可达').toBeGreaterThan(0)
     expect(rosterReal.sampling.command).toBe('npm run collect:live-perf')
     const r = cli(['--selftest'])
-    expect(r.stdout).toContain('[report:live-perf] 自证 21/21')
+    expect(r.stdout).toContain('[report:live-perf] 自证 25/25')
+  })
+
+  // ── 第七十五轮 I-75-2：阈值消费面 ────────────────────────────────────────────
+  // 一刀切的位置很有讲究：线**写在名册里**（人写的值）与线**被判据消费**（机器行为）是两件事。
+  // 上一版只测了前者（"名册里有 3000 这个数"），于是"写了但没人读"这种形态全绿 —— 那正是本轮治的病。
+  it('I-75-2 阈值必须被消费（正向）：把名册阈值压到实测之下 ⇒ 判红且具名超线的那一格', () => {
+    const d = tmp()
+    const rp = join(d, 'roster.json')
+    writeFileSync(rp, JSON.stringify({
+      pages: [{ tag: 'admin', expectUrlIncludes: 'pages.dev', minSamples: 2 }],
+      thresholds: { 'first-contentful-paint': { max: 1000 } },
+    }), 'utf8')
+    writeFileSync(join(d, 'admin-s1.json'), lh(), 'utf8')
+    writeFileSync(join(d, 'admin-s2.json'), lh(), 'utf8')
+    const r = cli(['--dir', d, '--roster', rp])
+    expect(r.status, r.stdout).toBe(1)
+    expect(r.stdout).toContain('达标判定=RED')
+    expect(r.stdout).toContain('first-contentful-paint 中位 1500 > 线上限 1000')
+    // 缺线的格不许装作"没超"：五个指标没写上限 ⇒ 未验证 5，绝不是 GREEN
+    expect(r.stdout).toContain('未验证 5')
+  })
+
+  it('I-75-2 阈值反向腿（成对）：同一份样本把线上抬到 3000 ⇒ 同一格必须翻成 ✓，证明上一条不是写死的红', () => {
+    const d = tmp()
+    const rp = join(d, 'roster.json')
+    const max = { 'first-contentful-paint': 3000, 'largest-contentful-paint': 4500, 'cumulative-layout-shift': 0.1, 'total-blocking-time': 450, 'speed-index': 7000, 'server-response-time': 450 }
+    writeFileSync(rp, JSON.stringify({
+      pages: [{ tag: 'admin', expectUrlIncludes: 'pages.dev', minSamples: 2 }],
+      thresholds: Object.fromEntries(Object.entries(max).map(([k, v]) => [k, { max: v }])),
+    }), 'utf8')
+    writeFileSync(join(d, 'admin-s1.json'), lh(), 'utf8')
+    writeFileSync(join(d, 'admin-s2.json'), lh(), 'utf8')
+    const r = cli(['--dir', d, '--roster', rp])
+    expect(r.status, r.stdout).toBe(0)
+    expect(r.stdout).toContain('达标判定=GREEN')
+    expect(r.stdout).toContain('已判 6｜超线 0｜未验证 0')
   })
 })

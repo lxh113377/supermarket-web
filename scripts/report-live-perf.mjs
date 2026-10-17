@@ -24,7 +24,11 @@
  *          同一标签页的最终 URL 一致、每批样本数 ≥ 名册 `minSamples`）
  *   ✅ 判：分布形状（中位数 / 极值 / 倍差），并**按 页面×批次 分组**（跨批次混在一起算中位数会把手法漂移洗成"稳定"）
  *   ✅ 判：立线条件成立与否（两侧分布 + 日期差），但**不立线**——`thresholds` 仍由人写进名册
- *   ❌ 不判：达标线本身。立阈值要两侧边界值实测依据（户内 M4：阈值必须能失败）
+ *   ✅ 判：名册 thresholds 的**消费**（第七十五轮 I-75-2）—— 逐 页面×批次 中位数与线上限比对，
+ *          越线具名判红；阈值缺某指标记 UNVERIFIED 并点名。此前本件明写"不判达标线"，
+ *          那在"线还没值"时是对的，线一旦写下就变成户内 M4 的失效形态：
+ *          **一条不会失败的阈值不是阈值，只是一段注释**。
+ *   ❌ 不判：线该不该是这个值（阈值的取值法仍由人写进名册，见 thresholdNote）
  *   ❌ 不进 CI：判据不联网（联网腿在 runner 上不可复现）。取数由 `scripts/collect-live-perf.mjs` 在人这一侧跑。
  *
  * 用法：node scripts/report-live-perf.mjs [--dir .lighthouse] [--roster docs/live-perf.json] [--selftest] [--json]
@@ -196,6 +200,49 @@ export function evaluate({ samples, roster, now }) {
   }
 
   const budget = budgetReadiness(out, roster, notes)
+  // ── 达标判定（第七十五轮 I-75-2）────────────────────────────────────────────
+  // 一手欠账：R58-H1 立线之后，"线"只在名册里，**没有任何判据消费它** —— 本件原先明写
+  // 「❌ 不判：达标线本身」。那是立线当时的合理取舍（线还没值），但线一旦写下，不消费它
+  // 就等于户内 M4 那条：**一条不会失败的阈值不是阈值，只是一段注释**。
+  // 所以现在：① 名册声明了 thresholds ⇒ 逐 页面×批次 的中位数与之比对，越线具名判红；
+  // ② 阈值缺某个指标 ⇒ 该格记 UNVERIFIED 并点名（沉默的格 = 假通过）；
+  // ③ 名册没写 thresholds ⇒ 仍不判达标（"没有线"与"线被满足"是两件事，含糊即是假绿）。
+  const thresholds = roster.thresholds && typeof roster.thresholds === 'object' ? roster.thresholds : null
+  const checks = []
+  if (thresholds) {
+    for (const g of out) {
+      if (!g.metrics.length) continue
+      const page = roster.pages.find((p) => p.tag === g.page) || {}
+      // 样本不足的批次已在上方判红；达标判定只对"够一次分布"的批次说话（单样本不是分布）
+      if (g.n < (page.minSamples || 1)) continue
+      for (const m of g.metrics) {
+        const raw = thresholds[m.metric]
+        const max = raw && Number(raw.max)
+        if (!Number.isFinite(max) || max <= 0) {
+          checks.push({ key: g.key, metric: m.metric, median: m.median, max: null, over: null, n: m.n })
+          problems.push(`达标：${g.key}/${m.metric} 名册没有可用的上限（thresholds.${m.metric}.max）⇒ 该格 UNVERIFIED，不得读成"没超"`)
+          continue
+        }
+        const over = m.median > max
+        checks.push({ key: g.key, metric: m.metric, median: m.median, max, over, n: m.n })
+        if (over) problems.push(`达标：${g.key}/${m.metric} 中位 ${m.median} > 线上限 ${max}（超 ${round(((m.median - max) / max) * 100, 1)}%，样本 ${m.n}）`)
+      }
+    }
+  } else {
+    notes.push('达标：名册未写 thresholds ⇒ 本件不判达标（"没有线"不等于"线被满足"）')
+  }
+  const judged = checks.filter((c) => c.over !== null)
+  const violations = judged.filter((c) => c.over)
+  // 四态，且"部分格没线"不许读成 GREEN：GREEN 的前提是**每一格都被判过**
+  const unverifiedCells = checks.filter((c) => c.over === null).length
+  const thresholdVerdict = !thresholds
+    ? { state: 'NO-LINE', judged: 0, violations: 0, unverified: 0 }
+    : {
+        state: violations.length ? 'RED'
+          : unverifiedCells ? 'PARTIAL'
+            : judged.length ? 'GREEN' : 'UNVERIFIED',
+        judged: judged.length, violations: violations.length, unverified: unverifiedCells,
+      }
   // 取数节奏（R56-H3 的机器面）：这条腿最大的风险不是判错，是**没人喂**。
   // 名册声明 `cadence.maxBatchAgeDays` ⇒ 判据按"最新完整批次距今天数"对比上限，越界就具名报红；
   // 没声明 ⇒ 只报"时效不判"，绝不把"没声明"读成"不会过期"（户内「能力位须有行为回执」同族）。
@@ -213,7 +260,7 @@ export function evaluate({ samples, roster, now }) {
     notes.push('时效：名册未声明 cadence.maxBatchAgeDays ⇒ 本件不判样本新鲜度（"没声明"不等于"不会过期"）')
   }
   const rc = problems.length ? 1 : 0
-  return { rc, groups: out, problems, notes, unreadable: stats.artifact, notMeasured: stats.notMeasured, kept: stats.kept, budget, staleness }
+  return { rc, groups: out, problems, notes, unreadable: stats.artifact, notMeasured: stats.notMeasured, kept: stats.kept, budget, staleness, checks, thresholdVerdict }
 }
 
 /**
@@ -389,6 +436,24 @@ function selftest() {
     ['㉑ 反向腿：名册没声明 cadence ⇒ 明说"不判新鲜度"，不许把没声明当成不会过期',
       { samples: { 'admin-s1.json': mk(), 'admin-s2.json': mk() }, roster, now: '2027-01-01T00:00:00Z' },
       (r) => r.rc === 0 && r.staleness === null && r.notes.some((x) => x.includes('未声明 cadence'))],
+    // ── 第七十五轮 I-75-2：阈值消费面（此前本件明写"不判达标线" ⇒ 一条不会失败的阈值）──
+    ['㉒ 阈值消费（正例）：名册写了 3000 而实测中位 1500 ⇒ 达标判定 GREEN 且逐格印出"✓"',
+      { samples: { 'admin-s1.json': mk(), 'admin-s2.json': mk() }, roster: { ...roster, thresholds: { 'first-contentful-paint': { max: 3000 }, 'largest-contentful-paint': { max: 4500 }, 'cumulative-layout-shift': { max: 0.1 }, 'total-blocking-time': { max: 450 }, 'speed-index': { max: 7000 }, 'server-response-time': { max: 450 } } } },
+      (r) => r.rc === 0 && r.thresholdVerdict.state === 'GREEN' && r.thresholdVerdict.judged === 6 && r.thresholdVerdict.violations === 0
+        && r.checks.filter((c) => c.over === false).length === 6],
+    ['㉓ 阈值消费（反例，证明它真有牙）：把 FCP 线上调到 1000 而实测中位 1500 ⇒ 判红并具名"超线"',
+      { samples: { 'admin-s1.json': mk(), 'admin-s2.json': mk() }, roster: { ...roster, thresholds: { 'first-contentful-paint': { max: 1000 }, 'largest-contentful-paint': { max: 4500 }, 'cumulative-layout-shift': { max: 0.1 }, 'total-blocking-time': { max: 450 }, 'speed-index': { max: 7000 }, 'server-response-time': { max: 450 } } } },
+      (r) => r.rc === 1 && r.thresholdVerdict.state === 'RED' && r.thresholdVerdict.violations === 1
+        && r.problems.some((p) => p.includes('达标：admin/base/first-contentful-paint') && p.includes('超'))],
+    ['㉔ 阈值缺失（沉默的格 = 假通过）：thresholds 少写一个指标 ⇒ 该格 UNVERIFIED 并点名，不许读成"没超"',
+      { samples: { 'admin-s1.json': mk(), 'admin-s2.json': mk() }, roster: { ...roster, thresholds: { 'first-contentful-paint': { max: 3000 } } } },
+      // 判据语义定死：**有格没线 ⇒ PARTIAL，不许读成 GREEN**（GREEN 的前提是每格都被判过）
+      (r) => r.thresholdVerdict.state === 'PARTIAL' && r.thresholdVerdict.unverified === 5 && r.thresholdVerdict.judged === 1
+        && r.problems.some((p) => p.includes('名册没有可用的上限'))],
+    ['㉕ 反向腿：名册没写 thresholds ⇒ NO-LINE 且不得凭"没写线"判红/判绿（没有线 ≠ 线被满足）',
+      { samples: { 'admin-s1.json': mk(), 'admin-s2.json': mk() }, roster },
+      (r) => r.rc === 0 && r.thresholdVerdict.state === 'NO-LINE' && r.thresholdVerdict.judged === 0
+        && r.notes.some((x) => x.includes('未写 thresholds'))],
   ]
   let bad = 0
   for (const [name, input, check] of cases) {
@@ -437,7 +502,7 @@ function main(argv = process.argv.slice(2)) {
   const r = evaluate({ samples, roster, now: new Date().toISOString() })
   if (r.rc === 2) { console.log(`[report:live-perf] UNVERIFIED ${r.why}`); return 2 }
   if (argv.includes('--json')) {
-    console.log(JSON.stringify({ rc: r.rc, groups: r.groups, budget: r.budget, staleness: r.staleness, problems: r.problems, notes: r.notes, unreadable: r.unreadable, notMeasured: r.notMeasured, kept: r.kept, skipped }, null, 2))
+    console.log(JSON.stringify({ rc: r.rc, groups: r.groups, budget: r.budget, staleness: r.staleness, thresholdVerdict: r.thresholdVerdict, checks: r.checks, problems: r.problems, notes: r.notes, unreadable: r.unreadable, notMeasured: r.notMeasured, kept: r.kept, skipped }, null, 2))
     return r.rc
   }
   for (const g of r.groups) {
@@ -446,6 +511,13 @@ function main(argv = process.argv.slice(2)) {
   }
   console.log('BUDGET（立线条件由本件现算，不由人记得）')
   for (const l of fmtBudget(r.budget)) console.log(l)
+  // 达标面（I-75-2）：线写进名册之后必须有人消费它，否则阈值只是一段注释
+  console.log(`THRESHOLD（名册 thresholds 消费面：${r.thresholdVerdict.state}）`)
+  for (const c of r.checks) {
+    const t = c.max == null ? '（无名册上限 ⇒ UNVERIFIED）' : `≤ ${c.max}${c.over ? ' ❌ 超线' : ' ✓'}`
+    console.log(`  ${c.key.padEnd(20)} ${c.metric.padEnd(24)} 中位 ${String(c.median).padStart(8)}｜${t}`)
+  }
+  console.log(`  达标判定=${r.thresholdVerdict.state}｜已判 ${r.thresholdVerdict.judged}｜超线 ${r.thresholdVerdict.violations}｜未验证 ${r.thresholdVerdict.unverified}`)
   if (r.staleness) console.log(`  时效：上限 ${r.staleness.cap} 天｜最新完整批次 ${r.staleness.newest || '(一个都没有)'}｜今日 ${r.staleness.today}｜距今 ${r.staleness.age ?? '(算不出)'}`)
   for (const n of r.notes) console.log(`NOTE  ${n}`)
   if (skipped.length) console.log(`NOTE  ${dir} 里 ${skipped.length} 个 .json 不是样本命名（\`<page>[-<batch>]-s<n>.json\`），已跳过并点名：${skipped.join(', ')}`)
@@ -468,7 +540,7 @@ function main(argv = process.argv.slice(2)) {
   const qNote = qn
     ? `｜**已隔离 ${qn} 件未采到（网络类，不折进基线、不等于"慢"）**，故「未采到 ${r.notMeasured}」为零不等于全部采到 ⇒ 复原见 node scripts/quarantine-unreached-perf.mjs --restore`
     : '｜隔离区 0 件'
-  console.log(`[report:live-perf] verdict=${(r.rc || !closed) ? 'RED' : 'GREEN'} rc=${r.rc || (closed ? 0 : 1)}｜名册 ${roster.pages.length} 页｜批次组 ${complete}/${r.groups.length} 完整｜入统计 ${s}／未采到 ${r.notMeasured}／产物不符 ${r.unreadable}／文件 ${files.length}（恒等式 ${closed ? '✓' : '✗'}）${qNote}｜总恒等式 ${qClosed ? '✓' : '✗'}｜达标线=${line}`)
+  console.log(`[report:live-perf] verdict=${(r.rc || !closed) ? 'RED' : 'GREEN'} rc=${r.rc || (closed ? 0 : 1)}｜名册 ${roster.pages.length} 页｜批次组 ${complete}/${r.groups.length} 完整｜入统计 ${s}／未采到 ${r.notMeasured}／产物不符 ${r.unreadable}／文件 ${files.length}（恒等式 ${closed ? '✓' : '✗'}）${qNote}｜总恒等式 ${qClosed ? '✓' : '✗'}｜达标线=${line}｜达标判定=${r.thresholdVerdict.state}`)
   return r.rc || (closed ? 0 : 1)
 }
 

@@ -86,6 +86,24 @@ jobs:
       - name: Static HTML CSP gate (no dead inline styles)
         run: npm run verify:csp
 
+      # 第七十五轮 I-75-3：缓存语义此前**没有任何判据**（CSP 有、体积有、缓存只有散文）。
+      # 一手读数：线上 /assets/*.js 回 max-age=0 ⇒ 带 hash 的产物每次导航都回源复验。
+      - name: Cache semantics gate (public/_headers)
+        run: npm run verify:cache
+
+      # 第七十五轮 I-75-4：供应链清单（SBOM）。此前只有 audit（漏洞）与 licenses（许可）两个视角，
+      # 缺「这坨发布物由哪些组件组成」的第三视角。判据当场重算依赖面与在册件做双向差集 ⇒
+      # 改依赖不更新清单会红；在册件龄期 >30 天也红（过期的是证据）。
+      # 不进本机 verify 链的**阻断面**之外另说：它已进 verify 聚合链（本地权威面），CI 这条是对等镜像。
+      - name: SBOM reproducibility gate (docs/sbom.cdx.json)
+        run: npm run verify:sbom
+
+      # 第七十五轮 I-75-5：可访问性静态面（img/alt、input 可访问名字、可点击元素语义）。
+      # 与 visual job 的分工写在 scripts/lib/a11y-rules.mjs 头注释：静态看得见"写法"，
+      # 浏览器判据看得见"渲染后能不能聚焦/可见"，两边不互相替代。
+      - name: Accessibility static gate
+        run: npm run verify:a11y
+
       # 第四十八轮 R48-H1：`verify:images` 此前既不在 verify 链也不在 CI（workflows 引用 0 处），
       # 而且它的 `main()` 从不 sys.exit ⇒ **缺图也 rc=0**。本轮同时补退出码与接线；
       # 接线的唯一命令形态仍是 `npm run verify:images`（别名只有一处真相源），

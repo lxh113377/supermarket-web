@@ -1,7 +1,7 @@
 {
-  "measuredAt": "2026-10-17T08:07:49.249Z",
+  "measuredAt": "2026-10-17T13:36:28.697Z",
   "windowDays": 30,
-  "since": "2026-09-17T08:05:42Z",
+  "since": "2026-09-17T13:34:16Z",
   "mode": "live",
   "self": "lxh113377/supermarket-web",
   "kinds": {
@@ -21,9 +21,9 @@
       "repo": "lxh113377/supermarket-web",
       "stars": 0,
       "openRefs": 8,
-      "pushedAt": "2026-10-16T10:34:32Z",
+      "pushedAt": "2026-10-17T12:59:46Z",
       "archived": false,
-      "commitsInWindow": 271,
+      "commitsInWindow": 274,
       "contributors": 2,
       "latestRelease": null,
       "unavailable": [
@@ -34,14 +34,15 @@
     },
     {
       "repo": "macrozheng/mall",
-      "stars": 84914,
-      "openRefs": 48,
-      "pushedAt": "2026-09-15T02:34:44Z",
-      "archived": false,
+      "stars": null,
+      "openRefs": null,
+      "pushedAt": null,
+      "archived": null,
       "commitsInWindow": 0,
       "contributors": null,
       "latestRelease": "v1.0.3@2024-03-01T08:21:50Z",
       "unavailable": [
+        "repo-meta(Get \"https://api.github.com/repos/macrozheng/mall\": EOF)",
         "contributors(无 last 页头)"
       ],
       "status": "PARTIAL",
@@ -49,11 +50,11 @@
     },
     {
       "repo": "medusajs/medusa",
-      "stars": 36772,
-      "openRefs": 252,
-      "pushedAt": "2026-10-17T07:51:03Z",
+      "stars": 36778,
+      "openRefs": 255,
+      "pushedAt": "2026-10-17T10:23:09Z",
       "archived": false,
-      "commitsInWindow": 171,
+      "commitsInWindow": 166,
       "contributors": 456,
       "latestRelease": "v2.21.2@2026-09-28T10:08:32Z",
       "unavailable": [],
@@ -63,7 +64,7 @@
     {
       "repo": "linlinjava/litemall",
       "stars": 20389,
-      "openRefs": 59,
+      "openRefs": 60,
       "pushedAt": "2026-08-20T00:43:07Z",
       "archived": false,
       "commitsInWindow": 0,
@@ -83,7 +84,7 @@
       "contributors": null,
       "latestRelease": null,
       "unavailable": [
-        "contributors(Get \"https://api.github.com/repos/jgudo/ecommerce-react/contributors?per_page=1\": EOF)",
+        "contributors(无 last 页头)",
         "release(gh: Not Found (HTTP 404))"
       ],
       "status": "PARTIAL",
@@ -91,7 +92,7 @@
     },
     {
       "repo": "saleor/saleor",
-      "stars": 23445,
+      "stars": 23448,
       "openRefs": 292,
       "pushedAt": "2026-10-16T14:04:06Z",
       "archived": false,
@@ -104,11 +105,11 @@
     },
     {
       "repo": "frappe/erpnext",
-      "stars": 40260,
-      "openRefs": 1465,
-      "pushedAt": "2026-10-17T08:04:33Z",
+      "stars": 40265,
+      "openRefs": 1459,
+      "pushedAt": "2026-10-17T13:33:59Z",
       "archived": false,
-      "commitsInWindow": 2153,
+      "commitsInWindow": 2181,
       "contributors": 279,
       "latestRelease": "v16.51.1@2026-10-15T17:09:25Z",
       "unavailable": [],
@@ -117,9 +118,9 @@
     },
     {
       "repo": "inventree/InvenTree",
-      "stars": 7720,
+      "stars": 7723,
       "openRefs": 149,
-      "pushedAt": "2026-10-17T06:26:46Z",
+      "pushedAt": "2026-10-17T10:48:30Z",
       "archived": false,
       "commitsInWindow": 116,
       "contributors": 175,

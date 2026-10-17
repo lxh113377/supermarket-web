@@ -98,6 +98,7 @@ export default function Overlay({
     <div
       className="fixed inset-0 z-[80] flex items-center justify-center p-4"
       onClick={closeOnBackdrop ? onClose : undefined}
+      role="presentation"
     >
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" aria-hidden="true" />
       <div

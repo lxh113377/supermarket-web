@@ -15,3 +15,24 @@
 /images/*
   Cache-Control: public, max-age=600, stale-while-revalidate=86400
 
+# ── 长缓存面（第七十五轮 I-75-3）────────────────────────────────────────────────
+# 一手读数（@2026-10-17 实测，改前）：线上 /assets/AdminPage-B6sCkBCL.js 回
+#   Cache-Control: public, max-age=0, must-revalidate
+# 也就是**带内容 hash 的产物仍然每次都要回源复验**。Cloudflare Pages 默认就是这样，
+# 它安全但把"文件名即内容指纹"这个唯一的强缓存资格浪费了：这类 URL 一旦内容变，
+# 文件名一定变 ⇒ 让浏览器直接吃缓存不会读到旧内容，而重复访问的首屏请求数因此归零。
+#
+# 严格限定在 /assets/* 而不是"所有 js/css"：index.html 引用的入口是带 hash 的
+# assets/*.js，而 public/ 下**不带 hash** 的副本（favicon / icon-*.png / share-card.jpg）
+# 一律不在此面 —— 它们同名可能换内容，套长缓存就是"换了图用户看不见"。
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# 入口 HTML 与 SW 必须**每次回源**：SW 更新检查与 index.html 的 hash 引用都靠这一条。
+# （Cloudflare Pages 默认已给 max-age=0, must-revalidate；这里显式写出来是给判据当"声明面"用：
+#  判据把本文件的声明与实际缓存语义双向对账，而不是靠"平台默认应该是这样"。）
+/sw.js
+  Cache-Control: public, max-age=0, must-revalidate
+
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate

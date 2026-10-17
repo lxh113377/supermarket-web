@@ -4,6 +4,43 @@
 
 ## [未发布]
 
+### 2026-10-17 第七十五轮：四项工程改造 —— 阈值消费 / 静态长缓存 / SBOM 可复现 / a11y 静态闸，外加分支保护真落地
+
+- **I-75-1（高）分支保护从「agent 无权」变成「已启用」**：前七轮报告把 `NOT_ENFORCED` 记成「需要老大在 GitHub 侧配置」。
+  本轮实测推翻：本机 `gh` token 的 `X-Oauth-Scopes` 含 `repo` + `admin:org`，仓库 `permissions.admin=true` ⇒
+  `PUT /branches/main/protection` 一次成功（`--input` 必须是**绝对路径**，相对路径在本机会 `EOF`）。
+  现读数：经典 protection **ENFORCED**，必需检查 5 条（gates / browser-install / e2e / e2e-cloud-stub / visual），
+  `enforce_admins=false`（保留自推能力，不把自己锁死）、`required_linear_history=true`、禁 force-push / 禁删分支。
+  复算：`node scripts/check-branch-protection.mjs` ⇒ ENFORCED。
+- **I-75-2（高）性能维阈值从「只写线」到「会判达标」**：`report-live-perf` 自 R58 立线起明写「不判：达标线本身」，
+  于是名册里那六条线上限**没有任何消费者** —— 户内 M4 的失效形态（一条不会失败的阈值不是阈值，只是注释）。
+  本轮把消费面接上：逐 页面×批次 中位数与线上限比对，越线具名判红；缺线的格记 UNVERIFIED；四态
+  `RED/GREEN/PARTIAL/NO-LINE`（GREEN 的前提是**每格都被判过**，有格缺线只算 PARTIAL）。
+  自证 21→25 条（新增四条，含一条「把线压到实测之下必须翻红」的反例与一条反向腿）。
+  首次消费当场吐出两格越线读数（admin/t1355 speed-index 8104.8>7000、customer/t2359 SRT 468>450），
+  按既有口径「单样本不足以定基线」记为**待观察**而不是回归定性。
+- **I-75-3（高）带 hash 的静态产物改成真长缓存 + 立判据**：实测线上 `/assets/AdminPage-*.js` 回
+  `Cache-Control: public, max-age=0, must-revalidate` —— 与「文件名即内容指纹」这个唯一的强缓存资格矛盾。
+  `public/_headers` 新增 `/assets/*` ⇒ `max-age=31536000, immutable`（严格限定带 hash 面；`/images/*` 保持
+  短缓存 + 后台复验、`/sw.js` 与 `/index.html` 显式 must-revalidate）。
+  新增 `npm run verify:cache`（`scripts/check-cache-headers.mjs`，7 条自证 + 7 条夹具）：判据读**声明面**
+  而不是线上（线上是否照做属部署回执，两类事实混进一条闸会得到「部署晚了就红」的不可自愈门禁）。
+- **I-75-4（中）供应链清单（SBOM）可复现登记**：此前只有 audit（漏洞）与 licenses（许可）两个视角，
+  缺「这坨发布物由哪些组件组成」的第三视角。`npm run gen:sbom` 用 npm 内置 `npm sbom --sbom-format cyclonedx`
+  生成 `docs/sbom.cdx.json`（246 组件）；`npm run verify:sbom` 当场重新生成并与在册件做 purl 集合双向差集
+  ⇒ 改依赖不更新清单会红、删除没跟上也会红；在册件龄期 >30 天同样红（过期的是证据）。
+  判据自证 8/8，夹具 9 条（含两条注入腿、一条反向腿、一条变异体）。
+- **I-75-5（中）可访问性静态闸**：源码 50 个 tsx 此前只有浏览器里的几何/对比度/焦点环判据，
+  「控件有没有可访问名字」这一整类无人守。新增 `scripts/lib/a11y-rules.mjs`（三条规则：img 必带 alt、
+  可见 input 必有可访问名字、可点击 div/span 必须有 role/tabIndex/onKeyDown）+ `npm run verify:a11y`。
+  **规则先被自己的假阳性咬了一口**：首版用 `indexOf('>')` 截 JSX 标签，把 `aria-label={…}` 从中间截断 ⇒
+  4 处**正确**写法被报成违规；改用括号配对的 `readJsxTag` 后降到 1 处，那一处是真实的
+  `Overlay` 遮罩（无名字的可点击 div）⇒ **改源码**加 `role="presentation"`（键盘等价路径 Escape 已存在），
+  不是加白名单消音。最终读数：扫 50 个 tsx、违规 0。判据自证 8/8，夹具 11 条。
+- **凭据**：`npm run verify` ⇒ VERIFY_RC=0；`verify:cache` GATE-PASS 4 条声明；`verify:sbom` GATE-PASS
+  （在册 246 / 同一项 246 / 只在当次 0 / 只在册 0 / 龄期 0d）；`verify:a11y` GATE-PASS（50 tsx / 0 违规）；
+  `report:live-perf` 自证 25/25。
+
 ### 2026-10-17 第七十四轮：还清第 73 轮立下的下一轮 P0 —— 逃生门不再计量 no-op / cron 豁免按新根因换理由 / 性能维重采
 
 - **I-74-1（高）`ci-green-contract.mjs` 逃生门对偶**：`local_sha == remote_sha`（无可推之物）时打 `SKIP :: 无可推之物` 且**不落台账**。

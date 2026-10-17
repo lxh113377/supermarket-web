@@ -25,15 +25,27 @@
     "carrier": "npm run collect:live-perf -- --run（预飞按域名取状态码 + 批次名防覆写 + 产物当场自证；**不加 --run 只出计划**——裸调用实测会打全量这件事本轮真发生过：改前 rc=1/219s、改后 rc=0/0.07s）。不进 CI：联网、浏览器、本机可达性在 runner 上不可复现，且会把「本机到那个域名不通」洗成「站点慢」——本轮顾客端 d2 批次 3/3 NO_FCP 而同刻 curl github.io=000 就是这条。"
   },
   "thresholds": {
-    "first-contentful-paint": { "max": 3000 },
-    "largest-contentful-paint": { "max": 4500 },
-    "cumulative-layout-shift": { "max": 0.1 },
-    "total-blocking-time": { "max": 450 },
-    "speed-index": { "max": 7000 },
-    "server-response-time": { "max": 450 }
+    "first-contentful-paint": {
+      "max": 3000
+    },
+    "largest-contentful-paint": {
+      "max": 4500
+    },
+    "cumulative-layout-shift": {
+      "max": 0.1
+    },
+    "total-blocking-time": {
+      "max": 450
+    },
+    "speed-index": {
+      "max": 7000
+    },
+    "server-response-time": {
+      "max": 450
+    }
   },
-  "thresholdNote": "**已立线（2026-10-01，R58-H1 收尾）**：立线条件由判据现算成立（admin/customer 两侧 `2026-09-29 vs 2026-09-30` 差 1 天，批次 t1910 fetchTime `2026-09-30T19:1xZ`）。取值法＝**各指标历史批次中位数最大值 × 余量后向上取整**：FCP 取 1935.4（admin/d2）×1.5 → 3000；LCP 取 2761.7（admin/d2）×1.5 → 4500；SI 取 4605.8（admin/base）×1.5 → 7000；SRT 取 272（customer/base）×1.5 → 450；TBT 取 201.5（admin/base）×**2** → 450（唯独它取 ×2：跨日偏移 100%（201.5→0），×1.5 包不住复发）；CLS 全样本恒 0，取 web.dev good 线 0.1（判据只对批次中位数，不对单样本：base 批 SI 单样本 20706 这类离群不进线，否则线无意义；同理 TBT 下界为 0 的批只报极值）。\n\n残留诚实声明：① 名册阈值是**扁平按指标**（两页共用 worst 侧），不分页；② customer 仍有 d2/d3/t1041 三批未采到（github.io 本机不通时段）⇒ verdict 仍 RED，但含义已从「未立线」变为「线已立＋部分批次缺失」；③ 「日」取 fetchTime UTC 日期（本地 08:00 后采才是新的一天，R56–R58 三轮同一教训）。",
-  "verdictNote": "verdict=RED 不等于「站点退化」，也**不在任何阻断链里**：它此刻说的是「这一维还不能定线」。判据把「入统计 / 未采到 / 产物不符」三态分列，未采到的 7 份全部是 customer 在 github.io 本机不通时留下的 `NO_FCP + about:blank`（R55 一手：curl github.io=000 而同刻 pages.dev=200）——网络类缺失不得折进基线，也不得折算成「顾客端很慢」。",
+  "thresholdNote": "**已立线（2026-10-01，R58-H1 收尾）**：立线条件由判据现算成立（admin/customer 两侧 `2026-09-29 vs 2026-09-30` 差 1 天，批次 t1910 fetchTime `2026-09-30T19:1xZ`）。取值法＝**各指标历史批次中位数最大值 × 余量后向上取整**：FCP 取 1935.4（admin/d2）×1.5 → 3000；LCP 取 2761.7（admin/d2）×1.5 → 4500；SI 取 4605.8（admin/base）×1.5 → 7000；SRT 取 272（customer/base）×1.5 → 450；TBT 取 201.5（admin/base）×**2** → 450（唯独它取 ×2：跨日偏移 100%（201.5→0），×1.5 包不住复发）；CLS 全样本恒 0，取 web.dev good 线 0.1（判据只对批次中位数，不对单样本：base 批 SI 单样本 20706 这类离群不进线，否则线无意义；同理 TBT 下界为 0 的批只报极值）。\n\n残留诚实声明：① 名册阈值是**扁平按指标**（两页共用 worst 侧），不分页；② customer 仍有 d2/d3/t1041 三批未采到（github.io 本机不通时段）⇒ verdict 仍 RED，但含义已从「未立线」变为「线已立＋部分批次缺失」；③ 「日」取 fetchTime UTC 日期（本地 08:00 后采才是新的一天，R56–R58 三轮同一教训）。\n\n第七十五轮（2026-10-17）复核：① 立线前提仍在（跨日两批仍在册，判据 BUDGET 段现算）；② 本件此前只写线、不消费线 —— 门禁明写「❌ 不判：达标线本身」，那在线还没值时成立，线一写下就变成户内 M4 的失效形态（一条不会失败的阈值不是阈值）。I-75-2 把消费面接上了，判定语义定为四态：GREEN 需每格都被判过，有格缺线记 PARTIAL（不许读成 GREEN），名册无线记 NO-LINE。③ 首次消费实测出两格越线：admin/t1355 speed-index 中位 8104.8 / 线 7000（超 15.8%，样本 3）、customer/t2359 server-response-time 中位 468 / 线 450（超 4%，样本 3）——前者同批倍差 2.13×、后者 2.07×，按本件既有口径单样本不足以定基线，故这两条是待观察读数而不是已定性的回归；下一轮跨日再采一批后按「多批中位数是否稳定越线」再决定是调线还是查因（禁拿单批中位数直接改线，那是把噪声写成缺陷）。",
+  "verdictNote": "verdict 由两件彼此独立的事合成（第七十五轮 I-75-2 起）：① 产物面（缺 FCP / runtimeError / URL 分歧 / 批次样本不足）② 达标面（名册 thresholds 与逐 页面×批次 中位数比对）。前者红了说明这一维没测干净，后者红了说明测干净了且有格子越线。两件事共用一个 verdict 但必须分开读 —— 门面行自报 达标判定=RED|GREEN|PARTIAL|NO-LINE|UNVERIFIED 与 超线 N。本件仍不在任何阻断链里（不进 verify/CI：联网腿在 runner 上不可复现），它的红要人来处置。残留诚实声明：customer 仍有 7 件网络类未采到样本在隔离区（NO_FCP + about:blank，R55 一手：curl github.io=000 而同刻 pages.dev=200）——网络类缺失不得折进基线，也不得折算成「顾客端很慢」。",
   "intraDayMeasured": {
     "note": "同日两批（base 06:49–06:50Z / d2 09:55–09:58Z，同机同 Edge 同 simulate 节流）中位数偏移，用来把「立线时该留多少余量」钉在产物上，而不是留给下一轮猜",
     "admin": {
