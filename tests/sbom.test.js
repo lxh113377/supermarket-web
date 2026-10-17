@@ -9,22 +9,22 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { evaluate, componentKeys, diffKeys, ageDaysOf, MAX_AGE_DAYS } from '../scripts/check-sbom.mjs'
+import { evaluate, componentKeys, diffKeys, ageDaysOf, isPlatformSpecific, MAX_AGE_DAYS } from '../scripts/check-sbom.mjs'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SELF = join(REPO, 'scripts', 'check-sbom.mjs')
 const tmpDirs = []
 afterAll(() => { for (const d of tmpDirs) { try { rmSync(d, { recursive: true, force: true }) } catch { /* 清理失败不改结论 */ } } })
 const tmp = () => { const d = mkdtempSync(join(tmpdir(), 'smsbom-')); tmpDirs.push(d); return d }
-const cli = (args) => assertCliRan(spawnSync(process.execPath, [SELF, ...args], { cwd: REPO, encoding: 'utf8', timeout: 180_000 }), { label: 'sbom ' + args.join(' ') })
+const cli = (args) => assertCliRan(spawnSync(process.execPath, [SELF, ...args], { cwd: REPO, encoding: 'utf8', timeout: 120_000 }), { label: 'sbom ' + args.join(' ') })
 const mk = (keys, ts = '2026-10-17T00:00:00Z') => ({ bomFormat: 'CycloneDX', metadata: { timestamp: ts }, components: keys.map((k) => ({ name: k.split('@')[0], version: (k.split('@')[1] || '0'), purl: k })) })
 const A = mk(['pkg:npm/react@19.0.0', 'pkg:npm/vite@8.0.0'])
 
 describe('SBOM 可复现登记：清单必须与依赖面同步，且不能过期', () => {
-  it('判据自证 8/8（含三条反向腿与一条退化腿）', () => {
+  it('判据自证 10/10（含三条反向腿、一条退化腿、两条跨平台腿）', () => {
     const r = cli(['--selftest'])
     expect(r.status, r.stdout + r.stderr).toBe(0)
-    expect(r.stdout).toContain('[sbom] 自证 8/8')
+    expect(r.stdout).toContain('[sbom] 自证 10/10')
   })
 
   it('真面：仓库里的 docs/sbom.cdx.json 必须与当次依赖面逐项一致且未过期', () => {
@@ -85,6 +85,24 @@ describe('SBOM 可复现登记：清单必须与依赖面同步，且不能过�
   it('纯函数：ageDaysOf 解不出时刻返回 null（不折算成 0 天）', () => {
     expect(ageDaysOf('not-a-date', '2026-10-17T00:00:00Z')).toBe(null)
     expect(ageDaysOf('2026-10-17T00:00:00Z', '2026-10-20T00:00:00Z')).toBe(3)
+  })
+
+  it('跨平台同一性：平台专属二进制两侧同时剥（否则 CI 的 ubuntu 与本机 Windows 必红）', () => {
+    // 一手：CI 第一次跑就红在 13 进 7 出，全是 @esbuild//@rollup//sharp 的 win32 vs linux 变体
+    expect(isPlatformSpecific('pkg:npm/%40esbuild/win32-x64@0.28.1')).toBe(true)
+    expect(isPlatformSpecific('pkg:npm/%40esbuild/linux-x64@0.28.1')).toBe(true)
+    expect(isPlatformSpecific('pkg:npm/react@19.0.0')).toBe(false)
+    const win = { bomFormat: 'CycloneDX', metadata: { timestamp: '2026-10-17T00:00:00Z' }, components: [
+      { name: 'react', version: '19.0.0', purl: 'pkg:npm/react@19.0.0' },
+      { name: '%40esbuild/win32-x64', version: '0.28.1', purl: 'pkg:npm/%40esbuild/win32-x64@0.28.1' },
+    ] }
+    const linux = { bomFormat: 'CycloneDX', metadata: { timestamp: '2026-10-17T00:00:00Z' }, components: [
+      { name: 'react', version: '19.0.0', purl: 'pkg:npm/react@19.0.0' },
+      { name: '%40esbuild/linux-x64', version: '0.28.1', purl: 'pkg:npm/%40esbuild/linux-x64@0.28.1' },
+    ] }
+    const r = evaluate({ file: win, fresh: linux, nowIso: '2026-10-17T12:00:00Z' })
+    expect(r.rc, r.problems.join(' | ')).toBe(0)
+    expect(r.check.components).toBe(1)
   })
 
   it('变异体：把"同步"那一腿摘掉（只比文件名不比组件集）⇒ 注入腿必须翻红', () => {

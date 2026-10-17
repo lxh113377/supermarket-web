@@ -36,14 +36,36 @@ export const MAX_AGE_DAYS = 30
 /** 从 CycloneDX 里取"组件身份集合"。用 purl（包名+版本）而不是 bom-ref：
  *  bom-ref 的格式在 npm 各版本间变过（`pkg:npm/x@1` 与 `x@1` 都出现过），拿它当身份会
  *  把"npm 升级"误报成"依赖变了"。purl 是 CycloneDX 规范里的稳定外部标识。 */
+/**
+ * 平台专属可选二进制 —— SBOM 必须在 Windows 与 ubuntu 上给出**同一份**组件表。
+ *
+ * 一手事实（本轮 CI 第一次运行就红在这里）：默认 `npm sbom` 会按**本机平台**展开 optional 依赖，
+ * Windows 生成的在册件里有 `@esbuild/win32-x64` / `@rollup/rollup-win32-x64-msvc` / `sharp-win32-x64`，
+ * ubuntu runner 生成的是 `@esbuild/linux-x64` / `@rollup/rollup-linux-x64-gnu` / `sharp-linux-x64`
+ * ⇒ 双向差集 13 进 7 出，判据当场变成「你在哪台机器生成」的函数。那不是可复现，那是碰运气。
+ * 处置：**两侧同时**剥掉平台专属件（不是只剥当次侧），并在自证里放一条"win32 ⇄ linux 必须判绿"的腿
+ * 证明这个过滤不是把问题藏起来，而是把"同一份 lock 的跨平台投影"收敛成同一条事实。
+ */
+export const PLATFORM_SPECIFIC = /(?:^|\/)(?:win32|linux|darwin|freebsd|android|openbsd|sunos|aix)(?:[-_./]|$)|-(?:linux|win32|darwin|freebsd)-(?:x64|arm64|ia32|arm|ppc64le|s390x|musl)/i
+
+/** 该组件是否平台专属（不入跨平台比对）。 */
+export function isPlatformSpecific(entry) {
+  const s = typeof entry === 'string' ? entry : String((entry && (entry.purl || entry.name)) || '')
+  return PLATFORM_SPECIFIC.test(s)
+}
+
 export function componentKeys(j) {
   if (!j || !Array.isArray(j.components)) return null
   const keys = new Set()
   for (const c of j.components) {
     if (!c || typeof c !== 'object') continue
-    if (typeof c.purl === 'string' && c.purl.trim()) { keys.add(c.purl.trim()); continue }
-    // 没有 purl 的组件（npm sbom 对 workspace/根包会这样）⇒ 退到 name@version，仍比 bom-ref 稳
-    keys.add(String(c.name || '?') + '@' + String(c.version || '?'))
+    const key = typeof c.purl === 'string' && c.purl.trim()
+      ? c.purl.trim()
+      // 没有 purl 的组件（npm sbom 对 workspace/根包会这样）⇒ 退到 name@version，仍比 bom-ref 稳
+      : String(c.name || '?') + '@' + String(c.version || '?')
+    // 平台专属件两侧同时剥（理由见 PLATFORM_SPECIFIC 注释）
+    if (isPlatformSpecific(key)) continue
+    keys.add(key)
   }
   return [...keys].sort()
 }
@@ -102,10 +124,14 @@ export function evaluate({ file, fresh, nowIso, maxAgeDays = MAX_AGE_DAYS }) {
 
 function generate() {
   const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm'
-  const r = spawnSync(npmCmd, ['sbom', '--sbom-format', 'cyclonedx'], { cwd: ROOT, encoding: 'utf8', timeout: 180_000, maxBuffer: 64 * 1024 * 1024, shell: process.platform === 'win32' })
+  // --omit=optional 是这个判据能在 CI 成立的前提：npm sbom 默认把**本机平台**的 optional 二进制
+  // （@rollup/rollup-win32-x64 与 rollup-linux-x64 互斥）列进组件表 ⇒ 同一份 lock 在 Windows 与
+  // ubuntu 上会给出两份不同的清单，判据当场变成「你在哪台机器生成」的函数。第一版 CI 就红在这里
+  // （在册 246 / 当次 239，差集 13 进 7 出，全是平台专属包）。
+  const r = spawnSync(npmCmd, ['sbom', '--sbom-format', 'cyclonedx', '--omit=optional'], { cwd: ROOT, encoding: 'utf8', timeout: 180_000, maxBuffer: 64 * 1024 * 1024, shell: process.platform === 'win32' })
   if (r.error || r.status !== 0) return { error: r.error ? r.error.code || r.error.message : 'npm rc=' + r.status + ' ' + String(r.stderr || '').split('\n')[0] }
   let j = null
-  try { j = JSON.parse(r.stdout) } catch (e) { return { error: 'npm sbom 输出不是 JSON（' + e.message.split('\n')[0] + '）' } }
+  try { j = JSON.parse(String(r.stdout).replace(/^\uFEFF/, '')) } catch (e) { return { error: 'npm sbom 输出不是 JSON（' + e.message.split('\n')[0] + '）' } }
   if (!j || j.bomFormat !== 'CycloneDX') return { error: 'npm sbom 输出的 bomFormat=' + String(j && j.bomFormat) + ' ⇒ 形态与名册不符' }
   return { json: j }
 }
@@ -122,6 +148,8 @@ function selftest() {
     ,['⑥ 反例：components 为空 ⇒ 判红（空集 ≠ 无依赖）', { file: { bomFormat: 'CycloneDX', metadata: { timestamp: '2026-10-17T00:00:00Z' }, components: [] }, fresh: null, nowIso: '2026-10-17T12:00:00Z' }, (r) => r.rc === 1 && r.problems.some((p) => p.includes('空集'))]
     ,['⑦ 反例：在册件缺失 ⇒ 判红而不是"干净"', { file: null, fresh: A, nowIso: '2026-10-17T12:00:00Z' }, (r) => r.rc === 1 && r.problems.some((p) => p.includes('没有 SBOM'))]
     ,['⑧ 反向腿：当次取不到 ⇒ rc=2（退化为半把尺，绝不判绿）', { file: A, fresh: null, nowIso: '2026-10-17T12:00:00Z' }, (r) => r.rc === 1 && r.problems.some((p) => p.includes('退化为半把尺'))]
+    ,['⑨ 跨平台同一性（本轮 CI 一手）：只差平台专属二进制（win32 在册 / linux 当次）⇒ 必须判绿，否则清单变成"你在哪台机器生成"的函数', { file: mk(['pkg:npm/react@19.0.0', 'pkg:npm/%40esbuild/win32-x64@0.28.1', 'pkg:npm/%40rollup/rollup-win32-x64-msvc@1.2.11']), fresh: mk(['pkg:npm/react@19.0.0', 'pkg:npm/%40esbuild/linux-x64@0.28.1', 'pkg:npm/%40rollup/rollup-linux-x64-gnu@1.2.11']), nowIso: '2026-10-17T12:00:00Z' }, (r) => r.rc === 0 && r.check.components === 1]
+    ,['⑩ 反向腿（证明⑨不是把差集整个吃掉）：同一平台专属族之外的真差异仍然必须判红', { file: mk(['pkg:npm/react@19.0.0', 'pkg:npm/%40esbuild/win32-x64@0.28.1']), fresh: mk(['pkg:npm/react@19.0.0', 'pkg:npm/%40esbuild/win32-x64@0.29.0', 'pkg:npm/lodash@4.17.21']), nowIso: '2026-10-17T12:00:00Z' }, (r) => r.rc === 1 && r.problems.some((p) => p.includes('lodash'))]
   ]
   let bad = 0
   for (const [name, input, check] of cases) {
@@ -141,8 +169,17 @@ function main(argv = process.argv.slice(2)) {
   if (argv.includes('--write')) {
     const g = generate()
     if (g.error) { console.log('[sbom] BLOCKED ' + g.error + ' ⇒ 生成失败就不写盘（不拿半份清单冒充当次）'); return 2 }
-    writeFileSync(file, JSON.stringify(g.json, null, 2) + '\n', 'utf8')
-    console.log('[sbom] WROTE ' + file + '｜components=' + componentKeys(g.json).length + '｜timestamp=' + String(g.json.metadata && g.json.metadata.timestamp));
+    // 落盘前就把平台专属件摘掉：在册件必须是"跨平台同一份"，否则 CI 一定红
+    const kept = (g.json.components || []).filter((c) => !isPlatformSpecific(c))
+    const out = { ...g.json, components: kept }
+    // 口径写进产物本身：这份 SBOM 是**跨平台可复现投影**（生成时 --omit=optional，判据再剥平台专属残留）。
+    // 它不是完整物料面 —— 完整面 = package-lock.json；漏洞视角 = docs/dependency-audit.md；许可视角 = verify:licenses。
+    out.properties = (out.properties || []).concat([
+      { name: 'chaoshi:sbom-scope', value: 'cross-platform reproducible projection (npm sbom --omit=optional + platform-specific filter)' },
+      { name: 'chaoshi:sbom-full-surface', value: 'package-lock.json' },
+    ])
+    writeFileSync(file, JSON.stringify(out, null, 2) + '\n', 'utf8')
+    console.log('[sbom] WROTE ' + file + '｜components=' + componentKeys(g.json).length + '（已剥平台专属 ' + ((g.json.components || []).length - kept.length) + ' 件）｜timestamp=' + String(g.json.metadata && g.json.metadata.timestamp));
     return 0
   }
   let registered = null

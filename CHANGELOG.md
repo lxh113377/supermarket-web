@@ -27,9 +27,13 @@
   而不是线上（线上是否照做属部署回执，两类事实混进一条闸会得到「部署晚了就红」的不可自愈门禁）。
 - **I-75-4（中）供应链清单（SBOM）可复现登记**：此前只有 audit（漏洞）与 licenses（许可）两个视角，
   缺「这坨发布物由哪些组件组成」的第三视角。`npm run gen:sbom` 用 npm 内置 `npm sbom --sbom-format cyclonedx`
-  生成 `docs/sbom.cdx.json`（246 组件）；`npm run verify:sbom` 当场重新生成并与在册件做 purl 集合双向差集
+  生成 `docs/sbom.cdx.json`（跨平台口径 239 组件）；`npm run verify:sbom` 当场重新生成并与在册件做 purl 集合双向差集
   ⇒ 改依赖不更新清单会红、删除没跟上也会红；在册件龄期 >30 天同样红（过期的是证据）。
-  判据自证 8/8，夹具 9 条（含两条注入腿、一条反向腿、一条变异体）。
+  判据自证 8/8 → **10/10**，夹具 10 条（含两条注入腿、一条反向腿、一条变异体、两条跨平台腿）。
+  **CI 第一次运行就红在这里，且红得对**：默认 `npm sbom` 会按本机平台展开 optional 依赖，Windows 在册件里有
+  `@esbuild/win32-x64`/`@rollup/rollup-win32-x64-msvc`，ubuntu runner 生成的是 `linux-x64` 变体 ⇒ 双向差集 13 进 7 出。
+  「清单」若随生成机器而变，它就不是可复现证据。处置 = **两侧同时**剥掉平台专属件（不是只剥当次侧），
+  并补两条腿：⑨ 只差平台二进制必须判绿、⑩ 平台族之外的真差异仍必须判红（证明过滤没把差集整个吃掉）。
 - **I-75-5（中）可访问性静态闸**：源码 50 个 tsx 此前只有浏览器里的几何/对比度/焦点环判据，
   「控件有没有可访问名字」这一整类无人守。新增 `scripts/lib/a11y-rules.mjs`（三条规则：img 必带 alt、
   可见 input 必有可访问名字、可点击 div/span 必须有 role/tabIndex/onKeyDown）+ `npm run verify:a11y`。
@@ -37,8 +41,33 @@
   4 处**正确**写法被报成违规；改用括号配对的 `readJsxTag` 后降到 1 处，那一处是真实的
   `Overlay` 遮罩（无名字的可点击 div）⇒ **改源码**加 `role="presentation"`（键盘等价路径 Escape 已存在），
   不是加白名单消音。最终读数：扫 50 个 tsx、违规 0。判据自证 8/8，夹具 11 条。
+- **SBOM 的 CI 第一跑判红（本轮 CI 一手，非推演）**：第一笔 `8f9e84e` ⇒ run `39042435888` `completed/failure`，
+  唯一失败 step = `SBOM reproducibility gate`，读数「在册 246｜同一项 239｜只在当次 13｜只在册 7」，差集全是
+  `@esbuild`/`@rollup`/`sharp` 的 win32 ⇄ linux 变体 —— `npm sbom` 默认按**本机平台**展开 optional 依赖，
+  Windows 与 ubuntu runner 生成两份互斥组件表。清单若随生成机器而变，它就不是可复现证据。
+  修复 = 判据与落盘**两侧同时**剥平台专属件（`PLATFORM_SPECIFIC`），生成侧统一 `--omit=optional`；
+  补两条自证腿：⑨ 只差平台二进制必须判绿、⑩ 平台族之外的真差异仍必须判红（证明过滤没把差集整个吃掉）。
+  自证 8/8 → **10/10**，夹具 `tests/sbom.test.js` 10 passed。
+  **口径如实标注**：`docs/sbom.cdx.json` 是「跨平台可复现投影」（239 件），完整物料面 = `package-lock.json`（364 件），
+  边界写进产物自身的 `properties`（`chaoshi:sbom-scope`），不是只写在散文里。
+  第二笔的推送通道：基线是**下过判决的 failure** ⇒ 恢复通道（只认 cancelled/timed_out/neutral/action_required）与
+  读数刷新通道（只准推在册读数件）都按设计拒绝 ⇒ 走 `CI_GREEN_SKIP` 并落 `.ci/escape-hatch.jsonl`，
+  绕过的代价由判据当场量（`report:escape-hatch-remote` 的 C10），不靠自觉。
+- **本轮新闸被自家常驻探针抓到四处缺陷（`npm test` 当场判红，不是推演）**：
+  ① `tests/testCeilings.test.js` 判 `testTimeout=130000 而子进程预算到 180000` —— 我给 `tests/sbom.test.js` 的
+    spawnSync 写了 180s 预算，而 vitest 每测试天花板是 130s ⇒ **两个天花板各说各话**（第四十六轮立的判据
+    这次抓到的是我自己）。处置 = sbom 夹具预算降到 120s（判据侧 `npm sbom` 实测 1.4s，120s 已含重试余量）。
+  ② `tests/cliEntrypoints.test.js` 的 `check-licenses.mjs` 腿报 `status=null（signal=SIGTERM，stdout=0B）`：
+    共享探针预算 20s 在 136 文件并行下被打断 —— 与第五十四轮 R54-H4 同一形态。处置 = 探针预算 20s→60s、
+    该腿 `it()` 天花板 30s→70s（**提预算而不是改判据**，户内规）。
+  ③ `verify:a11y` 的零分母腿：镜像面把 src 每个文件写成 0 字节，本件照样打印 `scanned 50 / violations 0` 且 rc=0
+    ⇒ **把没量到写成量到了零**。处置 = 新增第二态判定（全空 ⇒ rc=2 UNVERIFIED）；实测三档 rc：正常 0 / 空目录 2 / 全 0 字节 2。
+  ④ `docs/sbom.cdx.json` 的 `--write` 落盘此前把平台专属件留在册上（现按 `PLATFORM_SPECIFIC` 剥），口径写进产物
+    `properties` 的 `chaoshi:sbom-scope`，不只写在散文里。
+  共同点：**四条红都是对我的新代码说的**，不是对既有代码说的。新闸上线当轮就被自家探针抓到，正是这套常驻夹具的价值
+    —— 否则它们会以「绿」的形态活到下一次 CI 才炸。
 - **凭据**：`npm run verify` ⇒ VERIFY_RC=0；`verify:cache` GATE-PASS 4 条声明；`verify:sbom` GATE-PASS
-  （在册 246 / 同一项 246 / 只在当次 0 / 只在册 0 / 龄期 0d）；`verify:a11y` GATE-PASS（50 tsx / 0 违规）；
+  （在册 239 / 同一项 239 / 只在当次 0 / 只在册 0 / 龄期 0d；239 = 246 剥掉 7 件本机平台专属）；`verify:a11y` GATE-PASS（50 tsx / 0 违规）；
   `report:live-perf` 自证 25/25。
 
 ### 2026-10-17 第七十四轮：还清第 73 轮立下的下一轮 P0 —— 逃生门不再计量 no-op / cron 豁免按新根因换理由 / 性能维重采

@@ -2,10 +2,10 @@
   "$schema": "http://cyclonedx.org/schema/bom-1.5.schema.json",
   "bomFormat": "CycloneDX",
   "specVersion": "1.5",
-  "serialNumber": "urn:uuid:a56bc997-c867-4d5c-aac0-e5fecad82094",
+  "serialNumber": "urn:uuid:03590644-4922-47b4-806a-b798de5e0df9",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-10-17T14:28:42.784Z",
+    "timestamp": "2026-10-17T23:00:27.135Z",
     "lifecycles": [
       {
         "phase": "build"
@@ -589,40 +589,6 @@
       ]
     },
     {
-      "bom-ref": "@cloudflare/workerd-windows-64@1.20260930.2",
-      "type": "library",
-      "name": "@cloudflare/workerd-windows-64",
-      "version": "1.20260930.2",
-      "scope": "optional",
-      "description": "👷 workerd for Windows 64-bit, Cloudflare's JavaScript/Wasm Runtime",
-      "purl": "pkg:npm/%40cloudflare/workerd-windows-64@1.20260930.2",
-      "properties": [
-        {
-          "name": "cdx:npm:package:development",
-          "value": "true"
-        }
-      ],
-      "externalReferences": [
-        {
-          "type": "distribution",
-          "url": "https://registry.npmjs.org/@cloudflare/workerd-windows-64/-/workerd-windows-64-1.20260930.2.tgz"
-        }
-      ],
-      "hashes": [
-        {
-          "alg": "SHA-512",
-          "content": "24714c74614ca8ff8cd90895cd9ab54bc21eeba1afc68ece839118cff2ad983bc60aa81ee4bde52be92c6710211778ffb6948ba9dbe552f7132a847d3e4c134d"
-        }
-      ],
-      "licenses": [
-        {
-          "license": {
-            "id": "Apache-2.0"
-          }
-        }
-      ]
-    },
-    {
       "bom-ref": "@cspotcode/source-map-support@0.8.1",
       "type": "library",
       "name": "@cspotcode/source-map-support",
@@ -1100,44 +1066,6 @@
       ]
     },
     {
-      "bom-ref": "@esbuild/win32-x64@0.28.1",
-      "type": "library",
-      "name": "@esbuild/win32-x64",
-      "version": "0.28.1",
-      "scope": "optional",
-      "description": "The Windows 64-bit binary for esbuild, a JavaScript bundler.",
-      "purl": "pkg:npm/%40esbuild/win32-x64@0.28.1",
-      "properties": [
-        {
-          "name": "cdx:npm:package:development",
-          "value": "true"
-        }
-      ],
-      "externalReferences": [
-        {
-          "type": "distribution",
-          "url": "https://registry.npmmirror.com/@esbuild/win32-x64/-/win32-x64-0.28.1.tgz"
-        },
-        {
-          "type": "vcs",
-          "url": "git+https://github.com/evanw/esbuild.git"
-        }
-      ],
-      "hashes": [
-        {
-          "alg": "SHA-512",
-          "content": "6e6e0ca30aeff865cc969597fbe11c5f0fe22f2775a37f9b2640b60e4597615be0642a83fdb4a3f5cb59780302ddc2318234554760ee7da8aee183f1af9816d4"
-        }
-      ],
-      "licenses": [
-        {
-          "license": {
-            "id": "MIT"
-          }
-        }
-      ]
-    },
-    {
       "bom-ref": "@exodus/bytes@1.15.1",
       "type": "library",
       "name": "@exodus/bytes",
@@ -1264,47 +1192,6 @@
       "licenses": [
         {
           "expression": "Apache-2.0 AND LGPL-3.0-or-later AND MIT"
-        }
-      ]
-    },
-    {
-      "bom-ref": "@img/sharp-win32-x64@0.35.4",
-      "type": "library",
-      "name": "@img/sharp-win32-x64",
-      "version": "0.35.4",
-      "scope": "optional",
-      "author": "Lovell Fuller <npm@lovell.info>",
-      "description": "Prebuilt sharp for use with Windows x64",
-      "purl": "pkg:npm/%40img/sharp-win32-x64@0.35.4",
-      "properties": [
-        {
-          "name": "cdx:npm:package:development",
-          "value": "true"
-        }
-      ],
-      "externalReferences": [
-        {
-          "type": "distribution",
-          "url": "https://registry.npmjs.org/@img/sharp-win32-x64/-/sharp-win32-x64-0.35.4.tgz"
-        },
-        {
-          "type": "vcs",
-          "url": "git+https://github.com/lovell/sharp.git"
-        },
-        {
-          "type": "website",
-          "url": "https://sharp.pixelplumbing.com"
-        }
-      ],
-      "hashes": [
-        {
-          "alg": "SHA-512",
-          "content": "5ed9a762105cace46c2785c99e0cb3aff1163f485164b019445680a5d2aebe2caa17bf3eca5c61db2d3a666b542c030e9ce6c9dee72937401cc125a7328c1346"
-        }
-      ],
-      "licenses": [
-        {
-          "expression": "Apache-2.0 AND LGPL-3.0-or-later"
         }
       ]
     },
@@ -1656,49 +1543,6 @@
       ]
     },
     {
-      "bom-ref": "@oxlint/binding-win32-x64-msvc@1.85.0",
-      "type": "library",
-      "name": "@oxlint/binding-win32-x64-msvc",
-      "version": "1.85.0",
-      "scope": "optional",
-      "author": "Boshen and oxc contributors",
-      "description": "Linter for the JavaScript Oxidation Compiler",
-      "purl": "pkg:npm/%40oxlint/binding-win32-x64-msvc@1.85.0",
-      "properties": [
-        {
-          "name": "cdx:npm:package:development",
-          "value": "true"
-        }
-      ],
-      "externalReferences": [
-        {
-          "type": "distribution",
-          "url": "https://registry.npmmirror.com/@oxlint/binding-win32-x64-msvc/-/binding-win32-x64-msvc-1.85.0.tgz"
-        },
-        {
-          "type": "vcs",
-          "url": "git+https://github.com/oxc-project/oxc"
-        },
-        {
-          "type": "website",
-          "url": "https://oxc.rs/docs/guide/usage/linter"
-        }
-      ],
-      "hashes": [
-        {
-          "alg": "SHA-512",
-          "content": "a4179b20f52928a856ae148c5a1cbc4dd01905ec225e77f199a006c61cf1335d3af066a0a85693c202a553a7be532276b0f47e5681e8ba15ee1899108ecac3bc"
-        }
-      ],
-      "licenses": [
-        {
-          "license": {
-            "id": "MIT"
-          }
-        }
-      ]
-    },
-    {
       "bom-ref": "@playwright/test@1.63.0",
       "type": "library",
       "name": "@playwright/test",
@@ -1914,52 +1758,6 @@
         {
           "alg": "SHA-512",
           "content": "19b34fe2be85fe0a5c9452a42c61f35dcbb01560332f22ac9ab406703bb02b7c109f02c7e85d537c6b446231f2f0e4281ac6a3c13d7d07d8ed54b2e38df1f4f7"
-        }
-      ],
-      "licenses": [
-        {
-          "license": {
-            "id": "MIT"
-          }
-        }
-      ]
-    },
-    {
-      "bom-ref": "@rolldown/binding-win32-x64-msvc@1.2.11",
-      "type": "library",
-      "name": "@rolldown/binding-win32-x64-msvc",
-      "version": "1.2.11",
-      "scope": "optional",
-      "description": "Fast JavaScript/TypeScript bundler in Rust with Rollup-compatible API.",
-      "purl": "pkg:npm/%40rolldown/binding-win32-x64-msvc@1.2.11",
-      "properties": [
-        {
-          "name": "cdx:npm:package:development",
-          "value": "true"
-        }
-      ],
-      "externalReferences": [
-        {
-          "type": "distribution",
-          "url": "https://registry.npmjs.org/@rolldown/binding-win32-x64-msvc/-/binding-win32-x64-msvc-1.2.11.tgz"
-        },
-        {
-          "type": "vcs",
-          "url": "git+https://github.com/rolldown/rolldown.git"
-        },
-        {
-          "type": "website",
-          "url": "https://rolldown.rs/"
-        },
-        {
-          "type": "issue-tracker",
-          "url": "https://github.com/rolldown/rolldown/issues"
-        }
-      ],
-      "hashes": [
-        {
-          "alg": "SHA-512",
-          "content": "fcfccaab3009d378b5f68cb622d3efcaf6958ce8c108d9df689b3ccaf51d1812a68844a09eb2524366b077cd50cc56db9c09aeed83bd66726b0c26fd55224f44"
         }
       ],
       "licenses": [
@@ -2640,53 +2438,6 @@
         {
           "license": {
             "id": "MIT"
-          }
-        }
-      ]
-    },
-    {
-      "bom-ref": "@typescript/typescript-win32-x64@7.0.2",
-      "type": "library",
-      "name": "@typescript/typescript-win32-x64",
-      "version": "7.0.2",
-      "scope": "optional",
-      "author": "Microsoft Corp.",
-      "description": "TypeScript is a language for application scale JavaScript development",
-      "purl": "pkg:npm/%40typescript/typescript-win32-x64@7.0.2",
-      "properties": [
-        {
-          "name": "cdx:npm:package:development",
-          "value": "true"
-        }
-      ],
-      "externalReferences": [
-        {
-          "type": "distribution",
-          "url": "https://registry.npmmirror.com/@typescript/typescript-win32-x64/-/typescript-win32-x64-7.0.2.tgz"
-        },
-        {
-          "type": "vcs",
-          "url": "https://github.com/microsoft/TypeScript.git"
-        },
-        {
-          "type": "website",
-          "url": "https://www.typescriptlang.org/"
-        },
-        {
-          "type": "issue-tracker",
-          "url": "https://github.com/microsoft/TypeScript/issues"
-        }
-      ],
-      "hashes": [
-        {
-          "alg": "SHA-512",
-          "content": "d014371e40071e528b4a9d6a46f7f7494846a46b03ba107f8e0170ef982ecaa6f126a11a4b40b0fd514ef22da71e094953340246d30c47f20100a137113302e2"
-        }
-      ],
-      "licenses": [
-        {
-          "license": {
-            "id": "Apache-2.0"
           }
         }
       ]
@@ -5852,44 +5603,6 @@
         {
           "alg": "SHA-512",
           "content": "5a4503ae88ee26cd3192019fdae756c5adf21814713edc54901efd8ba68264b46073b3ccf1f65ef53a2c7cf0dcbc4a5065bb850129c762644b04b51b98b38820"
-        }
-      ],
-      "licenses": [
-        {
-          "license": {
-            "id": "MPL-2.0"
-          }
-        }
-      ]
-    },
-    {
-      "bom-ref": "lightningcss-win32-x64-msvc@1.33.0",
-      "type": "library",
-      "name": "lightningcss-win32-x64-msvc",
-      "version": "1.33.0",
-      "scope": "optional",
-      "description": "A CSS parser, transformer, and minifier written in Rust",
-      "purl": "pkg:npm/lightningcss-win32-x64-msvc@1.33.0",
-      "properties": [
-        {
-          "name": "cdx:npm:package:development",
-          "value": "true"
-        }
-      ],
-      "externalReferences": [
-        {
-          "type": "distribution",
-          "url": "https://registry.npmmirror.com/lightningcss-win32-x64-msvc/-/lightningcss-win32-x64-msvc-1.33.0.tgz"
-        },
-        {
-          "type": "vcs",
-          "url": "https://github.com/parcel-bundler/lightningcss.git"
-        }
-      ],
-      "hashes": [
-        {
-          "alg": "SHA-512",
-          "content": "3a5108083c7f5e5d05a92a786ebcbccc59c2bc6a628371a5e200aabaf6301eea892840b5fa7f4d8039e216fa871a632fd5992a0c9ac3a8a292ca44c35fe7a1b8"
         }
       ],
       "licenses": [
@@ -10255,10 +9968,6 @@
       ]
     },
     {
-      "ref": "@cloudflare/workerd-windows-64@1.20260930.2",
-      "dependsOn": []
-    },
-    {
       "ref": "@cspotcode/source-map-support@0.8.1",
       "dependsOn": [
         "@jridgewell/trace-mapping@0.3.9"
@@ -10322,10 +10031,6 @@
       "dependsOn": []
     },
     {
-      "ref": "@esbuild/win32-x64@0.28.1",
-      "dependsOn": []
-    },
-    {
       "ref": "@exodus/bytes@1.15.1",
       "dependsOn": []
     },
@@ -10338,10 +10043,6 @@
       "dependsOn": [
         "@emnapi/runtime@1.11.3"
       ]
-    },
-    {
-      "ref": "@img/sharp-win32-x64@0.35.4",
-      "dependsOn": []
     },
     {
       "ref": "@jridgewell/gen-mapping@0.3.13",
@@ -10392,10 +10093,6 @@
       "dependsOn": []
     },
     {
-      "ref": "@oxlint/binding-win32-x64-msvc@1.85.0",
-      "dependsOn": []
-    },
-    {
       "ref": "@playwright/test@1.63.0",
       "dependsOn": [
         "playwright@1.63.0"
@@ -10436,10 +10133,6 @@
         "use-sync-external-store@1.7.0",
         "zustand@5.0.15"
       ]
-    },
-    {
-      "ref": "@rolldown/binding-win32-x64-msvc@1.2.11",
-      "dependsOn": []
     },
     {
       "ref": "@rolldown/pluginutils@1.0.1",
@@ -10535,10 +10228,6 @@
     },
     {
       "ref": "@types/webxr@0.5.24",
-      "dependsOn": []
-    },
-    {
-      "ref": "@typescript/typescript-win32-x64@7.0.2",
       "dependsOn": []
     },
     {
@@ -10831,9 +10520,7 @@
     },
     {
       "ref": "esbuild@0.28.1",
-      "dependsOn": [
-        "@esbuild/win32-x64@0.28.1"
-      ]
+      "dependsOn": []
     },
     {
       "ref": "escalade@3.2.0",
@@ -10988,13 +10675,8 @@
     {
       "ref": "lightningcss@1.33.0",
       "dependsOn": [
-        "detect-libc@2.1.2",
-        "lightningcss-win32-x64-msvc@1.33.0"
+        "detect-libc@2.1.2"
       ]
-    },
-    {
-      "ref": "lightningcss-win32-x64-msvc@1.33.0",
-      "dependsOn": []
     },
     {
       "ref": "lilconfig@3.1.3",
@@ -11100,9 +10782,7 @@
     },
     {
       "ref": "oxlint@1.85.0",
-      "dependsOn": [
-        "@oxlint/binding-win32-x64-msvc@1.85.0"
-      ]
+      "dependsOn": []
     },
     {
       "ref": "parse5@8.0.1",
@@ -11280,8 +10960,7 @@
       "ref": "rolldown@1.2.11",
       "dependsOn": [
         "@oxc-project/types@0.151.0",
-        "@rolldown/pluginutils@1.0.1",
-        "@rolldown/binding-win32-x64-msvc@1.2.11"
+        "@rolldown/pluginutils@1.0.1"
       ]
     },
     {
@@ -11313,8 +10992,7 @@
       "dependsOn": [
         "@img/colour@1.1.0",
         "detect-libc@2.1.2",
-        "semver@7.8.5",
-        "@img/sharp-win32-x64@0.35.4"
+        "semver@7.8.5"
       ]
     },
     {
@@ -11461,9 +11139,7 @@
     },
     {
       "ref": "typescript@7.0.2",
-      "dependsOn": [
-        "@typescript/typescript-win32-x64@7.0.2"
-      ]
+      "dependsOn": []
     },
     {
       "ref": "undici@8.10.2",
@@ -11554,9 +11230,7 @@
     },
     {
       "ref": "workerd@1.20260930.2",
-      "dependsOn": [
-        "@cloudflare/workerd-windows-64@1.20260930.2"
-      ]
+      "dependsOn": []
     },
     {
       "ref": "wrangler@4.145.0",
@@ -11613,6 +11287,16 @@
         "react@19.3.0",
         "use-sync-external-store@1.7.0"
       ]
+    }
+  ],
+  "properties": [
+    {
+      "name": "chaoshi:sbom-scope",
+      "value": "cross-platform reproducible projection (npm sbom --omit=optional + platform-specific filter)"
+    },
+    {
+      "name": "chaoshi:sbom-full-surface",
+      "value": "package-lock.json"
     }
   ]
 }

@@ -43,7 +43,7 @@ function probe(script, { cwd = REPO } = {}) {
   // 于是 85 个文件并行时 check-licenses 从 1.2s 涨到 5s+ ⇒ vitest 先 5s 判超时，
   // 报的是"Test timed out"而不是任何真实结论（把自己的测量天花板当成被测对象的失败）。
   const r = assertCliRan(spawnSync(process.execPath, [join(SCRIPTS, script)], {
-    cwd, encoding: 'utf8', timeout: 20_000,
+    cwd, encoding: 'utf8', timeout: 60_000,
   }), { label: `cli-legs probe ${script}` })
   return { rc: r.status, out: `${r.stdout || ''}${r.stderr || ''}` }
 }
@@ -74,7 +74,7 @@ describe('入口探针：每条门禁的 CLI 路径必须真跑得通', () => {
       const { rc, out } = probe(script)
       expect(out.length, `${script} 什么都没打印`).toBeGreaterThan(0)
       expect(rc, `${script} 退出码非 0：\n${out.slice(-600)}`).toBe(0)
-    }, 30_000)
+    }, 70_000)
   }
 
   it('探针本身有牙齿：植入一个必然失败的门禁 ⇒ 必须被测出 rc!=0', () => {

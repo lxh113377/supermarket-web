@@ -63,6 +63,14 @@ function main(argv = process.argv.slice(2)) {
     console.log('[a11y-static] UNVERIFIED collection surface is empty: ' + dir + ' (rc=2, empty is not clean)')
     return 2
   }
+  // 零分母第二态（同 verify:volume / check-import-cycles 的口径）：**文件在、内容全空** ≠ 扫过且清白。
+  // 一手（第七十五轮，被自家常驻探针抓到）：镜像面把 src 下每个文件写成 0 字节，本件照样打印
+  // "scanned 50 tsx files / violations 0" 并 rc=0 —— 那正是"把没量到写成量到了零"的形态。
+  const nonBlank = Object.values(sources).filter((x) => String(x).trim() !== '').length
+  if (nonBlank === 0) {
+    console.log('[a11y-static] UNVERIFIED ' + files + ' 个 .tsx 全为 0 字节 ⇒ 没有对象可判（rc=2，"扫到空文件"不等于"没有违规"）')
+    return 2
+  }
   const problems = auditSources(sources)
   if (argv.includes('--json')) { console.log(JSON.stringify({ files, problems }, null, 2)); return problems.length ? 1 : 0 }
   const tag = problems.length ? 'GATE-FAIL' : 'GATE-PASS'
