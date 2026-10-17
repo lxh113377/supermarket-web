@@ -14,3 +14,16 @@
   SBOM 落盘不再保留平台专属件，口径进产物 `properties.chaoshi:sbom-scope`。
 - **下一轮 P0**：I-75-6 跨日性能批次给两格越线定性（admin/t1355 SI 8104.8>7000、customer/t2359 SRT 468>450）；
   I-75-7 CF 备份凭据（真·用户侧，cron WARN 至 2026-11-07）。
+
+## 补记（同轮）：报告 §2.2「对侧主张的取证边界」是怎么逼出来的
+
+- 我在 §1 写了「saleor 用 `@axe-core/playwright`」，本轮去取证才发现是**我自己推的**：
+  `raw .../saleor/main/package.json`（506B）无 axe 行，`gh api search/code?q=repo:saleor/saleor+axe-core` ⇒ total_count=0。
+  同类：§2 转引的「medusa 40 模块 / saleor 34 app」实测是 `packages/modules` 36 个目录 / `saleor/` 32 个顶层目录，
+  **「40」与「34」查无实测出处** ⇒ 本轮起禁用该数。
+- **两条口径（写进报告 §2.2，下一轮沿用）**：
+  ① 对侧主张必须带**可复算取证通道**，取不到就记 `—`，既不折算成「没有」也不折算成「有」（与 §2 对侧列同口径）；
+  ② **只报实测目录数，不再给「真模块≈N」这类估算** —— 我第一版更正时同时写了「≈34」和「≈33」，
+     自己造出第二个真相源，被 V5/一事实一判的既有规矩打回。估算没有出处就等于没有。
+- 同轮第三笔 `69e8fb2` ⇒ CI run `39079088898` `completed/success`（六 job 全绿含 deploy 9 步），
+  线上 `deploy=69e8fb2` == HEAD == 远端 main，漂移 0；这笔是**正常推送**（ci-green GREEN，未用通道、未新增绕过）。
