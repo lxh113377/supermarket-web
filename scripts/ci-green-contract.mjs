@@ -408,9 +408,22 @@ export function main({ pushRef = null, remoteSha = null } = {}) {
     if (!reason) { console.error(`[ci-green] ${contract.escapeHatch} 已设但 CI_GREEN_REASON 为空 ⇒ 仍拒（逃生门要留可审计的理由）`); return 1 }
     // 落账排在放行**之前**：写不进去就拒放行。没有计量的逃生门，等于给护栏装了个不带日志的开关。
     const r0 = (parseRefLines(pushRef || ''))[0] || {}
-    let head = String(r0.localSha || remoteSha || '').trim()
+    let head = String(r0.localSha || '').trim()
     if (!head) {
       try { head = execFileSync('git', ['rev-parse', '--verify', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim() } catch { head = '' }
+    }
+    if (!head) head = String(remoteSha || '').trim()
+    // 第七十四轮 I-74-1：无可推之物 ⇒ 绕过记录的对象不存在，**不得落账**。
+    // 一手：第 73 轮 ②-B 的重试循环用 grep 自己的 stdout 当成功判据，同一笔推了两次，
+    // 第二次 base==head（no-op）也被记成一次绕过（escape-hatch.jsonl #31/#32 两行 utc 相隔 9 秒）。
+    // 重试必须以 ls-remote 复算“远端到底有没有收下”，而不是看本地输出 —— 本地打印“已推”
+    // 与远端真收下是两个事实。真有东西可推（local≠remote）才轮到台账说话。
+    // 取顺序：优先用 pre-push 喂进来的 ref 行 remote_sha（它就是“远端刚收下的那笔”），
+    // 取不到才回退 ls-remote 现取 —— 两者都是“远端现在是什么”，但 ref 行的那份与本次推送同批，不会被中途另一笔推送暄开。
+    const remoteNow = String(r0.remoteSha || '').trim() || remoteBaseOf(branchOf(r0.remoteRef) || contract.branch) || remoteSha || ''
+    if (head && remoteNow && head === remoteNow) {
+      console.error(`[ci-green] branch=${branchOf(r0.remoteRef) || contract.branch} SKIP :: local(${head.slice(0, 7)}) == remote(${remoteNow.slice(0, 7)}) ⇒ 无可推之物，${contract.escapeHatch} 不落账（no-op 不是绕过，计量它等于污染审计面）`)
+      return 0
     }
     const base = String(r0.remoteSha || process.env.CI_GREEN_BASE || remoteBaseOf(contract) || '').trim()
     const branch = String(r0.localRef || `refs/heads/${contract.branch}`).replace(/^refs\/heads\//, '')

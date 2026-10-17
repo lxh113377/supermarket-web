@@ -1,7 +1,7 @@
 {
   "schema": "chaoshi-cron-health-v1",
   "note": "本件由 `node scripts/check-cron-health.mjs --update` 生成；C4 拿它与 YAML 声明面双向对账，手改即红。accepts_red_* 是人填的豁免，--update 会保留同名条目已填的值。",
-  "generatedUtc": "2026-10-13T21:41:41.554Z",
+  "generatedUtc": "2026-10-17T09:46:34.578Z",
   "lookback_days": 7,
   "entries": [
     {
@@ -11,16 +11,16 @@
       "period_days": 1,
       "observed_state": "RED",
       "observed_last_run": {
-        "id": 38384976855,
-        "at": "2026-10-13T10:40:29Z",
+        "id": 39015191527,
+        "at": "2026-10-17T07:51:23Z",
         "conclusion": "failure"
       },
       "observed_failing_steps": [
-        "D1 round-trip complexity gate (slope vs input size)"
+        "Fail loudly when the gate refused to refresh"
       ],
-      "accepts_red_until": "",
-      "accepts_red_reason": "",
-      "root_cause": ""
+      "accepts_red_until": "2026-11-07",
+      "accepts_red_reason": "响亮失败腿按设计工作，不是流水线自坏：`run 39015191527` 唯一失败 step 是 `Fail loudly when the gate refused to refresh`，其上游是 `check-d1-remote-usage.mjs --write` 取数失败（日志原文 `graphql=UNREACHABLE reason=authz not authorized for that account`）——GitHub 侧 `CLOUDFLARE_API_TOKEN` 对该账户无 GraphQL Analytics 读权限。在 Cloudflare 给该 token 加「读/账户/分析/仅读取」范围后，当晚本条自动转 OK。复算命令：`node scripts/check-cron-health.mjs --update` 后看 observed_state。",
+      "root_cause": "CI 的 CLOUDFLARE_API_TOKEN 缺 GraphQL Analytics 读权限（第三方账号授权，agent 不得代做；本机 wrangler OAuth 可取，CI 不可）"
     },
     {
       "workflow": "d1-backup.yml",
@@ -29,15 +29,15 @@
       "period_days": 1,
       "observed_state": "RED",
       "observed_last_run": {
-        "id": 38334159584,
-        "at": "2026-10-13T01:51:57Z",
+        "id": 38976841845,
+        "at": "2026-10-16T22:37:19Z",
         "conclusion": "failure"
       },
       "observed_failing_steps": [
         "Fail loudly instead of reporting a green no-op"
       ],
-      "accepts_red_until": "2026-10-12",
-      "accepts_red_reason": "`node scripts/check-backup-liveness.mjs` 实测 rc=1：最近 5 次 run 无一满足\"导出步骤 success + artifact >= 1 + run success\"；run 36356709142 @2026-09-27T22:51:17Z 日志原文 `##[error]未配置 CF_D1_BACKUP_TOKEN`。配好 token 后本条自动转 OK ⇒ 该理由可被同一条命令当场证伪。",
+      "accepts_red_until": "2026-11-07",
+      "accepts_red_reason": "响亮失败腿按设计工作：`run 38976841845` 日志原文 `##[error]未配置 CF_D1_BACKUP_TOKEN ⇒ 导出与上传都会被跳过`。仓库现为 public（`gh api repos/lxh113377/supermarket-web --jq .private` 实测 false），明文导出物进公开仓 artifact 会被任意已登录用户下载，故该 token 必须与 `BACKUP_PASSPHRASE`（加密出路）成对配置。两者配齐后当晚转 OK。复算命令：`node scripts/check-backup-liveness.mjs`。",
       "root_cause": "缺 CF_D1_BACKUP_TOKEN + BACKUP_PASSPHRASE（用户侧凭据，agent 不得代填）"
     },
     {
@@ -47,17 +47,17 @@
       "period_days": 1,
       "observed_state": "RED",
       "observed_last_run": {
-        "id": 38362152466,
-        "at": "2026-10-13T07:21:35Z",
+        "id": 39005822253,
+        "at": "2026-10-17T05:19:12Z",
         "conclusion": "failure"
       },
       "observed_failing_steps": [
         "Backup chain liveness (did the nightly run really produce an artifact)",
         "Every scheduled workflow - last scheduled run + red streak"
       ],
-      "accepts_red_until": "2026-10-12",
-      "accepts_red_reason": "本条红是**搬运**不是自坏：该 run 里唯一失败的 step 是 `Backup chain liveness (did the nightly run really produce an artifact)`（`gh run view 36299454141 --json jobs` 实测 failed steps 长度 1），其日志原文 `✗ 最近 4 次 run 里没有任何一次满足…` ⇒ 与 d1-backup.yml 同一个根因，不是巡检链自己坏。",
-      "root_cause": "缺 CF_D1_BACKUP_TOKEN + BACKUP_PASSPHRASE（用户侧凭据，agent 不得代填）"
+      "accepts_red_until": "2026-11-07",
+      "accepts_red_reason": "本条红是**搬运**不是自坏：`run 39005822253` 失败的 2 个 step 是 `Backup chain liveness`（日志原文 `✗ 最近 4 次 run 里没有任何一次满足…`，即 d1-backup 同一凭据缺口）与 `Every scheduled workflow - last scheduled run + red streak`（它只是如实报告前一条的红）。备份凭据配齐后两条同时转 OK。复算命令：`node scripts/check-cron-health.mjs --update`。",
+      "root_cause": "缺 CF_D1_BACKUP_TOKEN + BACKUP_PASSPHRASE（用户侧凭据，agent 不得代填）——与 d1-backup.yml 同因归并"
     }
   ]
 }

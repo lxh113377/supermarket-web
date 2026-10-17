@@ -287,6 +287,51 @@ describe('CLI 入口（子进程真跑）', () => {
     expect(existsSync(join(led2, '.ci', 'escape-hatch.jsonl')), '拒写时不得留下半成品记录').toBe(false)
   })
 
+  // 第七十四轮 I-74-1：无可推之物（local==remote）⇒ 逃生门不落账。
+  // 一手：第 73 轮 ②-B 重试循环把一次 no-op 推送也记成了绕过（#31/#32 相隔 9 秒、base==head）。
+  // 这条腿守住三件事：① no-op 时 rc=0 且**不写台账**；② 打印必须点名 SKIP 与两侧 sha；
+  // ③ 变异体（把守卫摘掉）必须翻红 —— 否则这条守卫就是没有牙齿的摆设。
+  itCli('逃生门对偶（I-74-1）：local==remote 无可推之物 ⇒ 放行但**不落账**（no-op 不是绕过）', () => {
+    const led = tmpLayout()
+    const same = HEAD_SHA // 同一个 sha：local 与 remote 相等
+    const r = runCli({
+      input: ref('main', same, same),
+      env: { CI_GREEN_SKIP: '1', CI_GREEN_LEDGER_DIR: led, CI_GREEN_REASON: 'fixture 演练：重试循环复算后发现远端已收下，本笔是 no-op' },
+    })
+    expect(r.rc, r.out).toBe(0)
+    expect(r.out).toContain('SKIP')
+    expect(r.out).toContain('无可推之物')
+    expect(r.out).toContain(same.slice(0, 7))
+    expect(existsSync(join(led, '.ci', 'escape-hatch.jsonl')), 'no-op 不得落绕过账（计量它等于污染审计面）').toBe(false)
+    // 对照组：local≠remote（真有东西可推）⇒ 必须照常落账 —— 证明上一条不是把逃生门整个关掉
+    const led3 = tmpLayout()
+    const r2 = runCli({
+      input: ref('main', HEAD_SHA, BASE_SHA),
+      env: { CI_GREEN_SKIP: '1', CI_GREEN_LEDGER_DIR: led3, CI_GREEN_REASON: 'fixture 演练：真绕过必须照常计量' },
+    })
+    expect(r2.rc, r2.out).toBe(0)
+    expect(r2.out).toContain('绕过契约')
+    expect(existsSync(join(led3, '.ci', 'escape-hatch.jsonl')), '真绕过必须落账').toBe(true)
+  })
+
+  itCli('变异体 M4（I-74-1）：摘掉 no-op 守卫 ⇒ 上一条的「不落账」断言必须翻红', () => {
+    // 变异只换条件不动大括号：整行换成 `if (false) {` 保持块结构，否则多出的 `}` 会把 main() 提前闭合、
+    // 余下语句掉到模块顶层（SyntaxError: Illegal return statement）——那是夹具坏，不是判据红。
+    const script = mutated(
+      "if (head && remoteNow && head === remoteNow) {",
+      "if (false) { /* M4: 守卫被摘，只换条件不动大括号 */")
+    const led = tmpLayout()
+    const same = HEAD_SHA
+    const r = runCli({
+      script,
+      input: ref('main', same, same),
+      env: { CI_GREEN_SKIP: '1', CI_GREEN_LEDGER_DIR: led, CI_GREEN_REASON: 'fixture 演练：守卫被摘后 no-op 也会落账' },
+    })
+    expect(r.rc, r.out).toBe(0)
+    expect(r.out).not.toContain('无可推之物')
+    expect(existsSync(join(led, '.ci', 'escape-hatch.jsonl')), '守卫被摘 ⇒ no-op 被记成绕过（这正是第 73 轮实发的那笔假证据）').toBe(true)
+  })
+
   itCli('变异体 M1：基点取错字段（remote→local）⇒ 上面那条对偶断言必须翻红', () => {
     // 锚点取整行：只改条件不改取值会造出**空变异**（上一版就是这样，测了个没改的分支）
     const script = mutated(

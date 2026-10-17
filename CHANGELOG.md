@@ -4,6 +4,23 @@
 
 ## [未发布]
 
+### 2026-10-17 第七十四轮：还清第 73 轮立下的下一轮 P0 —— 逃生门不再计量 no-op / cron 豁免按新根因换理由 / 性能维重采
+
+- **I-74-1（高）`ci-green-contract.mjs` 逃生门对偶**：`local_sha == remote_sha`（无可推之物）时打 `SKIP :: 无可推之物` 且**不落台账**。
+  一手：第 73 轮 ②-B 的重试循环用 grep 自己的 stdout 当成功判据，同一笔推了两次，第二次 base==head 的 no-op 也被记成绕过
+  （`escape-hatch.jsonl` #31/#32 两行 utc 相隔 9 秒）。修复后：重试必须以 ref 行的 remote_sha（同批、不会被中途推送撞开）优先，
+  取不到才 `ls-remote` 现取；真有东西可推（local≠remote）照常落账。夹具新增两腿：no-op 不落账正例 + 对照组（真绕过必须仍落账）+
+  变异体 M4（只换条件不动大括号——整行替换会让多余的 `}` 提前闭合 main()、把 `return rc` 掉到模块顶层，那是夹具坏不是判据红）。
+- **I-74-2/3（高）`docs/cron-health.json` 三条 RED 按新根因换可证伪理由**（I-72-5 续账，原豁免已于 2026-10-12 到期 5 天）：
+  ci-deep.yml 条目此前**未具名根因**（C6 把它单独点名），现归因为「CI 的 `CLOUDFLARE_API_TOKEN` 缺 GraphQL Analytics 读权限
+  （第三方账号授权，agent 不得代做）」；d1-backup.yml 补上「仓库现 public，明文导出物进公开仓 artifact 会被任意已登录用户下载，
+  故 token 必须与 `BACKUP_PASSPHRASE` 成对」这半边；uptime.yml 理由按 2 个失败 step 的实际形态重写。三条 `accepts_red_until` 统一
+  展到 2026-11-07（21 天），`--update` 已把 `observed_failing_steps` 刷到当次实测（C8 漂移 1 → 0，CONFIRMED 3/3）。
+  复算：`GITHUB_REPOSITORY=lxh113377/supermarket-web node scripts/check-cron-health.mjs --require-reason-match` ⇒ GATE-PASS 9/9。
+- **I-74-4（中）性能维重采**（cadence 7 天，上一完整批次 2026-10-08 已过期 9 天）：`collect:live-perf --run` 批次 `t1004` 两页各 3 份
+  全部采到（预飞 200×2），`report:live-perf` verdict 由 RED 转 **GREEN**（入统计 39／未采到 0／恒等式 ✓）。
+- **凭据**：`npx vitest run tests/ciGreenContract.test.js` ⇒ 57 passed（55 → 57）；`npm run verify` ⇒ VERIFY_RC=0（后端 204 通过 / 0 失败）。
+
 ### 2026-10-14 补充二：`ci-deep.yml` 新增 `receipt-refresh` job —— 给「带时刻的读数」补上生产者
 
 - **换的是哪一把尺**：上一条（读数刷新承认通道）治的是「红已经发生之后怎么进去」；本条治的是
