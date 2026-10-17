@@ -7,6 +7,17 @@
 - `npm run report:live-perf` 转 **GREEN**：入统计 39／未采到 0／产物不符 0／恒等式 ✓；批次组 13/13 完整。
 - 读数注记（不折进基线）：跨日两批 admin 中位数最大偏移 100%、customer 35.7% ⇒ 立线余量要按偏移算。
 
+
+## I-74-5 HANDOFF 实测戳复核（中·本轮一并做）
+
+- 一手：戳停在 2026-09-05，龄期 42/45 天（`verify:docs` 的 E 组当次印出「实测戳龄期 = 42 天」），3 天内必到阈值。
+- 复核方式：**戳与戳内每个读数一起重取**，不是改日期了事——
+  CI run `39030653008` `completed/success`（六 job 全 success，含 deploy）／
+  `npm run verify:backend` **204 通过 / 0 失败**／`/_health` 回 `deploy=9cdf0dc` == HEAD。
+- 就地更正同段过期事实：「本地有 185 条后端断言背书」→ **204**（当次实测；原值来自第五十六轮，已过期）。
+- 凭据：`npm run verify:docs` ⇒ **实测戳龄期 = 0 天**、9 项全 OK；「单测文件数（交接文档）= 133」仍逐条相等。
+- 注：用例条数**不写死**（判据口径：写死即第二真相源）——所以本轮没有为了"戳里有个数字"去跑全量用例并抄条数。
+
 ## 本轮凭据
 
 - `npm run verify` ⇒ VERIFY_RC=0（后端 204 通过 / 0 失败；含 lint/case/env/csp/images/eol/cli-legs/cycles/contract/

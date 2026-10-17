@@ -1,8 +1,8 @@
 # 超柿 - 项目交接文档
 
-> 最后更新：2026-08-28（架构已迁移 Cloudflare Pages + D1，README 为准；CloudBase 历史记录见文末存档）
+> 最后更新：2026-10-17（架构：Cloudflare Pages + D1，README 为准；CloudBase 历史记录见文末存档）
 >
-> ✅ **最后实测验证：2026-09-05** —— main@9d803bd（含 CI env 注入修复），线上烘焙版正常（web/pub=True）、vitest 132/132、verify-backend 47/47。**ADMIN_KEY 已回退固定值**：09-05 轮换为随机串后用户拍板恢复 `supermarket-admin-****（掩码；真值见 .dev.vars / Pages secret）`（线上 secret + .dev.vars 同值，login code 0 实测通过）。**事故记录**：5 提交推送触发 CI 自动部署，因 ci.yml 缺 VITE_CB_API_BASE 注入产出未烘焙版（坑 27 复发）→ 已修 ci.yml（两处 Build step 注入 env）并手动部署烘焙版救火。优化建议与执行记录见 `../deliverables/optimization-recommendations-2026-09-05.md`。本文档中早于该日期的状态描述若与本戳冲突，**以本戳和磁盘实测为准**。
+> ✅ **最后实测验证：2026-10-17** —— main@9cdf0dc（第 74 轮：逃生门对偶 + cron 豁免换理由 + 性能重采），CI run 39030653008 `completed/success`（六个必需 job 全 success，含 `deploy=success`），线上 `/_health` 回 `deploy=9cdf0dc` **与本仓 HEAD 逐字相同**；`npm run verify` VERIFY_RC=0、`verify:backend` **204 通过 / 0 失败**、vitest **133 文件**（用例条数以 `npm test` 当场输出为准）；`check-live-shape` 3/3 PASS、漂移 0。复算三通道：`node scripts/ci-status.mjs`（run 终态与部署判定）、`node scripts/check-live-shape.mjs`（线上 sha ⇄ HEAD）、`npm run verify`（本机全链）。**ADMIN_KEY 已回退固定值**：09-05 轮换为随机串后用户拍板恢复 `supermarket-admin-****（掩码；真值见 .dev.vars / Pages secret）`（线上 secret + .dev.vars 同值，login code 0 实测通过）。**事故记录**：5 提交推送触发 CI 自动部署，因 ci.yml 缺 VITE_CB_API_BASE 注入产出未烘焙版（坑 27 复发）→ 已修 ci.yml（两处 Build step 注入 env）并手动部署烘焙版救火。本文档中早于该日期的状态描述若与本戳冲突，**以本戳和磁盘实测为准**。
 
 ## 一、项目概述
 
@@ -144,7 +144,7 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN`（repo �
   不限售项（stock=-1）恒为 0」由 `npm run verify:backend` 的 L 组当场判。**生产迁移已执行**（走 `scripts/migrate.mjs`
   账目表通道，非裸 `d1 execute`），执行前后 `products=55 / orders=59` 未变，恢复演练载回断言通过。
   ⚠️ 现网 55 件商品**全部** `stock < 0`（不限售）⇒ 这张表目前是空的，"把某商品改成有限库存"那条写路径
-  **尚未在现网走过**（本地有 185 条后端断言背书）。详见 `memory/07-next-steps.part111.md` 与 R57-H7。
+  **尚未在现网走过**（本地有 204 条后端断言背书 —— 2026-10-17 实测 `npm run verify:backend` 结果 204 通过 / 0 失败；该轮原记的 185 已过期）。详见 `memory/07-next-steps.part111.md` 与 R57-H7。
 
 - 顾客端读取带 60s 内存缓存（`catalogCache`），云端失败回退本地数据并 warn
 

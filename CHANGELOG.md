@@ -20,6 +20,10 @@
 - **I-74-4（中）性能维重采**（cadence 7 天，上一完整批次 2026-10-08 已过期 9 天）：`collect:live-perf --run` 批次 `t1004` 两页各 3 份
   全部采到（预飞 200×2），`report:live-perf` verdict 由 RED 转 **GREEN**（入统计 39／未采到 0／恒等式 ✓）。
 - **凭据**：`npx vitest run tests/ciGreenContract.test.js` ⇒ 57 passed（55 → 57）；`npm run verify` ⇒ VERIFY_RC=0（后端 204 通过 / 0 失败）。
+- **I-74-5（中）`HANDOFF.md` 实测戳复核**（龄期 42/45 天，3 天内必到阈值）：戳与**戳内三个读数**一起重取——CI run `39030653008`
+  `completed/success`（六 job 全 success，含 deploy）／`verify:backend` **204 通过 / 0 失败**／`/_health` 回 `deploy=9cdf0dc` == HEAD；
+  同段落过期的「本地有 185 条后端断言背书」就地更正为 **204**。`npm run verify:docs` ⇒ 实测戳龄期 **42 天 → 0 天**、9 项全 OK。
+  用例条数仍不写死（判据口径：写死即第二真相源）。
 
 ### 2026-10-14 补充二：`ci-deep.yml` 新增 `receipt-refresh` job —— 给「带时刻的读数」补上生产者
 
