@@ -27,3 +27,5 @@
      自己造出第二个真相源，被 V5/一事实一判的既有规矩打回。估算没有出处就等于没有。
 - 同轮第三笔 `69e8fb2` ⇒ CI run `39079088898` `completed/success`（六 job 全绿含 deploy 9 步），
   线上 `deploy=69e8fb2` == HEAD == 远端 main，漂移 0；这笔是**正常推送**（ci-green GREEN，未用通道、未新增绕过）。
+
+## 自咬四（同轮，外层报告自指行）→ 逐字迁至 `07-next-steps.part167.md`（治 V2 超限 4433B）
