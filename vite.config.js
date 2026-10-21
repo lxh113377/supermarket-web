@@ -22,8 +22,38 @@ function swVersionPlugin() {
   }
 }
 
+// 校园打印（CampusPrint-V1）后端的本机默认入口。打印页（/print）已是该应用的静态面，
+// 它的 /api 由本站同源反代：dev/preview 走这里，线上走 functions/api/[[path]].js（同一开关名）。
+const CAMPUS_PRINT_ORIGIN = process.env.CAMPUS_PRINT_ORIGIN || 'http://127.0.0.1:4328'
+
+/**
+ * /api → 校园打印后端的同源反代。
+ *
+ * 一定要去掉 origin 与 sec-fetch-site 两个头：它的服务端有两道同源守卫
+ * （Origin 必须等于自己的 PUBLIC_ORIGIN、Sec-Fetch-Site 不得是 cross-site），
+ * 浏览器侧我们这里是同源请求、转发出去却带着本站的值 ⇒ 不改就必被 403
+ * （2026-10-21 实测：直跳它自己的域名拿到 FORBIDDEN_ORIGIN；去掉这两头后 200）。
+ * changeOrigin 让它看到 Host=自己，正好满足第一道守卫的"Host 等于 PUBLIC_ORIGIN"。
+ */
+function campusPrintProxy() {
+  return {
+    '/api': {
+      target: CAMPUS_PRINT_ORIGIN,
+      changeOrigin: true,
+      configure(proxy) {
+        proxy.on('proxyReq', (proxyReq) => {
+          proxyReq.removeHeader('origin')
+          proxyReq.removeHeader('sec-fetch-site')
+        })
+      },
+    },
+  }
+}
+
 export default defineConfig({
   plugins: [react(), swVersionPlugin()],
+  server: { proxy: campusPrintProxy() },
+  preview: { proxy: campusPrintProxy() },
   base: './',
   test: {
     // vitest 4 读取本字段；setup 统一注册 RTL cleanup（非 globals 模式不自动清理）
@@ -53,24 +83,16 @@ export default defineConfig({
       reporter: ['text-summary', 'html'],
       reportsDirectory: './coverage',
       include: ['src/**'],
-      // 3D 渲染层（打印页）单独豁免（2026-10-07）：这一层是 WebGL 绘制指令的声明式描述
-      // —— 在 jsdom 里没有 WebGL 上下文，`<Canvas>` 根本挂不起来，强行测等于测 R3F 自己；
-      // 而它本身几乎不含分支逻辑，覆盖率数字对"这段代码对不对"没有信息量。
-      // 2026-10-08 二次扩展（CI run 37667074618 覆盖率棘轮实测红后）：豁免面扩到打印页的
-      // **DOM 装配层**（PrintPage/PrintForm/PrintHero/PrintSplash/hooks）——它们依赖真实滚动容器
-      // （Lenis）、WebGL 探测与文件上传 IO，jsdom 里要么挂不起、要么测的是 mock 形状而非行为；
-      // 其**可测逻辑已全部拆出并真测**：printFormLogic（20 条）、printUpload（11 条）留在分母内，
-      // 常量同值由 printCapParity 钉住。豁免换测试的约定不变：以后给这一层补测试用 Playwright 跑
-      // 真浏览器，而不是把它塞回 jsdom。
+      // 打印页豁免面（2026-10-07 立，2026-10-21 随本页整体替换而收窄）。
+      // 本页现在只剩"读地址 + 跳转"两件 DOM 装配事；真正有分支的逻辑（地址合法性判定）
+      // 已拆到 printApp.ts 并进入分母，由 tests/printApp.test.ts 直接钉边界。
+      // 老豁免面（scene/hooks/PrintForm/PrintHero/PrintSplash）随这些文件一并删除，
+      // 这里保留的唯一一条就是本页组件本身 —— 它依赖真实 window.location，
+      // jsdom 里只能测 mock 形状而不是行为，给它补测试要用 Playwright 跑真浏览器。
       exclude: [
         'src/**/*.d.ts',
         'src/**/index*',
-        'src/pages/print/scene/**',
-        'src/pages/print/hooks/**',
         'src/pages/print/PrintPage.tsx',
-        'src/pages/print/PrintForm.tsx',
-        'src/pages/print/PrintHero.tsx',
-        'src/pages/print/PrintSplash.tsx',
       ],
       thresholds: {
         // 棘轮历史（statements）19.5 → 23 → 35 → 47 → 57 → 74 → 76 → 78 → 79（第九轮：
@@ -103,18 +125,14 @@ export default defineConfig({
     outDir: 'dist',
     // 已移除 CloudBase JS SDK（后端迁至 Pages Functions），不再有 cloudbase-sdk 大块。
     // 阈值只作告警（真正阻断在 scripts/check-bundle-size.mjs）。
-    // 2026-10-07 由 800 抬到 1000：three-vendor raw 953KB 会恒告警，而它是懒加载块、
-    // 不进首屏；留一条永远红着的告警等于没有告警。
+    // 2026-10-07 由 800 抬到 1000（当时 three-vendor raw 953KB 会恒告警）。
+    // 2026-10-21 打印页整体替换成外站应用后本站已无 three 块，阈值维持不变：
+    // 它只是告警上限，不参与任何判据（阻断在 scripts/check-bundle-size.mjs）。
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) return
-          // 3D（打印页专用，2026-10-07 新增）：three 生态体积远大于其余依赖，
-          // 单独成块才能①不进首屏 ②不被 react 升级带着一起失效长缓存。
-          // 注意：必须在 react 判断之前，否则会被 includes('react') 误吞（@react-three/fiber）。
-          if (id.includes('/three/') || id.includes('@react-three')) return 'three-vendor'
-          if (id.includes('/lenis/')) return 'scroll-vendor'
           // 路由：与 React 运行时分离，router 升级不会让 react 块的长缓存失效
           // 注意：此判断必须在 react 之前，否则会被 includes('react') 误吞
           if (id.includes('react-router')) return 'router'

@@ -7,23 +7,13 @@
 >
 > **⚠️ 记忆双份提示（2026-09-23 实测）已逐字迁至 `07-next-steps.part117.md`**（内层与本仓外层 `超市web/超市/memory/` 两套 07 内容不同，权威在内层）。
 
-## 2026-10-17 — 第七十五轮（四项工程改造 + 一条挂七轮的假欠账被证伪）
+## 2026-10-18 — 第七十六轮（契约治理 + 体量治理登记化）
 
-- I-75-1 **分支保护真落地**（高）：前七轮写「agent 无权」是假账 —— 本机 gh token 有 `repo`+`admin:org`、仓 `permissions.admin=true`，
-  `PUT /branches/main/protection` 一次成功 ⇒ **ENFORCED**（5 条必需检查；`enforce_admins=false` 保留自推）。
-- I-75-2 **阈值消费面**（高）：`report-live-perf` 自 R58 立线起明写「不判达标线」⇒ 六条线没有消费者。现接四态
-  `RED/GREEN/PARTIAL/NO-LINE`，自证 21→25；首跑两格越线（admin/t1355 SI 8104.8>7000、customer/t2359 SRT 468>450），
-  按「单样本不足以定基线」记**待观察**，跨日复采后再定性。
-- I-75-3 **静态长缓存 + 判据**（高）：线上 `/assets/*.js` 实测回 `max-age=0` ⇒ 加 `/assets/*` immutable（`/images/*` 不动）；
-  新增 `verify:cache`（7 自证 + 7 夹具，读声明面不读线上）。
-- I-75-4 **SBOM 可复现**（中）：`docs/sbom.cdx.json` 246 组件，`verify:sbom` 当场重算做 purl 双向差集 + 龄期 ≤30 天。
-- I-75-5 **a11y 静态闸**（中）：三条规则扫 50 tsx；规则首版假阳性 4 处（JSX 截断）改 `readJsxTag` 修正，
-  唯一真实残留 `Overlay` 遮罩**改源码**加 `role="presentation"`（不是加白名单）。
-- 三笔提交与两条自咬的完整回执 → `07-next-steps.part166.md`。
-- **下一轮 P0**：I-75-6 跨日性能批次给两格越线定性；I-75-7 CF 备份凭据（真·用户侧，cron WARN 至 11-07）。
-- **方法论**：「无权」必须举证；没试过就说没权限 = 给欠账发永久休假条。
-
-
+- 新增 `docs/governance/` 六件（registry.json 登记册 + 四份人读规范 + 入口）与 `scripts/check-governance-framework.mjs`（九腿三向对账：登记值 ⇄ 现算值 ⇄ 源件在盘非空；文档引用 ⇄ 册内 id 双向），
+  并入 verify 聚合链（`npm run verify:governance`，段数 42→43）。
+- 本机实测：`npm run verify:governance` **9 通过 / 0 失败 / 0 未验**（rc=0）；判据 `--selftest` **12/12**；夹具 `tests/governanceFramework.test.js` **7/7**（含真仓默认面、零输入 rc=2、两条方向相反的变异腿）。
+- 本轮完成对账的同时，把既有闸的两处连带红一并处置：G11（无效 `@probe-safe` 声明 ⇒ 删声明）、check:doc-commands 的 D6+D7（新别名 ⇒ 重生生成块与登记册）。
+- **下一轮 P0**：P2 阶段 —— 把联动规则做成可当场复算的结论，并把线上性能线四态（GREEN/WARN/RED/NO-LINE）接进报告位；NO-LINE 不得读成通过。
 ## 2026-10-17 — 第七十四轮
 
 - 摘要（四项已上线 / M4 变异体自咬 / 未修且 agent 无权三行）→ **逐字**迁至 `07-next-steps.part164.md`（第七十五轮迁出治 V3 贴线）；正文 `part161` / `part162`。
@@ -38,5 +28,6 @@
 
 ## 更早轮次的指针
 
-- **在册卷号：1–167**（V5 对账行必须留在主卷；分卷规则与旧指针明细见 `07-next-steps.part165.md`）。
+- **在册卷号：1–168**（V5 对账行必须留在主卷；分卷规则与旧指针明细见 `07-next-steps.part165.md`）。
 - 旧轮次指针 + 分卷目录（在册卷号声明 / V5 对账行）→ **整段**迁至 `07-next-steps.part165.md`（第七十五轮迁出治 V3 超限）。
+- 第七十五轮主卷整段（四项工程改造摘要）→ **逐字**迁至 `07-next-steps.part168.md`（第七十六轮 P1 收口迁出治 V2/V3）。

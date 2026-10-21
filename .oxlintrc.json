@@ -5,6 +5,7 @@
     "browser": true,
     "es2024": true
   },
+  "ignorePatterns": ["public/shared/**", "public/user/**"],
   "rules": {
     "no-console": ["warn", { "allow": ["warn", "error"] }],
     "no-debugger": "error",

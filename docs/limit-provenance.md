@@ -107,12 +107,7 @@
 | src/pages/print/print.config.ts | 常量 | MAX_PRINT_FILES=9 | product | 打印页自己的张数上限：与 `src/data/submissionLimits.ts` 的 MAX_SUBMISSION_FILES 同源（本文件 re-export 它），不另立一个数；两处同值由 tests/printCapParity.test.ts 钉住 |
 | src/pages/print/print.config.ts | 体积型 | 20 | product | 打印单文件上限 20MB（前端侧镜像）：与 `functions/lib/shared.js` 的 PRINT_FILE_MAX_BYTES 同值，由 tests/printCapParity.test.ts 钉住。选值理由见服务端那行 |
 | src/pages/print/print.config.ts | 体积型 | 512 | perf | `MAX_INLINE_UPLOAD_BYTES` = 512KB：云存储未就绪时**内联降级**的前端侧单文件门槛。必须与服务端 MAX_INLINE_PRINT_CHARS（700,000 字符 ≈ 512KB 二进制）同量纲，否则会出现"前端放行、服务端拒" |
-| src/pages/print/printFormLogic.ts | 常量上限 | MAX_PRINT_FILES | product | 提交前校验的张数上限（消费侧）：与服务端 createSubmission 的 cap 同值，由 tests/printCapParity.test.ts 钉住 |
-| src/pages/print/printFormLogic.ts | 拒绝型 | 50 | schema | 楼栋号/房间号/微信号超 50 字**拒绝**（不是截断）：与服务端 formData 各字段截 50 同值同因，两侧不同值就会出现"前端收下了、入库被悄悄截断" |
-| src/pages/print/printFormLogic.ts | 拒绝型 | 200 | schema | 备注超 200 字拒绝：与服务端 formData 截 200 同值同因（TEXT 列无列宽约束，长度由应用层定） |
-| src/pages/print/printFormLogic.ts | 体积型 | 1024 | schema | formatBytes 的 KB 分档阈值（1024 字节）：纯展示分档，不是准入上限 —— 登记它只是让普查面不留洞 |
-| src/pages/print/PrintForm.tsx | 常量上限 | MAX_PRINT_FILES | product | 上传按钮禁用与"已选 n/9"计数用的同一个常量：屏上提示与真实拒绝必须是同一个数 |
-| src/pages/print/PrintForm.tsx | 截断型 | 200 | schema | 文件名清单入 formData 前截 200：与服务端 formData 单值预算同值，避免"文件多了清单被截断后看不到后面几个" |
+
 | src/pages/ServiceFormPage.tsx | 体积型 | 10 | product | 单张原图 ≤10MB 门槛：与 ReviewForm 的 10MB 同因（压不动就别上传） |
 | functions/lib/shared.js | 常量 | MAX_STATEMENT_PAYLOAD_CHARS=90000 | platform | 第三十七轮 R37-H2 的唯一一把尺：90,000 = 平台事实 `d1_statement_bytes = 100000 bytes/语句` × (1 − 10% 余量)，余量给 SQL 关键字、items JSON 与转义膨胀。一手实测把改前的三条旧尺全判成虚设 —— 本仓 `public/` 现有 115 张图 base64 后 p50≈29,677 / p90≈103,298 / max≈204,538 字符，**p90 就已越过平台预算**，故 `800 * 1024` 与 `2 * 1024 * 1024` 放行后必然在平台层失败（用户看到"下单失败"而不是"图太大"）。量纲结案：base64 是 ASCII ⇒ 1 字符 = 1 byte，"字符数"与"语句字节数"同尺可比，第十七轮 M5 那句"须先统一量纲再谈等值"到此关闭 |
 | functions/lib/actions/orders.js | 常量上限 | MAX_STATEMENT_PAYLOAD_CHARS | platform | 付款截图单张长度守卫，引用 shared.js 那把尺（不另拍数字）：一条订单 = 一行 INSERT = 一份语句预算；出处 = 平台事实 `d1_statement_bytes = 100000 bytes/语句`（经 `MAX_STATEMENT_PAYLOAD_CHARS` 派生，见 shared.js 那行） |

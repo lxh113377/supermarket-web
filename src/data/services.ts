@@ -192,9 +192,9 @@ export const SERVICES: Service[] = [
     ],
   },
   {
-    // 打印：走独立沉浸式页面（/print 路由），不复用 ServiceFormPage。
-    // 该页视觉与站内其他页面刻意不同（深色影院感 + 3D 实景导航），故不在 SERVICES 里带 fields ——
-    // 字段定义收口在 src/pages/print/print.config.ts，避免同一份表单有两处真源。
+    // 打印：2026-10-21 起 /print 这一页整体替换为外站「校园打印」应用（CampusPrint-V1），
+    // 本站不再自建打印表单 —— 点进来即跳到该应用（地址解析见 src/pages/print/printApp.ts）。
+    // 仍保留 form-free 的 type:'print'：CategoryPage 与路由表按它分流，字段不再落在本仓。
     id: 'print',
     categoryId: 'study',
     name: '打印',

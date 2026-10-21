@@ -23,6 +23,9 @@
 | `VITE_CB_PUBLIC_API_BASE` | build | 同上 | 同上（顾客端拿不到公开接口基址即走本地种子数据） | 公开 API 端点 `/pub` |
 | `VITE_R2_PUBLIC_BASE` | build | `.env` / CI 构建参数（R2 bucket 建好并配公网读后才填） | 原样透传 `r2:` 引用（评价图不断言渲染，后端仍只产出 base64/外链）；配后 `r2:<key>` 拼成可渲染地址 | 评价晒图 R2 对象公网基址（迁移就绪，bucket 未建前留空）。**打印服务的后台下载同样读它**：未配置时打印提交的文件条目只显示文件名、不给下载链接 |
 
+| `VITE_CAMPUS_PRINT_URL` | build | `.env` / CI 构建参数（`vite build` 前烘焙） | 回落到内置默认 `/print/#print`（本站同源静态面，直达打印下单视图）；顾客端主机（`lxh113377.github.io`，无 Pages Functions）另有内置回落 `https://supermarket-web.pages.dev/print/#print` | 打印页（`/print`）目标地址。2026-10-21 起本站打印页整体替换为「校园打印」（CampusPrint-V1）：该应用的学生端静态面原样落在本站 `/print/`，本项只是它的地址开关（解析与兜底见 `src/pages/print/printApp.ts`） |
+| `CAMPUS_PRINT_ORIGIN` | plain | Pages → Settings → Variables and Secrets | 打印页的 /api 反代**响亮失败**：`/api/*` 返回 503 `PRINT_APP_UNAVAILABLE`（不静默降级成"看起来像没数据"的空白页） | 「校园打印」应用自己的 Node 后端地址（`functions/api/[[path]].js` 与 `vite.config.js` 的 dev/preview 反代共用；本机默认 `http://127.0.0.1:4328`）。它只认同源，故必须由这一层反代转发 |
+
 ## 为什么把「未配置时行为」写成硬判据
 
 对标取证（第十轮）里，litemall 的 `NotifyService.isMailEnable()`（`mailSender == null` 直接

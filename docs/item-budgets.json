@@ -79,25 +79,11 @@
       "note": "首屏 CSS（聚合预算里 firstLoadCss 的分项化）。2026-10-08 由 11100 上调到 12400：打印页（/print）组件的 Tailwind 工具类被全量扫描进主 CSS（Tailwind 不按路由拆分），+123B gz；打印页专属样式已拆 print.css 随路由加载（见 CHANGELOG），本条涨的是工具类面"
     },
     {
-      "id": "three-vendor",
-      "pattern": "three-vendor-*.js",
-      "budget": 276600,
-      "measuredAtBuild": "251,445B gz（2026-10-08 打印页轮本机构建实测）",
-      "note": "three.js + @react-three/fiber（打印页专用懒加载块，manualChunks 单独成块）。WebGL 引擎本体体积，不进首屏；归因与补偿措施见 check-bundle-size.mjs 头注与 CHANGELOG"
-    },
-    {
       "id": "print-page",
       "pattern": "PrintPage-*.js",
       "budget": 7900,
-      "measuredAtBuild": "7,175B gz（同上）",
-      "note": "打印页装配块（懒加载路由，场景在 three-vendor/独立 print.css）。第二条进名册的业务页路由块"
-    },
-    {
-      "id": "scroll-vendor",
-      "pattern": "scroll-vendor-*.js",
-      "budget": 6400,
-      "measuredAtBuild": "5,765B gz（同上）",
-      "note": "lenis 平滑滚动（打印页专用懒加载块，manualChunks 单独成块）"
+      "measuredAtBuild": "654B gz（2026-10-21 打印页整体替换为本机实测）",
+      "note": "打印页装配块（懒加载路由）。2026-10-21 打印页整体替换为外站「校园打印」应用：本块只剩「解析地址 + 跳转」，three-vendor 与 scroll-vendor 两条名册随之删除（产物面 0 命中 = 死条目，见 CHANGELOG）"
     },
     {
       "id": "assistant-page",
