@@ -33,11 +33,18 @@ describe('治理登记册判据：入口真跑（三态 + 点名）', () => {
     expect(Number(m[2])).toBeGreaterThanOrEqual(10)
   })
 
-  it('真仓默认面：跑到判据本身（rc 0/1 皆可，rc=2 单独判）且印出结果行', () => {
+  it('真仓默认面：跑到判据本身（rc 0/1/2 皆可，但 rc=2 必须点名是哪条未验）且印出结果行', () => {
     const r = run([SELF])
-    expect(r.status === 0 || r.status === 1, '真仓取数面应可读；rc=2 说明登记册或文档面缺失').toBe(true)
+    expect([0, 1, 2], `真仓取数面应可读；rc=${r.status} 既不是绿/红也不是未验：${r.stderr}`).toContain(r.status)
     expect(r.stdout).toContain('[governance-framework]')
     expect(/结果: \d+ 通过 \/ \d+ 失败 \/ \d+ 未验/.test(r.stdout), '缺门面结果行（分母必须印出来）').toBe(true)
+    // CI 检出（无外层仓、无 git 历史）上 F2/F10 会 legitimately UNVERIFIED ⇒ rc=2。
+    // 这里要守的不是「恒绿」，而是「未验不许沉默」：rc=2 时必须至少有一行 UNVERIFIED 且点名腿号。
+    if (r.status === 2) {
+      const unv = r.stdout.split('\n').filter((l) => l.startsWith('UNVERIFIED'))
+      expect(unv.length, `rc=2 却没有一行 UNVERIFIED ⇒ 未验被沉默：${r.stdout.slice(-400)}`).toBeGreaterThan(0)
+      expect(unv.join('\n')).toMatch(/F\d+/)
+    }
   })
 
   it('零输入面：取数面缺失 ⇒ rc=2 且首行是自家诊断（不是裸栈）', () => {

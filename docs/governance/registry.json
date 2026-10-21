@@ -38,12 +38,6 @@
       "shellMaxBytes": 40960,
       "contentMaxBytesSource": "scripts/check-memory-volume.mjs:CONTENT_MAX_DEFAULT（导入，不抄）",
       "checkPatternUtf8Safe": true,
-      "mainShellBytes": 2657,
-      "maxContentVolumeBytes": 4081,
-      "outerShellPath": "超市/memory/07-next-steps.md",
-      "outerShellBytes": 39953,
-      "outerShellMaxBytes": 40960,
-      "outerShellHeadroomBytes": 1007,
       "source": "scripts/check-memory-volume.mjs（CONTENT_MAX_DEFAULT/SHELL_MAX_DEFAULT 导入 + 当场 stat）；运行时字段一律现算，禁手抄"
     },
     "seedCatalog": {

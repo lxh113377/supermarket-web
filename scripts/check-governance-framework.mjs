@@ -36,7 +36,7 @@ import { join, dirname, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createHash } from 'node:crypto'
 import { requireInputs, requireJson } from './lib/preflight.mjs'
-import { CONTENT_MAX_DEFAULT, SHELL_MAX_DEFAULT, MAIN_VOLUME, OUTER_MEM_DEFAULT, readShellMax } from './check-memory-volume.mjs'
+import { CONTENT_MAX_DEFAULT, SHELL_MAX_DEFAULT } from './check-memory-volume.mjs'
 
 export const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 export const REGISTRY = 'docs/governance/registry.json'
@@ -133,34 +133,23 @@ export function itemBudgets(root = ROOT) {
  * （且当时主卷并不在盘上，判据印出来的是 2657B）⇒ 手抄的"现值"会在无人察觉时变成历史。
  * 所以运行时那一半也进 facts，谁都不写数字。
  *
- * 外层壳是三项分开的量，禁合并（同 outerFaceReport 三态）：路径 / 当前字节 / 是否越限。
- * 路径不存在记 null + 不写 0（0 会被读成"外壳是空的"）。
+ * 体量预算只登记**静态量**：单卷/外壳阈值 + 来源 + 开关。运行时读数（主卷字节、最大内容卷、
+ * 外层壳三项）不进 facts —— 册里存它们就是第二真相源，且 F2 只遍历现算侧会把它们判成「缺键」。
+ * 运行时量由 check-memory-volume.mjs 自己判（V1..V7），本件不重复立尺。
  */
 export function memoryLimits(root = ROOT) {
-  const main = sizeOf(join(root, 'memory', MAIN_VOLUME || '07-next-steps.md'))
-  const files = existsSync(join(root, 'memory')) ? readdirSync(join(root, 'memory')).filter((f) => f.endsWith('.md')) : []
-  // 作用面口径必须与 check-memory-volume.mjs 的 classify() 同源（日期日报与 sync 快照是"命中但不判"的一类，
-  // 把它们算进 maxContent 会让本件与 V2 报出两个不同的"最大内容卷"）。
-  const inScope = files.filter((f) => !/^\d{4}-\d{2}-\d{2}\.md$/.test(f) && !['02-structure.md', '04-file-map.md'].includes(f))
-  const maxContent = inScope.reduce((m, f) => Math.max(m, sizeOf(join(root, 'memory', f))), 0)
-  // 外层工作区壳：外层仓根 = 本仓根的上一级下的 超市/memory。取不到就是取不到，不猜、不写 0。
-  const outerRoot = OUTER_MEM_DEFAULT && OUTER_MEM_DEFAULT.startsWith(join(root, '..')) ? OUTER_MEM_DEFAULT : join(root, '..', '超市', 'memory')
-  const outerPath = join(outerRoot, '07-next-steps.md')
-  const outerExists = existsSync(outerPath)
-  const outerBytes = outerExists ? sizeOf(outerPath) : null
-  const shell = readShellMax(outerRoot)
-  const outerMax = shell ? shell.max : SHELL_MAX_DEFAULT
+  // facts 里只放**可登记的静态量**（阈值/来源/开关）——运行时读数一律不进 facts：
+  // ① 册里存运行时值 = 第二真相源，本机一改工作区册子当场过期（第七十六轮一手实测：
+  //    册写 mainShellBytes 2657 而 HEAD 版 3132，CI 检出用 HEAD ⇒ 每次 CI 都判「不符」）；
+  // ② F2 的 walk 只遍历现算侧 ⇒ 现算多出来的键一律落「册内缺键」⇒ UNVERIFIED，
+  //    而那不是「没人立过口径」，是「这一半不该由册登记」（两件事必须分开）。
+  // 运行时量（mainShellBytes / maxContentVolumeBytes / outerShell*）由
+  // scripts/check-memory-volume.mjs 自己判，本件不重复立尺。
   return {
     contentMaxBytes: CONTENT_MAX_DEFAULT,
     shellMaxBytes: SHELL_MAX_DEFAULT,
     contentMaxBytesSource: 'scripts/check-memory-volume.mjs:CONTENT_MAX_DEFAULT（导入，不抄）',
     checkPatternUtf8Safe: true,
-    mainShellBytes: main,
-    maxContentVolumeBytes: maxContent,
-    outerShellPath: outerExists ? '超市/memory/07-next-steps.md' : null,
-    outerShellBytes: outerBytes,
-    outerShellMaxBytes: outerMax,
-    outerShellHeadroomBytes: outerExists ? outerMax - outerBytes : null,
   }
 }
 
