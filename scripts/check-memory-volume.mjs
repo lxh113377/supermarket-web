@@ -22,12 +22,16 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const MEM = join(root, 'memory')
 requireInputs('memory-volume', [MEM])
 
+/** 单卷阈值默认值（与 handoff.py 的 `memory_md_max` 同值）。第七十六轮 I-76-1 起**导出**：
+ *  治理登记册判据用它做 facts 对账，禁在第二处再写一遍数字（写两处＝第二把尺，改一漏一必漂）。 */
+export const CONTENT_MAX_DEFAULT = 4_096
+
 /** 默认阈值与 handoff.py 的 `memory_md_max` 一致；登记册若写了「体量预算」行就以它为准。 */
 function loadBudget() {
   const p = join(MEM, '06-constraints.md')
   const text = existsSync(p) ? readFileSync(p, 'utf8') : ''
   const m = /体量预算\*{0,2}[：:]\s*memory_md_max\s*=\s*(\d+)/.exec(text)
-  return { max: m ? Number(m[1]) : 4096, source: m ? 'memory/06-constraints.md 体量预算行' : '代码默认 DEFAULT（与 handoff.py 同值）' }
+  return { max: m ? Number(m[1]) : CONTENT_MAX_DEFAULT, source: m ? 'memory/06-constraints.md 体量预算行' : '代码默认 DEFAULT（与 handoff.py 同值）' }
 }
 
 /**

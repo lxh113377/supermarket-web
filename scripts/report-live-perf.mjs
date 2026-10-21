@@ -39,6 +39,8 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+// @consumer-states: GREEN,PARTIAL,RED,NO-LINE,UNVERIFIED
+// @consumer-no-line: NO-LINE/PARTIAL/UNVERIFIED 只表示"名册无线或这一批没判干净"⇒ 不得读成通过；绿须每格都被判过
 export const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SELF = join(ROOT, 'scripts', 'report-live-perf.mjs')
 export const DEFAULT_DIR = join(ROOT, '.lighthouse')
