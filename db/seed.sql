@@ -63,3 +63,4 @@ INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", s
 INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p061', '纸抽', '', 0.5, '["daily_goods"]', 1, 61, '[]');
 INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p062', '一次性碗盖筷', '', 0.5, '["daily_goods"]', 1, 62, '[]');
 INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p063', '一次性垃圾袋', '', 0.5, '["daily_goods"]', 1, 63, '[]');
+INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p064', '老酸奶软糖', '', 0.5, '["snacks"]', 1, 64, '[]');

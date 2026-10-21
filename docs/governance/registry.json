@@ -1,0 +1,798 @@
+{
+  "schema": "chaoshi-governance-registry-v1",
+  "generatedUtc": "2026-10-18T05:05:00Z",
+  "comment": "契约治理 + 体量治理的唯一机器登记册。人读规范见同目录两份 markdown；判据 scripts/check-governance-framework.mjs 对本册做三向对账（登记值 ⇄ 真相源现值 ⇄ 源件在盘非空）。凡登记项被文档以 [registry:<id>] 引用，判据做双向存在性对账。数字一律取本机 2026-10-18 实跑读数，禁手抄第二份。",
+  "facts": {
+    "measuredAt": "2026-10-18T04:30:00Z",
+    "repo": "supermarket-web (内层 git 根)",
+    "head": "f2410b3",
+    "contractActions": {
+      "web": 35,
+      "pub": 9,
+      "source": "docs/api-contract.json"
+    },
+    "verifyLegs": {
+      "value": 43,
+      "source": "package.json scripts.verify 的 && 段数（第七十六轮并入 verify:governance ⇒ 42→43）"
+    },
+    "gateScripts": {
+      "value": 69,
+      "source": "scripts/*.mjs 文件数（第七十六轮新增本判据本身 ⇒ 68→69）"
+    },
+    "ciJobs": {
+      "value": 6,
+      "required": 6,
+      "source": ".github/workflows/ci.yml 的 jobs: 段（本机实跑该段 6 个 job 键）"
+    },
+    "limitRosterRows": {
+      "value": 97,
+      "source": "docs/limit-provenance.md 表格行"
+    },
+    "itemBudgets": {
+      "registered": 32,
+      "noBudgetMax": 36,
+      "source": "docs/item-budgets.json"
+    },
+    "memoryVolume": {
+      "contentMaxBytes": 4096,
+      "shellMaxBytes": 40960,
+      "contentMaxBytesSource": "scripts/check-memory-volume.mjs:CONTENT_MAX_DEFAULT（导入，不抄）",
+      "checkPatternUtf8Safe": true,
+      "mainShellBytes": 2657,
+      "maxContentVolumeBytes": 4081,
+      "outerShellPath": "超市/memory/07-next-steps.md",
+      "outerShellBytes": 39953,
+      "outerShellMaxBytes": 40960,
+      "outerShellHeadroomBytes": 1007,
+      "source": "scripts/check-memory-volume.mjs（CONTENT_MAX_DEFAULT/SHELL_MAX_DEFAULT 导入 + 当场 stat）；运行时字段一律现算，禁手抄"
+    },
+    "seedCatalog": {
+      "products": 63,
+      "enabled": 63,
+      "orders": 0,
+      "source": "node:sqlite 内存重放 db/schema.sql + db/seed.sql（本机实测）"
+    },
+    "d1Quota": {
+      "dailyRowsWrittenFree": 100000,
+      "peakRowsWritten": 21,
+      "callsPerDayAtPeak": 4761,
+      "source": "docs/d1-write-quota.json"
+    },
+    "d1Usage": {
+      "rowsWrittenLastDay": 8,
+      "rowsReadLastDay": 1703,
+      "dayUtc": "2026-10-17",
+      "source": "docs/d1-remote-usage.json 的 channels.graphql"
+    },
+    "bundleBudget": {
+      "firstLoadJsBytes": 97280,
+      "firstLoadCssBytes": 12288,
+      "largestChunkBytes": 307200,
+      "source": "scripts/check-bundle-size.mjs BUDGET"
+    },
+    "perfLines": {
+      "fcp": 3000,
+      "lcp": 4500,
+      "cls": 0.1,
+      "tbt": 450,
+      "si": 7000,
+      "srt": 450,
+      "lineCount": 6,
+      "cadenceMaxBatchAgeDays": 7,
+      "rosterSha256": "0715c14c3d9367766d61a5f285ac8070c557a540f5f97b691da9201b4d1ffe6b",
+      "source": "docs/live-perf.json thresholds + cadence + sha256（运行时读，禁手抄）"
+    },
+    "codeFace": {
+      "files": {
+        "functions": 25,
+        "src": 96
+      },
+      "firstCommitDate": "2026-08-08",
+      "lastCommitDate": "2026-10-18",
+      "historyDays": 72
+    }
+  },
+  "lifecycle": {
+    "stages": [
+      "起草",
+      "审核",
+      "签署",
+      "履约监控",
+      "归档"
+    ],
+    "riskTiers": [
+      {
+        "id": "lc-risk-t1",
+        "name": "一级（蓝·提示）",
+        "severity": "low",
+        "signal": "生成物与实现不一致（`npm run verify:contract` / `npm run verify:openapi` / `npm run verify:response` 判红）",
+        "threshold": {
+          "green": "0 条漂移",
+          "warn": "1 条漂移且已具名登记",
+          "red": "≥2 条漂移或同一 action 连续两轮漂移"
+        },
+        "action": "起草节点当场重算生成物并同笔提交；漂移不许跨轮",
+        "window": "当轮（同一提交内）",
+        "owner": "lc-draft-author",
+        "escalateTo": "lc-review-field"
+      },
+      {
+        "id": "lc-risk-t2",
+        "name": "二级（黄·阻断候选）",
+        "severity": "medium",
+        "signal": "破坏性变更未登记（check:contract-diff 判 rc=1，且 .ci/contract.json 的 contractBreakageExceptions 里无该 id 或已过期）",
+        "threshold": {
+          "green": "破坏性变更 0 条",
+          "warn": "有破坏性变更但已登记且未过期",
+          "red": "有破坏性变更且未登记，或登记已过期"
+        },
+        "action": "补登记（带 untilUtc 与可复算理由）或改回非破坏形态；两者都不做则该提交不得合并",
+        "window": "同一 PR 内",
+        "owner": "lc-review-signoff",
+        "escalateTo": "lc-sign-publish"
+      },
+      {
+        "id": "lc-risk-t3",
+        "name": "三级（红·停发）",
+        "severity": "high",
+        "signal": "线上形状与仓内形状分歧（`node scripts/check-governance-framework.mjs` 读 check:live-shape 台账）或契约已发布但线上 deploy sha ≠ HEAD",
+        "threshold": {
+          "green": "线上 sha 与 HEAD 逐字相同且形状 3/3 通过",
+          "warn": "线上 sha 落后 1 个提交或形状部分未取到",
+          "red": "线上 sha 落后 ≥2 个提交，或形状判 RED，或配额余量 <5%"
+        },
+        "action": "停发新契约变更；先回滚或补部署，再解冻",
+        "window": "≤4 小时（工作时段）",
+        "owner": "lc-sign-authority",
+        "escalateTo": "人（老大）裁决"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "lc-draft-author",
+        "name": "契约起草",
+        "stage": "起草",
+        "r": "提交人（agent/人）",
+        "a": "提交人",
+        "c": "lc-review-field",
+        "i": "lc-monitor-contract",
+        "sla": "同一提交内",
+        "input": "需求变更单 / 新 action 说明",
+        "outputEvidence": "functions/** 与 src/** 的改动 + 重算后的 docs/api-contract.json",
+        "gate": "`npm run verify:contract` rc=0"
+      },
+      {
+        "id": "lc-draft-selfcheck",
+        "name": "起草自检",
+        "stage": "起草",
+        "r": "提交人",
+        "a": "提交人",
+        "c": "lc-draft-author",
+        "i": "lc-review-field",
+        "sla": "≤10 分钟",
+        "input": "改动后的源码面",
+        "outputEvidence": "生成物重算无差异（`npm run verify:contract` / `npm run verify:openapi` / `npm run verify:response` / `npm run verify:registry` 全绿）",
+        "gate": "四条生成物判据 rc=0"
+      },
+      {
+        "id": "lc-review-field",
+        "name": "字段与类型评审",
+        "stage": "审核",
+        "r": "评审人（agent 自审或人）",
+        "a": "评审人",
+        "c": "lc-draft-author",
+        "i": "lc-sign-authority",
+        "sla": "≤1 工作日",
+        "input": "docs/openapi.json 的字段与类型面",
+        "outputEvidence": "字段增减/类型变更逐条结论（含响应形状可行性）",
+        "gate": "`npm run verify:backend` rc=0"
+      },
+      {
+        "id": "lc-review-risk",
+        "name": "破坏性变更评审",
+        "stage": "审核",
+        "r": "评审人",
+        "a": "评审人",
+        "c": "lc-monitor-contract",
+        "i": "lc-sign-publish",
+        "sla": "≤1 工作日",
+        "input": "基线契约 diff",
+        "outputEvidence": "破坏性变更清单（按 ACTION_REMOVED / PROP_REMOVED / TYPE_CHANGED / REQUIRED_ADDED / WRITE_ESCALATED 五类逐条）",
+        "gate": "`npm run check:contract-diff` 与登记册双向对账 rc=0"
+      },
+      {
+        "id": "lc-review-signoff",
+        "name": "评审签署（豁免登记）",
+        "stage": "审核",
+        "r": "评审人",
+        "a": "评审人",
+        "c": "人（老大）",
+        "i": "lc-archive-freeze",
+        "sla": "≤1 工作日",
+        "input": "破坏性变更清单",
+        "outputEvidence": ".ci/contract.json 的 contractBreakageExceptions 条目（必带 untilUtc 与可复算理由）",
+        "gate": "理由须含实测数字或可复跑命令（登记理由可证伪）"
+      },
+      {
+        "id": "lc-sign-authority",
+        "name": "签署授权（写权限与密钥面）",
+        "stage": "签署",
+        "r": "授权人（人）",
+        "a": "授权人（人）",
+        "c": "lc-sign-version",
+        "i": "lc-monitor-quota",
+        "sla": "≤4 小时",
+        "input": "评审结论 + 变更影响面",
+        "outputEvidence": "密钥面变更的部署回执（改 Pages secret 后必须重新部署一次才生效）",
+        "gate": "登录实测返回 code=0；密钥不落明文镜像"
+      },
+      {
+        "id": "lc-sign-version",
+        "name": "签署版本（生成物同笔）",
+        "stage": "签署",
+        "r": "提交人",
+        "a": "提交人",
+        "c": "lc-draft-selfcheck",
+        "i": "lc-archive-freeze",
+        "sla": "同一提交内",
+        "input": "源码改动 + 生成物",
+        "outputEvidence": "CHANGELOG 条目 + 版本化的生成物（同笔提交，禁分两笔）",
+        "gate": "CHANGELOG 门禁 rc=0，生成物判据 rc=0"
+      },
+      {
+        "id": "lc-sign-publish",
+        "name": "签署发布（合并与推送）",
+        "stage": "签署",
+        "r": "提交人",
+        "a": "提交人",
+        "c": "lc-review-risk",
+        "i": "lc-monitor-drift",
+        "sla": "≤1 小时",
+        "input": "全链绿的回执",
+        "outputEvidence": "远端 CI run 终态 success + deploy job success + 线上 sha == 本地 HEAD",
+        "gate": "CI 必需 6 job 全 success；线上 sha 逐字相同"
+      },
+      {
+        "id": "lc-monitor-contract",
+        "name": "履约监控·契约漂移",
+        "stage": "履约监控",
+        "r": "监控判据（机器）",
+        "a": "值班人",
+        "c": "lc-draft-author",
+        "i": "lc-review-risk",
+        "sla": "每次推送",
+        "input": "生成物 + 源码面",
+        "outputEvidence": "漂移判定输出（分母 N / 命中 M 逐条）",
+        "gate": "`npm run verify:governance` 与 `npm run verify:contract` 同轮跑"
+      },
+      {
+        "id": "lc-monitor-quota",
+        "name": "履约监控·配额与语句预算",
+        "stage": "履约监控",
+        "r": "监控判据（机器）",
+        "a": "值班人",
+        "c": "lc-sign-authority",
+        "i": "lc-review-field",
+        "sla": "每日",
+        "input": "docs/d1-write-quota.json 与 docs/sql-baseline.json",
+        "outputEvidence": "配额余量与语句预算换算结论（件→语句）",
+        "gate": "`npm run verify:limits` rc=0 且余量 ≥ warn 线"
+      },
+      {
+        "id": "lc-monitor-drift",
+        "name": "履约监控·线上与仓内形状",
+        "stage": "履约监控",
+        "r": "线上探针",
+        "a": "值班人",
+        "c": "lc-sign-authority",
+        "i": "人（老大）",
+        "sla": "每日",
+        "input": "线上 /_health 与公开目录",
+        "outputEvidence": "线上 sha 与形状读数",
+        "gate": "线上 sha == 本地 HEAD；形状判据不留 UNREACHABLE 未归因"
+      },
+      {
+        "id": "lc-archive-freeze",
+        "name": "归档冻结（历史契约快照）",
+        "stage": "归档",
+        "r": "归档人",
+        "a": "归档人",
+        "c": "lc-sign-version",
+        "i": "lc-archive-recall",
+        "sla": "每次破坏性变更后",
+        "input": "被替换的那一版生成物",
+        "outputEvidence": "基线 ref 可复取（check:contract-diff 的 --base 能解出该版本）",
+        "gate": "基线面取不到时 rc=2 而不是记绿"
+      },
+      {
+        "id": "lc-archive-recall",
+        "name": "归档召回（回溯与复算）",
+        "stage": "归档",
+        "r": "任何接手人",
+        "a": "值班人",
+        "c": "lc-monitor-contract",
+        "i": "lc-review-risk",
+        "sla": "≤1 工作日",
+        "input": "历史生成物 + 历史回执",
+        "outputEvidence": "回溯结论（哪一版引入、影响哪些调用方）",
+        "gate": "复算命令可复跑；证据过期走 rc=2"
+      }
+    ]
+  },
+  "volume": {
+    "layers": [
+      {
+        "id": "bl",
+        "name": "业务体量",
+        "definition": "门店被服务的规模：商品、订单、单次下单条目",
+        "notCounted": "营销活动数、评价条数、服务表单条数（不影响承载设计）"
+      },
+      {
+        "id": "rl",
+        "name": "资源承载体量",
+        "definition": "跑这套系统要占用的平台资源：D1 写行、前端体积、记忆卷字节",
+        "notCounted": "本机磁盘占用、node_modules（可再生缓存）"
+      },
+      {
+        "id": "op",
+        "name": "运营规模体量",
+        "definition": "治理体系自身的复杂度：判据段数、脚本数、CI job 数、上限登记行数",
+        "notCounted": "文档字数、CHANGELOG 行数"
+      }
+    ],
+    "indicators": [
+      {
+        "id": "bl-sku",
+        "name": "在架 SKU 数",
+        "unit": "条",
+        "direction": "up-good-bounded",
+        "formula": "SELECT COUNT(*) FROM products WHERE enabled=1",
+        "source": {
+          "op": "machine",
+          "path": "db/seed.sql",
+          "field": "INSERT INTO products 行数",
+          "measuredBy": "node:sqlite 内存重放 db/schema.sql + db/seed.sql",
+          "evidence": "本机 2026-10-18 实测 products=62 / enabled=62（seed 面）",
+          "measuredAt": "2026-10-18"
+        },
+        "cadence": "每次商品面变更",
+        "thresholds": {
+          "green": "[20,80)",
+          "warn": "[80,150)",
+          "red": "≥150 或 <10"
+        },
+        "action": "≥150 须先跑 rl-d1-write-headroom 复算并给出分页/搜索替代；<10 视为业务面异常，人工核实",
+        "owner": "运营"
+      },
+      {
+        "id": "bl-orders-30d",
+        "name": "近 30 日订单数",
+        "unit": "单",
+        "direction": "up-good-bounded",
+        "formula": "线上 D1 orders 表按 created_at 近 30 日计数",
+        "source": {
+          "op": "manual",
+          "path": "线上 D1",
+          "field": "orders 计数",
+          "measuredBy": "Cloudflare GraphQL（通道见 docs/d1-remote-usage.json）",
+          "evidence": "未采：本机 2026-10-18 未取到该读数，判据须报 UNVERIFIED（rc=2）而不是记绿",
+          "measuredAt": null
+        },
+        "cadence": "每周",
+        "thresholds": {
+          "green": "[1,3000)",
+          "warn": "[3000,8000)",
+          "red": "≥8000 或 =0 连续 7 天"
+        },
+        "action": "≥8000 时按 peakRowsWritten 重算日写量并评估配额",
+        "owner": "运营"
+      },
+      {
+        "id": "bl-peak-order-items",
+        "name": "单订单最大条目数",
+        "unit": "件",
+        "direction": "down-good",
+        "formula": "对线上 orders.items 取最大数组长度",
+        "source": {
+          "op": "manual",
+          "path": "线上 D1",
+          "field": "json_array_length(items) 最大值",
+          "measuredBy": "线上 SQL 聚合",
+          "evidence": "未采：判据须报 UNVERIFIED",
+          "measuredAt": null
+        },
+        "cadence": "每周",
+        "thresholds": {
+          "green": "≤10",
+          "warn": "11–20",
+          "red": ">20"
+        },
+        "action": ">20 须评估 createOrder 语句数与 D1 每调用 50 查询预算",
+        "owner": "工程"
+      },
+      {
+        "id": "rl-d1-write-headroom",
+        "name": "D1 日写配额·峰值情景余量",
+        "unit": "%",
+        "direction": "up-good",
+        "formula": "1 - (callsPerDayAtPeak × peakRowsWritten) / dailyRowsWrittenFree",
+        "source": {
+          "op": "machine",
+          "path": "docs/d1-write-quota.json",
+          "field": "callsPerDayAtPeak / peakRowsWritten / daily_rows_written_free",
+          "measuredBy": "`npm run verify:roundtrips`（A9 双向对账）",
+          "evidence": "本机实测：1 - (4761 × 21) / 100000 = 0.019% ⇒ 触发 rl-green-or-red 的 red 档",
+          "measuredAt": "2026-10-18"
+        },
+        "cadence": "每次上限或峰值口径变更",
+        "thresholds": {
+          "green": "≥20%",
+          "warn": "5%–20%",
+          "red": "<5%"
+        },
+        "action": "红档：禁止在同一契约周期内再加写放大（新 action 的语句数必须给出一进一出的换算），并登记换算依据",
+        "owner": "lc-monitor-quota"
+      },
+      {
+        "id": "rl-firstload-js",
+        "name": "首屏 JS（gzip）",
+        "unit": "byte",
+        "direction": "down-good",
+        "formula": "dist/index.html 解析出的入口+modulepreload gzip 合计",
+        "source": {
+          "op": "machine",
+          "path": "scripts/check-bundle-size.mjs",
+          "field": "BUDGET.firstLoadJs",
+          "measuredBy": "`npm run check:size`（需先构建）",
+          "evidence": "预算 95×1024=97280 B；脚本内基准注记 2026-09-24 实测 86.4KB",
+          "measuredAt": "2026-09-24"
+        },
+        "cadence": "每次前端构建",
+        "thresholds": {
+          "green": "≤97280 B",
+          "warn": "≤107008 B（预算 ×1.10）",
+          "red": ">107008 B"
+        },
+        "action": "红档：禁合并该提交，先做归因（分项预算名册）",
+        "owner": "工程"
+      },
+      {
+        "id": "rl-largest-chunk",
+        "name": "最大单块（gzip）",
+        "unit": "byte",
+        "direction": "down-good",
+        "formula": "dist/assets 下最大单文件 gzip",
+        "source": {
+          "op": "machine",
+          "path": "scripts/check-bundle-size.mjs",
+          "field": "BUDGET.largestChunk",
+          "measuredBy": "`npm run check:size`",
+          "evidence": "预算 300×1024=307200 B；2026-10-07 由 90KB 抬到 300KB，归因 three-vendor 245.6KB",
+          "measuredAt": "2026-10-07"
+        },
+        "cadence": "每次前端构建",
+        "thresholds": {
+          "green": "≤307200 B",
+          "warn": "≤337920 B",
+          "red": ">337920 B"
+        },
+        "action": "红档：先查分项预算名册是否漏登记，再决定拆分或抬档（抬档必须写归因）",
+        "owner": "工程"
+      },
+      {
+        "id": "rl-memory-volume",
+        "name": "记忆卷字节（内容卷 4KB 红线）",
+        "unit": "byte",
+        "direction": "down-good",
+        "formula": "memory/*.md 逐文件字节；入口壳单独按 shell_max 判",
+        "source": {
+          "op": "machine",
+          "path": "scripts/check-memory-volume.mjs",
+          "field": "DEFAULT 4096 / SHELL_MAX_DEFAULT 40960",
+          "measuredBy": "`npm run verify:volume`",
+          "evidence": "本机实测：最大内容卷 4006 B（07-next-steps.part35.md）；入口壳 memory/07-next-steps.md = 3132 B",
+          "measuredAt": "2026-10-18"
+        },
+        "cadence": "每次写入记忆卷",
+        "thresholds": {
+          "green": "任一内容卷 ≤4096 B 且入口壳 <30720 B",
+          "warn": "无内容卷越线但入口壳 ≥30720 B",
+          "red": "任一内容卷 >4096 B 或入口壳 ≥40960 B"
+        },
+        "action": "红档：新卷必须先分配（volume_alloc）再写；入口壳按拆分迁移，禁压措辞",
+        "owner": "值班人"
+      },
+      {
+        "id": "op-verify-legs",
+        "name": "verify 聚合链段数",
+        "unit": "段",
+        "direction": "down-good",
+        "formula": "package.json scripts.verify 里 && 段数",
+        "source": {
+          "op": "machine",
+          "path": "package.json",
+          "field": "scripts.verify",
+          "measuredBy": "`npm run verify` 的进程数日志（本册只记段数）",
+          "evidence": "本机实测 42 段；棘轮地板 = 42，只准降不准升",
+          "measuredAt": "2026-10-18"
+        },
+        "cadence": "每次改判据链",
+        "thresholds": {
+          "green": "≤42",
+          "warn": "43–48",
+          "red": "≥49"
+        },
+        "action": "新增判据必须同笔合并或降档等价的一条，否则红",
+        "owner": "工程"
+      },
+      {
+        "id": "op-gate-scripts",
+        "name": "scripts/*.mjs 件数",
+        "unit": "件",
+        "direction": "down-good",
+        "formula": "scripts 根下 .mjs 文件数",
+        "source": {
+          "op": "machine",
+          "path": "scripts",
+          "field": "文件数",
+          "measuredBy": "scripts-dir-enumeration",
+          "evidence": "本机实测 69 件（含本判据自身）",
+          "measuredAt": "2026-10-18"
+        },
+        "cadence": "每次加脚本",
+        "thresholds": {
+          "green": "≤68",
+          "warn": "69–80",
+          "red": "≥81"
+        },
+        "action": "红档：新脚本必须替换掉一个不再被引用的脚本（由覆盖透明化判据点名）",
+        "owner": "工程"
+      },
+      {
+        "id": "op-ci-jobs",
+        "name": "CI job 数与必需 job 面",
+        "unit": "个",
+        "direction": "down-good",
+        "formula": "ci.yml 的 job 数与其必需子集",
+        "source": {
+          "op": "machine",
+          "path": ".github/workflows/ci.yml",
+          "field": "jobs 键",
+          "measuredBy": "check-governance-framework.ciJobNames",
+          "evidence": "本机实测 job=6（gates/browser-install/e2e/e2e-cloud-stub/visual/deploy），必需 6 全在",
+          "measuredAt": "2026-10-18"
+        },
+        "cadence": "每次改 workflow",
+        "thresholds": {
+          "green": "=6 且必需 6 全在",
+          "warn": "10–12",
+          "red": "≥13 或必需 job 缺失"
+        },
+        "action": "红档：先合并 job，再评估是否降档为独立链",
+        "owner": "工程"
+      },
+      {
+        "id": "op-limit-rows",
+        "name": "数值上限登记行数",
+        "unit": "行",
+        "direction": "down-good",
+        "formula": "docs/limit-provenance.md 表格数据行数",
+        "source": {
+          "op": "machine",
+          "path": "docs/limit-provenance.md",
+          "field": "表格行",
+          "measuredBy": "`npm run verify:limits` 的计数行",
+          "evidence": "本机实测 97 行（判据以当场输出为准，本册只记口径）",
+          "measuredAt": "2026-10-18"
+        },
+        "cadence": "每次加上限",
+        "thresholds": {
+          "green": "≤97",
+          "warn": "98–120",
+          "red": "≥121"
+        },
+        "action": "红档：先把同类上限合并成命名常量再登记，禁逐点铺行",
+        "owner": "工程"
+      },
+      {
+        "id": "op-no-budget",
+        "name": "未登记分项体积上限",
+        "unit": "件",
+        "direction": "down-good",
+        "formula": "docs/item-budgets.json 的 noBudgetMax 与实测未登记件数",
+        "source": {
+          "op": "machine",
+          "path": "docs/item-budgets.json",
+          "field": "noBudgetMax",
+          "measuredBy": "`npm run report:item-budgets`",
+          "evidence": "登记上限 36（只准降不准升）；实测未登记件数由判据当场枚举 dist/assets 现算",
+          "measuredAt": "2026-10-08"
+        },
+        "cadence": "每次构建",
+        "thresholds": {
+          "green": "实测 ≤36",
+          "warn": "不适用（无 warn 档）",
+          "red": "实测 >36"
+        },
+        "action": "红档：补登记（带当次实测时刻）或复用既有 pattern，禁抬地板",
+        "owner": "工程"
+      },
+      {
+        "id": "op-perf-lines",
+        "name": "线上性能线消费面",
+        "unit": "条",
+        "direction": "down-good",
+        "formula": "docs/live-perf.json 的 thresholds 条数与 report:live-perf 的四态判定",
+        "source": {
+          "op": "manual",
+          "path": "docs/live-perf.json",
+          "field": "thresholds / verdict",
+          "measuredBy": "`npm run report:live-perf` 与 `npm run collect:live-perf`",
+          "evidence": "6 条线在册（FCP 3000 / LCP 4500 / CLS 0.1 / TBT 450 / SI 7000 / SRT 450）；2026-10-17 首跑消费出现 2 格越线（admin/t1355 SI 8104.8、customer/t2359 SRT 468），按单样本不足判待观察",
+          "measuredAt": "2026-10-17"
+        },
+        "cadence": "每周一批，批次龄 ≤7 天",
+        "thresholds": {
+          "green": "verdict=GREEN",
+          "warn": "verdict=PARTIAL 或待观察越线",
+          "red": "verdict=NO-LINE / RED / 批次龄 >7 天"
+        },
+        "action": "红线：先取数（跨日再采一批）再定性，禁拿单批中位数改线",
+        "owner": "工程"
+      }
+    ],
+    "consumers": [
+      {
+        "id": "op-perf-consume",
+        "name": "线上性能线四态消费面",
+        "indicator": "op-perf-lines",
+        "command": "npm run report:live-perf",
+        "path": "scripts/report-live-perf.mjs",
+        "states": [
+          "GREEN",
+          "PARTIAL",
+          "RED",
+          "NO-LINE",
+          "UNVERIFIED"
+        ],
+        "noLineStates": [
+          "NO-LINE",
+          "PARTIAL",
+          "UNVERIFIED"
+        ],
+        "why": "六条线在册只是写下数字；本件逐 页面×批次 中位与线上限比对，缺线的格记 UNVERIFIED。NO-LINE（名册无线）与 PARTIAL（有格没判过）都不得读成通过 —— 这正是户内 M4「一条不会失败的阈值不是阈值」的消费面。"
+      },
+      {
+        "id": "op-governance-consume",
+        "name": "治理登记册三向对账消费面",
+        "indicator": "op-verify-legs",
+        "command": "npm run verify:governance",
+        "path": "scripts/check-governance-framework.mjs",
+        "states": [
+          "FAIL",
+          "PASS",
+          "UNVERIFIED"
+        ],
+        "noLineStates": [
+          "UNVERIFIED"
+        ],
+        "why": "登记册 facts 的每个数字都必须有人当场重算；UNVERIFIED（册内缺键/源件读不到）不得折算成通过，已有违规优先于未验出 rc=1。"
+      }
+    ]
+  },
+  "linkage": {
+    "joinKey": {
+      "id": "ld-join-key",
+      "name": "联结键",
+      "definition": "契约对象（actionKey）为一等键：`<endpoint>::<action>`，如 `web::batchUpdateProducts`。履约事件与体量读数都挂到它上面，禁止用文件路径或函数名当键（重命名即断链）。",
+      "source": "docs/api-contract.json 的 endpoints[*].actions 键名",
+      "note": "docs/sql-baseline.json 的 actionKey 与 docs/limit-scaling.json 的 actionKey 已是同一形态，本册不新造键。"
+    },
+    "rules": [
+      {
+        "id": "ld-join-ingest",
+        "name": "取数入层",
+        "definition": "每条读数登记三个必填：measuredAt（ISO 时刻）、sourceOp（machine/manual）、evidence。缺任一 ⇒ 判据报 UNVERIFIED（rc=2），禁把缺失折成 0 或绿。",
+        "acceptance": "≥1 条读数同时挂到契约键与体量指标上"
+      },
+      {
+        "id": "ld-join-cohort",
+        "name": "同期群对齐",
+        "definition": "联动分析只在同一时间窗内比较：窗口口径取 UTC 日界（与 docs/d1-remote-usage.json 的 windowUtc 同源），窗口不同不得混算中位数。",
+        "acceptance": "任一并置结论都写明两侧窗口起止"
+      },
+      {
+        "id": "ld-join-window",
+        "name": "批次龄约束",
+        "definition": "参与联动的读数不得超过其 cadence 允许的龄：性能批次 ≤7 天（docs/live-perf.json maxBatchAgeDays）、D1 远端读数 ≤7 天（docs/d1-write-quota.json remote_usage_max_age_days）。超龄读数只能进报告且标注过期，不得作为决策依据。",
+        "acceptance": "超龄读数被点名而非静默使用"
+      },
+      {
+        "id": "ld-join-analyze",
+        "name": "联动分析",
+        "definition": "至少一条可机器复算的规则：契约侧的写放大（语句数增量）与体量侧的配额余量必须同窗并置，产出「契约变更 → 承载增量 → 余量变化」三段式结论。",
+        "acceptance": "结论里每一步都有可复跑命令或登记件字段"
+      },
+      {
+        "id": "ld-join-alert",
+        "name": "协同决策告警",
+        "definition": "当 rl-d1-write-headroom 进入 red 档，且同窗内契约面有新增写 action 或语句数上升 ⇒ 判据输出阻断级结论（rc=1）并点名 actionKey；单侧变红只报警不阻断。",
+        "acceptance": "两侧同时命中才 rc=1（单侧 rc=0 只印告警）"
+      }
+    ]
+  },
+  "phases": [
+    {
+      "id": "ph-1",
+      "name": "P1 立册与判据",
+      "window": "本轮（第 76 轮）",
+      "deliverables": [
+        "docs/governance/registry.json",
+        "docs/governance/契约全生命周期规范.md",
+        "docs/governance/体量治理规范.md",
+        "docs/governance/数据互通与联动分析.md",
+        "docs/governance/分步推进计划.md",
+        "scripts/check-governance-framework.mjs",
+        "npm run verify:governance 并入 verify 链"
+      ],
+      "acceptance": {
+        "id": "ac-1",
+        "criteria": "`npm run verify:governance` rc=0；登记册三向对账（登记值 ⇄ 现算值 ⇄ 源件非空）无差异；--selftest N/M 且 N==M"
+      }
+    },
+    {
+      "id": "ph-2",
+      "name": "P2 联动与四态消费",
+      "window": "第 77–78 轮",
+      "deliverables": [
+        "ld-join-analyze 的机器规则落地（同窗并置）",
+        "op-perf-lines 的四态消费面接入报告",
+        "bl-orders-30d / bl-peak-order-items 两条人工读数取数模板"
+      ],
+      "acceptance": {
+        "id": "ac-2",
+        "criteria": "至少一条联动规则能在本地用现有登记件复算出结论；缺失读数被报 UNVERIFIED 而非记绿"
+      }
+    },
+    {
+      "id": "ph-3",
+      "name": "P3 承载面收敛",
+      "window": "第 79–80 轮",
+      "deliverables": [
+        "rl-d1-write-headroom 进入 red 档后的处置落地（限写放大或改批处理）",
+        "op-verify-legs 与 op-gate-scripts 的合并降档"
+      ],
+      "acceptance": {
+        "id": "ac-3",
+        "criteria": "red 档指标数量不上升，且每题都有一笔可归因的处置提交"
+      }
+    },
+    {
+      "id": "ph-4",
+      "name": "P4 常态化与回归锁",
+      "window": "第 81 轮起",
+      "deliverables": [
+        "把 ac-1..ac-4 的校验并入 verify 链",
+        "撤销条件复核（每条撤销条件都实测未触发）"
+      ],
+      "acceptance": {
+        "id": "ac-4",
+        "criteria": "连续两轮 verify 全绿且红档指标无新增；撤销条件均为未触发状态"
+      }
+    }
+  ],
+  "nonGoals": [
+    {
+      "id": "ng-1",
+      "why": "不新造第二套契约真相源：契约仍唯一由 docs/api-contract.json 等生成物承载，本册只登记治理口径"
+    },
+    {
+      "id": "ng-2",
+      "why": "不重复立判据：运行面读数归既有的 check:size / verify:volume / verify:limits / report:live-perf，本判据只管登记⇄现值对账与联动键完整性"
+    },
+    {
+      "id": "ng-3",
+      "why": "不接远端：凡需 Cloudflare / GitHub API 的读数一律 manual，只报 UNVERIFIED，不进阻断链"
+    }
+  ]
+}

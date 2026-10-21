@@ -160,4 +160,7 @@ export const products: SeedProduct[] = [
   { name: '纸抽', spec: '', price: 0.5, subcategories: ['daily_goods'], order: 61 },
   { name: '一次性碗盖筷', spec: '', price: 0.5, subcategories: ['daily_goods'], order: 62 },
   { name: '一次性垃圾袋', spec: '', price: 0.5, subcategories: ['daily_goods'], order: 63 },
+
+  // 新增商品（2026-10-21，用户口头报新品；糖果类归零食，图上无净含量小字，spec 留空）
+  { name: '老酸奶软糖', spec: '', price: 0.5, subcategories: ['snacks'], order: 64 },
 ]

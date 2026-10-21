@@ -287,6 +287,7 @@ export function judge({ files, schemaSql, extraFiles = [] }) {
   // 硬塞进 UPDATE 轨而静默跳过（承 fail-closed 立场）。tables = 涉及的表，逐个判行数往返。
   const ROLLBACK_INSERT = {
     'rollback-daily-goods.sql': { forward: 'migrate-daily-goods.sql', tables: ['categories', 'products'] },
+    'rollback-add-product-laoyuannuantang.sql': { forward: 'migrate-add-product-laoyuannuantang.sql', tables: ['products'] },
   }
   const textOf = (name) => [...files, ...(extraFiles || [])].find((f) => f.file === name)?.text
   const seedSql = textOf('seed.sql') || ''

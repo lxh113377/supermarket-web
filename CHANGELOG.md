@@ -4,6 +4,18 @@
 
 ## [未发布]
 
+### 2026-10-21 新增商品：老酸奶软糖 ¥0.5
+
+- **新增 1 件商品**：老酸奶软糖，分类「零食」(snacks)，价格 0.5 元，`spec` 留空（供货信息无净含量小字），已上架。
+  `src/data/products-seed.ts` 为真相源（order 64），`db/seed.sql` 由 `node db/gen-seed.mjs` 同步生成。
+- **生产库**：新增 `db/migrate-add-product-laoyuannuantang.sql`（仅 `INSERT OR IGNORE` 新行，不触碰既有列——
+  线上与 seed 存在系统性价格漂移，禁 seed 覆盖）+ 配对回滚件 `db/rollback-add-product-laoyuannuantang.sql`，
+  并把该回滚件登记进 `scripts/verify-migrate-replay.mjs` 的 `ROLLBACK_INSERT` 具名清单（行集轨，`tables: ['products']`）。
+- **图片**：用户未提供供货图，按本轮口径生成自绘示意图 `public/images/64.webp`（800w）+ `public/images/sm/64.webp`（400w），
+  图内右下角带「示意图」水印，与实拍供货图明确区分；`verify:images` 主图 64/64 + 缩略图 64/64 全有效（rc=0）。
+- **验证**：`npm run typecheck` rc=0；`npm run verify:backend` 204 通过 / 0 失败；`verify:migrate-replay` rc=0
+  （前向迁移幂等 + 结构逐字段闭合，回滚件往返覆盖 10 件）；相关单测 7 文件 157 用例全过。
+
 ### 2026-10-17 第七十五轮：四项工程改造 —— 阈值消费 / 静态长缓存 / SBOM 可复现 / a11y 静态闸，外加分支保护真落地
 
 - **I-75-1（高）分支保护从「agent 无权」变成「已启用」**：前七轮报告把 `NOT_ENFORCED` 记成「需要老大在 GitHub 侧配置」。
