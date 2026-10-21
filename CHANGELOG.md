@@ -6,22 +6,32 @@
 
 ### 2026-10-21 打印页整体替换为「校园打印」（CampusPrint-V1）
 
-- **替换范围（/print 这一页整体换成另一个应用）**：本站不再自建沉浸式打印页 ——
-  `PrintForm.tsx`/`PrintHero.tsx`/`PrintSplash.tsx`/`printFormLogic.ts`/`print.css`/`src/pages/print/hooks/**`/`src/pages/print/scene/**`
-  与其单测 `tests/printFormLogic.test.ts` 全数删除；`PrintPage.tsx` 收缩为"解析地址 + 跳转"两层，
-  目标应用 = 仓库 `k01055119509-lang/CampusPrint-V1`（已 vendored 到工作区 `CampusPrint-V1/`，本机入口 `http://127.0.0.1:4328/`）。
-- **为什么只能跳转、不能内嵌**（三条都是该应用服务端的显式行为，不是本站的取舍）：
-  ① 它自带 Node 后端（Express 5 + `node:sqlite`，PDF/图像渲染与七天私有文件清理），静态托管承载不了；
-  ② 服务端对全部响应下发 `X-Frame-Options: DENY` 且 CSP 含 `frame-ancestors 'none'` ⇒ iframe 必被浏览器拦掉；
-  ③ `/api` 只认同源（`Origin` 必须等于 `PUBLIC_ORIGIN`，否则 403）⇒ 把它的静态前端抄到本站、API 指回它同样不通。
-  故 `/print` 走跳转，功能面（上传/预览/计价/下单/售后）完整保留在那台服务上。
-- **新增**：`src/pages/print/printApp.ts`（地址解析纯函数，只放行 http(s) 与同源路径，拒 `javascript:` 等可执行协议）
-  + `tests/printApp.test.ts`（5 条：放行 / 拒执行协议 / 拒协议相对地址 / 回落默认 / 默认值即本机入口）；
-  构建期开关 `VITE_CAMPUS_PRINT_URL`（已登记 `docs/env-vars.md`，未配置回落 `http://127.0.0.1:4328/`）。
-- **收敛（不再使用的面）**：`three`/`@react-three/fiber`/`lenis` 在 `src` 下已零引用（保留在 `package.json`，本轮不动 SBOM/许可面）；
-  `vite.config.js` 的 `three-vendor`/`scroll-vendor` 分块规则与打印页覆盖率豁免面同步收窄（只留 `PrintPage.tsx`）。
-  本站后台的打印提交（`SubmissionsTab` + `functions/upload.js`，常量为 `src/pages/print/print.config.ts`）**未动**：历史提交仍可查看与下载。
-- **验证**：见下方"验证"行（typecheck / lint / vitest+coverage / build / 各静态门禁 / 端到端跳转实测）。
+- **替换形态（/print 这一页整体换成那个应用）**：该应用的学生端静态面**原样入驻本站**并挂在 `/print/` ——
+  `frontend/shared/**` → `public/shared/**`、`frontend/user/**` → `public/user/**`、`frontend/user/index.html` → `public/print/index.html`
+  （只把行尾归一成 LF，内容一字未改；`/shared/**`、`/user/**` 的绝对路径因此原封不动可用）；
+  `/#/print` 路由收缩为"解析地址 + 跳转"两层，落到 `/print/#print`（直达打印下单视图）。
+  仓库 `k01055119509-lang/CampusPrint-V1`（完整仓库 vendored 在工作区 `CampusPrint-V1/`，本机入口 `http://127.0.0.1:4328/`）。
+- **/api 同源反代（这一层是能跑通的关键）**：该应用自带 Node 后端（Express 5 + `node:sqlite` + PDF/图像渲染），静态托管跑不了；
+  而它的服务端**只认同源**（`backend/app.js` 实测）：`Host` 必须等于它自己的 `PUBLIC_ORIGIN`、`Origin` 若存在必须等于它自己、
+  `Sec-Fetch-Site` 不得是 `cross-site` —— 从本站直跳它的域名会被 403（实测拿到 `{"code":"FORBIDDEN_ORIGIN"}`）。
+  故 `/api/*` 由本站反代并归一化这两个头：dev/preview 在 `vite.config.js`（`CAMPUS_PRINT_ORIGIN`，本机默认 `127.0.0.1:4328`），
+  线上由 `functions/api/[[path]].js` 转发（同一开关，未配置即 503 `PRINT_APP_UNAVAILABLE`，不静默降级成空白页）。
+- **删除（旧打印页不留残件）**：`PrintForm/PrintHero/PrintSplash/printFormLogic/print.css/src/pages/print/{hooks,scene}/**`
+  与其单测 `tests/printFormLogic.test.ts`、以及 `public/print/` 下旧 3D 场景资产（glTF/贴图，约 1.1MB）；
+  `three`/`@react-three/fiber`/`lenis` 在 `src` 下已零引用（保留在 `package.json`，本轮不动 SBOM/许可面）。
+- **配套同步**：`vite.config.js`（`three-vendor`/`scroll-vendor` 分块规则与打印页覆盖率豁免面收窄、新增 `/api` 反代）、
+  `.oxlintrc.json`（`ignorePatterns` 放行 `public/shared|user/**`：第三方内容原样入驻，本仓 lint 不对它生效）、
+  `docs/item-budgets.json`（删掉产物面 0 命中的 `three-vendor`/`scroll-vendor` 两条死条目）、
+  `docs/limit-provenance.md`（删掉 6 条随文件删除而失效的死行）、`docs/env-vars.md`（`VITE_CAMPUS_PRINT_URL` 改口径 + 新增 `CAMPUS_PRINT_ORIGIN`）。
+  本站后台的打印提交（`SubmissionsTab` + `functions/upload.js`，常量 `src/pages/print/print.config.ts`）**未动**：历史提交仍可查看与下载。
+- **验证（全部实跑）**：`npm run typecheck` rc=0；`npm run verify:functions` OK（产物 133,244B）；`verify:errors` 9/9（41 码双向对账）；
+  `npx vite build` rc=0；`check-bundle-size` 3/3（首屏 JS 86.8KB / CSS 9.9KB / 最大 chunk 66.0KB）；
+  `report:item-budgets` GREEN（30/30，死条目 0）；`npx vitest run --coverage` 137 文件 2027 用例全过
+  （Statements 80.74% / Branches 73.51% / Functions 76.7% / Lines 82.48%，均在棘轮之上）；
+  **端到端**（本机真跑：CampusPrint 后端 + `vite preview` 反代 + Edge headless）：`/#/print` → `/print/#print`，
+  标题「打印下单 · 校园打印」，`/api/public/config`、`/api/print/config`、`/api/auth/csrf`、`/api/auth/guest`、`/api/me/print-defaults` 全 200。
+- **残留（下一轮）**：顾客端 `lxh113377.github.io` 没有 Pages Functions ⇒ 它按 `printApp.ts` 的内置回落指向 Pages 部署；
+  线上要真跑起来必须给 Pages 配 `CAMPUS_PRINT_ORIGIN`（打印后端须部署且可达）。
 
 ### 2026-10-21 新增商品：老酸奶软糖 ¥0.5
 

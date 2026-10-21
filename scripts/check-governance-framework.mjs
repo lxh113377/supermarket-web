@@ -137,7 +137,7 @@ export function itemBudgets(root = ROOT) {
  * 外层壳三项）不进 facts —— 册里存它们就是第二真相源，且 F2 只遍历现算侧会把它们判成「缺键」。
  * 运行时量由 check-memory-volume.mjs 自己判（V1..V7），本件不重复立尺。
  */
-export function memoryLimits(root = ROOT) {
+export function memoryLimits(_root = ROOT) {
   // facts 里只放**可登记的静态量**（阈值/来源/开关）——运行时读数一律不进 facts：
   // ① 册里存运行时值 = 第二真相源，本机一改工作区册子当场过期（第七十六轮一手实测：
   //    册写 mainShellBytes 2657 而 HEAD 版 3132，CI 检出用 HEAD ⇒ 每次 CI 都判「不符」）；
