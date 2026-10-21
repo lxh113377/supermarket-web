@@ -24,12 +24,16 @@
   `docs/item-budgets.json`（删掉产物面 0 命中的 `three-vendor`/`scroll-vendor` 两条死条目）、
   `docs/limit-provenance.md`（删掉 6 条随文件删除而失效的死行）、`docs/env-vars.md`（`VITE_CAMPUS_PRINT_URL` 改口径 + 新增 `CAMPUS_PRINT_ORIGIN`）。
   本站后台的打印提交（`SubmissionsTab` + `functions/upload.js`，常量 `src/pages/print/print.config.ts`）**未动**：历史提交仍可查看与下载。
-- **验证（全部实跑）**：`npm run typecheck` rc=0；`npm run verify:functions` OK（产物 133,244B）；`verify:errors` 9/9（41 码双向对账）；
-  `npx vite build` rc=0；`check-bundle-size` 3/3（首屏 JS 86.8KB / CSS 9.9KB / 最大 chunk 66.0KB）；
-  `report:item-budgets` GREEN（30/30，死条目 0）；`npx vitest run --coverage` 137 文件 2027 用例全过
-  （Statements 80.74% / Branches 73.51% / Functions 76.7% / Lines 82.48%，均在棘轮之上）；
-  **端到端**（本机真跑：CampusPrint 后端 + `vite preview` 反代 + Edge headless）：`/#/print` → `/print/#print`，
-  标题「打印下单 · 校园打印」，`/api/public/config`、`/api/print/config`、`/api/auth/csrf`、`/api/auth/guest`、`/api/me/print-defaults` 全 200。
+- **验证（全部实跑）**：`npm run typecheck` rc=0；`verify:functions` OK（产物 133,376B）；`verify:backend` 204/204；`verify:errors` 9/9（41 码双向对账）；
+  `verify:env`（16 变量双向）/ `verify:limits`（13/13，C8 面 114 文件）/ `verify:eol` / `verify:case` / `verify:csp` / `verify:cache` / `verify:docs` / `verify:changelog` / `check:doc-commands` 全 GREEN；
+  `npx vite build` rc=0；`check-bundle-size` 3/3（首屏 JS 86.8KB / CSS 9.9KB / 最大 chunk 66.0KB）；`report:item-budgets` GREEN（30/30，死条目 0）；
+  `npx vitest run --coverage` **137 文件 2031 用例全过**（Statements 80.82% / Branches 73.59% / Functions 76.7% / Lines 82.51%，均在棘轮之上）。
+- **端到端（本机真跑整链，不是只看首页）**：CampusPrint 后端（`http://127.0.0.1:4328`）+ `vite preview`（`dist` + `/api` 反代）+ Edge headless ——
+  `/#/print` → `/print/#print`，标题「打印下单 · 校园打印」；
+  上传真实 PDF（`sample-chinese.pdf`）→ `202 POST /api/files` → 轮询至 `报价已就绪`：`选 1 页 × 1 份 · 单面`、`1 内容页 · 1 张纸`、
+  `合计 ¥0.50`、`报价有效至 …(UTC+8)`；再点「检查最终打印预览」→ `200 GET /api/print/quotes/{id}/items/{itemId}/preview?page=1`，
+  按钮转 `✓ 已查看`。全程 `cp_student_session` 会话 cookie 稳定、无 4xx/5xx、无 pageerror。
+  截图证据：`_print-verify/campusprint-print-page-2026-10-21.png`、`_print-verify/campusprint-quote-ready-2026-10-21.png`、`_print-verify/campusprint-preview-2026-10-21.png`。
 - **残留（下一轮）**：顾客端 `lxh113377.github.io` 没有 Pages Functions ⇒ 它按 `printApp.ts` 的内置回落指向 Pages 部署；
   线上要真跑起来必须给 Pages 配 `CAMPUS_PRINT_ORIGIN`（打印后端须部署且可达）。
 
