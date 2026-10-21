@@ -135,7 +135,10 @@ describe('verify:images 的四档退出码（判据自己必须会红）', () =>
     // 上一轮的真面输出两种情况长得一模一样（只有裸分母 54），这正是"没量到"被读成"量过了"。
     const r = run(REPO, { VERIFY_IMAGES_LIVE: 'on', VERIFY_IMAGES_LIVE_TIMEOUT: '20' })
     expect(r.status, `真面 rc=${r.status}：${r.stdout.split('\n').slice(-1)}`).toBe(0)
-    const declared = /现网在售依赖本地件 (\d+ 号|UNVERIFIED)/.test(r.stdout)
+    // 两种形态都要认：可达 ⇒ 「现网在售依赖本地件 N 号」（scripts/verify_images.py:399）；
+    // 不可达 ⇒ 「现网在售 UNVERIFIED：…」（同文件 :400）。原正则只写了前一种，
+    // 于是本机 python urllib 到 pages.dev  TLS EOF 时这条**必红**——判据自己漏了它声明要守的那半条。
+    const declared = /现网在售(依赖本地件)? (\d+ 号|UNVERIFIED)/.test(r.stdout)
     expect(declared, `覆盖面行没声明现网面状态：${r.stdout.split('\n').filter((l) => l.includes('覆盖面'))}`).toBe(true)
     expect(r.stdout, '现网面取不到时结论行必须说"只判了 seed"').toMatch(
       /面=seed \d+ ∪ 在售 (\d+|UNVERIFIED) ∪ 目录 (\d+|UNVERIFIED)/)
