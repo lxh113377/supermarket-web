@@ -272,12 +272,25 @@ export function evaluate({ candidates, results, registry, injected = null, entry
   // `sqlalchemy/alembic` 干脆把 `check` 做成独立命令）：能写的东西必须能被"只判不写"地验一遍。
   // 比较面**先归一掉 ISO 观测时刻**再比（`lessons.part214.md` L-2：拿裸字节比幂等 = 自造一条永不消失的假漂移）。
   const idem = res.filter((r) => r.writeRun && r.writeRun.idempotency)
-  const drifted = idem.filter((r) => r.writeRun.idempotency.drift.length)
+  // 「读数型」产物具名豁免（第五十轮立 S7 时的盲区，2026-10-21 一手实测补）：
+  // 这类脚本的产物**内容是真实系统的瞬时读数**（D1 当日读写行数、Cloudflare 配额回执），
+  // 双跑之间只要线上发生过一次读写，数字就变 —— 那不是生成器不幂等，是读数本身在走。
+  // 一手证据：`check-d1-remote-usage.mjs` 双跑 drift 命中 `docs/d1-remote-usage.json#L3`
+  // （`retrievedAtUtc` 已归一同形，真正变的是 `channels.graphql.byDateUtc` 的行数）。
+  // 处置：照记 drift（册上留痕、不许静默），但 S7 判定把它降级为 **UNVERIFIED**（rc=2）
+  // 而不是 RED（rc=1）—— 把「读数随时间变」抄成「生成器坏了」会逼人去改一个没坏的脚本。
+  // 豁免必须具名 + 带可证伪理由；不许用「看起来像」通配。
+  const READER_ARTIFACTS = {
+    'check-d1-remote-usage.mjs': '产物 docs/d1-remote-usage.json 记的是 D1 当日读写行数与 Cloudflare 配额回执（线上瞬时读数），双跑间隔内任何读写都改它',
+  }
+  const driftedRaw = idem.filter((r) => r.writeRun.idempotency.drift.length)
+  const drifted = driftedRaw.filter((r) => !READER_ARTIFACTS[r.file])
+  const readerDrift = driftedRaw.filter((r) => READER_ARTIFACTS[r.file])
   const untouchedWrite = res.filter((r) => r.writeRun && !r.writeRun.idempotency)
   rows.push({
     id: 'S7',
-    ok: idem.length > 0 && drifted.length === 0,
-    unverified: idem.length === 0,
+    ok: idem.length > 0 && drifted.length === 0 && readerDrift.length === 0,
+    unverified: idem.length === 0 || readerDrift.length > 0,
     label: 'S7 同一写开关连跑两趟 ⇒ 产物字节必须收敛（幂等生成器现在是判据，不是信仰）',
     detail: idem.length === 0
       ? `本轮 ${res.length} 件回执里没有一件"写通道确实碰过产物" ⇒ 双跑**没有对象**（记未验证，不记通过）。`
@@ -287,6 +300,10 @@ export function evaluate({ candidates, results, registry, injected = null, entry
           ? `；**归一掉观测时刻后仍不收敛**: ${drifted.map((d) => `${d.file} → ${d.writeRun.idempotency.drift.map(formatDrift).join(' , ')}`).join(' ｜ ')}`
             + ' ⇒ 第二趟会继续改产物，等于每次运行都在攒漂移'
           : '；全部收敛（含只写观测字段的：那类已归一，不算漂移）')
+        + (readerDrift.length
+          ? `；读数型产物 ${readerDrift.length} 件漂移（${readerDrift.map((d) => `${d.file} → ${READER_ARTIFACTS[d.file]}`).join(' ｜ ')}）`
+            + ' ⇒ 记 UNVERIFIED 而不是 RED：读数随时间走，不是生成器不幂等'
+          : '')
         + `；另 ${untouchedWrite.length} 件写通道没碰任何产物 ⇒ 不双跑（既不计已证也不计违规）`,
   })
 

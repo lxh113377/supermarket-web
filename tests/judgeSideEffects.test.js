@@ -354,8 +354,19 @@ describe('S7 写侧幂等：双跑收敛判定 + 归一化的两侧', () => {
     const reg = JSON.parse(readFileSync(join(ROOT, 'docs', 'judge-side-effects.json'), 'utf8'))
     const double = reg.entries.filter((e) => e.double_ran)
     expect(double.length, '册上没有任何一件 double_ran ⇒ --update 那一步没重跑，S7 只是本机一次性输出').toBeGreaterThan(0)
-    expect(double.every((e) => Array.isArray(e.idempotent_drift) && e.idempotent_drift.length === 0),
-      `漂移件：${double.filter((e) => (e.idempotent_drift || []).length).map((e) => e.file).join(', ')}`).toBe(true)
+    // 2026-10-21：读数型产物（check-d1-remote-usage.mjs → D1 当日读写行数）双跑天然不收敛，
+    // 已由判据内 READER_ARTIFACTS 具名豁免（降级 UNVERIFIED 而非 RED）。这里同步认该豁免：
+    // 非豁免件必须零 drift；豁免件允许带 drift，但**必须**带（不许静默清零）。
+    // 册上的 file 带 `scripts/` 前缀（462 行原样落册），判据内的 r.file 是 basename —— 两边不同形，
+    // 这里按**册的形态**匹配，否则豁免认不出来。
+    const READER = 'scripts/check-d1-remote-usage.mjs'
+    const strict = double.filter((e) => e.file !== READER)
+    const exempt = double.filter((e) => e.file === READER)
+    expect(strict.every((e) => Array.isArray(e.idempotent_drift) && e.idempotent_drift.length === 0),
+      `非豁免漂移件：${strict.filter((e) => (e.idempotent_drift || []).length).map((e) => e.file).join(', ')}`).toBe(true)
+    for (const e of exempt) {
+      expect(Array.isArray(e.idempotent_drift), `${e.file} 的 idempotent_drift 必须是数组（豁免≠不记）`).toBe(true)
+    }
     // as-of 口径：册上的时刻只证明"那次跑过"，不承诺现值（同 D 系判据的 note 措辞）。
     expect(Date.parse(reg.observed_utc) / 1000).toBeLessThan(Date.now() / 1000 + 60)
   })
