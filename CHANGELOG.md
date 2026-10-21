@@ -14,7 +14,37 @@
 - **图片**：用户未提供供货图，按本轮口径生成自绘示意图 `public/images/64.webp`（800w）+ `public/images/sm/64.webp`（400w），
   图内右下角带「示意图」水印，与实拍供货图明确区分；`verify:images` 主图 64/64 + 缩略图 64/64 全有效（rc=0）。
 - **验证**：`npm run typecheck` rc=0；`npm run verify:backend` 204 通过 / 0 失败；`verify:migrate-replay` rc=0
-  （前向迁移幂等 + 结构逐字段闭合，回滚件往返覆盖 10 件）；相关单测 7 文件 157 用例全过。
+  （前向迁移幂等 + 结构逐字段闭合，回滚件往返覆盖 10 件）；相关单测 7 文件 157 用例全过；`verify:governance` 12/12。
+
+### 同一轮内的 CI 排障（本机 git/curl TLS 故障 ⇒ 全程走 GitHub REST API 推送）
+
+本机 `git push` 与 `curl` 到 github.com 一律 `TLS unexpected eof`（Clash 代理未通 + schannel 栈问题），
+`node fetch` 正常 ⇒ 全程改用 **Git Data API 增量推送**（只传与远端树不同的 blob + base_tree 建 tree + commit + PATCH ref）。
+踩到并修掉的问题，按出现顺序：
+
+1. **第76轮漏提交的一整批文件**（`git status` 里躺着的未提交件）：`package.json` 的 `verify:governance` 别名、
+   README 门禁一览那一行、`scripts/check-memory-volume.mjs` 新增的 `CONTENT_MAX_DEFAULT` 导出、
+   `scripts/report-live-perf.mjs` 的 `@consumer-*` 两行自声明、`docs/governance/` 五份人读规范与判据脚本及其夹具。
+   后果是一手实测的：判据脚本 import 一个**未入库**的导出 ⇒ CI（Node 22）上 import 即失败，
+   `tests/governanceFramework.test.js` 四条全红（stdout 空、rc=1），而本机工作区有新版 ⇒ 全绿。
+   又一例「本地绿靠没入库的文件撑」——正是 `head-closure` H2 要禁的那件事。
+2. **eol 门禁**：两个 governance 文件缺末尾换行（`.editorconfig` 的 `insert_final_newline`），
+   未入库时不在判据面所以本地没报，入库即红。
+3. **doc-commands 台账**：`--update` 必须在内容定稿**之后**跑；每次增删文档提及都要连册一起提交，否则 E1/E2 判红。
+4. **verify:images 的真面正则**漏了 `UNVERIFIED` 分支：本机 python urllib 到 pages.dev 一向 TLS EOF，
+   那条测试**从来没绿过**（判据自己漏了它声明要守的那半条）。
+5. **HANDOFF 单测文件数** 136→137（追随真相源，新增 `tests/governanceFramework.test.js`）。
+6. **governance 判据三处 CI 必红**：运行时读数（主卷字节/外层壳）进 facts（登记=第二真相源 + F2 只遍历现算侧 ⇒ 永远「缺键」）；
+   外层仓不在时输出 `null` 被 walk 当缺键；测试只接受 rc∈{0,1} 而 CI 上 F10（无 git 历史）legitimately UNVERIFIED。
+7. **judge-side-effects S7**：`check-d1-remote-usage.mjs` 的产物记 D1 当日读写行数（线上瞬时读数），双跑天然不收敛；
+   第五十轮立尺时它只有静态 quota 没踩到。已按具名豁免 + 可证伪理由降级为 UNVERIFIED（rc=2）而不是 RED。
+8. **一次自伤**：API 增量推送时取的是**工作区**字节而非 git 索引版，把并行会话未提交的「打印页替换」改动推上远端，
+   触发 `verify:eol` 判红；已用一笔 revert commit 把三个 path 指回 HEAD blob sha 修回。
+
+**最终读数**：CI run（head `e4c1167`）六 job 全 success（gates / browser-install / e2e / e2e-cloud-stub / visual / deploy），
+`Release parity` success、`Dispatch deploy to github.io` success；`/_health` 回 `deploy=e4c1167`、`db=ok`；
+`/pub` 在售 31 条含 `p064 老酸奶软糖 ¥0.5 enabled=true`；管理端 `getProducts` 64 条同样在列；
+`/images/64.webp` 与 `/images/sm/64.webp` 均 `200 image/webp`；`https://lxh113377.github.io/` 200。
 
 ### 2026-10-17 第七十五轮：四项工程改造 —— 阈值消费 / 静态长缓存 / SBOM 可复现 / a11y 静态闸，外加分支保护真落地
 
