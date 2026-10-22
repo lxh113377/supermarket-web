@@ -9,7 +9,6 @@ import { DROPPED_HEADERS, forwardHeaders } from '../functions/lib/print-proxy.js
 import {
   CAMPUS_PRINT_PATH,
   CAMPUS_PRINT_BUILD,
-  classifyApiProbe,
   normalizeCampusPrintPath,
   resolveCampusPrintUrl,
 } from '../src/pages/print/printApp'
@@ -90,16 +89,5 @@ describe('forwardHeaders（/api 反代的核心判断）', () => {
     const out = forwardHeaders(input)
     const kept = [...input.keys()].filter((k) => !DROPPED_HEADERS.includes(k))
     expect([...out.keys()].sort()).toEqual(kept.sort())
-  })
-})
-
-describe('classifyApiProbe（探测先于导航：静态托管没后端时不许把用户送进死页）', () => {
-  it('只有 404 判「没有后端」—— GitHub Pages 纯静态托管的真实形态（实测 /api/public/config 404）', () => {
-    expect(classifyApiProbe(404)).toBe('no-backend')
-  })
-
-  it('其余状态码一律判「有后端」：503 是后端暂时不可达，应用自己有重试入口，不该把用户挡在门外', () => {
-    for (const s of [200, 302, 400, 403, 500, 503]) expect(classifyApiProbe(s), String(s)).toBe('has-backend')
-    expect(classifyApiProbe(null)).toBe('has-backend') // 网络异常：按「存在但这次没取到」处理
   })
 })

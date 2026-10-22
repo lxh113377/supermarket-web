@@ -29,7 +29,7 @@ describe('print-parity：静态判定核（合成面，逐腿双向）', () => {
     expect(s.missing, '取数面缺失就是环境坏了，先修链路不许跳：' + s.missing).toBeUndefined()
     const r = evaluate({ ...s, now: Date.parse(s.registry.syncedUtc) })
     expect(r.rc, JSON.stringify(r.rows.filter((x) => !x.ok))).toBe(0)
-    expect(r.compared, 'P1 的分母 = 上游 frontend/{shared,user} + print/index.html 的文件数').toBeGreaterThanOrEqual(20)
+    expect(r.compared, 'P1 的分母 = 上游 frontend/{shared,user,admin} + print/index.html 的文件数').toBeGreaterThanOrEqual(30)
   })
 
   it('P2 缺 syncedUtc ⇒ 只 P2 红（P4 是 advisory：算不出龄期也只印不拦）', () => {
@@ -89,13 +89,16 @@ describe('print-parity：入口三态（子进程真跑，不看 stdout 好看�
     try {
       mkdirSync(join(d, 'shared'), { recursive: true })
       mkdirSync(join(d, 'user'), { recursive: true })
+      mkdirSync(join(d, 'admin'), { recursive: true })
       writeFileSync(join(d, 'shared', 'a.js'), 'A\n', 'utf8')
       writeFileSync(join(d, 'user', 'index.html'), 'B\n', 'utf8')
+      writeFileSync(join(d, 'admin', 'bootstrap.js'), 'C\n', 'utf8')
       const s = readSources(d)
       expect(s.missing).toBeUndefined()
-      const r = evaluate({ ...s, expected: { 'shared/a.js': 'x', 'user/index.html': 'y' }, actual: { 'shared/a.js': 'x', 'user/index.html': 'y' }, registry: reg, upstreamVersion: '1.4.0', buildConst: '1.4.0', now: NOW })
+      const face = { 'shared/a.js': 'x', 'user/index.html': 'y', 'admin/bootstrap.js': 'z' }
+      const r = evaluate({ ...s, expected: face, actual: { ...face }, registry: reg, upstreamVersion: '1.4.0', buildConst: '1.4.0', now: NOW })
       expect(r.rows.find((x) => x.id === 'P1').ok).toBe(true)
-      expect(r.compared).toBe(2)
+      expect(r.compared).toBe(3)
     } finally { rmSync(d, { recursive: true, force: true }) }
   })
 })

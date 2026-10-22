@@ -3,11 +3,12 @@
   "url": "https://github.com/k01055119509-lang/CampusPrint-V1",
   "sourceVersion": "1.4.0",
   "sourceCommit": "d19f9f67162a4b687ba45865413ca2ad7251ccbc",
-  "syncedUtc": "2026-10-22T00:21:48.924Z",
+  "syncedUtc": "2026-10-22T13:39:40.818Z",
   "surface": [
     "frontend/shared/** -> public/shared/**",
     "frontend/user/** -> public/user/**",
-    "frontend/user/index.html -> public/print/index.html"
+    "frontend/user/index.html -> public/print/index.html",
+    "frontend/admin/** -> public/admin/**"
   ],
   "transform": "仅行尾 CRLF -> LF；内容一字未改",
   "apiProxy": "vite.config.js(server/preview) + functions/api/[[path]].js 去 origin/sec-fetch-*/host/content-length",

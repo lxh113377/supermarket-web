@@ -76,7 +76,7 @@ function main() {
     }
   }
   // 反向：落地面里权威源没有的件（排除本站自有件：public 下的商品图/sw 等不在映射目录内）
-  for (const dir of ['shared', 'user']) {
+  for (const dir of ['shared', 'user', 'admin']) {
     const abs = join(pubDir, dir)
     if (!existsSync(abs)) continue
     for (const rel of walk(abs)) {

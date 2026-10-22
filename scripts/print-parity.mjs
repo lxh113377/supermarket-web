@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // 打印页面 与 上游仓库（k01055119509-lang/CampusPrint-V1）一致性判据。
 //
-// 为什么立这条闸（一手起因，2026-10-22）：打印页已整体换成该仓库的学生端静态面
+// 为什么立这条闸（一手起因，2026-10-22）：打印页已整体换成该仓库的静态面
 //   frontend/shared/** -> public/shared/**、frontend/user/** -> public/user/**、
-//   frontend/user/index.html -> public/print/index.html
+//   frontend/user/index.html -> public/print/index.html、frontend/admin/** -> public/admin/**
+//   （末条 = 经营后台：不搬它，打印单就没有任何处理入口）
 // 「必须一直保持一致」这个要求此前只活在 CHANGELOG 的散文里 -- 散文不是判据：
 // 上游一发版、或有人手改了 public/ 下某件，没有任何东西会红。本件把它变成机器闸。
 //
@@ -46,6 +47,9 @@ export const MAPPINGS = [
   { from: 'shared', to: 'shared', kind: 'dir' },
   { from: 'user', to: 'user', kind: 'dir' },
   { from: 'user/index.html', to: 'print/index.html', kind: 'file' },
+  // 经营后台面（2026-10-22 方案 A 落地）：上游 frontend/admin/** 原样落本站 /admin/。
+  // 搬它的理由 = 不搬打印单就没有任何处理入口（订单在上游库里，本站 D1 后台读不到）。
+  { from: 'admin', to: 'admin', kind: 'dir' },
 ]
 
 // 行尾归一后取 SHA：vendored 时只做过 CRLF->LF 一件事，判据必须用同一把尺。
@@ -94,8 +98,8 @@ export function readSources(srcOverride = null) {
     }
   }
   if (holes.length) return { missing: '映射失配：' + holes.join(' | ') }
-  // 落地面反向：public/{shared,user} 里上游没有的文件也算漂移（本站私加）
-  for (const dir of ['shared', 'user']) {
+  // 落地面反向：public/{shared,user,admin} 里上游没有的文件也算漂移（本站私加）
+  for (const dir of ['shared', 'user', 'admin']) {
     const abs = join(pubDir, dir)
     if (!existsSync(abs)) continue
     for (const rel of walk(abs)) if (!(dir + '/' + rel in expected)) actual[dir + '/' + rel] = '<EXTRA>'
@@ -134,7 +138,7 @@ export function evaluate({ expected, actual, registry, upstreamVersion, buildCon
   const total = Object.keys(expected || {}).length
   const dirty = cmp.missing.length + cmp.extra.length + cmp.drift.length
   push('P1', total > 0 && dirty === 0,
-    'P1 打印页静态面 与 上游仓库逐文件双向对账（缺/多/内容漂移三类全堵）',
+    'P1 打印页静态面（学生端 + 经营后台）与上游仓库逐文件双向对账（缺/多/内容漂移三类全堵）',
     total === 0
       ? '权威源映射出 0 个文件 => 没有对象可判（空集绝不记绿）'
       : dirty
@@ -187,7 +191,7 @@ export function evaluate({ expected, actual, registry, upstreamVersion, buildCon
 
 // 合成面自证：正例 + 六条反例（每条只让一个面变坏，证明对应腿有牙齿）。
 export function selftest() {
-  const base = { 'shared/api.js': 'aaa', 'user/app.js': 'bbb', 'print/index.html': 'ccc' }
+  const base = { 'shared/api.js': 'aaa', 'user/app.js': 'bbb', 'print/index.html': 'ccc', 'admin/bootstrap.js': 'ddd' }
   const reg = { sourceVersion: '1.4.0', sourceCommit: '0'.repeat(40), syncedUtc: new Date().toISOString() }
   const cases = []
   const t = (label, input, want) => {
