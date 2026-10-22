@@ -4,6 +4,26 @@
 
 ## [未发布]
 
+### 2026-10-23 打印入口判据落进生产构建套件 —— 记一条 dev/生产的服务边界
+
+- 新增 `tests/e2e-visual/print-entry.spec.ts`（4 条）：钉住「打开就是打印页面本身，不跳转不提示」
+  这句原话。此前 grep 全仓 `tests/e2e*` 里 `print` 命中 **0 处** —— 这条要求被两种缺陷破坏过
+  （早期跨域 replace 触发微信拦截页、后端不可达时像死页），却只能靠人肉在手机里点回归。
+- **一手边界（本条真正的信息量）**：搬进来的打印应用是**静态目录**，dev server 与生产构建对它的
+  处理不一样 —— `vite dev` 下 `GET /print/` 回 200 但内容是 **React 入口壳**（SPA 回退），
+  页面里 `<script type=module src=/user/bootstrap.js>` 只回 19B ⇒ 浏览器报
+  「The script has an unsupported MIME type ('text/html')」⇒ 应用根本不起来；
+  而 `vite build` 产物伺服的 `/print/` 才是真 2423B 的「校园打印」，`/admin/` 同理。
+  ⇒ 判据必须放 e2e-visual（跑生产构建）；放 tests/e2e 会去测一个 dev 下不存在的行为。
+  线上两端（Cloudflare Pages / GitHub Pages）都是静态托管 ⇒ 生产构建才是与线上一致的面。
+- **第二个坑**：D 条原本用 `page.content()` 判后台标题，红了两次才定位到 —— 它序列化的是**当前
+  DOM**，而 `shared/i18n.js:61` 运行时会把 `document.title` 改写成 `t('brand')`（本机后端不可达
+  时停在「校园打印」，线上 bootstrap 跑完才补成「校园打印 · 经营后台」）。改成用 request 取
+  **原始字节**判 `<title>` 与 `/admin/bootstrap.js`，与线上探活 uptime-check 的 adminPage() 同口径，
+  也不再绑在后端存活上（CI 里没有那台服务）。
+- 验证：本套件 51 passed + 1 skipped（原有）；lint 0 违规、tsc 无错、verify:eol GREEN、
+  cli-entrypoints 14/14、doc-consistency 9 项 OK（e2e-visual 本就在 vitest 排除面，不动 140 那个数）。
+
 ### 2026-10-23 打印服务条目的注释去重 + 口径跟上线上事实
 
 - `src/data/services.ts` 里「仍保留 form-free 的 type:'print'…」这一行**出现了两次**：git blame
