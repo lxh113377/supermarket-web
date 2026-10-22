@@ -6,6 +6,19 @@
 
 ### 2026-10-22 「免登录写接口」加 Turnstile 人机验证（渐进启用，未配置即放行）
 
+> **补记（同日，前端腿）**：上一条只做了服务端校验。同日补齐前端取 token 并**真正接通**：
+> * `src/utils/turnstile.ts`：懒加载官方脚本 + 隐式组件 + `getCaptchaToken()`。**任何失败都返回空串**
+>   （未配 sitekey / 脚本加载失败 / 超时），由后端决定放行 —— 与后端「不挡站」同向。
+> * `src/api/client.ts` 的 `publicCall`：对三个写接口**统一注入** `payload.captchaToken`。
+>   刻意在这一层注入而非改 5+ 个调用点 —— 散改必有漏。
+> * `VITE_TURNSTILE_SITEKEY` 入 `docs/env-vars.md`（build 类，公开值可进产物；secret 仍走 Pages secret）。
+> * 生产 secret 已配：`wrangler pages secret put TURNSTILE_SECRET --project-name supermarket-web`
+>   实测 `wrangler pages secret list` 回 `TURNSTILE_SECRET: Value Encrypted`。
+> * 新增 `tests/turnstile.frontend.test.ts` 4 条（写接口需 token / 读接口不取 / 未配 sitekey 空串 / 脚本失败空串）。
+> * 验证：`npm run verify` VERIFY_RC=0；vitest **142 文件**全绿；EOL 门 694 件 0 违例（新文件缺末行换行被它当场抓住并修）；
+>   facts 登记 `functions` 27→28、`src` 89→90。
+
+
 - **为什么加在这一面**：`/pub` 的 `createOrder` / `createSubmission` / `addPublicReview` 是本站
   **唯一的免登录写入口**，此前只靠 IP 限流（`rate:write:*`）。限流挡得住频率，挡不住「换 IP 的脚本」，
   而这三个接口直接写 D1（下单 / 投稿 / 评价），是真实滥用面。
