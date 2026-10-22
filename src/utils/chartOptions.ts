@@ -15,20 +15,26 @@ export interface ChartData {
 export const TOOLTIP_BASE = { renderMode: 'plainText' } as const
 
 export interface ChartTheme {
+  /** 主数据墨色（营收线、TOP 榜非前 3 名、饼图第一分类） */
   b1: string
+  /** 次数据墨色（订单线、评价线、饼图第二分类） */
   b2: string
+  /** 强调墨色（TOP 榜前 3 名） */
   b3: string
+  /** 第三分类专用：与 b1/b2 的亮度差都 ≥0.07，保证色盲下三个扇区仍可分 */
+  b4: string
   grid: string
   text: string
 }
 
 // 与 index.css 的 --chart-* 变量同值：读不到（SSR / 变量未注入）时退到这套兜底色
 export const CHART_THEME_FALLBACK: ChartTheme = {
-  b1: '#facc15',
+  b1: '#b45309',
   b2: '#14532d',
-  b3: '#f97316',
+  b3: '#7c2d12',
+  b4: '#0d9488',
   grid: '#f3f4f6',
-  text: '#9ca3af',
+  text: '#57534e',
 }
 
 // 只认十六进制：Tailwind 变量写成 rgb()/oklch() 时宁可用兜底色，也不把非法色值塞进 echarts
@@ -46,6 +52,7 @@ export function readChartTheme(): ChartTheme {
     b1: cssVar('--chart-b1', CHART_THEME_FALLBACK.b1),
     b2: cssVar('--chart-b2', CHART_THEME_FALLBACK.b2),
     b3: cssVar('--chart-b3', CHART_THEME_FALLBACK.b3),
+    b4: cssVar('--chart-b4', CHART_THEME_FALLBACK.b4),
     grid: cssVar('--chart-grid', CHART_THEME_FALLBACK.grid),
     text: cssVar('--chart-text', CHART_THEME_FALLBACK.text),
   }
@@ -125,10 +132,13 @@ export function buildReviewOption(reviewTrend: ChartData['reviewTrend'], theme: 
 
 /** 饮品/食品 环形占比。空态提示由 DashboardTab 的 HTML overlay 负责（不注册 GraphicComponent，省 ~87KB gz） */
 export function buildPieOption(pieSegments: ChartData['pieSegments'], theme: ChartTheme, opts: ChartRenderOpts): ChartOption {
-  const { b1, b2, text } = theme
+  // 分类数 = 3（饮品/食品/日用），所以色板必须给到三个**互相可分**的墨色。
+  // 旧写法是 color: [b1, b2] —— 只有两色，第三个扇区回绕到 b1，
+  // 于是"日用"与"饮品"画成同一个颜色：图例写着三个名字，图上只有两种颜色。
+  const { b1, b2, b4, text } = theme
   return {
     animation: !opts.reducedMotion,
-    color: [b1, b2],
+    color: [b1, b2, b4],
     tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)', ...TOOLTIP_BASE },
     legend: { bottom: 0, left: 'center', icon: 'circle', itemWidth: 8, itemHeight: 8, textStyle: { color: text, fontSize: 11 } },
     series: [
