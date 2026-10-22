@@ -63,7 +63,10 @@ export default defineConfig({
     // 浏览器与 server，若被 vitest 收集会因缺少 browser fixture 而失败。
     // e2e-visual 是跑生产构建的那一套（CSP 会拦 dev 注入的 <style>，几何判据只能在 prod 下成立），
     // 新增 e2e* 目录时记得一并加进来。
-    exclude: ['node_modules/**', 'dist/**', 'tests/e2e/**', 'tests/e2e-visual/**', 'tests/e2e-stub/**'],
+    // vendor/**：打印页一致性判据的权威源（上游 CampusPrint-V1，本机 --fetch / CI checkout 落这里）。
+    // 不收进来就会被 vitest 当本仓测试采集（2026-10-22 一手：137→190 文件、54 个红全是上游的
+    // node --test 用例，它们依赖上游自己的 fixtures 与隔离存储，在本仓环境里必红）。
+    exclude: ['node_modules/**', 'dist/**', 'vendor/**', 'tests/e2e/**', 'tests/e2e-visual/**', 'tests/e2e-stub/**'],
     // 天花板必须两两对齐（第四十六轮一手：一次 `Test timed out in 5000ms` 抓出来的系统性缺陷）：
     // tests/ 里 17 个文件在用子进程真跑入口，**每一条**的 spawnSync 预算是 30s/60s/120s，
     // 却没有一条给测试本身设超时 ⇒ 全部跑在 vitest 默认 5s 上。判据慢于 5s 时红的是夹具，

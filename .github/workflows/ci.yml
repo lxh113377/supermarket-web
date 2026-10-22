@@ -47,6 +47,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # 打印页 = 外站「校园打印」应用（vendored 静态面 public/{shared,user} + print/index.html）。
+      # 「必须与上游仓库一直一致」这条要求由 scripts/print-parity.mjs 当机器闸；闸的权威源
+      # 在 CI 里 = 当场浅克隆的上游（公开仓、零凭据）。取不到上游时判据记 UNVERIFIED/rc=2，
+      # 绝不折算成「一致」—— 所以这一步失败要修链路，不是加 --advisory 蒙过去。
+      - name: Checkout upstream CampusPrint-V1 (parity 权威源)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: k01055119509-lang/CampusPrint-V1
+          path: vendor/CampusPrint-V1
+          fetch-depth: 1
+
+      - name: Print page parity gate (npm run verify:print)
+        run: npm run verify:print
+
       # 对标第二轮 A3（2026-09-24）：依赖漏洞审计进阻断门禁。
       # 显式 --registry=npmjs 是本机/镜像源的必需项——npmmirror 未实现 audit 端点
       # （实测返回 NOT_IMPLEMENTED），不指 registry 会让审计静默拿不到数据。

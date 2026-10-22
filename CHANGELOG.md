@@ -44,6 +44,35 @@
   全程 `cp_student_session` 会话 cookie 稳定、无 4xx/5xx、无 pageerror。
   截图证据：`_print-verify/campusprint-print-page-2026-10-21.png`、`_print-verify/campusprint-quote-ready-2026-10-21.png`、`_print-verify/campusprint-preview-2026-10-21.png`。
 
+### 2026-10-22 打印页部署上线 + 与上游仓库的一致性立成机器闸
+
+- **上线闭环（双端 + 后端可达）**：`b97cf72`（feat）与 `997a52b`（补 CHANGELOG）已推 origin/main；
+  CI run **39643359214** 六 job 全 success（gates / browser-install / e2e / e2e-cloud-stub / visual / deploy），
+  `dispatch.yml` 双发成功 → 线上 `https://supermarket-web.pages.dev/print/` 与 `https://lxh113377.github.io/print/` 均 200，
+  页面标题即「校园打印」（`/user/app.js`、`/shared/api.js`、`/user/user.css` 逐件 200）。
+- **后端公网可达（本轮闭环项）**：本机 `cloudflared`（npm 包 `cloudflared@2026.10.3`，落 `D:\tools\cloudflared`，未入本仓）
+  起快速隧道指向 `127.0.0.1:4328` → 上游 `PUBLIC_ORIGIN` 设为隧道域名 → Pages secret `CAMPUS_PRINT_ORIGIN` 同值 + 重部署。
+  于是线上打印页**能上传、能出价**：Edge headless 实测 `POST /api/files` → `202`、`报价已就绪`（`选 1 页 × 1 份 · 单面`、
+  `合计 ¥0.50`），无 4xx/5xx、无 pageerror。隧道的随机子域名 = 已知运维边界（重启换址），长期方案仍是自有服务器。
+- **新增闸（把「必须一直一致」从散文变成判据）**：`scripts/print-parity.mjs`（`npm run verify:print`，并入 `verify` 链与 CI `gates` job）——
+  P1 逐文件双向 SHA 对账（缺件/多件/内容漂移三类，尺 = 归一行尾后的 SHA-256，与 vendored 那一次同尺）、
+  P2 同步登记册在册（新 `docs/campus-print.json`：sourceCommit/version/syncedUtc）、P3 版本三处对账
+  （上游 `package.json` ⇄ 登记册 ⇄ `printApp.ts` 的 `CAMPUS_PRINT_BUILD`）、P4 同步龄期 ≤30 天；
+  取不到权威源一律 **rc=2 UNVERIFIED**，绝不折算成「一致」。自证 8/8，常驻夹具 `tests/printParity.test.js`（8 条，真跑入口 + 三态）。
+- **自愈通道**：`scripts/sync-print.mjs`（`npm run sync:print`）——dry-run 报差异 / `--apply` 落盘并同笔刷三处版本面 /
+  `--fetch` 先浅克隆上游。`--apply` 不自动删件（要人确认不是本站自有件）。CLI 入口面记它进「已知缺口」并写清理由
+  （会写盘 + 打网络，绝不进探针；其结论由 print-parity 的真跑夹具兜住）。
+- **CI 权威源接线**：`ci.yml` 的 `gates` job 新增 checkout step（公开仓 `k01055119509-lang/CampusPrint-V1` → `vendor/CampusPrint-V1`，
+  零凭据、fetch-depth 1）；`.gitignore` 增 `vendor/CampusPrint-V1`（上游是别人的仓，不入库）；
+  `vite.config.js` 的 vitest `exclude` 增 `vendor/**` —— 一手起因：漏这条时 `npm test` 把上游 53 个 `node --test` 用例
+  当本仓测试采集（137→190 文件、54 红），当场暴露“采集面没有目录围栏”这类结构性失踪。
+- **随闸同步的台账**：`docs/governance/registry.json` 六项 facts 追上现值（verifyLegs 43→44、gateScripts 69→71、
+  limitRosterRows 97→91、itemBudgets 32→30、codeFace functions 25→27 / src 96→88）与棘轮 `op-limit-rows` 绿档同笔下调；
+  `docs/cli-entrypoints.md` 缺口表 +1 行；`README.md`/`HANDOFF.md` 的 vitest 文件数 137→138（三处同笔，`verify:docs` 对账）。
+- **本机端到端（本轮再次实测）**：`npx vitest run --coverage` **138 文件 2044 用例全过**
+  （Statements 80.82% / Branches 73.59% / Functions 76.7%，均在棘轮之上）；`print-parity` GREEN（21 件、漂移 0、三处版本同值 1.4.0）；
+  `verify:governance` 12/12；`check:gate-parity` GREEN（CI step 41 ⇄ 本地形态 50，错位 0）；`verify:docs`/`check:doc-commands` 全绿。
+
 ### 2026-10-21 新增商品：老酸奶软糖 ¥0.5
 
 - **新增 1 件商品**：老酸奶软糖，分类「零食」(snacks)，价格 0.5 元，`spec` 留空（供货信息无净含量小字），已上架。

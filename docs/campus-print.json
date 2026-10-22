@@ -1,0 +1,16 @@
+{
+  "source": "k01055119509-lang/CampusPrint-V1",
+  "url": "https://github.com/k01055119509-lang/CampusPrint-V1",
+  "sourceVersion": "1.4.0",
+  "sourceCommit": "d19f9f67162a4b687ba45865413ca2ad7251ccbc",
+  "syncedUtc": "2026-10-22T00:21:48.924Z",
+  "surface": [
+    "frontend/shared/** -> public/shared/**",
+    "frontend/user/** -> public/user/**",
+    "frontend/user/index.html -> public/print/index.html"
+  ],
+  "transform": "仅行尾 CRLF -> LF；内容一字未改",
+  "apiProxy": "vite.config.js(server/preview) + functions/api/[[path]].js 去 origin/sec-fetch-*/host/content-length",
+  "gate": "npm run verify:print",
+  "note": "本登记册由 scripts/print-parity.mjs 消费：P2 查在册、P3 查版本三处同值、P4 查同步龄期。"
+}

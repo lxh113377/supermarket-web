@@ -12,12 +12,12 @@
       "source": "docs/api-contract.json"
     },
     "verifyLegs": {
-      "value": 43,
-      "source": "package.json scripts.verify 的 && 段数（第七十六轮并入 verify:governance ⇒ 42→43）"
+      "value": 44,
+      "source": "package.json scripts.verify 的 && 段数（2026-10-22 并入 verify:print 打印页一致性闸 ⇒ 43→44）"
     },
     "gateScripts": {
-      "value": 69,
-      "source": "scripts/*.mjs 文件数（第七十六轮新增本判据本身 ⇒ 68→69）"
+      "value": 71,
+      "source": "scripts/*.mjs 文件数（2026-10-22 新增 print-parity.mjs + sync-print.mjs ⇒ 69→71）"
     },
     "ciJobs": {
       "value": 6,
@@ -25,13 +25,13 @@
       "source": ".github/workflows/ci.yml 的 jobs: 段（本机实跑该段 6 个 job 键）"
     },
     "limitRosterRows": {
-      "value": 97,
-      "source": "docs/limit-provenance.md 表格行"
+      "value": 91,
+      "source": "docs/limit-provenance.md 表格行（2026-10-21 打印页替换删掉 6 条随文件失效的死行 ⇒ 97→91）"
     },
     "itemBudgets": {
-      "registered": 32,
+      "registered": 30,
       "noBudgetMax": 36,
-      "source": "docs/item-budgets.json"
+      "source": "docs/item-budgets.json（2026-10-21 打印页替换删掉 three-vendor/scroll-vendor 两条死条目 ⇒ 32→30）"
     },
     "memoryVolume": {
       "contentMaxBytes": 4096,
@@ -78,9 +78,10 @@
     },
     "codeFace": {
       "files": {
-        "functions": 25,
-        "src": 96
+        "functions": 27,
+        "src": 88
       },
+      "_filesNote": "2026-10-21 打印页替换：functions +2（api/[[path]].js、lib/print-proxy.js），src −8（旧打印页 3D 层与表单全删、新增 printApp.ts）",
       "firstCommitDate": "2026-08-08",
       "lastCommitDate": "2026-10-18",
       "historyDays": 72
@@ -576,13 +577,13 @@
           "path": "docs/limit-provenance.md",
           "field": "表格行",
           "measuredBy": "`npm run verify:limits` 的计数行",
-          "evidence": "本机实测 97 行（判据以当场输出为准，本册只记口径）",
-          "measuredAt": "2026-10-18"
+          "evidence": "本机实测 91 行（2026-10-21 打印页替换删 6 条死行；判据以当场输出为准，本册只记口径）",
+          "measuredAt": "2026-10-22"
         },
         "cadence": "每次加上限",
         "thresholds": {
-          "green": "≤97",
-          "warn": "98–120",
+          "green": "≤91",
+          "warn": "92–120",
           "red": "≥121"
         },
         "action": "红档：先把同类上限合并成命名常量再登记，禁逐点铺行",

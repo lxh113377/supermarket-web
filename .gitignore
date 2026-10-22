@@ -12,6 +12,9 @@ dist
 dist-*
 dist-ssr
 *.local
+# 打印页一致性判据（scripts/print-parity.mjs）的权威源落点：
+# CI 由 checkout step 当场浅克隆（上游是别人的仓，不入库），本机 --fetch 也落这里。
+vendor/CampusPrint-V1
 
 # 误建的 GPU 日志目录（2026-09-05 清理残留后防再犯）
 NVIDIA Corporation/

@@ -18,6 +18,13 @@
 /** 本机与 Pages 部署的内置入口：同源静态面 + 直达打印下单视图。 */
 export const DEFAULT_CAMPUS_PRINT_URL = '/print/#print'
 
+/**
+ * 本页所承载的校园打印版本（与上游 package.json 同值）。
+ * 判据 scripts/print-parity.mjs 的 P3 腿把这里、docs/campus-print.json、上游 package.json 三处对账 ——
+ * 三处不同值 = 静态面与上游已漂移（散文提醒会被忘，等号不会）。
+ */
+export const CAMPUS_PRINT_BUILD = '1.4.0'
+
 /** 顾客端（GitHub Pages 静态托管）没有 /api 反代，只能指向带 Functions 的 Pages 部署。 */
 export const PAGES_REMOTE_PRINT_URL = 'https://supermarket-web.pages.dev/print/#print'
 

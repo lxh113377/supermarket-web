@@ -82,6 +82,7 @@
 | purge-security-events.mjs | 破坏性运维命令（`DELETE FROM security_events … --remote`）。**本轮实测**：修前它在无 tty 下 1s 内直接进入远端 DELETE；现按 `migrate.confirmRemote` 口径要求显式 `--yes`，无授权时 rc=2 ⇒ 用法改成 `npm run maintain:purge-events -- --yes` |
 | smoke-deploy.mjs | 打线上端点（实测 2s，首行 `PASS 静态站 https://supermarket-web.pages.dev/`），部署后才有效，由 `npm run smoke` 在部署后跑。注意：CI 的部署后冒烟是 `ci.yml` 里**内联 curl**（`_health` + `getPublicCategories`），与本脚本不是同一份实现 ⇒ 两处判定会漂移，已记入本轮改进清单 |
 | uptime-check.mjs | 线上探测（实测 13s，打 `/_health` 并解析 JSON），本地 spawn 只会测网络。CI 的 `uptime.yml` 以真命令跑它 |
+| sync-print.mjs | 打印页同步执行器：`--apply` 会**写盘**（覆盖 public/{shared,user} 与登记册），`--fetch` 打网络浅克隆上游仓 —— 两者都绝不能进探针（探针里跑一次 = 测试自己改交付面）。dry-run 腿的取数面是权威源在场（CI 由 checkout step 保证、本机看有没有跑过 --fetch），在 `npm test` 时点上不确定 ⇒ 记本缺口；它的**结论**由同族判据 `print-parity.mjs` 当场对账（该件有 `tests/printParity.test.js` 真跑入口，G8 面内），方向写错当场红 ⇒ 不是无人看守的入口 |
 | check-d1-remote-usage.mjs | 真跑 = 打 Cloudflare GraphQL + 起 `wrangler d1 info` 子进程（本轮实测：无 flag 骨架 **rc=0 / 7.7s**，两通道各走一遍）⇒ 跑它测的是服务商可用性，不是代码；带 `--write` 还会改写受版本控制的 `docs/d1-remote-usage.json`。它**不是**门禁类别名（`report:d1-usage`）⇒ 不占 G8 的门禁面；纯判据由 `tests/d1RemoteUsage.test.js` 注入读数覆盖（U5 三向的四种出口各有断言），入口通道没有 fixture 注数面 ⇒ 记本缺口，CI 侧它是 advisory（`continue-on-error`，理由写在 ci.yml 该步注释里）|
 
 ## 不可子进程豁免
