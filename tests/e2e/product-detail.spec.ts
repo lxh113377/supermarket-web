@@ -38,9 +38,17 @@ function axis(page: import('@playwright/test').Page, name: string) {
   return page.locator('fieldset > legend', { hasText: name })
 }
 
-/** 标题旁的主价 —— 必须与「同类商品」区里其他商品的标价区分开，否则子串会撞 */
+/**
+ * 标题旁的主价 —— 必须与「同类商品」区里其他商品的标价区分开，否则子串会撞。
+ * 判 p.price-num：生产里主价是 <p className="price-num …">（ProductDetailPage.tsx:380），
+ * 同类区的小标价是 <span className="price-num …">（同文件 513）⇒ 限定 p. 只命中主价。
+ * 原先写的是 p.text-3xl，而 8c44674「排版双声部」把主价类名换成 text-[2.5rem] + price-num
+ * 之后那个元素根本不存在 ⇒ 三条用例一起「element(s) not found」（一手：main run 39812545626
+ * 的 e2e job，Expected ¥3.66 / ¥1.88 / ¥2.66 全部 not found）。不写回字级类（text-[2.5rem]）：
+ * 字级是样式细节，改一次字号就得跟一次测试；price-num 是语义钩子，本该由它承担可测身份。
+ */
 const mainPrice = (page: import('@playwright/test').Page) =>
-  page.locator('p.text-3xl').first()
+  page.locator('p.price-num').first()
 
 /**
  * 白象 46/47 的口径变更（2026-09-28）：跨记录演示层退役后，帮泡与零售就是目录里两条独立记录，
