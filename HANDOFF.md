@@ -272,6 +272,26 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN`（repo �
    直接建 API token 报 `9109 Unauthorized to access requested resource` ⇒ 属外部凭据缺口，
    只能老大在 Cloudflare 控制台点一次。
 
+10. **打印下单的收款环节已并入本店真实收款码（2026-10-23 一手实测）** —
+    打印经营后台「设置与维护」里原本两个渠道都是**未配置**，顾客下单页因此挂着
+    「尚未配置收款信息」。已把**本仓自己的**两张收款码（`public/wechat-pay.png`、
+    `public/alipay.jpg`，即超市下单用的那两张，同一账户）经后台 UI 上传进去：
+    `200 POST /api/admin/payment-qr/wechat`、`200 POST /api/admin/payment-qr/alipay`，
+    后台两处转「已配置，请核对真实收款账户」。
+    线上取数面实测：`GET /api/public/payment-qr/{wechat,alipay}` → 200 `image/png`
+    （154615B / 381639B），拉下来肉眼看就是老大那两张真码；与仓库原件**逐字节不同**属正常 ——
+    上游入库时重编码过（alipay 还从 JPG 转成 PNG），不是内容不对。
+    顾客侧走完真实下单链验证：上传 PDF → `202 /api/files` → `202 /api/print/quotes` →
+    勾预览确认 + 填房间 + 选接收方式 → `201 POST /api/orders` 建出
+    `CP20261022-01AA01DBE2C3`，订单页**收款码 img 元素 naturalWidth>0 真渲染**，
+    「尚未配置收款信息」字样消失（截图 `_print-verify/order-payment-qr.png`）。
+    ⚠️ 两点代价，别当免费午餐：① 码现在存在**打印后端自己的数据目录**里（这台笔记本 +
+    隧道），后端迁走时要一并搬；② 本轮共留下 **2 笔测试单**（`CP20261022-FFDA3298E8AC`、
+    `CP20261022-01AA01DBE2C3`，各 ¥0.50、均无真实收款）。后台对「待接单」只暴露接单动作、
+    取消须先核款 ⇒ 我没有伪造收款记录去清账，两笔原样留着当验收样本，老大可在后台自行处置。
+    另记一次踩坑免得重复：探 `/api/public/*` 时**不要**带 `X-CP-Surface: public` —— 该头只认
+    `admin`/`me`，带上会被上游判 `403 FORBIDDEN 请求端上下文无效`，看着像端点坏了其实是我方请求错。
+
 ## 十、历史存档（CloudBase 时代，2026-08-08 前，仅归档参考）
 
 > 以下记录为 2026-08-08 及之前的 CloudBase 架构历史，**已迁移至 Cloudflare Pages + D1，仅供参考勿照做部署**。
