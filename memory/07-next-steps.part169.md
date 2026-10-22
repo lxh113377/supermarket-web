@@ -25,3 +25,7 @@
   `Release parity` / `Dispatch deploy` 均 success；本机 vitest 137 文件 2031 用例全过、lint 0、verify:backend 204/0。
 - **下一轮 P0**：把「API 推送前必须校验 blob sha === git 索引 sha」写进 `chaoshi-web-deploy` skill 的坑表
   （本轮两次差点推错内容，根因同一处）。
+
+> **2026-10-22 更正（同卷追加，不改上文）**：本卷「自绘示意图 + 水印」那条已被取代——
+> 用户随后补来实拍供货图，已覆盖 `public/images/64.webp` 与 `sm/64.webp`（`verify:images` 63/63 rc=0）。
+> 教训：**用户报新品时先问一句有没有供货图**，占位图只是兜底，不是终态。
