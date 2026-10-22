@@ -41,6 +41,17 @@ export function normalizeCampusPrintPath(raw: unknown): string | null {
   return value.endsWith('/') ? value : value + '/'
 }
 
+/**
+ * 同源 /api 探测结果分类（纯函数，便于单测钉边界）。
+ *
+ * 只有 404 才等于「这台托管根本没有打印后端」（GitHub Pages 静态托管就是这种），
+ * 其余任何状态码都说明端点存在（503 = 后端暂时不可达，应用自己会给「重试」入口），
+ * 网络异常按「端点存在但取不到」处理 —— 把它判成「没有后端」会让 Pages 上一次抖动
+ * 就把用户挡在打印页外面，那是比暂时不可用更糟的降级。
+ */
+export function classifyApiProbe(status: number | null): 'no-backend' | 'has-backend' {
+  return status === 404 ? 'no-backend' : 'has-backend'
+}
 /** 解析打印页地址：配置合法就用配置，否则用站内默认入口（绝不返回空串，也绝不给外部域名）。 */
 export function resolveCampusPrintUrl(
   raw: unknown = (import.meta.env as Record<string, unknown> | undefined)?.VITE_CAMPUS_PRINT_URL,
