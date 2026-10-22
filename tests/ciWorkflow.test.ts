@@ -947,7 +947,7 @@ describe('CI 的时间上界与浏览器下载单一逻辑（G-72-1）', () => {
     expect(tracked.trim()).toBe(BROWSER_SCRIPT)
   })
 
-  it('④ 安装脚本自证过（4/4）—— 它的"快红"腿必须当场复跑，不接受"我写完了"', () => {
+  it('④ 安装脚本自证全过 —— 它的"快红"腿必须当场复跑，不接受"我写完了"', () => {
     // 只在有 bash 的机器上跑；没 bash 不静默跳过（跳过 = 这条判据在本机退化成空转真），
     // 而是显式 skip 并说明原因，让读数的人自己判断。
     const bash = process.platform === 'win32' ? 'C:\\Program Files\\Git\\bin\\bash.exe' : 'bash'
@@ -957,6 +957,21 @@ describe('CI 的时间上界与浏览器下载单一逻辑（G-72-1）', () => {
     }
     const r = spawnSync(bash, [join(WF_DIR, '..', '..', BROWSER_SCRIPT), '--selftest'], { encoding: 'utf8' })
     expect(r.status, `安装脚本自证未过 rc=${r.status}\n${r.stdout}\n${r.stderr}`).toBe(0)
-    expect(r.stdout).toContain('自证 4/4')
+    /**
+     * 断言"分子 == 分母"，而不是写死某个具体腿数。
+     *
+     * 原先这里硬编码 `toContain('自证 4/4')`，而 a16d3c7 给脚本加到 6 条腿后
+     * 本件当场判红 —— 脚本 6/6 全过、被测对象没问题，是**判据自己过期**。
+     * 把 4 改成 6 只是把同一颗雷重新埋一遍（下次加第 7 条腿再红一次）。
+     * 现在从脚本的打印里取那对数字，并要求两者相等：
+     *   - 加腿 ⇒ 分母自己跟着变，本件不动也不误红；
+     *   - 有腿没咬住 ⇒ 分子 < 分母 ⇒ 本件照样红（判据的阻断力没削弱）；
+     *   - 脚本哪天不打印这行（改名/删汇总）⇒ 正则取不到 ⇒ 大声判红，
+     *     绝不把"没读到"折算成"通过"（本仓「零输入不得记 PASS」同规）。
+     */
+    const m = /自证\s*(\d+)\/(\d+)/.exec(r.stdout || '')
+    expect(m, `自证汇总行取不到 ⇒ 脚本没打印"自证 N/M"，本件失去判据（stdout 末行：${(r.stdout || '').trim().split('\n').pop() || '空'}）`).toBeTruthy()
+    expect(Number(m![1]), `安装脚本自证 ${m![1]}/${m![2]} ⇒ 有腿没咬住`).toBe(Number(m![2]))
+    expect(Number(m![2]), '自证分母为 0 ⇒ 脚本一条腿都没跑，空集不是通过').toBeGreaterThan(0)
   })
 })
