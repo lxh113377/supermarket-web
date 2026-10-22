@@ -399,6 +399,38 @@ img {
 }
 .marquee:hover .marquee-track { animation-play-state: paused; }
 
+  /* 减少动效时跑马灯必须换成静态排布（2026-10-23，修我自己上一轮引入的内容丢失）。
+     .marquee-track 是 width:max-content + 父级 overflow:hidden，内容靠 animation 的
+     translateX 位移轮流露出 —— 上面的全局规则把 animation-duration 压到 0.01ms 且
+     iteration-count:1，于是它瞬间播完、回到 transform:none 停在起点：实测 390px 宽下
+     5 条公告只有 2 条可见，「微信内即可下单」等 3 条**永久看不见**。
+     动效不适的用户不该为此丢信息，所以这里把「滚动」这个呈现手段换成「换行铺开」：
+     全部关键词一次性可见，且去掉为无缝循环准备的第二份复制（:last-child）与两端
+     淡出遮罩（静态下会吃掉首尾文字）。 */
+  @media (prefers-reduced-motion: reduce) {
+    .marquee {
+      overflow: visible;
+      -webkit-mask-image: none;
+      mask-image: none;
+    }
+    /* 换行必须落在**词条层**：.marquee-track 的直接子元素是两个大 span
+       （每份复制一个），只给 track 加 wrap 的话换行只发生在「两份复制之间」，
+       块内 5 个词条仍连成一行溢出（实测「零食饮料」被推到 left=-111，看不见）。
+       所以 track 与它的每个子 span 都要 wrap。 */
+    .marquee-track,
+    .marquee-track > span {
+      width: auto;
+      max-width: 100%;
+      flex-wrap: wrap;
+      justify-content: center;
+      row-gap: 2px;
+    }
+    /* 第二份复制只为衔接循环起点，静态排布下它是重复内容 */
+    .marquee-track > span:last-child {
+      display: none;
+    }
+  }
+
 /* 纸纹：极淡的双向网点，让大面积暖白不是"纯色块"而是有材质的纸。
    刻意压在 3% 不透明度以下 —— 看得见质感、看不见规则本身。 */
 .paper-grain {
