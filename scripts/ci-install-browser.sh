@@ -21,9 +21,18 @@
 #   bash scripts/ci-install-browser.sh
 # 环境变量（都有默认值，CI 里不改也能跑）：
 #   BROWSER=chromium              要装的浏览器
-#   BROWSER_ATTEMPTS=3            最大尝试次数
-#   BROWSER_ATTEMPT_TIMEOUT_S=300 单次尝试的墙上时钟上限（秒）
+#   BROWSER_ATTEMPTS=2            最大尝试次数
+#   BROWSER_ATTEMPT_TIMEOUT_S=900 单次尝试的墙上时钟上限（秒）
+#     为什么是 900 而不是 300（2026-10-22 一手 run 39801611566）：本文件上面就记着
+#     「冷下载实测 13m45s = 825s」，而单次上限只有 300s ⇒ 冷缓存下第 1 次**必然**被掐死，
+#     且掐在 apt-get 事务中间，留下一个还在跑、还持有 dpkg 锁的孤儿进程（日志点名 PID 2788），
+#     于是第 2、3 次在 2s / 49s 内以 rc=100 失败 —— 重试被自己的超时毒化，三次全废。
+#     900 = 825s 实测 + 余量；配 BROWSER_ATTEMPTS=2 得最坏 2×(900+180)=2160s=36min，
+#     故 ci.yml 里跑本脚本的四个 job 超时同步抬到 40 分钟（低于 40 会被平台 cancelled ⇒ 零归因）。
 #   BROWSER_RETRY_BACKOFF_S=15    两次尝试之间的等待（秒）
+#   BROWSER_LOCK_WAIT_S=180       每次尝试前最多等 dpkg/apt 锁释放多久（秒）
+#   BROWSER_LOCK_PROBE=<命令>     锁占用探测面（自证注入用；缺省用 fuser/pgrep，
+#                                 两者都不存在时探测返回非 0 ⇒ 视为未占用，退回旧行为不卡死）
 # 退出码：0 = 装好且产物在盘 / 1 = 重试耗尽仍装不上（已打归因行）/ 2 = 前置不齐
 #
 # 自证：bash scripts/ci-install-browser.sh --selftest
@@ -71,6 +80,43 @@ require_prereqs() {
   return 0
 }
 
+# 等 dpkg/apt 锁释放。存在的理由（2026-10-22 一手 run 39801611566）：上一轮尝试被超时
+# 掐死后，apt-get 事务并不会跟着消失 —— 它成了孤儿进程继续持有 /var/lib/dpkg/lock-frontend，
+# 于是下一轮一进去就撞 "E: Could not get lock ... held by process 2788 (apt-get)" 并以
+# rc=100 秒失败。**不等锁的重试等于白重试**（三次里有两次是这么废掉的）。
+# 探测面可注入（BROWSER_LOCK_PROBE）：本机 Git Bash 没有 fuser/pgrep，自证要能跑就必须可换。
+# 缺省探测：fuser 优先（精确到文件），退化到 pgrep -x apt-get；两者都没有 ⇒ 返回非 0
+# 视为「未占用」，退回旧行为，绝不因为探测不了而卡死安装。
+lock_held() {
+  if [ -n "${BROWSER_LOCK_PROBE:-}" ]; then
+    bash -c "$BROWSER_LOCK_PROBE" >/dev/null 2>&1
+    return $?
+  fi
+  if command -v fuser >/dev/null 2>&1; then
+    fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 && return 0
+  fi
+  if command -v pgrep >/dev/null 2>&1; then
+    pgrep -x apt-get >/dev/null 2>&1 && return 0
+    pgrep -x apt >/dev/null 2>&1 && return 0
+  fi
+  return 1
+}
+
+# 返回 0=锁已空（含本来就是空）/ 1=等到上限仍被占（调用方照样继续试，只是多一条日志）
+wait_for_lock() {
+  local budget="${1:-0}" waited=0
+  [ "$budget" -eq 0 ] && return 0
+  lock_held || return 0
+  log "检测到 dpkg/apt 锁被占用 ⇒ 最多等 ${budget}s 让它释放（不等就是拿一次注定 rc=100 的失败去填空）"
+  while [ "$waited" -lt "$budget" ]; do
+    sleep 5
+    waited=$((waited + 5))
+    lock_held || { log "锁已释放（等了 ${waited}s）"; return 0; }
+  done
+  log "等满 ${budget}s 锁仍在 ⇒ 仍继续尝试（把决定权交给安装命令自己，别在这里静默放弃）"
+  return 1
+}
+
 # 装一轮。返回 0=装好 / 124=单次超时 / 143=被 TERM 收掉（也算超时）/ 其他=命令自身报错
 try_install() {
   local browser="$1" limit="$2" rc=0
@@ -82,11 +128,12 @@ try_install() {
 }
 
 install() {
-  local browser attempts limit backoff i rc timed_out=0
+  local browser attempts limit backoff lockwait i rc timed_out=0
   browser="${BROWSER:-chromium}"
-  attempts="${BROWSER_ATTEMPTS:-3}"
-  limit="${BROWSER_ATTEMPT_TIMEOUT_S:-300}"
+  attempts="${BROWSER_ATTEMPTS:-2}"
+  limit="${BROWSER_ATTEMPT_TIMEOUT_S:-900}"
   backoff="${BROWSER_RETRY_BACKOFF_S:-15}"
+  lockwait="${BROWSER_LOCK_WAIT_S:-180}"
 
   case "$attempts" in ''|*[!0-9]*) err "BROWSER_ATTEMPTS 必须是正整数，实得 '$attempts'"; return 2 ;; esac
   case "$limit" in ''|*[!0-9]*) err "BROWSER_ATTEMPT_TIMEOUT_S 必须是正整数秒，实得 '$limit'"; return 2 ;; esac
@@ -97,7 +144,11 @@ install() {
 
   i=1
   while [ "$i" -le "$attempts" ]; do
-    log "第 ${i}/${attempts} 次尝试（单次上限 ${limit}s）"
+    log "第 ${i}/${attempts} 次尝试（单次上限 ${limit}s，锁等待上限 ${lockwait}s）"
+    # 必须 || true：wait_for_lock 用返回 1 表达「锁仍被占」这个**信息**，而本脚本开着 set -e，
+    # 不吞掉它就会在这里直接中止整个安装 —— 一手实测（自证腿6）：日志连「重试耗尽」的归因行
+    # 都没走到就 rc=1 退出，等于把「等不到锁」伪装成「装不上」，正是本文件反对的那种假信号。
+    wait_for_lock "$lockwait" || true
     rc=0
     try_install "$browser" "$limit" || rc=$?
     case "$rc" in
@@ -160,14 +211,34 @@ FAKE
   chmod +x "$FAKE_STATE_DIR/npx"
 }
 
-run_fake() { # run_fake <mode> <root> <counter> <attempts> <limit> [succeed_at]
-  local mode="$1" root="$2" counter="$3" attempts="$4" limit="$5" at="${6:-3}"
+# 假锁探测面：FAKE_LOCK_HELD_TIMES 次内报「占用」（exit 0），之后报「空闲」（exit 1）。
+# 为什么要单独落成脚本而不是把命令串塞进 BROWSER_LOCK_PROBE：命令串里带路径就要引号，
+# 而它会被 bash -c 二次解析 —— 一手踩过（转义引号变成字面文件名，计数永远写不到目标路径，
+# 于是那条腿以完全错误的理由变绿/变红）。脚本面没有这层引号问题。
+write_fake_probe() {
+  cat >"$FAKE_STATE_DIR/probe" <<'PROBE'
+#!/usr/bin/env bash
+n=$(($(cat "$FAKE_LOCK_COUNTER" 2>/dev/null || echo 0) + 1))
+printf '%s' "$n" >"$FAKE_LOCK_COUNTER"
+if [ "$n" -le "${FAKE_LOCK_HELD_TIMES:-0}" ]; then exit 0; fi
+exit 1
+PROBE
+  chmod +x "$FAKE_STATE_DIR/probe"
+}
+
+run_fake() { # run_fake <mode> <root> <counter> <attempts> <limit> [succeed_at] [lock_probe] [lock_wait]
+  local mode="$1" root="$2" counter="$3" attempts="$4" limit="$5" at="${6:-3}" \
+    probe="${7:-exit 1}" wait="${8:-0}"
   mkdir -p "$root"
   : >"$counter"
+  rm -f "$root.lockcount"
   set +e
   FAKE_MODE="$mode" FAKE_ROOT="$root" FAKE_COUNTER="$counter" FAKE_SUCCEED_AT="$at" \
+    FAKE_STATE_DIR="$FAKE_STATE_DIR" FAKE_LOCK_COUNTER="$root.lockcount" \
+    FAKE_LOCK_HELD_TIMES="${FAKE_LOCK_HELD_TIMES:-0}" \
     BROWSER=chromium BROWSER_ATTEMPTS="$attempts" BROWSER_ATTEMPT_TIMEOUT_S="$limit" \
-    BROWSER_RETRY_BACKOFF_S=0 PLAYWRIGHT_BROWSERS_PATH="$root" \
+    BROWSER_RETRY_BACKOFF_S=0 BROWSER_LOCK_PROBE="$probe" BROWSER_LOCK_WAIT_S="$wait" \
+    PLAYWRIGHT_BROWSERS_PATH="$root" \
     PATH="$FAKE_STATE_DIR:$PATH" bash "$0"
   local rc=$?
   set -e
@@ -213,7 +284,34 @@ selftest() {
     log "PASS  腿4 rc=0 但产物不在 ⇒ 仍判红（只认盘面）"
   fi
 
-  log "自证 $((4 - bad))/4$([ "$bad" -gt 0 ] && printf ' ⇒ 有腿没咬住')"
+  # 腿5 锁被占 ⇒ 真的等过再装（证明 wait_for_lock 接在尝试之前，不是写了没接线）。
+  # 注入面：假探测前 2 次报「占用」、第 3 次起报「空闲」；断言三件事：安装只跑 1 次、
+  # 锁被探测 >=3 次、且确实花时间等过（>=9s）—— 少一条都不算咬住。
+  write_fake_probe
+  local t5 rc5=0 polls5
+  t5=$(date +%s)
+  FAKE_LOCK_HELD_TIMES=2 run_fake ok "$FAKE_STATE_DIR/r5" "$FAKE_STATE_DIR/c5" 2 5 3 "$FAKE_STATE_DIR/probe" 20 || rc5=$?
+  polls5=$(cat "$FAKE_STATE_DIR/r5.lockcount" 2>/dev/null || echo 0)
+  spent=$(( $(date +%s) - t5 ))
+  if [ "$rc5" -eq 0 ] && [ "$(cat "$FAKE_STATE_DIR/c5")" = "1" ] && [ "$polls5" -ge 3 ] && [ "$spent" -ge 9 ]; then
+    log "PASS  腿5 锁占用 ⇒ 探测 ${polls5} 次、等 ${spent}s 直到放开才装（rc=0、安装只跑 1 次）"
+  else
+    log "FAIL  腿5 锁等待未生效 rc=${rc5} 探测=${polls5}（期望>=3）耗时=${spent}s（期望>=9）安装次数=$(cat "$FAKE_STATE_DIR/c5")（期望 1）"; bad=$((bad + 1))
+  fi
+
+  # 腿6 锁始终占用 ⇒ 等满预算后仍继续装并如实判红（不许在这里静默放弃，那会把「装不上」
+  # 伪装成「没试」；也不能因为等不到锁就 rc=0，那是假绿）
+  local t6 rc6=0
+  t6=$(date +%s)
+  FAKE_LOCK_HELD_TIMES=99 run_fake fail "$FAKE_STATE_DIR/r6" "$FAKE_STATE_DIR/c6" 1 5 3 "$FAKE_STATE_DIR/probe" 6 || rc6=$?
+  spent=$(( $(date +%s) - t6 ))
+  if [ "$rc6" -eq 1 ] && [ "$spent" -ge 6 ] && [ "$(cat "$FAKE_STATE_DIR/c6")" = "1" ]; then
+    log "PASS  腿6 锁不放 ⇒ 等满 ${spent}s 仍继续安装并如实判红（rc=1、装了 1 次）"
+  else
+    log "FAIL  腿6 rc=${rc6} 耗时=${spent}s 次数=$(cat "$FAKE_STATE_DIR/c6")（期望 rc=1、>=6s、1 次）"; bad=$((bad + 1))
+  fi
+
+  log "自证 $((6 - bad))/6$([ "$bad" -gt 0 ] && printf ' ⇒ 有腿没咬住')"
   return "$bad"
 }
 
