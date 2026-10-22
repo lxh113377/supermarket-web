@@ -6,6 +6,7 @@ import { IconCart } from '../components/Icons'
 import { getCart, saveCart, addToCart, removeFromCart, deleteFromCart, getTotalAmount, getTotalCount } from '../cart'
 import { getProducts } from '../db'
 import { formatYuan } from '../utils/format'
+import { MIN_DELIVERY_AMOUNT, meetsMinDelivery, minDeliveryGap } from '../data/deliveryLimits'
 import type { Cart, CartItem as CartItemType, Product } from '../types'
 
 interface PriceChange {
@@ -168,12 +169,36 @@ export default function CartPage() {
                 <span className="text-brand-600">{formatYuan(totalAmount)}</span>
               </span>
             </div>
-            <button
-              onClick={() => navigate('/order-confirm')}
-              className="btn-primary w-full py-4 rounded-2xl text-base shadow-elevated"
-            >
-              去支付
-            </button>
+            {/* 起送门槛（2026-10-22 老大立规「总价低于六元不配送」）：
+                在购物车这一站就把话说清，不让人填完楼栋房间号才被拦。
+                未达标时结算入口直接换成「去凑单」（回 /shop），
+                深链直接进 /order-confirm 的人由确认页那一道同文案闸兜住。 */}
+            {!meetsMinDelivery(totalAmount) && (
+              <div className="mb-3 flex items-start gap-2 rounded-2xl bg-amber-50/90 border border-amber-200/70 px-4 py-3" role="status">
+                <span aria-hidden="true" className="mt-0.5">🛵</span>
+                <p className="text-amber-800 text-xs leading-relaxed">
+                  <span className="font-semibold">不满 {formatYuan(MIN_DELIVERY_AMOUNT)} 不配送</span>
+                  ：当前合计 {formatYuan(totalAmount)}，再挑 {formatYuan(minDeliveryGap(totalAmount))} 即可下单。
+                </p>
+              </div>
+            )}
+            {/* CTA 分两态：达标走结算；未达标直接把用户送回选品，
+                不把他带进一个「填完地址才发现下不了单」的死胡同。 */}
+            {meetsMinDelivery(totalAmount) ? (
+              <button
+                onClick={() => navigate('/order-confirm')}
+                className="btn-primary w-full py-4 rounded-2xl text-base shadow-elevated"
+              >
+                去支付
+              </button>
+            ) : (
+              <button
+                onClick={() => navigate('/shop')}
+                className="btn-secondary w-full py-4 rounded-2xl text-base"
+              >
+                差 {formatYuan(minDeliveryGap(totalAmount))} 起送，去凑单
+              </button>
+            )}
           </div>
         </div>
       )}

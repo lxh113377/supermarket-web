@@ -5,7 +5,7 @@ import { qAll, qFirst, qRun, qBatch, jparse, nowISO, genId, insert } from '../db
 import { insertMovements } from '../stock.js'
 import { isSafeImageUrl } from '../security.js'
 import { fail } from '../errors.js'
-import { MAX_STATEMENT_PAYLOAD_CHARS } from '../shared.js'
+import { MAX_STATEMENT_PAYLOAD_CHARS, MIN_DELIVERY_AMOUNT } from '../shared.js'
 
 // ── 下单幂等（2026-09-24 对标第二轮 A1）──
 // 对标：Medusa HTTP 层 `Idempotency-Key` + 表内 UNIQUE(index, key)；litemall cart_checkout 唯一索引
@@ -217,6 +217,13 @@ export async function createOrder(DB, payload) {
     return fail('payload_too_large', `订单数据过大（序列化 ${payloadChars} 字符 > 预算 ${MAX_STATEMENT_PAYLOAD_CHARS}）：请压小付款截图`)
   }
   const totalRounded = Math.round(total * 100) / 100
+  // 起送门槛（2026-10-22 老大立规「总价低于六元不配送」）：**折前小计**低于 MIN_DELIVERY_AMOUNT 直接拒。
+  // 位置在扣库存与幂等检查之前 —— 与 product_disabled 同族（改购物袋才可能成功，原样重发必然同样失败），
+  // 落 'state' 后 src/db/orders.ts 的 isFallbackSafe 会禁掉静默本地兜底，
+  // 否则顾客看到「下单成功」、商家侧根本没这张单（第十八轮那起丢单的形态）。
+  if (totalRounded < MIN_DELIVERY_AMOUNT) {
+    return fail('below_min_delivery', `不满 ¥${MIN_DELIVERY_AMOUNT.toFixed(2)} 起送，不配送：当前合计 ¥${totalRounded.toFixed(2)}，再挑 ¥${(MIN_DELIVERY_AMOUNT - totalRounded).toFixed(2)} 的商品即可下单`)
+  }
   // 满减（2026-09-30 P2）：服务端按小计自动选最优启用档；默认种子关闭⇒discount 0，老行为不变。
   // 指纹沿用折后总额（totalRounded 被下面覆盖为实付）：同一载荷在促销开关前后 90s 内复下，
   // 会被视为不同单——这是刻意偏向"多收钱不如多记单"，与指纹注释的口味口径同方向。

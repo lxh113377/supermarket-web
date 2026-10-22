@@ -48,6 +48,9 @@ vi.mock('react-router-dom', async (importOriginal) => {
   }
 })
 
+// 单价 3.5 元/件 ⇒ 1 件 = 3.5 元会被**起送门槛**（¥6.00，2026-10-22 老大立规「总价低于六元不配送」）
+// 拦下。本文件测「填单 → 提交 → 支付」主链路，所以夹具一律从 2 件起（= 7.00 元，门槛之上）；
+// 门槛自身的正负用例在 tests/minDeliveryGate.test.tsx，不靠这里顺带覆盖。
 const cartWith = (qty: number) => ({ items: [{ productId: 'p1', name: '可乐', price: 3.5, quantity: qty, spec: '' }] })
 
 describe('下单主链路（加购 → 确认 → 支付）', () => {
@@ -80,7 +83,7 @@ describe('下单主链路（加购 → 确认 → 支付）', () => {
   })
 
   it('OrderConfirmPage：填单提交 → createOrder 传参正确 + 购物车清空 + 跳成功页', async () => {
-    saveCart(cartWith(1))
+    saveCart(cartWith(2))
     mocks.createOrder.mockResolvedValue({ id: 'o1', localFallback: false })
     render(<OrderConfirmPage />)
     fireEvent.change(screen.getByPlaceholderText('例如：36栋'), { target: { value: '36栋' } })
@@ -91,7 +94,7 @@ describe('下单主链路（加购 → 确认 → 支付）', () => {
     await waitFor(() => expect(mocks.createOrder).toHaveBeenCalledTimes(1))
     expect(mocks.createOrder).toHaveBeenCalledWith(expect.objectContaining({
       roomNumber: '36栋-305',
-      items: [expect.objectContaining({ productId: 'p1', quantity: 1 })],
+      items: [expect.objectContaining({ productId: 'p1', quantity: 2 })],
     }))
     expect(mocks.navigate).toHaveBeenCalledWith(
       '/order-success',
@@ -102,7 +105,7 @@ describe('下单主链路（加购 → 确认 → 支付）', () => {
   })
 
   it('OrderConfirmPage：失败重试复用同一把幂等键，重新挂载才换新键（对标 A1）', async () => {
-    saveCart(cartWith(1))
+    saveCart(cartWith(2))
     const fillAndSubmit = () => {
       fireEvent.change(screen.getByPlaceholderText('例如：36栋'), { target: { value: '36栋' } })
       fireEvent.change(screen.getByPlaceholderText('例如：501'), { target: { value: '305' } })
@@ -121,7 +124,7 @@ describe('下单主链路（加购 → 确认 → 支付）', () => {
     expect(second[0].requestId).toBe(first[0].requestId)
 
     unmount()
-    saveCart(cartWith(1))
+    saveCart(cartWith(2))
     render(<OrderConfirmPage />)
     fillAndSubmit()
     await waitFor(() => expect(mocks.createOrder).toHaveBeenCalledTimes(3))
@@ -130,7 +133,7 @@ describe('下单主链路（加购 → 确认 → 支付）', () => {
   })
 
   it('OrderConfirmPage：未填楼栋号阻止提交并提示', async () => {
-    saveCart(cartWith(1))
+    saveCart(cartWith(2))
     render(<OrderConfirmPage />)
     fireEvent.change(screen.getByPlaceholderText('请输入你的微信号'), { target: { value: 'wx' } })
     fireEvent.click(screen.getByRole('button', { name: '确认支付' }))
@@ -140,7 +143,7 @@ describe('下单主链路（加购 → 确认 → 支付）', () => {
   })
 
   it('OrderConfirmPage：未填房间号阻止提交并提示（房间号必填）', async () => {
-    saveCart(cartWith(1))
+    saveCart(cartWith(2))
     render(<OrderConfirmPage />)
     fireEvent.change(screen.getByPlaceholderText('例如：36栋'), { target: { value: '36栋' } })
     fireEvent.click(screen.getByRole('button', { name: '确认支付' }))

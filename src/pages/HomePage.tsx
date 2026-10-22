@@ -1,5 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { CATEGORIES } from '../data/categories'
+import { MIN_DELIVERY_AMOUNT } from '../data/deliveryLimits'
+import { formatYuan } from '../utils/format'
 import { isBusinessHours, getClosedMessage, getBusinessHoursText } from '../utils/businessHours'
 import { IconRobot } from '../components/Icons'
 import { prefetchRoute } from '../prefetchBus'
@@ -21,6 +23,11 @@ export default function HomePage() {
           <div className="inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 rounded-full bg-white/15 backdrop-blur-sm text-xs text-white/90 animate-fade-in-up stagger-2">
             <span className={`w-1.5 h-1.5 rounded-full ${open ? 'bg-green-300' : 'bg-amber-300'}`} />
             {getBusinessHoursText()}
+          </div>
+          {/* 起送门槛前置告知（2026-10-22 老大立规「总价低于六元不配送」）：
+              在进店之前就讲清规矩，比在结算末尾拦人更省一次失望。数字取自同一起送常量。 */}
+          <div className="mt-2 text-[11px] text-white/75 animate-fade-in-up stagger-3">
+            零食饮料 · 商品总价不满 {formatYuan(MIN_DELIVERY_AMOUNT)} 不配送
           </div>
         </div>
       </div>

@@ -11,6 +11,7 @@ import useProducts from '../hooks/useProducts'
 import { useShopFilters, SORT_OPTIONS } from '../hooks/useShopFilters'
 import { useIsNarrow } from '../hooks/useMediaQuery'
 import { formatYuan } from '../utils/format'
+import { meetsMinDelivery, minDeliveryGap } from '../data/deliveryLimits'
 import { specSearchText } from '../utils/spec-options'
 import { prefetchRoute } from '../prefetchBus'
 import type { Product } from '../types'
@@ -314,6 +315,12 @@ export default function CustomerPage() {
                 {totalCount} 件
               </span>
               <span className="font-bold text-brand-300">{formatYuan(totalAmount)}</span>
+              {/* 起送门槛实时反馈（2026-10-22 立规「总价低于六元不配送」）：
+                  加购当场就告诉他还差多少，凑单是此刻的事，不必走到结算才发现。
+                  两种视口各一条吸底栏 ⇒ 同一片段渲染两处，数字不许各写一遍。 */}
+              {!meetsMinDelivery(totalAmount) && (
+                <span className="text-amber-300 text-xs font-medium">差 {formatYuan(minDeliveryGap(totalAmount))} 起送</span>
+              )}
             </button>
           </div>
         )}
@@ -365,6 +372,9 @@ export default function CustomerPage() {
               {totalCount} 件
             </span>
             <span className="font-bold text-brand-300">{formatYuan(totalAmount)}</span>
+            {!meetsMinDelivery(totalAmount) && (
+              <span className="text-amber-300 text-xs font-medium">差 {formatYuan(minDeliveryGap(totalAmount))} 起送</span>
+            )}
           </button>
         </div>
       )}

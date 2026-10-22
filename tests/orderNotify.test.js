@@ -128,7 +128,7 @@ describe('maybeNotifyNewOrder：三个"不该通知"的出口 + 一个该通知�
 describe('主链路不变量：端点挂了也不影响下单（真跑 handlePublic）', () => {  afterEach(() => { delete globalThis.__unhandled })
 
   const envWith = (webhook) => {
-    const products = [{ _id: 'p_n', name: '通知测试汽水', spec: '500ml', price: 3, enabled: 1, subcategories: [], stock: 9 }]
+    const products = [{ _id: 'p_n', name: '通知测试汽水', spec: '500ml', price: 6, enabled: 1, subcategories: [], stock: 9 }]
     const env = { DB: fakeDb({ products }), RATE_KV: fakeKv(), ADMIN_KEY: 'k', ADMIN_READONLY_KEY: 'r' }
     if (webhook) env.ORDER_WEBHOOK_URL = webhook
     return env
@@ -190,7 +190,7 @@ describe('emit：纯内存队列，白名单载荷，未知类型与无单号拒
 })
 
 describe('适配器接线：真新单落事件，重试与失败不落；/pub 与 /web 两出口同行为', () => {
-  const envNoHook = () => ({ DB: fakeDb({ products: [{ _id: 'p_n', name: '汽水', spec: '', price: 3, enabled: 1, subcategories: [], stock: 9 }] }), RATE_KV: fakeKv(), ADMIN_KEY: 'k', ADMIN_READONLY_KEY: 'r' })
+  const envNoHook = () => ({ DB: fakeDb({ products: [{ _id: 'p_n', name: '汽水', spec: '', price: 6, enabled: 1, subcategories: [], stock: 9 }] }), RATE_KV: fakeKv(), ADMIN_KEY: 'k', ADMIN_READONLY_KEY: 'r' })
 
   it('/pub 真新单 ⇒ 队列里多一条 order.created（金额透传，无敏感字段）', async () => {
     drainEvents()

@@ -33,7 +33,9 @@ vi.mock('react-router-dom', async (importOriginal) => {
   }
 })
 
-const cartOne = () => saveCart({ items: [{ productId: 'p1', name: '可乐', price: 3.5, quantity: 1, spec: '' }] })
+// 2 × 3.5 = 7.00：起送门槛（¥6.00）之上，本文件测的是地址校验/截图三道闸等剩余分支；
+// 门槛本身的正负用例见 tests/minDeliveryGate.test.tsx。
+const cartOne = () => saveCart({ items: [{ productId: 'p1', name: '可乐', price: 3.5, quantity: 2, spec: '' }] })
 
 const pickFile = (file: File | undefined) => {
   const input = screen.getByLabelText('选择付款截图')

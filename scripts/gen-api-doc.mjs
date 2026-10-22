@@ -22,7 +22,7 @@ const missingSide = ['/web', '/pub'].filter((p) => !contract.endpoints?.[p]?.act
 if (missingSide.length) bail('gen-api-doc', `契约里缺 ${missingSide.join(' , ')} 的 actions ⇒ 渲染不出任何一表，不判"文档已生成"`)
 
 const NOTE = {
-  createOrder: '幂等：带 `requestId` 走 `房间号@requestId#载荷指纹` 唯一索引；不带则 90s 内容指纹兜底。命中返回 `deduplicated: true` 且不动库存',
+  createOrder: '幂等：带 `requestId` 走 `房间号@requestId#载荷指纹` 唯一索引；不带则 90s 内容指纹兜底。命中返回 `deduplicated: true` 且不动库存。**起送门槛**：折前商品小计不满 `MIN_DELIVERY_AMOUNT`（现值 ¥6.00）时以 `below_min_delivery` 拒收，拦截在扣库存之前（2026-10-22 立规「总价低于六元不配送」）',
   updateOrderStatus: '5 态状态机 + 乐观锁（UPDATE 带 `AND status = 读到的旧值`），并发迁移只有一个胜出',
   stalePendingReport: '只读盘点超时 pending 单（线下确认制，不自动砍单）',
   getOrderStatus: '顾客侧进度查询，免密钥，只回 status/updatedAt',

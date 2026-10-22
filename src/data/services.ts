@@ -1,6 +1,7 @@
 // 服务配置 - 定义所有分类和子服务的表单结构
 import type { Service, ServiceCategory } from '../types'
 import { CATEGORIES } from './categories'
+import { MIN_DELIVERY_AMOUNT } from './deliveryLimits'
 
 // CATEGORIES 定义已迁至 ./categories（轻量模块），此处 re-export 保持既有导入路径可用。
 // HomePage 等只用到分类的页面请直接从 '../data/categories' 引入，避免连带加载本文件的服务定义。
@@ -13,7 +14,7 @@ export const SERVICES: Service[] = [
     categoryId: 'life',
     name: '零食饮料',
     icon: '🍜',
-    description: '超市零食饮料配送',
+    description: `超市零食饮料配送｜总价不满 ¥${MIN_DELIVERY_AMOUNT.toFixed(2)} 不配送`,
     type: 'supermarket', // 特殊类型，跳转现有超市页面
   },
   {
@@ -194,6 +195,7 @@ export const SERVICES: Service[] = [
   {
     // 打印：2026-10-21 起 /print 这一页整体替换为外站「校园打印」应用（CampusPrint-V1），
     // 本站不再自建打印表单 —— 点进来即跳到该应用（地址解析见 src/pages/print/printApp.ts）。
+    // 仍保留 form-free 的 type:'print'：CategoryPage 与路由表按它分流，字段不再落在本仓。
     // 仍保留 form-free 的 type:'print'：CategoryPage 与路由表按它分流，字段不再落在本仓。
     id: 'print',
     categoryId: 'study',

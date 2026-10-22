@@ -13,6 +13,7 @@
 
 // ── 统一失败标记（F7/F38）──
 import { logError, sanitizeTrace } from './logger.js'
+import { MIN_DELIVERY_AMOUNT } from './shared.js'
 export const DIFY_ERROR_PREFIX = '[DIFY_ERROR]'
 export const DIFY_UNAVAILABLE_TEXT = 'AI 服务暂不可用，已切换为演示模式，请稍后重试。'
 
@@ -169,7 +170,11 @@ export async function callDifyCompletion(env, prompt, user) {
 const RULE_HOURS = '08:00 - 22:00'
 const RULE_FAQ = [
   { match: ['营业', '开门', '时间', '关门'], answer: `本店营业时间 ${RULE_HOURS}，周末照常营业。` },
-  { match: ['配送', '送到', '多久', '送货'], answer: '下单后我们会尽快安排配送，一般在当轮配送时段内送达宿舍楼下，请保持手机畅通接收取餐通知。' },
+  // 起送门槛排在配送之前（2026-10-22 老大立规）：否则「不满六元配送吗」这类问句会被
+  // 下面的配送规则先命中，答不到点子上。数字取自 shared.js 的同一个常量，
+  // 与下单守卫（actions/orders.js）和前端文案三处同源。
+  { match: ['起送', '起订', '不满', '最低', '门槛', '六元', '6元'], answer: `本店有起送门槛：商品总价 ¥${MIN_DELIVERY_AMOUNT.toFixed(2)} 起送，不满则不配送。再加一两件小零食就凑够了～` },
+  { match: ['配送', '送到', '多久', '送货'], answer: `下单后我们会尽快安排配送，一般在当轮配送时段内送达宿舍楼下，请保持手机畅通接收取餐通知。另请注意：商品总价需满 ¥${MIN_DELIVERY_AMOUNT.toFixed(2)} 才配送。` },
   { match: ['支付', '付款', '微信', '支付宝', '怎么付'], answer: '支持微信支付与支付宝，下单页选择支付方式，按提示扫码或确认支付即可；付款后订单自动进入配送队列。' },
   { match: ['退', '换', '错', '少', '漏'], answer: '收到商品如有少件/错件/质量问题，可在订单页提交售后或联系客服，我们会尽快处理退换。' },
 ]

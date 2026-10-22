@@ -42,6 +42,7 @@ export const SERVER_ERROR_KIND: Record<string, ErrorKind> = {
   submission_not_found: 'state',
   product_disabled: 'state',
   stock_insufficient: 'state',
+  below_min_delivery: 'state',
   stock_untracked: 'state',
   invalid_transition: 'state',
   concurrent_update: 'state',

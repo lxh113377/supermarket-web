@@ -2,15 +2,15 @@
 
 > ⚠️ 本文件由 `npm run docs:api` 从 `docs/api-contract.json` 渲染，**不要手改**。
 > 机器真相源：`scripts/api-contract.mjs`（源码解析生成）；漂移检查：`npm run verify:contract`（CI 阻断）。
-> 生成时间：2026-09-24 ｜ 契约版本：1 ｜ 源：functions/lib/backend.js（由 scripts/api-contract.mjs --write 生成，请勿手改）
+> 生成时间：2026-10-22 ｜ 契约版本：1 ｜ 源：functions/lib/backend.js（由 scripts/api-contract.mjs --write 生成，请勿手改）
 
 ## 端点与策略
 
-- **adminWriteActions**：["createProduct","updateProduct","deleteProduct","batchUpdateProducts","batchDeleteProducts","createOrder","recalculateOrders","addReview","addPublicReview","seedReviews","deleteOrder","updateOrderStatus","deleteReview","createSubmission","updateSubmissionStatus","deleteSubmission"]
-- **publicWhitelist**：["createOrder","getReviews","createSubmission","addPublicReview","getPublicProducts","getPublicCategories","aiChat","getOrderStatus"]
+- **adminWriteActions**：["createProduct","updateProduct","deleteProduct","batchUpdateProducts","batchDeleteProducts","createOrder","recalculateOrders","adjustStock","addReview","addPublicReview","seedReviews","deleteOrder","updateOrderStatus","deleteReview","createSubmission","updateSubmissionStatus","deleteSubmission"]
+- **publicWhitelist**：["createOrder","getReviews","createSubmission","addPublicReview","getPublicProducts","getPublicCategories","aiChat","getOrderStatus","getCatalogOrders"]
 - **publicRateLimitedWrite**：["createOrder","createSubmission","addPublicReview"]
 
-## `/web` — 管理端（31 个 action）
+## `/web` — 管理端（35 个 action）
 
 鉴权：required（ADMIN_KEY / ADMIN_READONLY_KEY，只读密钥受 ADMIN_WRITE_ACTIONS 拦截）
 
@@ -26,11 +26,15 @@
 | `batchDeleteProducts` | 写 |  |
 | `deleteOrder` | 写 |  |
 | `updateOrderStatus` | 写 | 5 态状态机 + 乐观锁（UPDATE 带 `AND status = 读到的旧值`），并发迁移只有一个胜出 |
-| `createOrder` | 写 | 幂等：带 `requestId` 走 `房间号@requestId#载荷指纹` 唯一索引；不带则 90s 内容指纹兜底。命中返回 `deduplicated: true` 且不动库存 |
+| `createOrder` | 写 | 幂等：带 `requestId` 走 `房间号@requestId#载荷指纹` 唯一索引；不带则 90s 内容指纹兜底。命中返回 `deduplicated: true` 且不动库存。**起送门槛**：折前商品小计不满 `MIN_DELIVERY_AMOUNT`（现值 ¥6.00）时以 `below_min_delivery` 拒收，拦截在扣库存之前（2026-10-22 立规「总价低于六元不配送」） |
 | `recalculateOrders` | 写 |  |
+| `getStockMovements` | 读 |  |
+| `adjustStock` | 写 |  |
 | `stalePendingReport` | 读 | 只读盘点超时 pending 单（线下确认制，不自动砍单） |
 | `getOrders` | 读 |  |
 | `getOrder` | 读 |  |
+| `getPromotions` | 读 |  |
+| `getEventLog` | 读 |  |
 | `getPublicProducts` | 读 |  |
 | `getPublicCategories` | 读 |  |
 | `getAllReviews` | 读 |  |
@@ -48,7 +52,7 @@
 | `aiAdvice` | 读 |  |
 | `getDashboardStats` | 读 |  |
 
-## `/pub` — 公开端（8 个 action）
+## `/pub` — 公开端（9 个 action）
 
 鉴权：none（公开接口，受 PUBLIC_ACTIONS 白名单约束）
 
@@ -56,7 +60,8 @@
 |---|---|---|
 | `getPublicProducts` | 读 |  |
 | `getPublicCategories` | 读 |  |
-| `createOrder` | 写 | 幂等：带 `requestId` 走 `房间号@requestId#载荷指纹` 唯一索引；不带则 90s 内容指纹兜底。命中返回 `deduplicated: true` 且不动库存 |
+| `getCatalogOrders` | 读 |  |
+| `createOrder` | 写 | 幂等：带 `requestId` 走 `房间号@requestId#载荷指纹` 唯一索引；不带则 90s 内容指纹兜底。命中返回 `deduplicated: true` 且不动库存。**起送门槛**：折前商品小计不满 `MIN_DELIVERY_AMOUNT`（现值 ¥6.00）时以 `below_min_delivery` 拒收，拦截在扣库存之前（2026-10-22 立规「总价低于六元不配送」） |
 | `getReviews` | 读 |  |
 | `getOrderStatus` | 读 | 顾客侧进度查询，免密钥，只回 status/updatedAt |
 | `addPublicReview` | 写 |  |

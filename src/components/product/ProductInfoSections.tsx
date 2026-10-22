@@ -3,13 +3,16 @@ import type { Product, Category } from '../../types'
 import type { VariantCombo } from '../../utils/variants'
 import { formatYuan } from '../../utils/format'
 import { getBusinessHoursText, isBusinessHours } from '../../utils/businessHours'
+import { MIN_DELIVERY_AMOUNT } from '../../data/deliveryLimits'
 
 // 商品参数 / 配送说明 / 售后说明
 //
 // 真实性分层，一眼可辨：
 //   · 「商品参数」全部取自真实目录字段（名称/规格/编号/分类/单价/库存/上下架）。
 //   · 「配送说明」里营业时间与营业状态取自 utils/businessHours（应用真实口径）；
-//     目录中不存在配送时长与起送金额，故不写具体数字，只说明以群内约定为准。
+//     起送金额取自 data/deliveryLimits（2026-10-22 老大立规「总价低于六元不配送」，
+ //     与服务端 functions/lib/shared.js 同值，由 tests/minDeliveryParity.test.ts 钉）；
+ //     配送时长目录里没有，仍只说明以群内约定为准、不给具体数字。
 //   · 「售后说明」商家从未提供，整块标注为演示文案，不作为商家承诺。
 
 interface Props {
@@ -105,7 +108,8 @@ export default function ProductInfoSections({ product, categories, combo }: Prop
             </span>
           </li>
           <li>收货信息：下单时填写宿舍楼栋（订单字段「楼栋号」），配送范围以学校内宿舍楼为准。</li>
-          <li>配送时长与起送金额：目录未提供该数据，实际以商家群内约定为准，此处不给具体数字。</li>
+          <li>起送金额：商品总价不满 {formatYuan(MIN_DELIVERY_AMOUNT)} <strong className="text-amber-700">不配送</strong>，凑满即可正常下单。</li>
+          <li>配送时长：目录未提供该数据，实际以商家群内约定为准，此处不给具体数字。</li>
         </ul>
       </Section>
 

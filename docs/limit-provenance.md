@@ -65,6 +65,8 @@
 | functions/lib/stock.js | 截断型 | 64 | schema | 流水 refId 截 64：存 o_/p_ 前缀单号（genId 产物），与 orders.requestId、security.keyFingerprint 的 64 同族 |
 | functions/lib/actions/stock.js | 截断型 | 200 | schema | adjustStock 入口对 payload.note 先截 200 再交给 normalizeMovement：与 lib/stock.js 那把同名尺同值，两处都要有是因为**入口收敛防的是超长串进 errors/审计日志**，写入侧那把防的是进库；删任一侧另一侧就独自承担 |
 
+| functions/lib/shared.js | 常量 | MIN_DELIVERY_AMOUNT=6 | product | 起送金额定义处（2026-10-22 老大立规「购买物品总价低于六元不配送」）。**判定口径 = 折前商品小计**：这条规矩管"这一单值不值得跑一趟"，而满减是商家自己让利的营销动作，按折后实付判会让一条「满 8 减 5」把起送线打到门槛下（等于营销配置擅改商家规矩）。消费侧见 functions/lib/actions/orders.js 的 below_min_delivery 与前端 src/data/deliveryLimits.ts；两侧同值由 tests/minDeliveryParity.test.ts 钉 |
+| src/data/deliveryLimits.ts | 常量 | MIN_DELIVERY_AMOUNT=6 | product | 服务端同值的前端镜像（两条构建链共享不了模块，同 submissionLimits.ts 先例）。屏上文案（首页/购物车/确认页/详情页/AI 助手）一律由这一处渲染，禁止在页面里再写一个 6 —— 那是第二真相源 |
 | src/auth.ts | 常量 | BATCH_UPDATE_CHUNK=20 | platform | 前端批量改价分片大小，必须等于服务端 BATCH_UPDATE_MAX=20（那边按 d1_queries_per_invocation_free=50 推导：第五十六轮 E7 起语句数 1+2n ⇒ 41<50）；两侧等值由 tests/batchChunkContract.test.ts 钉住。**本轮随服务端由 40 降为 20**，不同笔就会造成前端一次请求打爆服务端预算 |
 | src/components/admin/ProductInlineEditForm.tsx | 截断型 | 9 | product | 商品图册保存前只提交前 9 张：一屏约 3×3，再多没人翻到。**第三十五轮起服务端 createProduct/updateProduct 对 >9 直接拒（too_many_images）**，前端截断不再独自承担上限 |
 | functions/lib/actions/submissions.js | 常量上限 | MAX_SUBMISSION_FILES | product | 第三十五轮补的服务端条数 cap，与前端同值（此前只有前端有 cap，直接 POST 可塞任意多张）。**2026-10-07 由 5 抬到 9**：打印服务一次要交多页文档，5 个装不下；9 与后台商品图册同值同族。定义移入 `functions/lib/shared.js`，本行只记消费侧。不用 d1_statement_bytes 反推：线上实测单条提交 images 最大 442KB（本文件注释）仍写成功 ⇒ 100KB 只管语句文本、不含绑定参数，拿它当图片上限会得出错误结论 |

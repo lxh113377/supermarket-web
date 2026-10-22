@@ -159,7 +159,7 @@ ok(orders.code === 0 && orders.data.some((o) => o._id === order.data.id), 'getOr
 
 // ---------- 订单履约状态机 + 顾客侧进度（2026-09-24 对标补齐）----------
 // 独立建单，避免干扰既有断言对该单状态的潜在依赖
-const lifeOrder = await handlePublic(env, 'createOrder', { roomNumber: '306', items: [{ productId: 'p001', quantity: 1 }] })
+const lifeOrder = await handlePublic(env, 'createOrder', { roomNumber: '306', items: [{ productId: 'p001', quantity: 3 }] })
 const lid = lifeOrder.data?.id
 ok(!!lid, '状态机测试单创建成功')
 const sBogus = await handleAdmin(env, 'updateOrderStatus', 'test-key-123', { orderId: lid, status: 'bogus' })
@@ -194,8 +194,9 @@ ok(await stockOf() === 2, '被拒订单未扣减库存（补偿路径干净）')
 const okOrder = await handlePublic(env, 'createOrder', { roomNumber: '307', items: [{ productId: sid, quantity: 2 }] })
 ok(okOrder.code === 0, 'stock=2 下单数量2 成功（占用全部库存）')
 ok(await stockOf() === 0, `下单后库存扣至 0 (实际 ${await stockOf()})`)
-const soldOutOrder = await handlePublic(env, 'createOrder', { roomNumber: '307', items: [{ productId: sid, quantity: 1 }] })
-ok(soldOutOrder.code === -1, '库存 0 再下单被拒')
+const soldOutOrder = await handlePublic(env, 'createOrder', { roomNumber: '3072', items: [{ productId: sid, quantity: 2 }] })
+ok(soldOutOrder.code === -1 && soldOutOrder.errorCode === 'stock_insufficient',
+  `库存 0 再下单被拒且是库存这条守卫（数量取 2 而非 1：1 件只 3 元会被起送门槛先拦，那条腿测不到库存；房间号换 3072：与 okOrder 同房间同载荷会在 90s 内容指纹里去重命中那张已存在的单、返回 code 0，测的就不再是库存守卫；实得 ${soldOutOrder.errorCode}）`)
 ok((await handleAdmin(env, 'updateOrderStatus', 'test-key-123', { orderId: okOrder.data.id, status: 'cancelled' })).code === 0, '取消占用订单')
 ok(await stockOf() === 2, '取消回补库存至 2')
 ok((await handleAdmin(env, 'updateOrderStatus', 'test-key-123', { orderId: okOrder.data.id, status: 'pending' })).code === 0, '误取消恢复 pending → 重新占用')
@@ -236,12 +237,12 @@ ok(await stockNow() === 3, `去重路径未双扣库存：5-2=3 (实际 ${await 
 const iEdited = await handlePublic(env, 'createOrder', iBody({ remark: '要冰的' }))
 ok(iEdited.code === 0 && iEdited.data.id !== iFirst.data.id, '同键但载荷指纹变了 → 视为新单（不静默丢编辑）')
 
-const legacy = () => handlePublic(env, 'createOrder', { roomNumber: '310', items: [{ productId: 'p001', quantity: 1 }] })
+const legacy = () => handlePublic(env, 'createOrder', { roomNumber: '310', items: [{ productId: 'p001', quantity: 3 }] })
 const lFirst = await legacy()
 const lRetry = await legacy()
 ok(lFirst.code === 0 && lRetry.data.id === lFirst.data.id && lRetry.data.deduplicated === true,
   '无 requestId 的旧客户端（SW 长缓存）内容重发命中 90s 指纹兜底')
-const lChanged = await handlePublic(env, 'createOrder', { roomNumber: '310', items: [{ productId: 'p001', quantity: 1 }], remark: '加急' })
+const lChanged = await handlePublic(env, 'createOrder', { roomNumber: '310', items: [{ productId: 'p001', quantity: 3 }], remark: '加急' })
 ok(lChanged.data.id !== lFirst.data.id, '无 requestId 时内容不同 → 正常下新单')
 const keyRow = db.prepare('SELECT idempotencyKey FROM orders WHERE _id = ?').get(iFirst.data.id)
 ok(/^309@verify-idem-1#[0-9a-f]{8}$/.test(keyRow?.idempotencyKey || ''), `幂等键入库可追溯 (实际 ${keyRow?.idempotencyKey})`)
@@ -252,7 +253,7 @@ ok(nullKeyRow?.idempotencyKey == null, '无 requestId 的订单幂等键为 NULL
 // 必须用**真实并发**测：handler 每次都重读 status，先改库再迁移只是"读到最新值"，不构成竞争。
 // 两个迁移同时进来 → 双双读到 pending → UPDATE 带 `AND status = ?`，只有一个是 1 变更。
 const { updateOrderStatus } = await import(pathToFileURL(join(root, 'functions', 'lib', 'actions', 'orders.js')).href)
-const oLive = await handlePublic(env, 'createOrder', { roomNumber: '311', items: [{ productId: 'p001', quantity: 1 }] })
+const oLive = await handlePublic(env, 'createOrder', { roomNumber: '311', items: [{ productId: 'p001', quantity: 3 }] })
 const race = await Promise.all([
   updateOrderStatus(env.DB, { orderId: oLive.data.id, status: 'paid' }),
   updateOrderStatus(env.DB, { orderId: oLive.data.id, status: 'cancelled' }),
@@ -266,7 +267,10 @@ ok(afterRace.data?.status === 'paid' || afterRace.data?.status === 'cancelled',
   `落库状态与胜者一致、无第三种脏值 (实际 ${afterRace.data?.status})`)
 
 // ---------- 超时未支付单盘点（对标 litemall OrderUnpaidTask，只盘不砍）----------
-const stale = await handlePublic(env, 'createOrder', { roomNumber: '312', items: [{ productId: spid, quantity: 1 }] })
+// 起送门槛之后这条必须换写法（2026-10-22）：spid 单价 3 元，qty 1 = 3 元不满 ¥6.00 会被门槛先拒，
+// 而 qty 2 又超出剩余库存（iFirst + iEdited 已占 4/5）。所以改成「spid 1 件 + p001 2 件」：
+// 总额 3 + 5.32 = 8.32 达门槛，spid 仍只占 1 件库存（下面那条 stockReserved 断言照旧成立）。
+const stale = await handlePublic(env, 'createOrder', { roomNumber: '312', items: [{ productId: spid, quantity: 1 }, { productId: 'p001', quantity: 2 }] })
 db.prepare('UPDATE orders SET createdAt = ? WHERE _id = ?').run(new Date(Date.now() - 90 * 60_000).toISOString(), stale.data.id)
 const rp = await handleAdmin(env, 'stalePendingReport', 'test-key-123', { minutes: 60 })
 ok(rp.code === 0 && rp.data.count >= 1, `stalePendingReport 盘出超时 pending 单 (实际 ${rp.data?.count})`)
@@ -316,7 +320,7 @@ await handleAdmin(env, 'deleteProduct', 'test-key-123', { productId: flavorProd.
 // 这件事没有任何一道判据，所以线上表现为「后台看不到口味」而全绿。
 const itemsOf = (id) => JSON.parse(db.prepare('SELECT items FROM orders WHERE _id = ?').get(id).items)
 const flavorOrder = await handlePublic(env, 'createOrder', {
-  roomNumber: '311', items: [{ productId: 'p033', quantity: 1, spec: '40g · 黄瓜味' }],
+  roomNumber: '311', items: [{ productId: 'p033', quantity: 3, spec: '40g · 黄瓜味' }],
 })
 ok(itemsOf(flavorOrder.data.id)[0].spec === '40g · 黄瓜味',
   `顾客所选口味原样落库 (实际 ${JSON.stringify(itemsOf(flavorOrder.data.id)[0].spec)})`)
@@ -337,7 +341,7 @@ const spoofSpecs = itemsOf(spoofOrder.data.id).map((i) => i.spec)
 ok(spoofSpecs[0] === '40g' && spoofSpecs[1] === '40g' && spoofSpecs[2] === '1L',
   `清单外/脏 spec 回落商品真值，不原样入库 (实际 ${JSON.stringify(spoofSpecs)})`)
 const noSpecOrder = await handlePublic(env, 'createOrder', {
-  roomNumber: '313', items: [{ productId: 'p033', quantity: 1 }],
+  roomNumber: '313', items: [{ productId: 'p033', quantity: 3 }],
 })
 ok(itemsOf(noSpecOrder.data.id)[0].spec === '40g', '旧客户端（SW 长缓存）不传 spec 时仍取目录 spec')
 const flavorOffProd = await handleAdmin(env, 'createProduct', 'test-key-123', {
@@ -347,8 +351,8 @@ const flavorOffProd = await handleAdmin(env, 'createProduct', 'test-key-123', {
 const offOrder = await handlePublic(env, 'createOrder', {
   roomNumber: '314',
   items: [
-    { productId: flavorOffProd.data._id, quantity: 1, spec: '40g · 毛血旺味' },
-    { productId: flavorOffProd.data._id, quantity: 1, spec: '40g · 臭豆腐味' },
+    { productId: flavorOffProd.data._id, quantity: 2, spec: '40g · 毛血旺味' },
+    { productId: flavorOffProd.data._id, quantity: 2, spec: '40g · 臭豆腐味' },
   ],
 })
 const offSpecs = itemsOf(offOrder.data.id).map((i) => i.spec)
@@ -358,11 +362,11 @@ await handleAdmin(env, 'deleteProduct', 'test-key-123', { productId: flavorOffPr
 
 // 幂等双向：换口味=两张单（否则第二次选口味被吞回旧单，修了落库也看不到）；
 // 但完全相同的重发必须照旧去重（防止把兜底改松这种"修一个坏一个"）
-const fA = await handlePublic(env, 'createOrder', { roomNumber: '315', items: [{ productId: 'p033', quantity: 1, spec: '40g · 黄瓜味' }] })
-const fB = await handlePublic(env, 'createOrder', { roomNumber: '315', items: [{ productId: 'p033', quantity: 1, spec: '40g · 烤虾味' }] })
+const fA = await handlePublic(env, 'createOrder', { roomNumber: '315', items: [{ productId: 'p033', quantity: 3, spec: '40g · 黄瓜味' }] })
+const fB = await handlePublic(env, 'createOrder', { roomNumber: '315', items: [{ productId: 'p033', quantity: 3, spec: '40g · 烤虾味' }] })
 ok(fA.data.id !== fB.data.id && fB.data.deduplicated !== true && countRoom('315') === 2,
   `同商品换口味再下单不被 90s 幂等吞掉 (库内 ${countRoom('315')} 张)`)
-const fDup = await handlePublic(env, 'createOrder', { roomNumber: '315', items: [{ productId: 'p033', quantity: 1, spec: '40g · 黄瓜味' }] })
+const fDup = await handlePublic(env, 'createOrder', { roomNumber: '315', items: [{ productId: 'p033', quantity: 3, spec: '40g · 黄瓜味' }] })
 ok(fDup.data.id === fA.data.id && fDup.data.deduplicated === true && countRoom('315') === 2,
   `同口味原样重发仍命中去重 (实际 ${fDup.data.id === fA.data.id ? '去重' : '新单'}，库内 ${countRoom('315')} 张)`)
 
@@ -571,7 +575,7 @@ const webRouteAddRev = await handleAdmin(env, 'addPublicReview', 'test-key-123',
 ok(webRouteAddRev.code === 0 && webRouteAddRev.data?._id, '/web 回退路径 addPublicReview 成功')
 await handleAdmin(env, 'deleteReview', 'test-key-123', { reviewId: webRouteAddRev.data?._id })
 const webRouteOrder = await handleAdmin(env, 'createOrder', 'test-key-123', {
-  roomNumber: '305', items: [{ productId: 'p001', name: '测试可乐', price: 3, quantity: 1, subcategories: ['soda'] }],
+  roomNumber: '305', items: [{ productId: 'p001', name: '测试可乐', price: 3, quantity: 3, subcategories: ['soda'] }],
 })
 ok(webRouteOrder.code === 0 && webRouteOrder.data?.id, `/web 管理端下单成功 (${webRouteOrder.data?.id})`)
 await handleAdmin(env, 'deleteOrder', 'test-key-123', { orderId: webRouteOrder.data?.id })
@@ -903,6 +907,35 @@ if (SHAPE_OUT) {
   console.log(`[response-shapes] 录制 ${Object.keys(out.actions).length} 个 (side,action) → ${SHAPE_OUT}`)
 }
 
+// ---------- 起送门槛（2026-10-22 老大立规「购买物品总价低于六元不配送」）三条腿真跑 ----------
+// 三条各守一件事：低于门槛拒（负腿）；达门槛收（边界正向腿 —— 缺了它，"一律拒"也能让负腿绿）；
+// 满减把实付打到门槛之下**仍须收**（证明判的是折前小计而非实付，口径出处见 functions/lib/shared.js）。
+const ordersBeforeGate = Number(db.prepare('SELECT COUNT(*) AS c FROM orders').get().c)
+const belowGate = await handlePublic(env, 'createOrder', { roomNumber: '401', items: [{ productId: 'p001', quantity: 2 }] }, imgReq('10.90.0.31'))
+ok(belowGate.errorCode !== 'rate_limited', '未达门槛探针未撞限流桶（前提自证）')
+ok(belowGate.code === -1 && belowGate.errorCode === 'below_min_delivery',
+  `2.66×2=5.32 未达起送额被拒并带机器码（实得 code=${belowGate.code} errorCode=${belowGate.errorCode}）`)
+ok(/不配送/.test(belowGate.message || '') && /5\.32/.test(belowGate.message || ''),
+  `拒单文案带得出「不配送」与当前合计，顾客看得见原因（实得 message=${belowGate.message}）`)
+ok(Number(db.prepare('SELECT COUNT(*) AS c FROM orders').get().c) === ordersBeforeGate,
+  `门槛拒绝不落单、不动库存（拦截排在 reserveStock 之前；实得 ${Number(db.prepare('SELECT COUNT(*) AS c FROM orders').get().c)} vs 基线 ${ordersBeforeGate}）`)
+const atGate = await handlePublic(env, 'createOrder', {
+  roomNumber: '402', items: [{ productId: 'p011', quantity: 1 }, { productId: 'p012', quantity: 1 }, { productId: 'p001', quantity: 1 }],
+}, imgReq('10.90.0.32'))
+ok(atGate.errorCode !== 'rate_limited', '边界探针未撞限流桶（前提自证）')
+ok(atGate.code === 0 && Math.abs((atGate.data?.totalAmount ?? 0) - 6.42) < 0.001,
+  `1.88+1.88+2.66=6.42 达门槛即收单（正向腿，证明这条不是「一律拒」；实得 code=${atGate.code} total=${atGate.data?.totalAmount}）`)
+if (atGate.data?.id) await handleAdmin(env, 'deleteOrder', 'test-key-123', { orderId: atGate.data.id }, imgReq('10.90.0.32'))
+// 折前口径腿：满 8 减 5 ⇒ 小计 9.98、实付 4.98（低于 6）仍必须收单。
+// promotions 没有后台写 action（2026-09-30 P2 只做读侧 + 下单命中），按 tests/promotion.test.js 既有做法直插一行。
+db.prepare("INSERT INTO promotions (_id, name, threshold, discount, enabled) VALUES ('promo_gate_probe', '门槛口径探针', 8, 5, 1)").run()
+const preDisc = await handlePublic(env, 'createOrder', { roomNumber: '403', items: [{ productId: 'p004', quantity: 2 }, { productId: 'p001', quantity: 1 }] }, imgReq('10.90.0.33'))
+ok(preDisc.errorCode !== 'rate_limited', '折前口径探针未撞限流桶（前提自证）')
+ok(preDisc.code === 0 && Math.abs((preDisc.data?.discountAmount ?? 0) - 5) < 0.001,
+  `3.66×2+2.66=9.98 命中满 8 减 5（实付 4.98 低于 6 但折前达标）⇒ 必须收单；实得 code=${preDisc.code} disc=${preDisc.data?.discountAmount} err=${preDisc.errorCode}`)
+if (preDisc.data?.id) await handleAdmin(env, 'deleteOrder', 'test-key-123', { orderId: preDisc.data.id }, imgReq('10.90.0.33'))
+db.prepare("DELETE FROM order_discounts WHERE promotionId = 'promo_gate_probe'").run()
+db.prepare("DELETE FROM promotions WHERE _id = 'promo_gate_probe'").run()
 // ---------- R37-H2/H3：体积与数量两把新尺的真跑探针（第三十七轮，每条带前提自证与边界正向腿） ----------
 const bigImg = (chars) => 'data:image/jpeg;base64,' + 'A'.repeat(chars)
 const shot200k = await handlePublic(env, 'createOrder', {

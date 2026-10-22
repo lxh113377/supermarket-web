@@ -1,6 +1,7 @@
 import Overlay from '../Overlay'
 import { formatYuan } from '../../utils/format'
 import { getBusinessHoursText, isBusinessHours } from '../../utils/businessHours'
+import { MIN_DELIVERY_AMOUNT } from '../../data/deliveryLimits'
 import type { VariantCombo } from '../../utils/variants'
 
 // 演示订单摘要 —— 「立即购买」只弹这个，不建单、不跳转 /order-confirm、不发起支付。
@@ -80,6 +81,12 @@ export default function DemoOrderSummary({
             {open_
               ? '当前在营业时间内，演示下单可继续（真实下单需填写宿舍楼栋）。'
               : '当前非营业时间，真实下单前需先在群内与商家确认。'}
+          </p>
+          <p>
+            {/* 起送金额是**真实商家规矩**（2026-10-22 立规），演示摘要也必须如实说，
+                否则用户在演示里以为小额能送、真下单被拦。数字与下单守卫同值。 */}
+            起送门槛：商品总价不满 {formatYuan(MIN_DELIVERY_AMOUNT)} <strong className="text-amber-700">不配送</strong>（真实规则）；
+            本摘要合计 {formatYuan(total)}{total < MIN_DELIVERY_AMOUNT ? '，尚未达门槛' : '，已达门槛'}。
           </p>
           <p>配送范围与取货点为演示文案，实际以商家群内约定为准。</p>
         </div>

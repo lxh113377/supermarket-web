@@ -5,8 +5,14 @@ import { getCart, getTotalAmount, clearCart } from '../cart'
 import { createOrder } from '../db'
 import { OrderRejectedError } from '../api/error-codes'
 import { isBusinessHours, getClosedMessage } from '../utils/businessHours'
+import { MIN_DELIVERY_AMOUNT, meetsMinDelivery, minDeliveryGap } from '../data/deliveryLimits'
 import { formatYuan } from '../utils/format'
 import { compressImageFile } from '../utils/imageCompress'
+
+/** 未达起送门槛的统一提示串（本页 setError 与顶部横幅共用一处措辞，避免两个地方各写一个数）。 */
+function minDeliveryBlockedText(totalAmount: number): string {
+  return `不满 ¥${MIN_DELIVERY_AMOUNT.toFixed(2)} 不配送：当前合计 ¥${totalAmount.toFixed(2)}，请再挑 ¥${minDeliveryGap(totalAmount).toFixed(2)} 的商品后再下单`
+}
 
 // 下单幂等键：一次页面挂载（= 一次下单意图）一把键，弱网重试/双击复用同一条。
 // "改过内容再提交算不算新单"由服务端按键+载荷指纹判定（functions/lib/actions/orders.js），
@@ -64,6 +70,13 @@ export default function OrderConfirmPage() {
       setError('购物车为空')
       return
     }
+    // 起送门槛（2026-10-22 老大立规「总价低于六元不配送」）。购物车那一站已把结算 CTA 换成「去凑单」，
+    // 这里兜的是**深链 / Service Worker 旧包直接进本页**的人；服务端 below_min_delivery 是第三道
+    // （防直接 POST /pub）。三处数字同值、措辞同源，等值由 tests/minDeliveryParity.test.ts 钉。
+    if (!meetsMinDelivery(totalAmount)) {
+      setError(minDeliveryBlockedText(totalAmount))
+      return
+    }
     setSubmitting(true)
     try {
       const result = await createOrder({
@@ -113,6 +126,19 @@ export default function OrderConfirmPage() {
             <div className="bg-red-50/80 border border-red-200/60 rounded-2xl p-4 animate-slide-down">
               <p className="text-red-700 text-sm font-medium">{getClosedMessage()}</p>
               <p className="text-red-400 text-xs mt-1.5">当前非营业时间，下单后可能无法及时处理</p>
+            </div>
+          )}
+
+          {/* 起送门槛横幅：不等人点提交才报错（同一句话在提交拦截里复用，措辞单源于 minDeliveryBlockedText） */}
+          {!meetsMinDelivery(totalAmount) && (
+            <div className="bg-amber-50/90 border border-amber-200/70 rounded-2xl p-4 animate-slide-down" role="status">
+              <p className="text-amber-800 text-sm font-semibold flex items-center gap-2">
+                <span aria-hidden="true">🛵</span>不满 {formatYuan(MIN_DELIVERY_AMOUNT)} 不配送
+              </p>
+              <p className="text-amber-700 text-xs mt-1.5 leading-relaxed">
+                当前商品合计 {formatYuan(totalAmount)}，还差 {formatYuan(minDeliveryGap(totalAmount))} 起送。
+                返回购物车加几件即可下单。
+              </p>
             </div>
           )}
 

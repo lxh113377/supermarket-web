@@ -16,6 +16,7 @@ import { Skeleton } from '../components/Skeleton'
 import { IconEmpty } from '../components/Icons'
 import { productImageUrl, productSrcSet } from '../utils/images'
 import { formatYuan } from '../utils/format'
+import { MIN_DELIVERY_AMOUNT } from '../data/deliveryLimits'
 import { useIsNarrow } from '../hooks/useMediaQuery'
 import { SPEC_AXIS_ID, specOptionGroupOf } from '../utils/spec-options'
 import {
@@ -478,6 +479,7 @@ export default function ProductDetailPage() {
               <h3 className="section-title mb-2">配送说明</h3>
               <ul className="text-xs text-gray-500 space-y-1.5 leading-relaxed list-disc pl-4 m-0">
                 <li>宿舍楼栋配送，下单时填写楼栋号。</li>
+                <li>商品总价不满 {formatYuan(MIN_DELIVERY_AMOUNT)} 不配送。</li>
                 <li>营业时间外需先在群内与商家确认。</li>
                 <li>详情见下方「配送说明」区块。</li>
               </ul>

@@ -57,6 +57,11 @@ export const ERRORS = {
   submission_not_found: { kind: 'state', status: 404, retryable: false },
   product_disabled: { kind: 'state', status: 409, retryable: false },
   stock_insufficient: { kind: 'state', status: 409, retryable: false },
+  // 2026-10-22 起送门槛（老大立规「总价低于六元不配送」）：与 product_disabled 同族 ——
+  // 改购物袋（加件/换商品）才可能成功，原样重发必然同样失败，故 state / 409 / false。
+  // 落 state 的意义在前端侧：isFallbackSafe 只放 platform/transport，业务拒绝绝不允许
+  // 「屏上显示下单成功、商家侧根本没这张单」（第十八轮那起丢单的形态）。
+  below_min_delivery: { kind: 'state', status: 409, retryable: false },
   stock_untracked: { kind: 'state', status: 409, retryable: false },
   invalid_transition: { kind: 'state', status: 409, retryable: false },
   concurrent_update: { kind: 'state', status: 409, retryable: false },

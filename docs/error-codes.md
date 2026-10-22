@@ -55,6 +55,7 @@
 | submission_not_found | state | 404 | false | 服务提交不存在或已被处理掉 | 刷新列表 |
 | product_disabled | state | 409 | false | 商品已下架 | 从购物车移除该商品 |
 | stock_insufficient | state | 409 | false | 守卫式扣减有任一条 0 变更（库存不足） | 减数量或去掉该项后重下 —— **禁止静默本地兜底** |
+| below_min_delivery | state | 409 | false | 商品**折前小计**低于起送门槛 `MIN_DELIVERY_AMOUNT`（现值 6 元，2026-10-22 老大立规「总价低于六元不配送」；口径与两侧同值见 docs/limit-provenance.md） | 回购物车加购到门槛以上 —— **禁止静默本地兜底**（这是商家规矩，不是网络故障，重试同金额必然同样被拒） |
 | stock_untracked | state | 409 | false | 对 `stock=-1`（不限售）的商品调 `adjustStock`：这类商品没有账面，记了流水也没有可对的上界 | 先在商品编辑里填入实际库存，把该品纳入有限库存管理 |
 | invalid_transition | state | 409 | false | 状态机不允许的迁移（如 completed → paid） | 刷新后按当前状态操作 |
 | concurrent_update | state | 409 | false | 乐观锁抢占失败（有人先改过同一单） | 重新读取后再操作 |

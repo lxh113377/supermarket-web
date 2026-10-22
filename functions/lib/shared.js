@@ -45,6 +45,23 @@ export const MAX_STATEMENT_PAYLOAD_CHARS = 90_000
 export const MAX_SUBMISSION_FILES = 9
 
 /**
+ * 起送金额（元）：商品总价低于这个数不配送。
+ *
+ * 取值类别 product —— 老大 2026-10-22 立的产品决定（「购买物品总价低于六元不配送」），
+ * 不是平台约束也不是性能余量。登记见 docs/limit-provenance.md。
+ *
+ * **判定口径 = 折前商品小计**（不受满减影响）：这条规矩管的是「这一单值不值得跑一趟」，
+ * 而满减是商家自己让利的营销动作。若按折后实付判，一条「满 8 减 5」就能把 8 元的单打回门槛下，
+ * 等于营销配置擅自改了起送线。
+ *
+ * 两侧同值：服务端消费在 functions/lib/actions/orders.js 的 createOrder，
+ * 前端同值在 src/data/deliveryLimits.ts（两条构建链物理上共享不了模块，
+ * 同 MAX_SUBMISSION_FILES / BATCH_UPDATE_CHUNK 的先例），
+ * 等值由 tests/minDeliveryParity.test.ts 用等号钉住。
+ */
+export const MIN_DELIVERY_AMOUNT = 6
+
+/**
  * 打印服务单文件上限（字节）。取值 product：校园打印的实际文件量级实测远小于此
  * （一份 PDF 课件通常 1~8MB），20MB 是给"扫描件 + 高清图"留的余量；
  * 同时压在 Cloudflare Workers 免费档 100MB 请求体之下，留出 5 倍安全系数。

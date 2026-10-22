@@ -84,7 +84,9 @@ export const REGISTER = [
     name: 'P:createOrder', channel: 'public', at: [1, 10], rtSlope: 0,
     payload: (ctx, n) => ({
       roomNumber: `rt-${n}`, wechat: 'wx',
-      items: ctx.productIds.slice(0, n).map((id) => ({ productId: id, quantity: 1 })),
+      // 每件 3 份（2026-10-22 起送门槛 ≥¥6 才收单；种子最低单价 2.66，1 件会被
+      // below_min_delivery 拦下 ⇒ 驱动必须落在门槛之上。**行数仍 = n**，斜率口径不变。
+      items: ctx.productIds.slice(0, n).map((id) => ({ productId: id, quantity: 3 })),
     }),
   },
   {
