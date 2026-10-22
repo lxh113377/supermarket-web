@@ -215,7 +215,14 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN`（repo �
    `public/admin/**`（对账分母 21 → 32，`npm run verify:print` GREEN 零漂移）；线上实测
    `https://supermarket-web.pages.dev/admin/#dashboard` 打开即是「校园打印 · 经营后台」，
    未登录时正确显示管理员登录框（`/api/auth/me` 回 401 = 鉴权在工作）。
-   待做：超市后台里加一处指向 `/admin/` 的入口（现在是两个后台并存，靠地址栏进）。
+   入口已补（648d8f6）：后台标题区加「打印经营后台」按钮，新标签打开 `/admin/`。
+   不做成页签的理由：打印单在上游自己的库里、与本后台读的 D1 不通，做成同页签会让人误以为
+   是同一套数据；用新标签是因为两套登录体系（这里 `ADMIN_KEY`、那边上游管理员账号）在同标签
+   互踢会丢正在编辑的内容。
+   登录链路一手实测（2026-10-22 线上）：`/api/auth/admin-login` 200 ⇒ 随后
+   `/api/admin/dashboard`、`/admin/settings`、`/admin/reason-catalog`、`/admin/announcement`
+   全 200，看板正常读出「待接单 / 制作与配送中 / 暂停待处理 / 已完成」四项计数
+   ⇒ 打印单在本站域名内确实可看可处理（这就是方案 A 的验收点）。
 8. **微信顾客端无法打印下单（一手实测已定位到域名层，但根因待一次手机实测收敛）** —
    **实测成立的部分**（2026-10-22 两端浏览器级跑）：GitHub Pages 纯静态托管
    **跑不了 Pages Functions** ⇒ 本站 `/api` 同源反代在那个域名上必然 404（2026-10-22 两端浏览器级实测：
