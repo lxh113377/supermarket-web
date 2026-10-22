@@ -117,13 +117,17 @@ export default function HomePage() {
           </dl>
         </div>
 
-        {/* 关键词带：唯一的横向动效，hover 暂停（尊重"我在读"这件事） */}
-        <div className="marquee mt-10 border-t border-ink/10 pt-4">
+        {/* 关键词带：唯一的横向动效，hover 暂停（尊重"我在读"这件事）。
+            white/55 色带 + 纯墨文字（实测压在最坏底色 #ca8a04 上 11.02:1）。
+            旧写法是 ink/55 直接压在封面渐变上 = 2.96–3.4:1，不过正文 4.5:1；
+            "淡"这件事改由 12px + 大字距表达，不再靠 alpha —— 色带还顺手把
+            关键词从封面里分出来，它本来就是"另一个信息层"而不是一句标语。 */}
+        <div className="marquee mt-10 rounded-xl bg-white/55 py-2.5">
           <div className="marquee-track" aria-hidden="true">
             {[0, 1].map(dup => (
               <span key={dup} className="flex shrink-0 items-center">
                 {MARQUEE_WORDS.map(w => (
-                  <span key={w} className="flex items-center whitespace-nowrap px-4 text-xs font-semibold tracking-wide text-ink/55">
+                  <span key={w} className="flex items-center whitespace-nowrap px-4 text-xs font-semibold tracking-[0.08em] text-ink">
                     {w}
                     <span className="ml-4 h-1 w-1 rounded-full bg-ink/25" />
                   </span>
@@ -180,7 +184,10 @@ export default function HomePage() {
                 >
                   {cat.icon}
                 </span>
-                <span className="index-num text-xl font-bold text-gray-300 transition-colors duration-200 group-hover:text-brand-700" aria-hidden="true">
+                {/* 序号肉眼可见（对视力正常用户是"这是第几类"的线索），所以必须过对比度：
+                    gray-300 压白卡只有 1.47:1（大字档也要 3:1）⇒ gray-500 = 4.83:1。
+                    aria-hidden 保留（读屏不该念"零一"），但它不再是免检理由。 */}
+                <span className="index-num text-xl font-bold text-gray-500 transition-colors duration-200 group-hover:text-brand-700" aria-hidden="true">
                   {String(i + 1).padStart(2, '0')}
                 </span>
               </span>

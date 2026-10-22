@@ -63,7 +63,33 @@ export async function auditPage(page: Page): Promise<{ checked: number; problems
     let iconChecked = 0
 
     const candidates = [...document.querySelectorAll<HTMLElement>('body *')].filter((el) => {
-      if (el.closest('[aria-hidden="true"]')) return false
+      /**
+       * 装饰豁免走**显式声明**：`data-decorative="true"`（见 404 页水印数字）。
+       *
+       * 为什么不用 aria-hidden 当代理：aria-hidden 的语义是"对辅助技术隐藏"，
+       * 而对比度管的是**肉眼可见**的东西 —— 两者不是一回事。一手漏网正是
+       * 订单进度条序号 `<span aria-hidden="true">2</span>`：它对视力正常用户完全可见，
+       * 用 gray-500 压 gray-100 = 4.39:1（与本轮已修的 .seg 同形缺陷），
+       * 却因为挂了 aria-hidden 而从来没被扫过。
+       *
+       * 为什么改成"声明式"而不是"取消豁免"：真装饰（404 那个 88px 水印数字）
+       * 强行拉到 3:1 就不再是水印了。所以豁免必须有，但只能是**作者显式说的**，
+       * 不能由判据从别的属性猜。声明处必须同时写清"为什么它是装饰"。
+       */
+      if (el.closest('[data-decorative="true"]')) return false
+      /**
+       * 这里**不再**用 aria-hidden 当"装饰"的代理判据。
+       *
+       * 原写法是 `if (el.closest('[aria-hidden="true"]')) return false`，把"对辅助技术
+       * 隐藏"当成"肉眼看不见"—— 这两件事不是一回事。aria-hidden 的元素对**视力正常的
+       * 用户完全可见**，而 WCAG 对比度管的正是肉眼可见的东西。
+       * 一手漏网：订单进度条的序号 `<span aria-hidden="true">2</span>` 用 gray-500
+       * 压 gray-100 = 4.39:1（与本轮已修的 .seg 同形缺陷），因为这条豁免而从来没被扫过。
+       *
+       * 现在的口径按**视觉可感知性**筛：真不可见（display/visibility/opacity<0.05）
+       * 才不扫；承载信息字符（CJK/拉丁/数字）就算肉眼可见的文字，无论是否 aria-hidden。
+       * 纯装饰图形（★ ✓ → ⚠️ 之类不含信息字符的）仍由 INFORMATIVE 那条自然排除。
+       */
       if (!INFORMATIVE.test(el.textContent || '')) return false
       // 只看"自己直接持有文字节点"的元素：否则容器会把整片子树混成一张直方图
       const ownsText = [...el.childNodes].some((n) => n.nodeType === 3 && INFORMATIVE.test(n.textContent || ''))
@@ -154,7 +180,7 @@ export async function auditPage(page: Page): Promise<{ checked: number; problems
     }
 
     const iconHosts = [...document.querySelectorAll<HTMLElement>('button, a, [role="button"]')].filter((el) => {
-      if (el.closest('[aria-hidden="true"]')) return false
+      if (el.closest('[data-decorative="true"]')) return false
       const svg = el.querySelector('svg')
       if (!svg && !hasGlyphIcon(el)) return false
       const cs = getComputedStyle(el)

@@ -19,8 +19,11 @@ import { auditPage } from '../e2e/helpers/contrastAudit'
  * 大量互不相同的中间色，"第二众数"常是很淡的光晕，把 gray-600/白（真值 7.56:1）
  * 报成 1.17:1，13 条用例被假阳性拖红。
  *
- * 豁免只有一条且必须声明式：aria-hidden 的纯装饰文字（404 页那个水印级巨大数字）。
- * 它不承载信息，低对比是设计意图；任何"看着像装饰但其实给人读"的文字都躲不掉。
+ * 豁免口径（2026-10-23 更正）：只豁免**肉眼不可感知**的东西（display:none /
+ * visibility:hidden / opacity<0.05）与**不含信息字符**的纯装饰图形（★ ✓ → ⚠️）。
+ * 原先把 aria-hidden 当装饰代理判据是错的 —— 它对视力正常用户完全可见，
+ * 而对比度管的正是肉眼看见的东西（一手漏网：进度条序号 gray-500 压 gray-100 = 4.39:1）。
+ * 404 那个水印级巨大数字靠的应是"它自己就是装饰图形"，不是"它挂了 aria-hidden"。
  *
  * 文件末尾配一条**自证**用例：注入已知 1.92:1 的元素，断言本件必须报红。
  * 这条自证在首版就抓到一次致命缺陷 —— 漏写 ctx.drawImage()，canvas 全透明，
@@ -85,6 +88,42 @@ const openReviewForm = async (page: import('@playwright/test').Page) => {
   await page.getByRole('radio', { name: '1星' }).click()
   await expect(page.getByRole('radio', { name: '1星' })).toHaveAttribute('aria-checked', 'true')
   await page.waitForTimeout(500)
+}
+
+/**
+ * 订单查询「有结果」态（2026-10-23 补）。
+ *
+ * 为什么单独一条：order-query 此前只扫到 3 个含字元素 —— 那是**空表单态**，
+ * 而顾客真正盯着看的是查出来之后那条四步进度条（订单号、状态标签、时间戳、
+ * 去支付按钮全在有结果态里）。
+ *
+ * 一处需要更正的自我声称（本条注释第一版写错了，留在这里当反面教材）：
+ * 我原本写"这条路由是为了扫进度条里 `{done ? '✓' : i + 1}` 那个字符图标"。
+ * 实测那个 span 是 `aria-hidden="true"` 且**不在任何交互控件里**
+ * ⇒ 图标腿按设计边界不扫它（语义由旁边的文字标签承载）⇒ 那句话是**没验证就写下的**，
+ * 属于本仓禁止的"宣称了但没量"。这条路由的真实价值是**文字层**：
+ * 有结果态里 `订单号 / 待支付…已送达 / 时间戳` 这批文字此前从未被扫过。
+ *
+ * 播种走演示模式自己的数据通路（getOrderStatus 在 IS_CLOUD=false 时读
+ * localStorage 的 sm_orders_local），因此**不需要改 local-api-stub.mjs**
+ * （那文件正被并行会话编辑，为一条判据去动它风险不对等）。
+ *
+ * 必须 reload：localStore 有模块级 parseCache，路由循环先前那次 goto 可能已把
+ * "没有订单"缓存住；整文档重载才会带着我播种的数据重新起算。
+ */
+const seedOrderQueryResult = async (page: import('@playwright/test').Page) => {
+  await page.evaluate(() => {
+    localStorage.setItem('sm_orders_local', JSON.stringify([
+      { _id: 'o_contrast_probe', status: 'paid', updatedAt: '2026-10-22T18:00:00.000Z', roomNumber: '36栋-501', items: [] },
+    ]))
+    // 页面自己写了这条兜底：带单号进来就自动查一次，顾客零输入
+    sessionStorage.setItem('sm_query_order', 'o_contrast_probe')
+  })
+  await page.reload({ waitUntil: 'networkidle' })
+  // 区分性证据：进度条真渲染出来了（不是空表单、也不是"未查到"提示）
+  await expect(page.getByText('已支付')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('未查到该订单')).toHaveCount(0)
+  await page.waitForTimeout(600)
 }
 
 /** 走 UI 真加购（凑过起送门槛，避免落在「差 ¥X 起送」的改版面上），再进目标路由 */
@@ -222,6 +261,8 @@ const ROUTES: RouteSpec[] = [
    */
   // 评价表单展开态：评分星、必填标记、图片上传区都在这里（折叠时扫不到）
   { name: 'admin-review-form', route: '/#/admin', prepare: openReviewForm, expectText: '发布' },
+  // 有结果态：四步进度条 + ✓ 字符图标（空表单态扫不到这些）
+  { name: 'order-query-result', route: '/#/order-query', prepare: seedOrderQueryResult, expectText: '订单号' },
   { name: 'order-confirm', route: '/#/order-confirm', prepare: seedCartThen('/#/order-confirm'), expectText: '确认订单' },
   // 「查询订单状态」只在成功页出现（确认页没有），且不受网络态改写标题影响
   { name: 'order-success', route: '/#/order-confirm', prepare: walkToSuccess, expectText: '查询订单状态' },

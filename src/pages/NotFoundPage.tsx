@@ -5,8 +5,15 @@ import { IconEmpty } from '../components/Icons'
  * 404（2026-10-22 设计升级）。
  * 旧版那颗圆是随机感渐变（黄→绿直调），与站内任何一块色都不成体系；
  * 现在改用首页封面的同一语言：柿色渐变 + 右下切角，"走丢了"也在这套品牌里。
- * 数字用展示体（Bricolage）压成水印级灰阶 —— 它是图形不是正文，
- * 承担构图而非信息，所以低对比是设计意图（aria-hidden 已标）。
+ * 数字用展示体（Bricolage）压成水印级灰阶 —— 它是**图形不是正文**：
+ * 88px 超大字号、语义完全由下面那行「页面走丢了」承载，读它的人不需要
+ * 靠这个 404 得知任何信息。所以低对比是设计意图，用 data-decorative 显式声明。
+ *
+ * 为什么是 data-decorative 而不是只挂 aria-hidden（2026-10-23 更正）：
+ * aria-hidden 的语义是"对辅助技术隐藏"，而对比度判据管的是**肉眼可见**的东西；
+ * 拿它当装饰代理判据会让真可见的文字漏检（一手事故：订单进度条序号
+ * 挂了 aria-hidden 却肉眼可见，gray-500 压 gray-100 = 4.39:1 从来没被扫过）。
+ * 装饰豁免必须有，但只能是作者**显式说**的，不能由判据从别的属性猜。
  */
 export default function NotFoundPage() {
   const navigate = useNavigate()
@@ -21,7 +28,7 @@ export default function NotFoundPage() {
         <IconEmpty className="h-9 w-9 text-ink" />
       </div>
 
-      <p aria-hidden="true" className="price-num select-none text-[5.5rem] font-extrabold leading-none text-gray-200">
+      <p aria-hidden="true" data-decorative="true" className="price-num select-none text-[5.5rem] font-extrabold leading-none text-gray-200">
         404
       </p>
       <h1 className="-mt-3 text-display-md text-ink">页面走丢了</h1>
