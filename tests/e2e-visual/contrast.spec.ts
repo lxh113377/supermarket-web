@@ -91,6 +91,23 @@ const openReviewForm = async (page: import('@playwright/test').Page) => {
 }
 
 /**
+ * 关掉「温馨提示」模态后再扫表单字段。
+ *
+ * 为什么需要这一条而不是只靠遮挡判定豁免：加了 isOccluded 之后，被模态盖住的
+ * 12 个表单文字会被正确跳过（它们隔着遮罩的颜色不是用户实际会读到的颜色）——
+ * 但那批字段标签/hint/上传区文字就**彻底没人扫了**。豁免只能解决"量错东西"，
+ * 解决不了"没东西被量"，所以必须再有一条把模态关掉的路由把覆盖面补回来。
+ */
+const dismissServicePopup = async (page: import('@playwright/test').Page) => {
+  const btn = page.getByRole('button', { name: '我知道了' })
+  if (await btn.isVisible().catch(() => false)) {
+    await btn.click()
+    await expect(page.getByRole('heading', { name: '温馨提示' })).toBeHidden({ timeout: 5_000 })
+  }
+  await page.waitForTimeout(600)
+}
+
+/**
  * 订单查询「有结果」态（2026-10-23 补）。
  *
  * 为什么单独一条：order-query 此前只扫到 3 个含字元素 —— 那是**空表单态**，
@@ -263,6 +280,17 @@ const ROUTES: RouteSpec[] = [
   { name: 'admin-review-form', route: '/#/admin', prepare: openReviewForm, expectText: '发布' },
   // 有结果态：四步进度条 + ✓ 字符图标（空表单态扫不到这些）
   { name: 'order-query-result', route: '/#/order-query', prepare: seedOrderQueryResult, expectText: '订单号' },
+  /**
+   * 服务表单（带动态字段的那一类，2026-10-23 补）。
+   *
+   * 此前对比度闸没覆盖服务表单：17 个服务里 15 个带 fields（姓名/电话/图片上传…），
+   * 字段标签、hint 微文案、上传区、至少N张/最多N张 这类约束文字全在这一页，从未被扫过。
+   * 数据来自静态 data/services.ts（不走后端），所以 demo 构建里能直接渲染。
+   * 选 delivery（外卖帮拿）：字段含 tel 与 image 两类，覆盖面最广。
+   */
+  { name: 'service-form', route: '/#/service/delivery', expectText: '填写信息' },
+  // 关掉模态后的表单字段（标签/hint/上传区/约束文字）——遮挡判定把它们从上一条里豁免了
+  { name: 'service-form-fields', route: '/#/service/delivery', prepare: dismissServicePopup, expectText: '电话号' },
   { name: 'order-confirm', route: '/#/order-confirm', prepare: seedCartThen('/#/order-confirm'), expectText: '确认订单' },
   // 「查询订单状态」只在成功页出现（确认页没有），且不受网络态改写标题影响
   { name: 'order-success', route: '/#/order-confirm', prepare: walkToSuccess, expectText: '查询订单状态' },

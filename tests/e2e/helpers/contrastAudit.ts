@@ -58,6 +58,31 @@ export async function auditPage(page: Page): Promise<{ checked: number; problems
     // 承载信息的文字：含中日韩、拉丁字母或数字；纯 emoji/几何符号（装饰）不算
     const INFORMATIVE = /[\u4E00-\u9FFF\u3040-\u30FFA-Za-z0-9]/
 
+    /**
+     * 遮挡判定：被别的元素盖住的文字，用户此刻读的不是它 ⇒ 不扫。
+     *
+     * 一手触发（2026-10-23）：新增 service-form 路由后一次报出 6 处"不合格"，
+     * 逐像素取证才发现页面正开着「温馨提示」模态（Overlay 的 bg-black/40 遮罩），
+     * 底下表单的文字是被遮罩压暗后的颜色（白底被量成 #999999、黄按钮透上来变成 #eab308）
+     * ⇒ 全是假阳性。判据缺的不是阈值，是"这段文字此刻到底在不在用户眼前"这一层。
+     *
+     * 做法：取元素中心做 elementFromPoint，命中的若不是自己/自己的后代/自己的祖先，
+     * 就说明有别的元素盖在上面。用祖先也算通过是因为 pointer-events:none 的元素
+     * 会直接命中到它的容器（那不是遮挡）。
+     * 副作用是正向的：弹层、吸底栏、悬浮球盖住的文字都不再被误判，
+     * 而"被盖住"这件事本身由 tests/e2e-visual/layout.spec.ts 的几何判据管。
+     */
+    const isOccluded = (el: HTMLElement): boolean => {
+      const r = el.getBoundingClientRect()
+      const cx = Math.round(r.left + r.width / 2)
+      const cy = Math.round(r.top + r.height / 2)
+      if (cx < 0 || cy < 0 || cx >= innerWidth || cy >= innerHeight) return false
+      const top = document.elementFromPoint(cx, cy)
+      if (!top) return false
+      if (top === el || el.contains(top) || top.contains(el)) return false
+      return true
+    }
+
     const problems: Problem[] = []
     const seen = new Set<string>()
     let iconChecked = 0
@@ -77,6 +102,7 @@ export async function auditPage(page: Page): Promise<{ checked: number; problems
        * 不能由判据从别的属性猜。声明处必须同时写清"为什么它是装饰"。
        */
       if (el.closest('[data-decorative="true"]')) return false
+      if (isOccluded(el)) return false
       /**
        * 这里**不再**用 aria-hidden 当"装饰"的代理判据。
        *
@@ -181,6 +207,7 @@ export async function auditPage(page: Page): Promise<{ checked: number; problems
 
     const iconHosts = [...document.querySelectorAll<HTMLElement>('button, a, [role="button"]')].filter((el) => {
       if (el.closest('[data-decorative="true"]')) return false
+      if (isOccluded(el)) return false
       const svg = el.querySelector('svg')
       if (!svg && !hasGlyphIcon(el)) return false
       const cs = getComputedStyle(el)
