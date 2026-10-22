@@ -199,7 +199,7 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN`（repo �
 4. **无外部探活/告警** — `/_health` 已就绪，可接入 UptimeRobot 等免费探活
 5. **批量操作** — 已支持后端批量端点（batchUpdateProducts/batchDeleteProducts）
 6. **LIMIT 1000 容量边界** — 观测，日订单/商品增长后再评估
-7. **打印订单不在本后台可见（2026-10-22 实测确认，裁定=方案 A，待实施）** — 10-21 起 `/print` 整页替换为
+7. **打印订单不在本后台可见（2026-10-22 实测确认，裁定=方案 A；后台面已落地，超市侧入口跳转待做）** — 10-21 起 `/print` 整页替换为
    CampusPrint-V1 后，打印单落在**上游自己的 SQLite**（`print_orders`），而本后台「服务」页读的是 D1
    `getSubmissions`（最后一条停在 10-16，即替换前）⇒ 打印单没有任何入口进入本后台。上游**自带**完整
    经营后台（`frontend/admin/` 11 文件：订单工作台/优惠券/广告/公告/商户设置/补偿，路由 `/api/admin/*`
@@ -211,6 +211,21 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN`（repo �
    **当前影响=零**（上游 `print_orders=0`，只有联调 `print_quotes=7`）；一旦开始接真实单即断链。
    落地清单：搬 `frontend/admin/**` → 扩 `scripts/print-parity.mjs` 的 MAPPINGS 一组 + 刷新登记册；
    入口从超市后台加一处跳转；管理员登录用上游自有账号（与 `ADMIN_KEY` 是两套，不混用）。
+   **进度（2026-10-22 d03dc23）**：前三项已落地 —— 上游 `frontend/admin/**` 11 件原样搬入本站
+   `public/admin/**`（对账分母 21 → 32，`npm run verify:print` GREEN 零漂移）；线上实测
+   `https://supermarket-web.pages.dev/admin/#dashboard` 打开即是「校园打印 · 经营后台」，
+   未登录时正确显示管理员登录框（`/api/auth/me` 回 401 = 鉴权在工作）。
+   待做：超市后台里加一处指向 `/admin/` 的入口（现在是两个后台并存，靠地址栏进）。
+8. **微信顾客端无法打印下单（结构性；卡点=域名资质，不是代码缺陷）** — 权威口径见 `chaoshi-web-deploy`
+   skill §1：`lxh113377.github.io` 是**唯一微信入口**，`pages.dev` 微信不认。而 GitHub Pages 是纯静态托管、
+   **跑不了 Pages Functions** ⇒ 本站 `/api` 同源反代在那个域名上必然 404（2026-10-22 两端浏览器级实测：
+   pages.dev 上 7 个接口全 200、可上传可报价；github.io 上 `/api/public/config` 与 `/api/auth/me` 全 404）。
+   想"跨域借 pages.dev 的后端"也不成立：校园打印的会话是 `httpOnly` + `SameSite=Lax` Cookie
+   （上游 `backend/auth.js:37`），跨域请求带不出 Cookie ⇒ 登录态与 CSRF 必断。
+   **唯一根治 = 一个既被微信认可、又能跑 Functions 的域名**（自有域名挂到 Cloudflare Pages 自定义域名；
+   微信侧通常还要求 ICP 备案）。这属外部资质/费用缺口，Agent 无法代办购买与备案，故按规矩落此待办：
+   卡点=域名与备案；证据=上述两端实测状态码；下一步=老大备好域名后把顾客端迁到该域名，
+   `/print` 与 `/api` 即同源全功能可用（**本站代码无需改动**，只换发布目标）。
 
 ***
 
