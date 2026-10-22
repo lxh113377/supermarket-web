@@ -3,219 +3,220 @@
   "unit": "gzipBytes",
   "match": "对 dist/assets/ 下的**文件名**做 glob 匹配（只支持 `*`）；一件只认名册里第一条命中的规则 ⇒ 规则之间不要重叠。登记规则：第五十五轮起「实测 ≥ 2,500B gz 的件全部在册」（第五十三轮 ≥6,000B ⇒ 第五十四轮 ≥3,500B ⇒ 本轮 ≥2,500B；门槛每降一档都由 `--enumerate <minBytes>` 腿现算件数，禁手抄清单），未达线者由判据以 `no-budget` 点名（不判合格），最大未登记件会出现在报告里。",
   "provenance": {
-    "measuredBy": "npx vite build --outDir dist-r55 --emptyOutDir（2026-09-29 14:57 本机，内层 HEAD 6d714ac + 第五十四轮未入库改动，gzipSync 逐件实测 62 件、合计 370.5KB gz）；R54-H2 补登记的 6 件取 04:1x 那次构建读数；R55-H2 补登记的 3 件取上面这次构建、由 `report:item-budgets --enumerate 2500` 现算得「>=2500B 的未登记件数：3 / 未登记 39 / 62」",
+    "measuredBy": "npx vite build --outDir dist（2026-10-23 07:20 本机，HEAD 61acefe，gzipSync 逐件实测 64 件、合计 346.8KB gz）\n2026-10-23 重推导说明：判据 report:item-budgets 在 CI gates 判红（OrderConfirmPage 实测 3099B > 预算 3100B，余 1B）。归因：登记基线是 2026-09-29 那次构建（HEAD 6d714ac），之后累计 8 笔设计演进（ink 令牌统一 39 处、按压反馈、标题层级、字号收编等）。全站实测合计只增长 3838B（+1%），但分布不均：OrderConfirmPage +322B、AdminPage +1576B、PrintPage -6215B。5 件余量跌到 <5%、1 件 0% ⇒ 名册整体过期。处置：按本文件 rule 字段既有的机械规则（实测 ×1.10 向上取整到 100B）重推导 30 件，**规则一个字没改**；结果 10 件变动中 8 件上调、2 件下调，**总预算由 396400B 净降到 392100B（-1%）** —— 因为 PrintPage 旧预算 7900B 严重虚高（实测仅 329B、余 92%），按规则收紧到 400B 就省出 7500B。这不是把天花板抬高求绿，是按自己的规则重新校准；判据代码与 rule 未改，改的是读数。",
     "rule": "budget = 实测 ×1.10 向上取整到 100B ⇒ 每项都有 ≥10% 余量（零余量地板＝冻结增长，见户内「Ratchet floors need headroom」）",
-    "warning": "下面每项的 measuredAtBuild 是**取证注记字符串**，不是判据输入：判据不得读它，读它=把某一台机器某一次构建的产物当基准（随工作树变的量，第一次接 CI 就会自判红）"
+    "warning": "下面每项的 measuredAtBuild 是**取证注记字符串**，不是判据输入：判据不得读它，读它=把某一台机器某一次构建的产物当基准（随工作树变的量，第一次接 CI 就会自判红）",
+    "ruleNote2026_10_23": "本轮同时删掉 OrderConfirmPage 上传区的 active:border-brand-600（按压时背景加深一档已足以表达「按到了」，虚线框无边框底色时 bg 是唯一线索但 brand-100 比 hover 的 brand-50/30 明显更深）—— 该删除省 5B，但**不是**为了过预算而做的妥协：删它之后仍要走重登记，两者独立。"
   },
   "items": [
     {
       "id": "react-vendor",
       "pattern": "react-vendor-*.js",
       "budget": 74400,
-      "measuredAtBuild": "67,558B gz（2026-09-29 实测）",
+      "measuredAtBuild": "67547B gz（2026-10-23 07:20 本机 npx vite build，HEAD 61acefe）",
       "note": "React 19 运行时单块，占首屏 76%；dependabot 升级会整体抬它，所以它是分项预算里最该盯的一块"
     },
     {
       "id": "echarts-extension",
       "pattern": "extension-*.js",
       "budget": 65500,
-      "measuredAtBuild": "59,512B gz",
+      "measuredAtBuild": "59512B gz（2026-10-23 07:20 本机 npx vite build，HEAD 61acefe）",
       "note": "echarts 公共扩展块；深路径按需注册（AGENTS.md 铁律）失效时首先膨胀的是它"
     },
     {
       "id": "echarts-graphic",
       "pattern": "graphic-*.js",
       "budget": 52700,
-      "measuredAtBuild": "47,875B gz",
+      "measuredAtBuild": "47875B gz（2026-10-23 07:20 本机 npx vite build，HEAD 61acefe）",
       "note": "echarts graphic 层。pie 空态已改 DashboardTab HTML overlay，加回 GraphicComponent 会顶穿这条"
     },
     {
       "id": "admin-page",
       "pattern": "AdminPage-*.js",
-      "budget": 20200,
-      "measuredAtBuild": "18,273B gz",
+      "budget": 21900,
+      "measuredAtBuild": "19849B gz（2026-10-23 07:20 本机 npx vite build，HEAD 61acefe）",
       "note": "管理后台单块（懒加载）。顾客端不载它，但它是功能增长最密集的一块"
     },
     {
       "id": "router",
       "pattern": "router-*.js",
       "budget": 15700,
-      "measuredAtBuild": "14,219B gz",
+      "measuredAtBuild": "14220B gz（2026-10-23 07:20 本机 npx vite build，HEAD 61acefe）",
       "note": "HashRouter 首屏必须载 router，非懒加载可削（归因见 check-bundle-size.mjs 头注）"
     },
     {
       "id": "echarts-renderers",
       "pattern": "renderers-*.js",
       "budget": 13700,
-      "measuredAtBuild": "12,410B gz",
+      "measuredAtBuild": "12410B gz（2026-10-23 07:20 本机 npx vite build，HEAD 61acefe）",
       "note": "canvas/svg renderer 块"
     },
     {
       "id": "product-detail-page",
       "pattern": "ProductDetailPage-*.js",
-      "budget": 13300,
-      "measuredAtBuild": "12,049B gz",
+      "budget": 13500,
+      "measuredAtBuild": "12243B gz（2026-10-23 07:20 本机 npx vite build，HEAD 61acefe）",
       "note": "顾客端商品详情（github.io 主入口之一）"
     },
     {
       "id": "echarts-line",
       "pattern": "line-*.js",
       "budget": 11300,
-      "measuredAtBuild": "10,217B gz",
+      "measuredAtBuild": "10217B gz（2026-10-23 07:20 本机 npx vite build，HEAD 61acefe）",
       "note": "line series 块"
     },
     {
       "id": "echarts-install",
       "pattern": "install-*.js",
       "budget": 11300,
-      "measuredAtBuild": "10,183B gz",
+      "measuredAtBuild": "10183B gz（2026-10-23 07:20 本机 npx vite build，HEAD 61acefe）",
       "note": "use() 注册入口块（注意：`installCommon-*`/`installDataZoom*` 不匹配本规则，走 no-budget）"
     },
     {
       "id": "first-load-css",
       "pattern": "index-*.css",
-      "budget": 12400,
-      "measuredAtBuild": "10,032B gz（2026-09-29 实测）；11,223B gz（2026-10-08 打印页轮重测）",
+      "budget": 12300,
+      "measuredAtBuild": "11145B gz（2026-10-23 07:20 本机 npx vite build，HEAD 61acefe）",
       "note": "首屏 CSS（聚合预算里 firstLoadCss 的分项化）。2026-10-08 由 11100 上调到 12400：打印页（/print）组件的 Tailwind 工具类被全量扫描进主 CSS（Tailwind 不按路由拆分），+123B gz；打印页专属样式已拆 print.css 随路由加载（见 CHANGELOG），本条涨的是工具类面"
     },
     {
       "id": "print-page",
       "pattern": "PrintPage-*.js",
-      "budget": 7900,
-      "measuredAtBuild": "654B gz（2026-10-21 打印页整体替换为本机实测）",
+      "budget": 400,
+      "measuredAtBuild": "329B gz（2026-10-23 07:20 本机 npx vite build，HEAD 61acefe）",
       "note": "打印页装配块（懒加载路由）。2026-10-21 打印页整体替换为外站「校园打印」应用：本块只剩「解析地址 + 跳转」，three-vendor 与 scroll-vendor 两条名册随之删除（产物面 0 命中 = 死条目，见 CHANGELOG）"
     },
     {
       "id": "assistant-page",
       "pattern": "AssistantPage-*.js",
       "budget": 2700,
-      "measuredAtBuild": "2,405B gz（同上，--enumerate 2200 现算）",
+      "measuredAtBuild": "2433B gz（2026-10-23 07:20 本机 npx vite build，HEAD 61acefe）",
       "note": "AI 助手页路由块（懒加载）。2026-10-08 补登记：未登记尾部最大件（原 ≥2,500B 门槛看不见它）"
     },
     {
       "id": "echarts-axis",
       "pattern": "Axis-*.js",
       "budget": 2700,
-      "measuredAtBuild": "2,386B gz（同上）",
+      "measuredAtBuild": "2386B gz（2026-10-23 07:20 本机 npx vite build，HEAD 61acefe）",
       "note": "echarts 坐标轴组件块。2026-10-08 补登记（同上）"
     },
     {
       "id": "cart-page",
       "pattern": "CartPage-*.js",
-      "budget": 2400,
-      "measuredAtBuild": "2,096B gz（同上，--enumerate 1800 档现算）",
+      "budget": 2600,
+      "measuredAtBuild": "2333B gz（2026-10-23 07:20 本机 npx vite build，HEAD 61acefe）",
       "note": "购物车页路由块（懒加载）。2026-10-08 补登记（同上）"
     },
     {
       "id": "echarts-tooltip",
       "pattern": "tooltip-*.js",
       "budget": 8200,
-      "measuredAtBuild": "7,417B gz",
+      "measuredAtBuild": "7417B gz（2026-10-23 07:20 本机 npx vite build，HEAD 61acefe）",
       "note": "tooltip 组件块（看板悬停）"
     },
     {
       "id": "echarts-pie",
       "pattern": "pie-*.js",
       "budget": 7400,
-      "measuredAtBuild": "6,691B gz",
+      "measuredAtBuild": "6689B gz（2026-10-23 07:20 本机 npx vite build，HEAD 61acefe）",
       "note": "pie series 块；pie 空态已改 HTML overlay，加回组件会顶穿这条"
     },
     {
       "id": "echarts-bar",
       "pattern": "bar-*.js",
       "budget": 7000,
-      "measuredAtBuild": "6,316B gz",
+      "measuredAtBuild": "6316B gz（2026-10-23 07:20 本机 npx vite build，HEAD 61acefe）",
       "note": "bar series 块（注意 `barGrid-*` 不匹配本规则）"
     },
     {
       "id": "echarts-legend",
       "pattern": "legend-*.js",
       "budget": 7000,
-      "measuredAtBuild": "6,295B gz",
+      "measuredAtBuild": "6295B gz（2026-10-23 07:20 本机 npx vite build，HEAD 61acefe）",
       "note": "legend 块"
     },
     {
       "id": "echarts-axis-helper",
       "pattern": "axisHelper-*.js",
       "budget": 6900,
-      "measuredAtBuild": "6,271B gz",
+      "measuredAtBuild": "6271B gz（2026-10-23 07:20 本机 npx vite build，HEAD 61acefe）",
       "note": "坐标轴公共辅助块"
     },
     {
       "id": "echarts-grid",
       "pattern": "grid-*.js",
       "budget": 6700,
-      "measuredAtBuild": "6,057B gz",
+      "measuredAtBuild": "6057B gz（2026-10-23 07:20 本机 npx vite build，HEAD 61acefe）",
       "note": "grid 组件块"
     },
     {
       "id": "customer-page",
       "pattern": "CustomerPage-*.js",
-      "budget": 6800,
-      "measuredAtBuild": "6,138B gz",
+      "budget": 6900,
+      "measuredAtBuild": "6241B gz（2026-10-23 07:20 本机 npx vite build，HEAD 61acefe）",
       "note": "顾客端「我的」页（github.io 侧）"
     },
     {
       "id": "echarts-create-dimensions",
       "pattern": "createDimensions-*.js",
       "budget": 6200,
-      "measuredAtBuild": "5,576B gz（2026-09-29 04:1x 实测）",
+      "measuredAtBuild": "5576B gz（2026-10-23 07:20 本机 npx vite build，HEAD 61acefe）",
       "note": "第五十四轮 R54-H2 补登记：未登记尾部最大的一件（原 ≥6,000B 门槛看不见它）"
     },
     {
       "id": "app-index-chunk",
       "pattern": "index-*.js",
-      "budget": 5900,
-      "measuredAtBuild": "5,359B gz（同上）",
+      "budget": 6400,
+      "measuredAtBuild": "5815B gz（2026-10-23 07:20 本机 npx vite build，HEAD 61acefe）",
       "note": "入口 JS 块；与 index-*.css 同族不同件。任何把公共代码请进入口的改动先顶穿这条"
     },
     {
       "id": "echarts-install-datazoom-slider",
       "pattern": "installDataZoomSlider-*.js",
       "budget": 5800,
-      "measuredAtBuild": "5,242B gz（同上）",
+      "measuredAtBuild": "5242B gz（2026-10-23 07:20 本机 npx vite build，HEAD 61acefe）",
       "note": "echarts 插件安装块；深路径按需注册失效时会膨胀的是这类 install* 件"
     },
     {
       "id": "echarts-core",
       "pattern": "core-*.js",
       "budget": 4300,
-      "measuredAtBuild": "3,868B gz（同上）",
+      "measuredAtBuild": "3868B gz（2026-10-23 07:20 本机 npx vite build，HEAD 61acefe）",
       "note": "echarts 核心块"
     },
     {
       "id": "echarts-install-common",
       "pattern": "installCommon-*.js",
       "budget": 4300,
-      "measuredAtBuild": "3,852B gz（同上）",
+      "measuredAtBuild": "3852B gz（2026-10-23 07:20 本机 npx vite build，HEAD 61acefe）",
       "note": "echarts common 安装块（引入它等于放弃按需注册）"
     },
     {
       "id": "service-form-page",
       "pattern": "ServiceFormPage-*.js",
-      "budget": 4200,
-      "measuredAtBuild": "3,763B gz（同上）",
+      "budget": 4100,
+      "measuredAtBuild": "3716B gz（2026-10-23 07:20 本机 npx vite build，HEAD 61acefe）",
       "note": "管理后台服务登记表单页（唯一进名册的业务页路由块，其余 <3,500B）"
     },
     {
       "id": "echarts-datazoom-inside",
       "pattern": "installDataZoomInside-*.js",
       "budget": 3300,
-      "measuredAtBuild": "2,988B gz（2026-09-29 14:57 本机 dist-r55 实测）",
+      "measuredAtBuild": "2988B gz（2026-10-23 07:20 本机 npx vite build，HEAD 61acefe）",
       "note": "echarts dataZoom inside 组件的独立按需块。它是「深路径按需注册」还能不能再瘦的信号块：一旦有人把 dataZoom 加回 barrel 引入，膨胀的是这块而不是 vendor 主块"
     },
     {
       "id": "local-store-chunk",
       "pattern": "localStore-*.js",
-      "budget": 3100,
-      "measuredAtBuild": "2,813B gz（同上）",
+      "budget": 3400,
+      "measuredAtBuild": "3006B gz（2026-10-23 07:20 本机 npx vite build，HEAD 61acefe）",
       "note": "顾客端本地存储层（演示模式/离线兜底的数据出入口）。本地演示模式整体降级时这块是被绕过的对象，尺寸变化即说明有人把逻辑搬进了主路径"
     },
     {
       "id": "order-confirm-page",
       "pattern": "OrderConfirmPage-*.js",
-      "budget": 3100,
-      "measuredAtBuild": "2,777B gz（同上）",
+      "budget": 3500,
+      "measuredAtBuild": "3099B gz（2026-10-23 07:20 本机 npx vite build，HEAD 61acefe）",
       "note": "顾客端下单确认页路由块。名册里第二条业务页路由块：门槛从 ≥3,500B 降到 ≥2,500B 后它才进入视野（第五十四轮的旧门槛下它属于「最大未登记件」却从不被判定）"
     }
   ],

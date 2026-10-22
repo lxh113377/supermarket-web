@@ -240,7 +240,7 @@ export default function OrderConfirmPage() {
             ) : (
               <button
                 onClick={() => fileRef.current?.click()}
-                className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-8 text-sm text-gray-500 hover:border-brand-500 hover:text-brand-700 hover:bg-brand-50/30 transition-all duration-300 active:border-brand-600 active:bg-brand-100"
+                className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-8 text-sm text-gray-500 hover:border-brand-500 hover:text-brand-700 hover:bg-brand-50/30 transition-all duration-300 active:bg-brand-100"
               >
                 <span className="block text-2xl mb-2">📷</span>
                 点击上传付款截图
