@@ -28,6 +28,7 @@ import { getDashboardStats } from './actions/stats.js'
 import { getStockMovements, adjustStock } from './actions/stock.js'
 import { getEventTimeline } from './actions/events.js'
 import { fail } from './errors.js'
+import { verifyTurnstile } from './turnstile.js'
 import { kvCacheGetJSON, kvCacheSet, invalidatePublicCatalog, invalidateDashboard, invalidateAiAdvice, AI_ADVICE_CACHE_KEY, DASHBOARD_CACHE_PREFIX } from './cache.js'
 
 // 管理端写操作（**审计日志覆盖范围**）。
@@ -212,9 +213,22 @@ export async function handlePublic(env, action, payload = {}, request = null, no
   if (!DB) return fail('db_unbound', '未配置 D1 数据库绑定')
   if (!PUBLIC_ACTIONS.has(action)) return fail('action_not_public', '该操作不在公开接口白名单内')
   const ip = getClientIp(request)
+  // 名单刻意**保留数组字面量形态**：scripts/api-contract.mjs 用静态解析从本函数里抓
+  // `publicRateLimitedWrite`（契约的 write 属性来自它）。改成只调 needsCaptcha() 会让
+  // 静态解析抓不到名单 ⇒ 契约把三个写接口判成 read（本轮实测：addPublicReview /
+  // createSubmission 属性不一致而红）。故此处保留字面量，人机验证用同一名单判断。
   if (['createOrder', 'createSubmission', 'addPublicReview'].includes(action)) {
     const r = await checkRate(DB, env.RATE_KV, `rate:write:${ip}`, RATE_PUBLIC_WRITE.windowMs, RATE_PUBLIC_WRITE.max)
     if (r) return r
+    // Turnstile 人机验证（2026-10-22 r163）：只挂三个免登录写接口。
+    // 顺序刻意放在**限流之后、写库之前** —— 限流先挡频率（便宜），
+    // 人机验证再抬脚本成本（要一次网络往返），最后才写 D1。
+    // 降级方向见 lib/turnstile.js 头注：未配置 / 上游异常一律放行（防护件不得挡站）。
+    const captcha = await verifyTurnstile(env.TURNSTILE_SECRET, payload && payload.captchaToken)
+    if (!captcha.ok) {
+      await logSecurityEvent(DB, { ip, action, result: 'captcha_failed', keyFingerprint: '' })
+      return fail('captcha_failed', '人机验证未通过，请重试')
+    }
   }
   try {
     switch (action) {

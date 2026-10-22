@@ -4,6 +4,31 @@
 
 ## [未发布]
 
+### 2026-10-22 「免登录写接口」加 Turnstile 人机验证（渐进启用，未配置即放行）
+
+- **为什么加在这一面**：`/pub` 的 `createOrder` / `createSubmission` / `addPublicReview` 是本站
+  **唯一的免登录写入口**，此前只靠 IP 限流（`rate:write:*`）。限流挡得住频率，挡不住「换 IP 的脚本」，
+  而这三个接口直接写 D1（下单 / 投稿 / 评价），是真实滥用面。
+- **改法**：新增 `functions/lib/turnstile.js`（纯函数 `verifyTurnstile`，调 Cloudflare siteverify），
+  在 `handlePublic` 的**限流之后、写库之前**插入校验；拒绝时返回具名码 `captcha_failed`（input/400，
+  retryable=true）。三个登记面同步：`docs/error-codes.md`、`src/api/error-codes.ts`、`docs/env-vars.md`
+  （`TURNSTILE_SECRET`）。
+- **降级方向（刻意定成「不挡站」）**：未配置 secret ⇒ 放行并标 `not_configured`；siteverify 超时 /
+  上游异常 / 非 JSON ⇒ 放行并标 `unavailable`。理由 = 人机验证是渐进启用的防护件，
+  它一旦成为可用性单点，代价（顾客下不了单）比被刷更严重。
+- **契约形状的坑（本轮一手）**：`scripts/api-contract.mjs` 用**静态解析**从 `handlePublic` 抓
+  `['createOrder','createSubmission','addPublicReview']` 数组字面量来判 write 属性；我一开始把这行
+  换成 `needsCaptcha(action)` 调用，静态解析当场抓不到 ⇒ 契约把两个写接口判成 read。
+  故该行**保留字面量形态**，人机验证用同一名单判断（代码里已留注释防下次再改坏）。
+- **验证**：vitest **141 文件 / 2067 用例全绿**（新增 `tests/turnstile.test.ts` 9 条，含
+  「未配置放行」「上游异常放行」「secret 不进 URL」三条降级腿）；`verify:backend` 102 断言 0 失败；
+  `npm run verify` 全链 0 失败；`verify:errors` **43 个错误码**双向对账通过（分母棘轮 42→43 已同步）；
+  `verify:env` / `verify:docs` / `verify:governance`（facts `functions` 27→28）全绿。
+
+- **接入前提（未做，别读成已启用）**：需在 Pages → Settings → Variables and Secrets 配
+  `TURNSTILE_SECRET`；前端需挂 `cf-turnstile` 组件并把 token 作为 `payload.captchaToken` 随请求发送。
+  本提交只做服务端校验腿 —— **前端未挂组件、secret 未配置时本改动等价于无操作**（放行路径）。
+
 ### 2026-10-22 打印页改为「先探测再导航」，静态托管入口不再落进死页
 
 - **一手实测**：同源接管上线后在顾客端主机跑了一遍，页面确实不再跳外域（微信拦截页消失），

@@ -15,6 +15,7 @@ export type ErrorKind = (typeof ERROR_KINDS)[number]
 /** errorCode -> kind。与 functions/lib/errors.js 的 ERRORS 一一对应（契约测试判等）。 */
 export const SERVER_ERROR_KIND: Record<string, ErrorKind> = {
   invalid_json: 'input',
+  captcha_failed: 'input',
   invalid_params: 'input',
   missing_order_id: 'input',
   missing_product_id: 'input',

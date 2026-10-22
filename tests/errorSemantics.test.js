@@ -55,8 +55,9 @@ describe('E3 登记册：解析与双向差分', () => {
   // 分母 35 → 38：第五十六轮 E7 库存域新增 invalid_delta / invalid_kind / stock_untracked
   // 分母 38 → 41：2026-10-07 新增打印域 print_storage_unavailable / print_file_too_large / print_file_type_denied
   // 分母 41 → 42：2026-10-22 起送门槛新增 below_min_delivery（state/409/false）
-    it('正向：真仓登记册零差异，分母由表自身给出（42 行）', () => {
-    expect(rows.size).toBe(42)
+  // 分母 42 → 43：2026-10-22 Turnstile 人机验证新增 captcha_failed（input/400/retryable=true）
+    it('正向：真仓登记册零差异，分母由表自身给出（43 行）', () => {
+    expect(rows.size).toBe(43)
     expect(diffRegistry(DECLARED, ERRORS, rows)).toEqual({ miss: [], extra: [], mismatch: [], stub: [] })
   })
   it('反例 a：文档少一行 ⇒ miss 点名', () => {
