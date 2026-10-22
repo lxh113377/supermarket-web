@@ -281,8 +281,10 @@ jobs:
   # 现在的形态：需要先后顺序 ⇒ 用 needs（GitHub 原生的 DAG 语义），不用 concurrency（互斥语义）。
   browser-install:
     runs-on: ubuntu-latest
-    # 冷下载实测 13m45s（run 37677572509 的 visual 那一路），加 npm ci 与重试预算 ⇒ 20 分钟。
-    timeout-minutes: 20
+    # 冷下载实测 13m45s（run 37677572509 的 visual 那一路）。2026-10-22 起抬到 40 分钟：
+    # ci-install-browser.sh 的预算改为最坏 2 次 x (900s 安装 + 180s 等锁) = 36min，
+    # 留 4min 给 checkout/npm ci/缓存恢复。低于 36 会被平台判 cancelled ⇒ 零归因（G-72-1 反对的形态）。
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -303,10 +305,11 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
-    # 见 gates 的 G-72-1 注：本 job 实测 57s / 97s / 107s（三次成功 run），
-    # 冷缓存那次仅 Install Chromium 就花了 13m45s ⇒ 25 分钟能容下一次冷下载 + 重试，
-    # 仍远低于 6 小时（原事故里本 job 卡在同一步 6h00m25s 被 cancelled）。
-    timeout-minutes: 25
+    # 见 gates 的 G-72-1 注：本 job 实测 57s / 97s / 107s（三次成功 run）。
+    # 2026-10-22 抬到 40 分钟：本 job 也跑 ci-install-browser.sh（缓存未命中时是真下载），
+    # 脚本预算 = 2 x (900s + 180s 等锁) = 36min ⇒ 25 分钟会在安装中途被 cancelled。
+    # 抬上限不等于放宽判据：快红仍由脚本自己的 timeout 负责（实测腿3：6s 内就 rc=1）。
+    timeout-minutes: 40
     # 第七十三轮 I-73-1：不再与本 workflow 的兄弟 job 共用 concurrency 组（理由见 browser-install 的注）；
     # 改成 needs 那个唯一的预热 job ⇒ 冷下载只发生一次，且发生在一个不会互相挤掉的位置。
     needs: [browser-install]
@@ -360,9 +363,10 @@ jobs:
   # 回滚（若本 job 误拦部署）：把下面 deploy 的 needs 里被移走的深门禁加回来即可退回非阻断。
   e2e-cloud-stub:
     runs-on: ubuntu-latest
-    # 见 gates / e2e 的 G-72-1 注：本 job 实测 84s / 124s / 169s，另含一次 build:stub ⇒ 25 分钟。
-    # 原事故里本 job 的 Install Chromium 挂了 6h00m13s。
-    timeout-minutes: 25
+    # 见 gates / e2e 的 G-72-1 注：本 job 实测 84s / 124s / 169s，另含一次 build:stub。
+    # 原事故里本 job 的 Install Chromium 挂了 6h00m13s。2026-10-22 随脚本预算抬到 40 分钟
+    # （脚本最坏 2 x (900s + 180s 等锁) = 36min，见 browser-install 的注）。
+    timeout-minutes: 40
     # 与 e2e / visual 一样只从 browser-install 预热好的缓存恢复浏览器（第七十三轮 I-73-1，理由见该 job 的注）。
     needs: [browser-install]
     steps:
@@ -407,8 +411,8 @@ jobs:
   visual:
     runs-on: ubuntu-latest
     # 见 gates / e2e 的 G-72-1 注：本 job 实测 54s / 59s / 73s，但冷缓存那次仅
-    # Install Chromium 就 13m45s ⇒ 20 分钟。
-    timeout-minutes: 20
+    # Install Chromium 就 13m45s。2026-10-22 随脚本预算抬到 40 分钟（同 browser-install 的注）。
+    timeout-minutes: 40
     # 与 e2e / e2e-cloud-stub 一样只从 browser-install 预热好的缓存恢复浏览器（第七十三轮 I-73-1）。
     needs: [browser-install]
     steps:
