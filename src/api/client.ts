@@ -9,7 +9,6 @@
 // 后端 security.js 仍是唯一白名单信任边界（/pub 对非公开 action 兜底拒绝）。
 
 import type { ApiResult } from '../types'
-import { getCaptchaToken, isCaptchaAction } from '../utils/turnstile'
 
 const ADMIN_KEY_STORAGE = 'sm_admin_key'
 
@@ -91,16 +90,10 @@ export async function adminCall<T = unknown>(action: string, payload: Record<str
 
 // 公开接口（顾客端免密钥，走 /pub 端点）
 // 公开接口（顾客端免密钥，走 /pub 端点）。
-// 2026-10-22：三个免登录写接口（createOrder/addPublicReview/createSubmission）自动附带
-// Turnstile token。**在这里统一注入而不是改每个调用方** —— 调用点有 5+ 处，散改必有漏。
-// token 取不到时传空串：后端在未配 secret / 上游异常时本就放行，两侧同向（不挡站）。
+// 2026-10-22：按用户要求移除下单等环节的人机验证（Turnstile）—— 此处不再取 token、
+// 不再注入 payload.captchaToken；防滥用只剩后端 IP 限流（rate:write:*）。
 export async function publicCall<T = unknown>(action: string, payload: Record<string, unknown> = {}, timeoutMs?: number): Promise<ApiResult<T>> {
-  let body = payload
-  if (isCaptchaAction(action)) {
-    const token = await getCaptchaToken()
-    if (token) body = { ...payload, captchaToken: token }
-  }
-  return callApi<T>(true, action, '', body, timeoutMs)
+  return callApi<T>(true, action, '', payload, timeoutMs)
 }
 
 export async function verifyAdminKey(key: string): Promise<boolean> {

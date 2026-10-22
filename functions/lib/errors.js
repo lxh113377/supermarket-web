@@ -28,8 +28,6 @@ export const ERROR_KINDS = new Set(['input', 'state', 'auth', 'quota', 'platform
 export const ERRORS = {
   // ── 协议 / 输入 ──────────────────────────────────────────────
   invalid_json: { kind: 'input', status: 400, retryable: false },
-  // 人机验证未通过（Turnstile）：属 input —— 顾客侧动作是「重试验证」，不是等一会儿原样重发
-  captcha_failed: { kind: 'input', status: 400, retryable: true },
   invalid_params: { kind: 'input', status: 400, retryable: false },
   missing_order_id: { kind: 'input', status: 400, retryable: false },
   missing_product_id: { kind: 'input', status: 400, retryable: false },

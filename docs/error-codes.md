@@ -25,7 +25,6 @@
 | errorCode | kind | HTTP | retryable | 触发条件 | 调用方该做什么 |
 |---|---|---|---|---|---|
 | invalid_json | input | 400 | false | 请求体不是合法 JSON | 修请求体；不重发 |
-| captcha_failed | input | 400 | true | Turnstile 人机验证未通过或 token 已过期（只挂 `/pub` 三个免登录写接口：createOrder / createSubmission / addPublicReview） | 重新完成人机验证、把新 token 随 `payload.captchaToken` 重发；**不是**原样重发 |
 | invalid_params | input | 400 | false | 必填参数缺失或取值非法（含 status 不在状态机内） | 修参数；不重发 |
 | missing_order_id | input | 400 | false | 未传 orderId / 订单号 | 补字段 |
 | missing_product_id | input | 400 | false | 未传 productId | 补字段 |

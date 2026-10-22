@@ -237,9 +237,6 @@ jobs:
         env:
           VITE_CB_API_BASE: https://supermarket-web.pages.dev/web
           VITE_CB_PUBLIC_API_BASE: https://supermarket-web.pages.dev/pub
-          # Turnstile sitekey（公开值，非密钥）：不注入则前端 getCaptchaToken 直接返回空串，
-          # 后端按「无 token」判 —— 两侧同向放行，等价无操作。secret 走 Pages secret 不入库。
-          VITE_TURNSTILE_SITEKEY: 0x4AAAAAAFgp4grsBDhuMqpl
 
       # 体积预算（P1-B2）：build 之后按 gzip 首屏体积卡阈值，防体积悄悄回归
       - name: Bundle size budget (gzip, first-load)

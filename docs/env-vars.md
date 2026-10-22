@@ -33,5 +33,3 @@
 安全降级形态**；反面是 medusa 的 notification 模块——provider 未启用时**写一行 FAILURE 并
 throw**，等于"没配置也改状态、也消耗重试"。这类差别此前只存在于代码里，读代码的人才看得见；
 钉进本表后，任何人（含未来的我）加变量时必须先把降级行为写清楚，门禁再核对它没被删。
-| `TURNSTILE_SECRET` | secret | Pages → Settings → Variables and Secrets（与 sitekey 一起取自 Cloudflare Turnstile 控制台或 API）；本地 `.dev.vars` | **放行并留痕**：`verifyTurnstile` 回 `not_configured`，`/pub` 三个写接口照常工作（渐进启用，防护件不得挡站；已配 secret 时才真正校验） | Turnstile 人机验证服务端密钥（只用于 `/pub` 的 createOrder / createSubmission / addPublicReview） |
-| `VITE_TURNSTILE_SITEKEY` | build | 构建环境（`.env` / CI Build step env / Pages Build 环境变量） | **空 ⇒ 前端不取 token**（`getCaptchaToken` 直接返回空串），与后端未配 secret 时同向放行，等价无操作 | Turnstile sitekey（前端公开值，可进产物；secret 仍走 Pages secret） |

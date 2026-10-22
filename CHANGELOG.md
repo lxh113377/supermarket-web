@@ -4,6 +4,30 @@
 
 ## [未发布]
 
+### 2026-10-22 按用户要求移除人机验证（Turnstile）—— 同日引入、同日拆链，下单回到零验证步骤
+
+- **触发**：用户指令「把零食下单的人机验证功能去掉」。实测取证确认它在**现网真挡**：
+  `POST /pub {createOrder}`（无 token）回 `captcha_failed / 人机验证未通过，请重试`（HTTP 400），
+  且 `wrangler pages secret list` 回 `TURNSTILE_SECRET: Value Encrypted` —— 不是"没启用的死代码"，
+  必须前后端一起拆 + 重部署才叫"去掉"。
+- **拆链**（清单来自 `captcha|turnstile|人机` 全仓 grep，逐处反向拆上一条添加记录）：
+  - 删 `functions/lib/turnstile.js`、`src/utils/turnstile.ts` 与两个专属测试
+    （`tests/turnstile.test.ts` / `tests/turnstile.frontend.test.ts`）；
+  - `functions/lib/backend.js`：去 import 与限流之后的 `verifyTurnstile` 拦截块；三个写接口的
+    数组字面量**保留**（`scripts/api-contract.mjs` 靠静态解析它抓 `publicRateLimitedWrite`，
+    上一条已记着这个坑）；限流 `rate:write:*` 原样保留 —— 去掉的是人机验证，不是防滥用；
+  - 错误码 `captcha_failed` 出码表四处同步：`functions/lib/errors.js`、`src/api/error-codes.ts`、
+    `docs/error-codes.md`（分母棘轮 43→42）、`tests/errorSemantics.test.js`；E2 双向对账对
+    「死码」同样判红，只删代码不删登记会红在门禁上；
+  - `src/api/client.ts` 的 `publicCall` 不再取 token、不再注入 `payload.captchaToken`；
+  - 环境变量退役两行：`docs/env-vars.md` 删 `TURNSTILE_SECRET` 与 `VITE_TURNSTILE_SITEKEY`
+    （verify:env 把"有行无引用"判死文档）、`.env` / `.dev.vars` 删本地值（两者 gitignore）、
+    `.github/workflows/ci.yml` Build step 删 sitekey 注入；
+  - `docs/governance/registry.json` codeFace 事实回退：functions 28→27、src 90→89。
+- **云端收尾**：`wrangler pages secret delete TURNSTILE_SECRET` + 重部 pages.dev（CI 自动）与
+  github.io（dispatch 双发）。旧产物里残留的 sitekey 无害 —— 组件与校验两侧都不存在了。
+- **边界**：上一条保留为历史；IP 限流、下单/评价/投稿的其余校验一律不动。
+
 ### 2026-10-22 打印页去掉中间跳转页与提示，并把上游经营后台一并搬入本站
 
 - **需求（老大手机截图 + 当轮原话）**：「我要打开就是打印的页面，不要跳转，不要提示」。上一版留了一块
