@@ -69,6 +69,11 @@
 - **随闸同步的台账**：`docs/governance/registry.json` 六项 facts 追上现值（verifyLegs 43→44、gateScripts 69→71、
   limitRosterRows 97→91、itemBudgets 32→30、codeFace functions 25→27 / src 96→88）与棘轮 `op-limit-rows` 绿档同笔下调；
   `docs/cli-entrypoints.md` 缺口表 +1 行；`README.md`/`HANDOFF.md` 的 vitest 文件数 137→138（三处同笔，`verify:docs` 对账）。
+- **日巡检补两条尺**（`scripts/uptime-check.mjs`，由 `uptime.yml` 消费）：④ 双端 `/print/` 可达且**标题含「校园打印」**（静态面被回退/构建产物缺失即红）；
+  ⑤ `GET /api/public/config=200`。单列⑤的理由：④只判静态面在不在，后端（本机 Node 服务 + 隧道）挂掉时页面照样 200、照样能填表，
+  但 `/api` 一律 503 ⇒ 顾客点「我已付款」也提不了单。两条措辞分开，免得半夜邮件把人引到错的方向。实测六条尺全过。
+- 另：`.oxlintrc.json` 的 `ignorePatterns` 增 `vendor/**`（上游属第三方内容，本仓 lint 不对它生效；vendor 在场时实测 357 文件 0 违规）；
+  `print-parity` 的 UNVERIFIED 出口补两行可执行修法（`sync-print.mjs --fetch` / `CAMPUSPRINT_SRC=`），不留「红了不知道下一步」。
 - **本机端到端（本轮再次实测）**：`npx vitest run --coverage` **138 文件 2044 用例全过**
   （Statements 80.82% / Branches 73.59% / Functions 76.7%，均在棘轮之上）；`print-parity` GREEN（21 件、漂移 0、三处版本同值 1.4.0）；
   `verify:governance` 12/12；`check:gate-parity` GREEN（CI step 41 ⇄ 本地形态 50，错位 0）；`verify:docs`/`check:doc-commands` 全绿。

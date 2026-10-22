@@ -208,6 +208,8 @@ function main() {
   const s = readSources(si >= 0 ? resolve(process.argv[si + 1] || '') : null)
   if (s.missing) {
     console.error('[print-parity] UNVERIFIED：取数面缺失 -- ' + s.missing + ' => 禁止把「取不到上游」折算成「一致」')
+    console.error('  修法（任一）：node scripts/sync-print.mjs --fetch（浅克隆上游到 vendor/CampusPrint-V1）；'
+      + '或 CAMPUSPRINT_SRC=<上游 frontend 目录> npm run verify:print。CI 侧由 gates 的 checkout step 保证，不需手跑。')
     process.exit(2)
   }
   const r = evaluate(s)
