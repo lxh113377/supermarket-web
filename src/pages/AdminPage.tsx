@@ -150,9 +150,23 @@ export default function AdminPage() {
       {/* 标题区 */}
       <div className="flex items-center justify-between mb-5">
         <h1 className="text-xl font-bold text-gray-900">管理后台</h1>
-        <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${IS_CLOUD ? 'bg-green-50 text-green-600 border border-green-200' : 'bg-amber-50 text-amber-600 border border-amber-200'}`}>
-          {IS_CLOUD ? '云端模式' : '本地演示'}
-        </span>
+        <div className="flex items-center gap-2">
+          {/* 打印经营后台入口：本站 /print 页 = 上游校园打印应用（自带订单工作台/优惠券/售后），
+              数据在它自己的库里，与本后台的 D1 不通 ⇒ 只能给入口，不能塞进上面的页签。
+              真路径 /admin/（静态面）与 hash 路由 #/admin（本页）不冲突。新标签打开：
+              两套登录体系（这里是 ADMIN_KEY，那边是上游管理员账号），同标签互踢会丢工作。 */}
+          <a
+            href="/admin/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-2.5 py-1 rounded-full text-xs font-medium border border-brand-200 bg-brand-50 text-brand-700"
+          >
+            打印经营后台
+          </a>
+          <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${IS_CLOUD ? 'bg-green-50 text-green-600 border border-green-200' : 'bg-amber-50 text-amber-600 border border-amber-200'}`}>
+            {IS_CLOUD ? '云端模式' : '本地演示'}
+          </span>
+        </div>
       </div>
 
       {/* 状态提示 */}
