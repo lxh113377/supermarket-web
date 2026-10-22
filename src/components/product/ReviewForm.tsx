@@ -87,7 +87,7 @@ export default function ReviewForm({ productOrder, onPublished }: { productOrder
 
   return (
     <div className="bg-white mt-2.5 p-5 animate-fade-in-up stagger-4">
-      <h3 className="section-title mb-4">写评价</h3>
+      <h2 className="section-title mb-4">写评价</h2>
       <div className="space-y-4">
         <input
           type="text"

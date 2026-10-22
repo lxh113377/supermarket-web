@@ -30,7 +30,7 @@ export default class ErrorBoundary extends React.Component<{ children: React.Rea
               <IconAlert className="w-8 h-8" />
             </div>
           </div>
-          <h2 className="text-lg font-bold mb-1">页面出了点问题</h2>
+          <h1 className="text-lg font-bold mb-1">页面出了点问题</h1>
           <p className="text-sm text-gray-500 mb-2 max-w-xs">
             {this.state.error?.message || '未知错误'}
           </p>

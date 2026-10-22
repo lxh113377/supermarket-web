@@ -133,7 +133,7 @@ export default function ReviewsTab() {
       {/* 新增表单弹出 */}
       {showForm && (
         <div className="bg-white rounded-xl shadow-sm border border-brand-200 p-4 space-y-3">
-          <h3 className="text-sm font-bold text-ink">新增评价</h3>
+          <h2 className="text-sm font-bold text-ink">新增评价</h2>
           {/* 选择商品 */}
           <select
             aria-label="选择商品"

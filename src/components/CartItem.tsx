@@ -17,7 +17,7 @@ function CartItem({ item, onAdd, onRemove, onDelete }: CartItemProps) {
   return (
     <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-gray-100/80 shadow-card transition-all duration-200">
       <div className="flex-1 min-w-0 pr-3">
-        <h3 className="text-sm font-medium text-ink leading-tight truncate">{displayName}</h3>
+        <h2 className="text-sm font-medium text-ink leading-tight truncate">{displayName}</h2>
         <p className="text-brand-700 font-bold mt-1.5">
           <span className="price-num text-sm font-bold text-brand-700"><span className="text-[0.7em] opacity-70">¥</span>{formatPrice(item.price)}</span>
         </p>

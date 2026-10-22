@@ -314,7 +314,7 @@ export default function ProductDetailPage() {
         >
           ←
         </button>
-        <h1 className="text-sm font-bold text-ink truncate">{effName}</h1>
+        <div className="min-w-0 flex-1 truncate text-sm font-bold text-ink" aria-hidden="true">{effName}</div>
       </div>
 
       <div className="flex-1 overflow-y-auto pb-28 lg:pb-10 w-full">
@@ -366,7 +366,7 @@ export default function ProductDetailPage() {
           <div className="px-4 lg:px-0">
             {/* 标题 / 价格 / 口味 */}
             <div className="bg-white lg:bg-transparent mt-2.5 lg:mt-0 p-5 lg:p-0 animate-fade-in-up stagger-1">
-              <h2 className="text-xl lg:text-2xl font-bold text-ink min-w-0 leading-snug">{effName}</h2>
+              <h1 className="text-xl lg:text-2xl font-bold text-ink min-w-0 leading-snug">{effName}</h1>
               {/* 整行保持为直接文本节点（不套 span）：拆成子元素会让按文本定位的用例读不到整串 */}
               {effSpec && (
                 <p className="text-base font-bold text-ink mt-2">口味：{effSpec}</p>
@@ -404,7 +404,7 @@ export default function ProductDetailPage() {
             {/* 商品介绍 */}
             {product.description && (
               <div className="bg-white lg:bg-transparent mt-2.5 lg:mt-6 p-5 lg:p-0 lg:border-t lg:border-gray-100 lg:pt-5 animate-fade-in-up stagger-2">
-                <h3 className="section-title mb-3">商品介绍</h3>
+                <h2 className="section-title mb-3">商品介绍</h2>
                 <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">{product.description}</p>
               </div>
             )}
@@ -476,7 +476,7 @@ export default function ProductDetailPage() {
 
             {/* 配送说明（右栏摘要；完整口径见下方「配送说明」区块） */}
             <div className="bg-white lg:bg-transparent mt-2.5 lg:mt-6 p-5 lg:p-0 lg:border-t lg:border-gray-100 lg:pt-5 animate-fade-in-up stagger-4">
-              <h3 className="section-title mb-2">配送说明</h3>
+              <h2 className="section-title mb-2">配送说明</h2>
               <ul className="text-xs text-gray-500 space-y-1.5 leading-relaxed list-disc pl-4 m-0">
                 <li>宿舍楼栋配送，下单时填写楼栋号。</li>
                 <li>商品总价不满 {formatYuan(MIN_DELIVERY_AMOUNT)} 不配送。</li>

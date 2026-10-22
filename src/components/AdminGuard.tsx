@@ -64,7 +64,7 @@ export default function AdminGuard({ children }: AdminGuardProps) {
       <div className="relative w-full max-w-sm animate-fade-in-up">
         <div className="mb-6">
           <p className="eyebrow text-gray-500">江科一站通 · 经营侧</p>
-          <h2 className="mt-2 text-display-md text-ink">管理后台</h2>
+          <h1 className="mt-2 text-display-md text-ink">管理后台</h1>
           <p className="mt-1.5 text-sm text-gray-500">请输入管理密钥以继续</p>
         </div>
 

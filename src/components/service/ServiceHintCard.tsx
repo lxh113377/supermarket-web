@@ -17,7 +17,7 @@ export default function ServiceHintCard({ hint }: { hint?: string }) {
     <div className="bg-white rounded-3xl p-5 mb-4 shadow-card border border-gray-100/80 animate-fade-in-up stagger-1">
       <div className="flex items-center gap-2 mb-3.5">
         <span className="w-6 h-6 rounded-lg bg-brand-100 flex items-center justify-center text-xs">📋</span>
-        <h3 className="text-sm font-semibold text-ink-soft">服务说明</h3>
+        <h2 className="text-sm font-semibold text-ink-soft">服务说明</h2>
       </div>
       <div className="space-y-3">
         {hintSections.map((section, sIdx) => (

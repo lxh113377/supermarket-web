@@ -131,9 +131,16 @@ function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
 
       {/* 图注区 */}
       <div className="flex flex-col flex-1 min-w-0 px-3 pt-2.5 pb-3">
-        <h3 className={`text-card-title font-semibold leading-snug tracking-tight line-clamp-2 ${disabled ? 'text-gray-500' : 'text-ink'}`}>
+        {/* 商品名不是 heading：卡片容器已是 role="button" + aria-label（完整承载名称与规格），
+            读屏进按钮时朗读的是 aria-label，卡内文本不再单独播报；但 heading 仍会进入
+            「标题列表」这个全局导航视图 —— 实测 /shop/drinks 35 个标题里 34 个是商品名，
+            对靠标题跳读的读屏用户等于没有目录。heading 表达文档结构，重复列表项名不是结构。
+            data-card-name 是给测试的稳定钩子：判据曾按字面标签名（h3）取数，本轮把分区标题
+            从 h3 归位到 h2 时它们静默取到空串，报成「目录里没有同名商品」—— 那是把选择器
+            打偏误读成业务缺陷。视觉样式一字未改，纯语义调整。 */}
+        <div data-card-name className={`text-card-title font-semibold leading-snug tracking-tight line-clamp-2 ${disabled ? 'text-gray-500' : 'text-ink'}`}>
           {product.name}
-        </h3>
+        </div>
         {/* 规格独立成行：同名商品（农夫山泉矿泉水 / 怡宝矿泉水）全靠它区分，不能缩成附注 */}
         {product.spec ? (
           <p className={`text-xs mt-1 ${disabled ? 'text-gray-500' : 'text-gray-600'}`}>{product.spec}</p>

@@ -240,7 +240,7 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
       {/* 趋势图（近 N 天 营收/订单 双轴） */}
       <div className="bg-white p-5 rounded-2xl border border-gray-100/80 shadow-card animate-fade-in-up stagger-3">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="section-title">近 {rangeDays} 天营收 / 订单趋势</h3>
+          <h2 className="section-title">近 {rangeDays} 天营收 / 订单趋势</h2>
           <button
             onClick={() => downloadCsv(buildCsv(rangeData), dateStr)}
             className="rounded-lg bg-brand-50 px-3 py-1.5 text-xs font-medium text-brand-700 transition hover:bg-brand-100 active:scale-[0.98]"
@@ -253,7 +253,7 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
 
       {/* 近 14 天评价趋势 */}
       <div className="bg-white p-5 rounded-2xl border border-gray-100/80 shadow-card animate-fade-in-up stagger-4">
-        <h3 className="section-title mb-3">近 14 天评价趋势</h3>
+        <h2 className="section-title mb-3">近 14 天评价趋势</h2>
         {hasReviews ? (
           <div ref={reviewRef} className="h-44 w-full" aria-label="近14天评价趋势图" />
         ) : (
@@ -266,7 +266,7 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
 
       {/* 毛利率：饮品/食品/日用 */}
       <div className="bg-white p-5 rounded-2xl border border-gray-100/80 shadow-card animate-fade-in-up stagger-5">
-        <h3 className="section-title mb-4">饮品/食品/日用毛利率</h3>
+        <h2 className="section-title mb-4">饮品/食品/日用毛利率</h2>
         {margin.withCostItems === 0 ? (
           <div className="text-center py-6">
             <IconBox className="w-8 h-8 mx-auto text-gray-400" />
@@ -298,7 +298,7 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
 
       {/* 分类销量占比（环形） */}
       <div className="bg-white p-5 rounded-2xl border border-gray-100/80 shadow-card animate-fade-in-up stagger-6">
-        <h3 className="section-title mb-2">分类销量占比</h3>
+        <h2 className="section-title mb-2">分类销量占比</h2>
         <div className="relative h-56 w-full">
           <div ref={pieRef} className="h-56 w-full" aria-label="饮品、食品与日用销量占比图" />
           {!pieSegments.length && (
@@ -311,7 +311,7 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
 
       {/* 销量排行 TOP10（按营收） */}
       <div className="bg-white p-5 rounded-2xl border border-gray-100/80 shadow-card animate-fade-in-up stagger-7">
-        <h3 className="section-title mb-2">商品营收 TOP10</h3>
+        <h2 className="section-title mb-2">商品营收 TOP10</h2>
         {topRevenue.length === 0 ? (
           <div className="text-center py-6">
             <IconBox className="w-8 h-8 mx-auto text-gray-400" />
@@ -325,7 +325,7 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
       {/* AI 经营建议 */}
       <div className="bg-white p-5 rounded-2xl border border-gray-100/80 shadow-card animate-fade-in-up stagger-8">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="section-title flex items-center gap-2">AI 经营建议</h3>
+          <h2 className="section-title flex items-center gap-2">AI 经营建议</h2>
           {aiStatus === 'loaded' && (
             <span className={`text-3xs px-2 py-0.5 rounded-full font-medium ${
               aiAdvice?.source === 'dify' ? 'bg-green-50 text-green-700' :

@@ -90,7 +90,7 @@ export default function CartPage() {
         >
           ←
         </button>
-        <h2 className="text-base font-bold text-ink">购物车</h2>
+        <h1 className="text-base font-bold text-ink">购物车</h1>
         <div className="flex items-center gap-2">
           {cart.items.length > 0 && (
             <button

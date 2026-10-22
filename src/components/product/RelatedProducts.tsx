@@ -30,7 +30,7 @@ export default function RelatedProducts({ current, products, limit = 8 }: Props)
   return (
     <section aria-labelledby="related-heading" className="mt-4 lg:mt-6">
       <div className="flex items-baseline justify-between gap-3 px-4 lg:px-0 mb-3">
-        <h3 id="related-heading" className="section-title">同类商品</h3>
+        <h2 id="related-heading" className="section-title">同类商品</h2>
         <span className="text-xs text-gray-500">共 {related.length} 条 · 取自真实商品目录</span>
       </div>
       <ul

@@ -60,7 +60,7 @@ export default function PaymentPage() {
         >
           ←
         </button>
-        <h2 className="text-base font-bold text-ink">选择支付方式</h2>
+        <h1 className="text-base font-bold text-ink">选择支付方式</h1>
         <span className="w-9" />
       </div>
 
@@ -141,7 +141,7 @@ export default function PaymentPage() {
       <Overlay open={showTip} onClose={() => setShowTip(false)} label="温馨提示" className="rounded-3xl p-7">
         <div className="text-center">
           <span className="text-4xl block mb-3" aria-hidden="true">💡</span>
-          <h3 className="font-bold text-ink">温馨提示</h3>
+          <h2 className="font-bold text-ink">温馨提示</h2>
           <p className="text-gray-500 text-sm mt-2.5 leading-relaxed">商家无支付宝消息提示，支付宝付款请告知商家</p>
         </div>
         <button

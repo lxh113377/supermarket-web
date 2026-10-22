@@ -71,7 +71,7 @@ export default function ReviewList({ reviews, sort, onSortChange }: {
   return (
     <div className="bg-white mt-2.5 p-5 animate-fade-in-up stagger-3">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="section-title">买家评价 ({reviews.length})</h3>
+        <h2 className="section-title">买家评价 ({reviews.length})</h2>
         <div className="flex gap-1.5">
           {[
             { key: 'newest', label: '最新' },

@@ -97,10 +97,10 @@ export default function AssistantPage() {
         >
           ←
         </button>
-        <span className="ml-2 text-sm font-semibold text-ink-soft flex items-center gap-1.5">
+        <h1 className="ml-2 flex items-center gap-1.5 text-sm font-semibold text-ink-soft">
           <IconRobot className="w-4 h-4 text-brand-700" />
           AI 导购助手
-        </span>
+        </h1>
       </div>
 
       {/* 消息区：role="log" + aria-live 让读屏在 AI 回复到达时自动播报新消息

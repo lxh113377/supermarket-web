@@ -115,7 +115,7 @@ export default function OrderConfirmPage() {
         >
           ←
         </button>
-        <h2 className="text-base font-bold text-ink">确认订单</h2>
+        <h1 className="text-base font-bold text-ink">确认订单</h1>
         <span className="w-9" />
       </div>
 
@@ -144,7 +144,7 @@ export default function OrderConfirmPage() {
 
           {/* 已选商品 */}
           <div className="bg-white rounded-2xl p-5 shadow-card border border-gray-100/80 animate-fade-in-up">
-            <h3 className="section-title mb-3">已选商品</h3>
+            <h2 className="section-title mb-3">已选商品</h2>
             <div className="space-y-2">
               {cart.items.map(item => (
                 // 行身份 = (productId, spec)：同商品两口味是两行，key 只用 productId 会撞 key

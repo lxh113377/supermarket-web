@@ -38,10 +38,10 @@ function Section({ id, title, badge, children }: {
 }) {
   return (
     <section aria-labelledby={id} className="bg-white mt-2.5 lg:mt-4 lg:rounded-2xl lg:border lg:border-gray-100/80 p-5">
-      <h3 id={id} className="section-title mb-3">
+      <h2 id={id} className="section-title mb-3">
         {title}
         {badge && <span className="ml-2"><DemoBadge /></span>}
-      </h3>
+      </h2>
       {children}
     </section>
   )

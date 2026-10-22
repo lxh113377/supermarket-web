@@ -136,7 +136,7 @@ export default function ServiceFormPage() {
           <div className="w-20 h-20 mx-auto mb-5 rounded-full bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center">
             <span className="text-4xl">✅</span>
           </div>
-          <h2 className="text-xl font-bold text-ink">提交成功</h2>
+          <h1 className="text-xl font-bold text-ink">提交成功</h1>
           <p className="text-gray-500 text-sm mt-2 leading-relaxed">请耐心等待工作人员联系<br/>通常会在30分钟内回复</p>
           <button
             onClick={() => navigate('/')}
@@ -202,7 +202,7 @@ export default function ServiceFormPage() {
         <div className="bg-white rounded-3xl p-6 shadow-card border border-gray-100/80 animate-fade-in-up stagger-2">
           <div className="flex items-center gap-2 mb-5">
             <span className="w-6 h-6 rounded-lg bg-blue-50 flex items-center justify-center text-xs">📝</span>
-            <h3 className="text-sm font-semibold text-ink-soft">填写信息</h3>
+            <h2 className="text-sm font-semibold text-ink-soft">填写信息</h2>
           </div>
 
           <div className="space-y-5">

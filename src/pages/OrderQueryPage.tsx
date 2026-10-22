@@ -49,7 +49,7 @@ export default function OrderQueryPage() {
         >
           ←
         </button>
-        <h2 className="text-base font-bold text-ink">订单查询</h2>
+        <h1 className="text-base font-bold text-ink">订单查询</h1>
         <span className="w-9" />
       </div>
 

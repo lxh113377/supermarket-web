@@ -55,7 +55,7 @@ async function open(page: import('@playwright/test').Page, order: number, vp = D
 test('桌面 1440：主图在左、购买信息在右，两栏真正并排', async ({ page }) => {
   await open(page, 46)
   const g = await page.locator('[data-main-image]').boundingBox()
-  const i = await page.getByRole('heading', { level: 2, name: '白象方便面' }).boundingBox()
+  const i = await page.getByRole('heading', { level: 1, name: '白象方便面' }).boundingBox()
   expect(g && i).toBeTruthy()
   // 信息栏起点在主图右半之外 ⇒ 确实并排而非堆叠
   expect(i!.x).toBeGreaterThan(g!.x + g!.width * 0.6)
@@ -130,14 +130,22 @@ test('左栏卡片不被网格拉伸，主图下方不留大片空白', async ({
 test('暖白底 + 近黑字，正文对比度过 AA', async ({ page }) => {
   await open(page, 16)
   const c = await page.evaluate(() => {
-    const h2 = document.querySelector('h2')!
-    const card = h2.closest('div')!
+    // 按语义定位商品主标题（本轮起每页恰好一个 h1 = 该页主标题）；
+    // 旧写法取 h2 且用 ! 断言，标题级别一变就崩成 TypeError，读不出"是没找到"还是"找到了但不对"。
+    const h1 = document.querySelector('h1')
+    if (!h1) return { error: 'detail 页没有 h1 主标题（每页应恰好一个 h1）' }
+    const card = h1.closest('div')
+    if (!card) return { error: 'h1 外面没有 div 容器，卡片背景无从量起' }
+    const pageBg = document.querySelector('.bg-surface')
+    if (!pageBg) return { error: '找不到 .bg-surface 页底' }
     return {
-      fg: getComputedStyle(h2).color,
+      fg: getComputedStyle(h1).color,
       cardBg: getComputedStyle(card).backgroundColor,
-      pageBg: getComputedStyle(document.querySelector('.bg-surface')!).backgroundColor,
+      pageBg: getComputedStyle(pageBg).backgroundColor,
     }
   })
+  // 先判"取数是否成功"，再判颜色对不对 —— 否则空集会一路走到断言里报成别的错
+  expect((c as { error?: string }).error, '取数失败').toBeFalsy()
   expect(c.fg).toBe('rgb(28, 25, 23)') // ink #1c1917，暖黑主文字色
   expect(c.pageBg).toBe('rgb(250, 250, 249)') // 暖白页底
   expect(c.cardBg).toBe('rgba(0, 0, 0, 0)') // 桌面右栏透出暖白底
@@ -188,7 +196,7 @@ test('平板 768 与手机 390：重排为单列（主图在上、信息在下�
   for (const vp of [TABLET, MOBILE]) {
     await open(page, 16, vp)
     const g = await page.locator('[data-main-image]').boundingBox()
-    const i = await page.getByRole('heading', { level: 2, name: '盒装东鹏特饮' }).boundingBox()
+    const i = await page.getByRole('heading', { level: 1, name: '盒装东鹏特饮' }).boundingBox()
     expect(i!.y).toBeGreaterThan(g!.y + g!.height - 60)
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth)
@@ -413,11 +421,19 @@ test('同名商品靠独立规格行可区分（规格不得退回品名括号�
   const rows = await page.evaluate(() => {
     const cards = [...document.querySelectorAll('[role="button"][aria-label^="查看"]')]
     return cards.map((el) => {
-      const h = el.querySelector('h3')
+      // 取数走 [data-card-name] 稳定钩子，不按标签名：商品名一度是 h3，本轮归位到 h2，
+      // 又因「卡片容器已是 role=button + aria-label，卡内名不该进标题列表」降为 div ——
+      // 三次改动里任何一次按字面标签名取数都会静默拿到空串，再报成「目录里没有同名商品」，
+      // 那是把选择器打偏误读成业务缺陷，比直接崩更难查。
+      const h = el.querySelector('[data-card-name]')
       const spec = h ? h.nextElementSibling : null
       return { name: h?.textContent?.trim() ?? '', spec: spec?.textContent?.trim() ?? '' }
     })
   })
+  // 先确认取数面本身是好的：卡片有渲染但一张都没取到标题 ⇒ 选择器打偏，不是目录变了
+  const cards = await page.locator('[role="button"][aria-label^="查看"]').count()
+  expect(cards, '商城卡片一张都没渲染 ⇒ 页面没起来').toBeGreaterThan(0)
+  expect(rows.filter((r) => r.name).length, cards + ' 张卡里没有一个取到标题 ⇒ heading 选择器打偏（不是目录缺商品）').toBeGreaterThan(0)
   const dupes = rows.filter((r) => r.name === '农夫山泉矿泉水')
   expect(dupes.length, '本地目录里应有两条同名农夫山泉').toBeGreaterThanOrEqual(2)
   expect(new Set(dupes.map((d) => d.spec)).size).toBe(dupes.length) // 规格两两不同
@@ -463,7 +479,7 @@ test('口味比周边微文案更抢眼（轴标题字重 + 品牌色角标 + �
   const badges = await page.evaluate(() => {
     const cards = [...document.querySelectorAll('[role="button"][aria-label^="查看"]')]
     return cards.map((el) => {
-      const name = el.querySelector('h3')?.textContent?.trim() ?? ''
+      const name = el.querySelector('[data-card-name]')?.textContent?.trim() ?? ''
       const b = [...el.querySelectorAll('span')].find((x) => /种口味/.test(x.textContent ?? ''))
       return {
         name,
