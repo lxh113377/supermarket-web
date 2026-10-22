@@ -159,7 +159,7 @@ export default function ReviewsTab() {
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
           />
           {/* 评分：radiogroup 语义，读屏能播报「已选 N 星」 */}
-          <div className="flex items-center gap-2" role="radiogroup" aria-label="评分">
+          <div className="flex items-center" role="radiogroup" aria-label="评分">
             <span className="text-sm text-gray-600" aria-hidden="true">评分：</span>
             {[1,2,3,4,5].map(n => (
               <button
@@ -168,7 +168,7 @@ export default function ReviewsTab() {
                 role="radio"
                 aria-checked={formRating === n}
                 aria-label={`${n}星`}
-                className={`p-1 text-2xl ${n <= formRating ? 'text-amber-600' : 'text-gray-500'}`}
+                className={`flex h-11 w-11 items-center justify-center text-2xl ${n <= formRating ? 'text-amber-600' : 'text-gray-500'}`}
               >
                 <span aria-hidden="true">★</span>
               </button>

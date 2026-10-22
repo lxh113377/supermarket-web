@@ -100,7 +100,12 @@ export default function ReviewForm({ productOrder, onPublished }: { productOrder
         />
         <div className="flex items-center gap-3">
           <span className="text-sm text-gray-500" id="review-rating-label">评分</span>
-          <div className="flex gap-1" role="radiogroup" aria-labelledby="review-rating-label">
+          {/* 触控目标（2026-10-23）：原先按钮布局盒只有 19x32、相邻间距 2~4px，
+              按 WCAG 2.5.8 的 spacing 例外要"以中心画 24x24 方框不重叠"⇒ 需横向各扩
+              2.5px，而实际间距小于它 ⇒ 例外不成立，是真违规（微信内单手写评价会误触）。
+              修法用真实内边距撑到 44x44（Apple HIG），而不是 .tap-44 伪元素外扩 ——
+              外扩需要相邻 ≥25px 间距才不误触，这里给不出来。 */}
+          <div className="flex" role="radiogroup" aria-labelledby="review-rating-label">
             {[1, 2, 3, 4, 5].map((n) => (
               <button
                 key={n}
@@ -108,7 +113,7 @@ export default function ReviewForm({ productOrder, onPublished }: { productOrder
                 aria-checked={rating === n}
                 aria-label={`${n}星`}
                 onClick={() => setRating(n)}
-                className={`text-2xl transition-all duration-150 ${n <= rating ? 'text-amber-600 scale-110' : 'text-gray-500 hover:text-amber-500 hover:scale-105'}`}
+                className={`flex h-11 w-11 items-center justify-center text-2xl transition-colors duration-150 ${n <= rating ? 'text-amber-600' : 'text-gray-500 hover:text-amber-500'}`}
               >
                 ★
               </button>
