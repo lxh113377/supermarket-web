@@ -216,16 +216,27 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN`（repo �
    `https://supermarket-web.pages.dev/admin/#dashboard` 打开即是「校园打印 · 经营后台」，
    未登录时正确显示管理员登录框（`/api/auth/me` 回 401 = 鉴权在工作）。
    待做：超市后台里加一处指向 `/admin/` 的入口（现在是两个后台并存，靠地址栏进）。
-8. **微信顾客端无法打印下单（结构性；卡点=域名资质，不是代码缺陷）** — 权威口径见 `chaoshi-web-deploy`
-   skill §1：`lxh113377.github.io` 是**唯一微信入口**，`pages.dev` 微信不认。而 GitHub Pages 是纯静态托管、
+8. **微信顾客端无法打印下单（一手实测已定位到域名层，但根因待一次手机实测收敛）** —
+   **实测成立的部分**（2026-10-22 两端浏览器级跑）：GitHub Pages 纯静态托管
    **跑不了 Pages Functions** ⇒ 本站 `/api` 同源反代在那个域名上必然 404（2026-10-22 两端浏览器级实测：
    pages.dev 上 7 个接口全 200、可上传可报价；github.io 上 `/api/public/config` 与 `/api/auth/me` 全 404）。
-   想"跨域借 pages.dev 的后端"也不成立：校园打印的会话是 `httpOnly` + `SameSite=Lax` Cookie
-   （上游 `backend/auth.js:37`），跨域请求带不出 Cookie ⇒ 登录态与 CSRF 必断。
-   **唯一根治 = 一个既被微信认可、又能跑 Functions 的域名**（自有域名挂到 Cloudflare Pages 自定义域名；
-   微信侧通常还要求 ICP 备案）。这属外部资质/费用缺口，Agent 无法代办购买与备案，故按规矩落此待办：
-   卡点=域名与备案；证据=上述两端实测状态码；下一步=老大备好域名后把顾客端迁到该域名，
-   `/print` 与 `/api` 即同源全功能可用（**本站代码无需改动**，只换发布目标）。
+   （pages.dev 上 `/print` 7 个接口全 200、可上传可报价；github.io 上 `/api/public/config` 与
+   `/api/auth/me` 全 404 —— 后者是静态托管没有 Functions，必然结果）。想"跨域借 pages.dev 的后端"
+   也不成立：校园打印的会话是 `httpOnly` + `SameSite=Lax` Cookie（上游 `backend/auth.js:37`），
+   跨域请求带不出 Cookie ⇒ 登录态与 CSRF 必断。
+   **未实测、仅继承自 `chaoshi-web-deploy` skill §1 的部分**：该处写 github.io 是"唯一微信入口"，
+   但没留一手证据说明 pages.dev 在微信里到底是被拦、还是只是当年没备案所以没用它。老大截图里
+   那次拦截是**脚本触发的跨域导航**（github.io → pages.dev）所致，这并不等于"直接在微信打开
+   pages.dev 也会被拦"。两种可能的处置差别极大，故记明待验：
+   ① 若直接在微信里打开 `https://supermarket-web.pages.dev/print/` 能正常用 ⇒ 零成本解法，
+      把群公告/菜单链接换成它即可，**本站代码一行都不用改**（打印在该域名已实测可用）；
+   ② 若仍被拦 ⇒ 才需要"既被微信认可又能跑 Functions 的域名"（自定义域名 + 通常需 ICP 备案）。
+   另有一层**已实测确认**的独立短板：`/api` 反代的目标（打印应用自己的 Node 后端）目前跑在
+   这台笔记本 + Cloudflare 快速隧道上，隧道一断线上打印即 503（换址自愈 = `npm run print:tunnel`）。
+   它依赖原生模块 `sharp` / `@napi-rs/canvas` / `node:sqlite`（上游 `backend/files/worker.js:7-9`），
+   Workers 跑不了 ⇒ 要彻底不靠笔记本，需要一个能跑 Node 的服务器（或把文件渲染单独拆出去）。
+   卡点=服务器与域名资质（外部费用项，Agent 无法代办购买/备案）；证据=上述两端状态码与依赖行号；
+   下一步=先做上面 ① 的手机实测（零成本，可能当场解决微信侧问题），再定是否需要服务器。
 
 ***
 
