@@ -163,7 +163,7 @@ export default function AdminPage() {
           >
             打印经营后台
           </a>
-          <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${IS_CLOUD ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+          <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${IS_CLOUD ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-800 border border-amber-200'}`}>
             {IS_CLOUD ? '云端模式' : '本地演示'}
           </span>
         </div>
@@ -171,7 +171,7 @@ export default function AdminPage() {
 
       {/* 状态提示 */}
       {!IS_CLOUD && (
-        <div className="mb-5 bg-amber-50/80 border border-amber-200/60 text-amber-700 text-xs rounded-2xl p-4 animate-slide-down">
+        <div className="mb-5 bg-amber-50/80 border border-amber-200/60 text-amber-800 text-xs rounded-2xl p-4 animate-slide-down">
           当前为<strong>本地演示模式</strong>，数据仅保存在浏览器中
         </div>
       )}

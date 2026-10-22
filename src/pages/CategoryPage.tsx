@@ -61,7 +61,7 @@ export default function CategoryPage() {
       {!open && (
         <div className="mx-5 -mt-6 relative z-10 max-w-lg md:mx-auto animate-fade-in-up stagger-1">
           <div className="bg-amber-50/95 backdrop-blur-sm border border-amber-200/80 rounded-2xl p-3.5 shadow-card">
-            <p className="text-amber-700 text-xs flex items-center gap-2">
+            <p className="text-amber-800 text-xs flex items-center gap-2">
               <span>⚠️</span> {getClosedMessage()}
             </p>
           </div>

@@ -306,14 +306,14 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
               {staleOpen ? '收起' : '展开'}超时未确认订单 {stale.count} 单（超过 {stale.thresholdMinutes} 分钟）
               {stale.stockReserved.length > 0 && ` · 占用有限库存 ${stale.stockReserved.reduce((s, x) => s + x.reserved, 0)} 件`}
             </button>
-            <button onClick={() => void loadStale()} disabled={staleLoading} className="text-xs text-amber-700 px-2 py-1 rounded border border-amber-200 disabled:opacity-50">
+            <button onClick={() => void loadStale()} disabled={staleLoading} className="text-xs text-amber-800 px-2 py-1 rounded border border-amber-200 disabled:opacity-50">
               {staleLoading ? '刷新中' : '刷新'}
             </button>
           </div>
           {staleOpen && (
             <div className="mt-2 space-y-1.5">
               {stale.stockReserved.length > 0 && (
-                <p className="text-[11px] text-amber-700">
+                <p className="text-[11px] text-amber-800">
                   占用明细：{stale.stockReserved.map((x) => `${x.name}×${x.reserved}`).join('、')}
                 </p>
               )}

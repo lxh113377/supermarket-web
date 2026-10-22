@@ -85,7 +85,7 @@ export default function DemoOrderSummary({
           <p>
             {/* 起送金额是**真实商家规矩**（2026-10-22 立规），演示摘要也必须如实说，
                 否则用户在演示里以为小额能送、真下单被拦。数字与下单守卫同值。 */}
-            起送门槛：商品总价不满 {formatYuan(MIN_DELIVERY_AMOUNT)} <strong className="text-amber-700">不配送</strong>（真实规则）；
+            起送门槛：商品总价不满 {formatYuan(MIN_DELIVERY_AMOUNT)} <strong className="text-amber-800">不配送</strong>（真实规则）；
             本摘要合计 {formatYuan(total)}{total < MIN_DELIVERY_AMOUNT ? '，尚未达门槛' : '，已达门槛'}。
           </p>
           <p>配送范围与取货点为演示文案，实际以商家群内约定为准。</p>

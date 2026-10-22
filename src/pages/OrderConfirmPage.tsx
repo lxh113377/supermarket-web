@@ -135,7 +135,7 @@ export default function OrderConfirmPage() {
               <p className="text-amber-800 text-sm font-semibold flex items-center gap-2">
                 <span aria-hidden="true">🛵</span>不满 {formatYuan(MIN_DELIVERY_AMOUNT)} 不配送
               </p>
-              <p className="text-amber-700 text-xs mt-1.5 leading-relaxed">
+              <p className="text-amber-800 text-xs mt-1.5 leading-relaxed">
                 当前商品合计 {formatYuan(totalAmount)}，还差 {formatYuan(minDeliveryGap(totalAmount))} 起送。
                 返回购物车加几件即可下单。
               </p>

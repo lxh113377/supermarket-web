@@ -35,6 +35,24 @@ interface RouteSpec {
   route: string
   vp?: typeof VIEWPORT
   prepare?: (page: import('@playwright/test').Page) => Promise<void>
+  /**
+   * 钉死页面看到的"当前时间"（ISO 串，含 +08:00 偏移）。
+   *
+   * 为什么必须有：营业时间只认 new Date()（工作日 17:37–23:00 营业），
+   * 而"非营业时间"那条琥珀提示**只在打烊后渲染**。不钉时间的话，
+   * 白天跑 CI 就永远扫不到它 —— 本轮实测正是这样漏掉一个真缺陷：
+   * text-amber-700 压 bg-amber-50/95 实测 4.44:1，差 0.06 不过 AA，
+   * 只在 23:00 之后跑才暴露。一个"看运气才生效"的判据等于没有判据。
+   * 所以这里成对钉两个时刻：营业中 / 已打烊，两种状态各扫一遍。
+   */
+  clock?: string
+  /**
+   * 该路由态下**必须出现**的文案（子串匹配）。
+   * 为什么必须有：钉了打烊时刻，但若因为某种原因提示根本没渲染，
+   * 对比度扫描就会"没东西可扫 ⇒ 零违规 ⇒ 通过"—— 空集读成通过，
+   * 本仓明令禁止的假绿形态。这条断言把"状态确实渲染了"变成前置条件。
+   */
+  expectText?: string
 }
 
 /** 走查面：顾客端主要路由 + 需要交互才出内容的两个态（满车、搜索展开） */
@@ -51,6 +69,11 @@ const ROUTES: RouteSpec[] = [
   { name: 'not-found', route: '/#/definitely-not-a-page' },
   { name: 'admin-login', route: '/#/admin' },
   { name: 'home-mobile', route: '/#/', vp: MOBILE },
+  // 周四 19:00（营业中）与周四 03:00（已打烊）成对钉死：
+  // 打烊态才有"非营业时间"提示与"仍要下单"分支，必须也过 AA。
+  { name: 'home-open-pinned', route: '/#/', clock: '2026-10-22T19:00:00+08:00', expectText: '营业中' },
+  { name: 'home-closed-pinned', route: '/#/', clock: '2026-10-22T03:00:00+08:00', expectText: '非营业时间' },
+  { name: 'category-life-closed', route: '/#/category/life', clock: '2026-10-22T03:00:00+08:00', expectText: '非营业时间' },
   { name: 'shop-mobile', route: '/#/shop', vp: MOBILE },
   {
     name: 'cart-filled',
@@ -195,12 +218,36 @@ async function auditPage(page: import('@playwright/test').Page): Promise<{ check
 for (const r of ROUTES) {
   test(r.name + '：承载信息的文字全部过 WCAG AA', async ({ page }) => {
     await page.setViewportSize(r.vp || VIEWPORT)
+    if (r.clock) {
+      // 覆盖 Date 而不是改业务代码：判据测的是"页面在某个时刻长什么样"，
+      // 为此在生产代码里留一个测试开关是本末倒置。
+      const fixed = Date.parse(r.clock)
+      await page.addInitScript((ms) => {
+        const Real = Date
+        class FakeDate extends Real {
+          constructor(...args: any[]) {
+            if (args.length === 0) super(ms)
+            // @ts-expect-error 透传给原生 Date 构造器
+            else super(...args)
+          }
+          static now() { return ms }
+        }
+        // @ts-expect-error 有意替换全局 Date
+        window.Date = FakeDate
+      }, fixed)
+    }
     if (r.prepare) {
       await page.goto(r.route)
       await r.prepare(page)
     } else {
       await page.goto(r.route)
       await page.waitForTimeout(900)
+    }
+    if (r.expectText) {
+      // 前置条件：这个态特有的内容必须真的在屏上（否则后面的"零违规"是空集假绿）
+      await expect(page.getByText(r.expectText).first(),
+        r.name + ' 钉的时刻下应当出现「' + r.expectText + '」，没出现 ⇒ 本用例扫的是错的状态')
+        .toBeVisible({ timeout: 8000 })
     }
     const res = await auditPage(page)
     // 防空集：一个含字元素都没扫到 ⇒ 页面根本没渲染，此时"零违规"是假的。
@@ -218,6 +265,14 @@ for (const r of ROUTES) {
 /**
  * 自证（成对判据的负向那一半）：注入一个已知不合格的形态，断言本件必须报红。
  * 首版正是靠这条抓到"漏 drawImage ⇒ 全站假绿"。
+ *
+ * 另一次实测教训（记在这里，免得下一个人误判判据失效）：验判据灵敏度时
+ * 变异必须打在**被判据覆盖的那一处**。本轮把 text-amber-800 退回 700 时先改了
+ * HomePage，判据不报 —— 一度误判"判据是空的"；实测两个页面的合成底色根本不同：
+ *   首页提示压在 bg-amber-50/95 卡上 ⇒ amber-700 实测 4.85:1（本来就合格，不该报）；
+ *   分类页提示压在深绿头部上 ⇒ amber-700 实测 4.44:1（真违规，判据如实报红）。
+ * 变异改到分类页后判据立刻报出 4.44:1 并点名元素 —— 灵敏度没问题，是变异打错了地方。
+ * 同一色值在不同底上就是不同结论，这正是"量渲染像素而不是读源码"的价值。
  */
 test('判据自证：注入已知 1.92:1 的白字压柿子黄，必须被报出来', async ({ page }) => {
   await page.setViewportSize(VIEWPORT)

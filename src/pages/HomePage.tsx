@@ -59,7 +59,7 @@ export default function HomePage() {
     <div className="page-container paper-grain">
       {/* ── 封面：柿色场 + 墨字，右下角切角破掉四方形 ── */}
       <header
-        className="cover-clip relative overflow-hidden px-6 pb-12 pt-7 sm:px-10"
+        className={`cover-clip relative overflow-hidden px-6 pt-7 sm:px-10 ${open ? 'pb-12' : 'pb-20'}`}
         style={{ background: 'linear-gradient(155deg, #fde047 0%, #eab308 62%, #ca8a04 100%)' }}
       >
         {/* 顶部品牌色带：黄→橙→深绿，站点视觉链路的唯一真相源（纯装饰，不承载文字） */}
@@ -142,7 +142,7 @@ export default function HomePage() {
               <span className="mt-0.5 text-lg" aria-hidden="true">⚠️</span>
               <div>
                 <p className="text-sm font-semibold text-amber-800">非营业时间</p>
-                <p className="mt-1 text-xs leading-relaxed text-amber-700">{getClosedMessage()}</p>
+                <p className="mt-1 text-xs leading-relaxed text-amber-800">{getClosedMessage()}</p>
               </div>
             </div>
           </div>

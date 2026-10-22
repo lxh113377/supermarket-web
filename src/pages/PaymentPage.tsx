@@ -109,7 +109,7 @@ export default function PaymentPage() {
                 <p className="text-xs text-green-700 mb-1.5" role="status">满减已优惠 {formatYuan(discountAmount)}</p>
               )}
               <div className="w-full bg-amber-50 border border-amber-200/80 rounded-xl px-3 py-2 mb-2">
-                <p className="text-amber-700 text-xs font-medium">
+                <p className="text-amber-800 text-xs font-medium">
                   <span aria-hidden="true">⚠️</span> 请截图扫码付款，付款后联系商家进行配送
                 </p>
               </div>

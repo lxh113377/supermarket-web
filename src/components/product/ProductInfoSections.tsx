@@ -103,12 +103,12 @@ export default function ProductInfoSections({ product, categories, combo }: Prop
           <li>营业时间：{getBusinessHoursText()}</li>
           <li>
             当前状态：
-            <span className={open ? 'text-green-700 font-medium' : 'text-amber-700 font-medium'}>
+            <span className={open ? 'text-green-700 font-medium' : 'text-amber-800 font-medium'}>
               {open ? '营业时间内，可正常下单' : '非营业时间，需先在群内与商家确认'}
             </span>
           </li>
           <li>收货信息：下单时填写宿舍楼栋（订单字段「楼栋号」），配送范围以学校内宿舍楼为准。</li>
-          <li>起送金额：商品总价不满 {formatYuan(MIN_DELIVERY_AMOUNT)} <strong className="text-amber-700">不配送</strong>，凑满即可正常下单。</li>
+          <li>起送金额：商品总价不满 {formatYuan(MIN_DELIVERY_AMOUNT)} <strong className="text-amber-800">不配送</strong>，凑满即可正常下单。</li>
           <li>配送时长：目录未提供该数据，实际以商家群内约定为准，此处不给具体数字。</li>
         </ul>
       </Section>
