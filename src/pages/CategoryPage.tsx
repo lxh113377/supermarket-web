@@ -14,7 +14,7 @@ export default function CategoryPage() {
     if (service.type === 'supermarket') {
       navigate('/shop', { state: { fromCategory: true } })
     } else if (service.type === 'print') {
-      // 打印是独立沉浸式页面（3D 实景导航），不走通用表单页
+      // 打印走 /print（该页即校园打印应用本身，同源接管整页），不走通用表单页
       navigate('/print')
     } else {
       navigate(`/service/${service.id}`)

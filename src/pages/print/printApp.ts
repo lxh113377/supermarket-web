@@ -1,22 +1,22 @@
-// 打印页 = 校园打印（CampusPrint-V1）应用本身：本页现在整体由该应用承担，
-// 本站只保留「把浏览器送到那个页面」这一层。仓库 k01055119509-lang/CampusPrint-V1。
+// 打印页 = 校园打印（CampusPrint-V1）应用本身，**同源就地提供**：本站不再有自建打印页，
+// 也不再往任何外部域名跳。仓库 k01055119509-lang/CampusPrint-V1。
 //
-// 落地形态（2026-10-21）：
-//   · 该应用的学生端静态面（frontend/shared/** + frontend/user/**）原样落在本站 public/ 下
-//     —— /shared/**、/user/** 的绝对路径因此原封不动可用，页面在 **/print/** 打开；
-//   · 它的 /api 由本站同源反代（dev = vite.config.js 的 proxy；线上 = functions/api/[[path]].js）。
+// 落地形态：
+//   · 该应用的学生端静态面（frontend/shared/** + frontend/user/**）原样落在本站 public/ 下，
+//     入口页 = public/print/index.html（内容一字未改，只归一行尾；由 scripts/print-parity.mjs 逐文件对账）；
+//   · 它的 /api 由本站同源反代（dev/preview = vite.config.js 的 proxy；线上 = functions/api/[[path]].js）。
 //
-// 为什么必须同源反代、不能直接跳去它自己的域名：
-//   它的服务端有两道同源守卫（backend/app.js 实测）：Origin 必须等于它自己的 PUBLIC_ORIGIN、
-//   且 Sec-Fetch-Site 不得是 cross-site —— 从本站点过去的任何跨站导航/请求会被 403
-//   （实测：直跳 127.0.0.1:4328 拿到 {"code":"FORBIDDEN_ORIGIN"}）。同源反代把这两个头归一化后
-//   它才肯服务（dev 代理与 Pages Function 都做同一件事）。
+// 为什么绝不做跨域跳转（2026-10-22 一手事故）：顾客端在微信内打开，
+//   从 lxh113377.github.io 自动跳到 supermarket-web.pages.dev 会命中微信的
+//   「即将前往以下网址，无法确认本次跳转是否安全」拦截页 —— 用户看到的是白屏 + 一个
+//   「申请恢复访问」，等于打印功能对微信用户直接消失。跳转本身还是二次导航，
+//   把已经加载好的应用换成一次网络往返。所以这一层的唯一正确形态是**同源路径**。
 //
-// 顾客端（github.io）没有 Pages Functions ⇒ /api 无从代理，故那边显式指向 Pages 部署。
-// 三个地址都只是"默认值"，构建期可用 VITE_CAMPUS_PRINT_URL 覆盖（见 docs/env-vars.md）。
+// 地址只允许同源路径（或构建期显式配一个同源子路径）。不给 http(s) 外部域名留后门：
+//   那正是上面那条事故的入口。
 
-/** 本机与 Pages 部署的内置入口：同源静态面 + 直达打印下单视图。 */
-export const DEFAULT_CAMPUS_PRINT_URL = '/print/#print'
+/** 打印页的站内入口：同源静态面 + 直达打印下单视图（hash 路由由该应用自己处理）。 */
+export const CAMPUS_PRINT_PATH = '/print/#print'
 
 /**
  * 本页所承载的校园打印版本（与上游 package.json 同值）。
@@ -25,47 +25,25 @@ export const DEFAULT_CAMPUS_PRINT_URL = '/print/#print'
  */
 export const CAMPUS_PRINT_BUILD = '1.4.0'
 
-/** 顾客端（GitHub Pages 静态托管）没有 /api 反代，只能指向带 Functions 的 Pages 部署。 */
-export const PAGES_REMOTE_PRINT_URL = 'https://supermarket-web.pages.dev/print/#print'
-
-/** 静态托管、没有 Pages Functions 的顾客端主机（与 functions/lib/security.js 的默认源同源同值）。 */
-export const NO_API_PROXY_HOSTS = ['lxh113377.github.io']
-
 /**
- * 把任意外部输入（构建期 env / 运行时主机名）收敛成一个可跳转的地址。
- * 只放行 http(s) 绝对地址与以 `/` 开头的同源路径；其余一律返回 null
- * —— 宁可用默认值，也不把 `javascript:` / `data:` 这类可执行协议做成跳转目标。
+ * 把外部输入（构建期 env）收敛成**同源路径**；不是同源路径一律返回 null。
+ * 拒的三类都是真实风险：可执行协议（javascript:/data:）= XSS 出口；
+ * 协议相对（//host）与绝对 URL = 跨域导航，会再撞一次微信拦截页。
  */
-export function normalizeCampusPrintUrl(raw: unknown): string | null {
+export function normalizeCampusPrintPath(raw: unknown): string | null {
   if (typeof raw !== 'string') return null
   const value = raw.trim()
-  if (!value) return null
-  if (value.startsWith('/')) {
-    // '//host' 是协议相对地址（等于跨站），不是同源路径，直接拒。
-    if (value.startsWith('//')) return null
-    // 只给"纯路径"补结尾斜杠：带 query/hash 的路径补斜杠会把 ?x=1 变成 ?x=1/（错的）。
-    if (/[?#]/.test(value)) return value
-    return value.endsWith('/') ? value : value + '/'
-  }
-  let url: URL
-  try {
-    url = new URL(value)
-  } catch {
-    return null
-  }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
-  // URL 自己已把空路径补成 '/'（https://a → https://a/），这里不再手工拼接，
-  // 免得把 https://a/path?x=1 拼成 ...?x=1/。
-  return url.href
+  if (!value || !value.startsWith('/')) return null
+  // '//host' 是协议相对地址（等于跨域），不是同源路径。
+  if (value.startsWith('//')) return null
+  // 只给「纯路径」补结尾斜杠：带 query/hash 的补斜杠会把 ?x=1 变成 ?x=1/（错的）。
+  if (/[?#]/.test(value)) return value
+  return value.endsWith('/') ? value : value + '/'
 }
 
-/** 解析打印页目标地址：配置合法就用配置；顾客端主机指向 Pages；其余用同源默认入口。 */
+/** 解析打印页地址：配置合法就用配置，否则用站内默认入口（绝不返回空串，也绝不给外部域名）。 */
 export function resolveCampusPrintUrl(
   raw: unknown = (import.meta.env as Record<string, unknown> | undefined)?.VITE_CAMPUS_PRINT_URL,
-  hostname: unknown = typeof window !== 'undefined' ? window.location.hostname : undefined,
 ): string {
-  const configured = normalizeCampusPrintUrl(raw)
-  if (configured) return configured
-  if (typeof hostname === 'string' && NO_API_PROXY_HOSTS.includes(hostname)) return PAGES_REMOTE_PRINT_URL
-  return DEFAULT_CAMPUS_PRINT_URL
+  return normalizeCampusPrintPath(raw) ?? CAMPUS_PRINT_PATH
 }

@@ -1,57 +1,60 @@
-// 打印页跳转目标的解析判据（2026-10-21：打印页整体替换为 CampusPrint-V1 应用）。
+// 打印页地址的解析判据（2026-10-22 重写：从「可跳外部域名」改成「只准同源路径」）。
 //
-// 这一层的风险不是"跳错了好看不好看"，而是**把不可信输入变成跳转目标**：
-// env 是构建期注入的字符串，一旦放行 `javascript:` 这类协议，等于给了 XSS 一条现成的出口。
-// 所以下面三条腿都是"拒"的形态，且与"默认值可用 / 顾客端另有去处"两条正向腿成对。
+// 为什么这一层现在只测「拒」：上一版允许 http(s) 绝对地址，结果顾客端在微信里被
+// location.replace 跳到另一个域名，撞上微信「无法确认本次跳转是否安全」拦截页 ——
+// 打印功能对微信用户直接消失（一手：老大手机截图）。所以外部域名本身就是要堵的形态，
+// 不再给它任何合法入口。正向腿（默认值可用）与反向腿（外部域名/可执行协议必拒）成对。
 import { describe, it, expect } from 'vitest'
 import { DROPPED_HEADERS, forwardHeaders } from '../functions/lib/print-proxy.js'
 import {
-  DEFAULT_CAMPUS_PRINT_URL,
-  NO_API_PROXY_HOSTS,
-  PAGES_REMOTE_PRINT_URL,
-  normalizeCampusPrintUrl,
+  CAMPUS_PRINT_PATH,
+  CAMPUS_PRINT_BUILD,
+  normalizeCampusPrintPath,
   resolveCampusPrintUrl,
 } from '../src/pages/print/printApp'
 
-describe('normalizeCampusPrintUrl', () => {
-  it('http(s) 绝对地址原样放行（URL 自己补空路径斜杠）', () => {
-    expect(normalizeCampusPrintUrl('https://print.example.edu')).toBe('https://print.example.edu/')
-    expect(normalizeCampusPrintUrl('http://127.0.0.1:4328/')).toBe('http://127.0.0.1:4328/')
-  })
-
+describe('normalizeCampusPrintPath', () => {
   it('同源路径放行：纯路径补斜杠，带 hash/query 的原样（补斜杠会把 #print 挪位）', () => {
-    expect(normalizeCampusPrintUrl('/print')).toBe('/print/')
-    expect(normalizeCampusPrintUrl('/print/#print')).toBe('/print/#print')
-    expect(normalizeCampusPrintUrl('/print/?from=home')).toBe('/print/?from=home')
-    expect(normalizeCampusPrintUrl('//print.example.edu/')).toBeNull()
+    expect(normalizeCampusPrintPath('/print')).toBe('/print/')
+    expect(normalizeCampusPrintPath('/print/#print')).toBe('/print/#print')
+    expect(normalizeCampusPrintPath('/print/?from=home')).toBe('/print/?from=home')
   })
 
-  it('可执行协议与非地址输入一律拒绝（不给 XSS 留跳转出口）', () => {
-    for (const bad of ['javascript:alert(1)', 'data:text/html,<script>1</script>', 'file:///C:/x', 'print.example.edu', '', '   ']) {
-      expect(normalizeCampusPrintUrl(bad)).toBeNull()
+  it('跨域与可执行协议一律拒（这两类就是微信拦截页与 XSS 出口的成因）', () => {
+    for (const bad of [
+      'https://supermarket-web.pages.dev/print/#print', // 一手事故里那个跳转目标
+      '//print.example.edu/',
+      'javascript:alert(1)',
+      'data:text/html,<script>1</script>',
+      'file:///C:/x',
+      'print.example.edu',
+      '',
+      '   ',
+    ]) {
+      expect(normalizeCampusPrintPath(bad), bad).toBeNull()
     }
-    expect(normalizeCampusPrintUrl(undefined)).toBeNull()
-    expect(normalizeCampusPrintUrl(4328)).toBeNull()
+    expect(normalizeCampusPrintPath(undefined)).toBeNull()
+    expect(normalizeCampusPrintPath(4328)).toBeNull()
   })
 })
 
 describe('resolveCampusPrintUrl', () => {
-  it('配置合法用配置，缺失/非法回落到默认入口（绝不返回空串）', () => {
-    expect(resolveCampusPrintUrl('https://print.example.edu', 'localhost')).toBe('https://print.example.edu/')
-    expect(resolveCampusPrintUrl('javascript:alert(1)', 'localhost')).toBe(DEFAULT_CAMPUS_PRINT_URL)
-    expect(resolveCampusPrintUrl(undefined, 'localhost')).toBe(DEFAULT_CAMPUS_PRINT_URL)
+  it('配置合法用配置；非法（含任何外部域名）一律回落同源默认入口，绝不返回空串', () => {
+    expect(resolveCampusPrintUrl('/print/#print')).toBe('/print/#print')
+    expect(resolveCampusPrintUrl('https://evil.example.com/')).toBe(CAMPUS_PRINT_PATH)
+    expect(resolveCampusPrintUrl('javascript:alert(1)')).toBe(CAMPUS_PRINT_PATH)
+    expect(resolveCampusPrintUrl(undefined)).toBe(CAMPUS_PRINT_PATH)
   })
 
-  it('默认入口是同源静态面且直达打印下单视图（本机与 Pages 都要能落同一页）', () => {
-    expect(DEFAULT_CAMPUS_PRINT_URL).toBe('/print/#print')
+  it('默认入口是同源静态面且直达打印下单视图（两端部署都落同一个站内路径）', () => {
+    expect(CAMPUS_PRINT_PATH).toBe('/print/#print')
+    // 结构性断言：默认值必须以 '/' 开头 —— 不是同源路径的默认值就是这次事故的复发形态。
+    expect(CAMPUS_PRINT_PATH.startsWith('/')).toBe(true)
   })
 
-  it('顾客端主机（无 Functions、/api 无从代理）指向 Pages 部署；其它主机仍走同源', () => {
-    for (const host of NO_API_PROXY_HOSTS) {
-      expect(resolveCampusPrintUrl(undefined, host)).toBe(PAGES_REMOTE_PRINT_URL)
-    }
-    expect(resolveCampusPrintUrl(undefined, 'supermarket-web.pages.dev')).toBe(DEFAULT_CAMPUS_PRINT_URL)
-    expect(resolveCampusPrintUrl(undefined, undefined)).toBe(DEFAULT_CAMPUS_PRINT_URL)
+  it('版本常量在册（print-parity 的 P3 腿拿它跟上游 package.json、登记册三处对账）', () => {
+    expect(typeof CAMPUS_PRINT_BUILD).toBe('string')
+    expect(CAMPUS_PRINT_BUILD).toMatch(/^\d+\.\d+\.\d+$/)
   })
 })
 
