@@ -84,7 +84,9 @@ export default function KpiCard({ label, value, prefix = '', suffix = '', sub, a
 
   return (
     <div className={`p-4 rounded-2xl border border-gray-100/80 text-center ${cardCls} ${staggerCls}`.trim()}>
-      <p className={`text-xl font-bold ${accent ? 'text-brand-700' : 'text-gray-900'}`}>
+      {/* .price-num 带 tabular-nums：count-up 每帧都在换数字，
+          不等宽字体的话"1,234 → 1,235"会让整串数字左右抖一下。 */}
+      <p className={`price-num text-xl font-bold ${accent ? 'text-brand-700' : 'text-ink'}`}>
         {prefix}{animated.toLocaleString()}{suffix}
       </p>
       <p className="text-[10px] text-gray-500 mt-1">{label}</p>
