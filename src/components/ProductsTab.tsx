@@ -187,7 +187,7 @@ export default function ProductsTab({ products, categories, onDataChange }: {
           />
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm" aria-hidden="true">🔍</span>
         </div>
-        <button onClick={() => setEditingId('new')} className="px-4 py-2.5 bg-brand-500 text-ink rounded-xl text-sm font-medium hover:bg-brand-400 transition shrink-0">+ 新增</button>
+        <button onClick={() => setEditingId('new')} className="shrink-0 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-medium text-ink transition hover:bg-brand-400 active:scale-[0.98]">+ 新增</button>
       </div>
 
       {/* 新增表单（内联在列表顶部，非弹窗） */}
@@ -212,12 +212,12 @@ export default function ProductsTab({ products, categories, onDataChange }: {
             key={f.id}
             onClick={() => setFilterCat(f.id)}
             aria-pressed={filterCat === f.id}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${filterCat === f.id ? 'bg-brand-500 text-ink' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition active:scale-[0.98] ${filterCat === f.id ? 'bg-brand-500 text-ink' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
           >
             {f.label}
           </button>
         ))}
-        <button onClick={selectAllFiltered} className="ml-auto px-3 py-1.5 rounded-lg text-xs text-gray-500 hover:bg-gray-100 transition">
+        <button onClick={selectAllFiltered} className="ml-auto rounded-lg px-3 py-1.5 text-xs text-gray-500 transition hover:bg-gray-100 active:scale-[0.98]">
           {filtered.length > 0 && selectedIds.size === filtered.length ? '取消全选' : `全选(${filtered.length})`}
         </button>
       </div>

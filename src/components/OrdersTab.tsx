@@ -323,7 +323,7 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
                     {o.roomNumber} · {formatYuan(o.totalAmount ?? 0)} · {o.ageMinutes} 分钟前
                     {o.hasPaymentProof && <span className="ml-1 text-3xs text-green-700 bg-green-100 px-1 py-0.5 rounded">已传付款截图</span>}
                   </span>
-                  <button onClick={() => void cancelStale(o.id)} className="text-2xs text-red-700 hover:text-red-700 px-2 py-1 shrink-0">
+                  <button onClick={() => void cancelStale(o.id)} className="shrink-0 rounded px-2 py-1 text-2xs text-red-700 transition hover:bg-red-50 active:scale-[0.98]">
                     取消并释放库存
                   </button>
                 </div>

@@ -55,7 +55,7 @@ export default function PaymentPage() {
       <div className="px-5 py-4 bg-white/95 backdrop-blur-sm border-b border-gray-100 flex items-center justify-between">
         <button
           onClick={() => navigate('/order-success', { state: { orderId } })}
-          className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200"
+          className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200 active:scale-90"
           aria-label="返回"
         >
           ←

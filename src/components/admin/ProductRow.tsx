@@ -65,7 +65,7 @@ function ProductRow({
         </div>
 
         <div
-          className="flex-1 min-w-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-brand-700 rounded"
+          className="flex-1 min-w-0 cursor-pointer rounded focus-visible:outline-2 focus-visible:outline-brand-700 active:bg-brand-50"
           role="button"
           tabIndex={0}
           aria-label={`编辑${product.name || '商品'}`}
@@ -101,7 +101,7 @@ function ProductRow({
             onClick={() => onQuickToggle(product)}
             aria-label={enabled ? '下架商品' : '上架商品'}
             aria-pressed={enabled}
-            className="w-11 h-11 flex items-center justify-center shrink-0"
+            className="flex h-11 w-11 shrink-0 items-center justify-center transition-transform duration-200 active:scale-[0.98]"
           >
             {/* 旋钮用流内 flex 定位，不用 absolute：
                 旧写法旋钮是 `absolute` 且 left 取 auto，落点依赖「静态位置」——实测 Chrome 给的是
@@ -125,7 +125,7 @@ function ProductRow({
             aria-label={isEditing ? '收起编辑' : '编辑商品'}
             aria-expanded={isEditing}
             style={{ '--tap-x': '4px', '--tap-y': '4px' } as CSSProperties}
-            className={`tap-44 w-9 h-9 rounded-lg border flex items-center justify-center text-xs transition ${
+            className={`tap-44 w-9 h-9 rounded-lg border flex items-center justify-center text-xs transition active:scale-90 ${
               isEditing
                 ? 'bg-brand-500 border-brand-500 text-ink'
                 : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-brand-50 hover:border-brand-300 hover:text-brand-700'
@@ -137,7 +137,7 @@ function ProductRow({
             onClick={() => onRemove(product._id)}
             aria-label="删除商品"
             style={{ '--tap-x': '4px', '--tap-y': '4px' } as CSSProperties}
-            className="tap-44 w-9 h-9 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center text-xs text-gray-500 hover:bg-red-50 hover:border-red-200 hover:text-red-700 transition"
+            className="tap-44 w-9 h-9 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center text-xs text-gray-500 hover:bg-red-50 hover:border-red-200 hover:text-red-700 transition active:scale-90"
           >
             <span aria-hidden="true">🗑</span>
           </button>

@@ -310,7 +310,7 @@ export default function ProductDetailPage() {
         <button
           onClick={() => navigate(-1)}
           aria-label="返回"
-          className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200 mr-2"
+          className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200 active:scale-90 mr-2"
         >
           ←
         </button>
@@ -419,7 +419,7 @@ export default function ProductDetailPage() {
                     onClick={() => setQty((n) => Math.max(1, n - 1))}
                     disabled={qty <= 1}
                     aria-label="减少购买数量"
-                    className="tap-44 w-9 h-9 rounded-lg text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="tap-44 w-9 h-9 rounded-lg text-gray-600 transition hover:bg-gray-100 active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <span aria-hidden="true">−</span>
                   </button>
@@ -433,7 +433,7 @@ export default function ProductDetailPage() {
                     onClick={() => setQty((n) => Math.min(MAX_QTY_PER_LINE, n + 1))}
                     disabled={qty >= MAX_QTY_PER_LINE}
                     aria-label="增加购买数量"
-                    className="tap-44 w-9 h-9 rounded-lg text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="tap-44 w-9 h-9 rounded-lg text-gray-600 transition hover:bg-gray-100 active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <span aria-hidden="true">＋</span>
                   </button>

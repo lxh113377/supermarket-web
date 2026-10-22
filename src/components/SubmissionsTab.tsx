@@ -132,7 +132,7 @@ export default function SubmissionsTab() {
         <button
           onClick={() => setFilter('all')}
           aria-pressed={filter === 'all'}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium ${filter === 'all' ? 'bg-brand-500 text-ink' : 'bg-gray-100 text-gray-600'}`}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition active:scale-[0.98] ${filter === 'all' ? 'bg-brand-500 text-ink' : 'bg-gray-100 text-gray-600'}`}
         >
           全部 ({submissions.length})
         </button>
@@ -141,7 +141,7 @@ export default function SubmissionsTab() {
             key={c.id}
             onClick={() => setFilter(c.id)}
             aria-pressed={filter === c.id}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium ${filter === c.id ? 'bg-brand-500 text-ink' : 'bg-gray-100 text-gray-600'}`}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition active:scale-[0.98] ${filter === c.id ? 'bg-brand-500 text-ink' : 'bg-gray-100 text-gray-600'}`}
           >
             {c.name} ({countsByCategory[c.id] || 0})
           </button>

@@ -113,7 +113,7 @@ export default function ReviewForm({ productOrder, onPublished }: { productOrder
                 aria-checked={rating === n}
                 aria-label={`${n}星`}
                 onClick={() => setRating(n)}
-                className={`flex h-11 w-11 items-center justify-center text-2xl transition-colors duration-150 ${n <= rating ? 'text-amber-600' : 'text-gray-500 hover:text-amber-500'}`}
+                className={`flex h-11 w-11 items-center justify-center text-2xl transition duration-150 active:scale-90 ${n <= rating ? 'text-amber-600' : 'text-gray-500 hover:text-amber-500'}`}
               >
                 ★
               </button>

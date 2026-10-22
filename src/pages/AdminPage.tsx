@@ -159,7 +159,7 @@ export default function AdminPage() {
             href="/admin/"
             target="_blank"
             rel="noopener noreferrer"
-            className="px-2.5 py-1 rounded-full text-xs font-medium border border-brand-200 bg-brand-50 text-brand-700"
+            className="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700 transition active:scale-[0.98]"
           >
             打印经营后台
           </a>
@@ -210,7 +210,7 @@ export default function AdminPage() {
             id={`admin-tab-${t.key}`}
             tabIndex={tab === t.key ? 0 : -1}
             onClick={() => setTab(t.key)}
-            className={`flex-1 min-w-0 py-2.5 rounded-xl text-2xs sm:text-xs font-medium transition-all duration-200 flex flex-col items-center gap-1 ${
+            className={`flex-1 min-w-0 py-2.5 rounded-xl text-2xs sm:text-xs font-medium transition-all duration-200 flex flex-col items-center gap-1 active:scale-[0.98] ${
               tab === t.key
                 ? 'bg-ink text-white shadow-soft'
                 : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'

@@ -117,13 +117,13 @@ export default function ReviewsTab() {
         <div className="flex gap-2">
           <button
             onClick={load}
-            className="px-3 py-1.5 text-xs text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200"
+            className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs text-gray-600 transition hover:bg-gray-200 active:scale-[0.98]"
           >
             刷新
           </button>
           <button
             onClick={() => setShowForm(true)}
-            className="px-3 py-1.5 text-xs bg-brand-500 text-ink rounded-lg hover:bg-brand-400"
+            className="rounded-lg bg-brand-500 px-3 py-1.5 text-xs text-ink transition hover:bg-brand-400 active:scale-[0.98]"
           >
             + 新增评价
           </button>

@@ -243,7 +243,7 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
           <h3 className="section-title">近 {rangeDays} 天营收 / 订单趋势</h3>
           <button
             onClick={() => downloadCsv(buildCsv(rangeData), dateStr)}
-            className="text-xs font-medium text-brand-700 hover:text-brand-700 bg-brand-50 px-3 py-1.5 rounded-lg transition-colors"
+            className="rounded-lg bg-brand-50 px-3 py-1.5 text-xs font-medium text-brand-700 transition hover:bg-brand-100 active:scale-[0.98]"
           >
             导出 CSV
           </button>
@@ -354,7 +354,7 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
           <button
             onClick={() => loadAdvice(true)}
             disabled={aiLoading}
-            className="mt-3 text-xs font-medium text-brand-700 hover:text-brand-700 bg-brand-50 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+            className="mt-3 rounded-lg bg-brand-50 px-3 py-1.5 text-xs font-medium text-brand-700 transition hover:bg-brand-100 active:scale-[0.98] disabled:opacity-50"
           >
             刷新
           </button>

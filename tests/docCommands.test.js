@@ -402,7 +402,13 @@ describe('E1 台账漂移接闸（严格档必须既被接上、又真有牙齿�
     // 而 CI 上未必有 bsdtar。所以解包走 **cwd + 相对文件名**，两边都不碰盘符。
     const ex = spawnSync('tar', ['-xf', 'head.tar'], { cwd: dir, encoding: 'utf8', timeout: 120_000 })
     expect(ex.status, ex.stderr).toBe(0)
-    const tracked = spawnSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8', timeout: 60_000 }).stdout.split('\n').filter(Boolean)
+    // 参考人口必须与夹具**同源**：夹具是 `git archive HEAD` 解出来的，所以这里取
+    // HEAD 树（`git ls-tree -r`），不是索引（`git ls-files`）。
+    // 一手教训（2026-10-23）：用 ls-files 时，只要工作树里有**已暂存但尚未提交**的新文件
+    // （典型场景：`git add -A` 之后再跑测试），索引就会比 HEAD 多一件，本条立刻以
+    // 「检出人口 978 ≠ 真面人口 979」假红 —— 而且它红得像是"夹具坏了"，实际是两把尺
+    // 量的不是同一棵树。ls-files 在这里还额外受暂存态影响，等于把测试写成对 git 状态敏感。
+    const tracked = spawnSync('git', ['ls-tree', '-r', '--name-only', 'HEAD'], { cwd: ROOT, encoding: 'utf8', timeout: 60_000 }).stdout.split('\n').filter(Boolean)
     // 解出来的树**没有 .git** ⇒ 拿 `git ls-files` 去数它的人口只会得到 0，把对照判成失败（本轮第一次就这么红的）。
     // 人口一律由盘面递归枚举得出，并排掉自己刚写的那个 tar。
     const walk = (d, acc = 0) => {
