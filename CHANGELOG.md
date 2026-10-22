@@ -54,6 +54,13 @@
   起快速隧道指向 `127.0.0.1:4328` → 上游 `PUBLIC_ORIGIN` 设为隧道域名 → Pages secret `CAMPUS_PRINT_ORIGIN` 同值 + 重部署。
   于是线上打印页**能上传、能出价**：Edge headless 实测 `POST /api/files` → `202`、`报价已就绪`（`选 1 页 × 1 份 · 单面`、
   `合计 ¥0.50`），无 4xx/5xx、无 pageerror。隧道的随机子域名 = 已知运维边界（重启换址），长期方案仍是自有服务器。
+- **换址不再靠手**：`scripts/print-tunnel.mjs`（`npm run print:tunnel`，人工发起；只读体检 `print:tunnel:check`）。快速隧道每次重启换域名，而必须同步改的五处里
+  少任何一处 = 线上打印页能打开、能填表，但 `/api` 一律 403/530 ⇒ 顾客提不了单（本仓 S 类老伤：「改了却不生效」的根因是漏了链上一环，不是某一步做错）。
+  本件按 ①起隧道 ②改上游 `.env` 的 `PUBLIC_ORIGIN` ③重启后端 ④写 Pages secret ⑤构建+部署 ⑥真打线上 `/api` 逐步回执，跑通才算成功。
+  三条红因都是这一条真跑抓出来的（并把结论写回代码）：`execFileSync('npm')` 在 Windows 是 ENOENT 却被读成「构建没过」；
+  `join(ROOT, 绝对路径)` 二次前缀把入口判成不存在；正则里裸 U+001B 被 `no-control-regex` 拦（改 `String.fromCharCode(27)`）。
+  另两条口径修正：本地 `127.0.0.1:4328/api` 回 **403 属正常**（`PUBLIC_ORIGIN` 已是公网域名，Host 守卫不认本机回环），只印不判；
+  入口面把它记进「已知缺口 + 风险分类（network-fetch, wrangler）」——spawn 它 = 每跑一次 `npm test` 就重部一次生产。
 - **新增闸（把「必须一直一致」从散文变成判据）**：`scripts/print-parity.mjs`（`npm run verify:print`，并入 `verify` 链与 CI `gates` job）——
   P1 逐文件双向 SHA 对账（缺件/多件/内容漂移三类，尺 = 归一行尾后的 SHA-256，与 vendored 那一次同尺）、
   P2 同步登记册在册（新 `docs/campus-print.json`：sourceCommit/version/syncedUtc）、P3 版本三处对账

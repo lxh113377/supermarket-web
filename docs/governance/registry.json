@@ -16,8 +16,8 @@
       "source": "package.json scripts.verify 的 && 段数（2026-10-22 并入 verify:print 打印页一致性闸 ⇒ 43→44）"
     },
     "gateScripts": {
-      "value": 71,
-      "source": "scripts/*.mjs 文件数（2026-10-22 新增 print-parity.mjs + sync-print.mjs ⇒ 69→71）"
+      "value": 72,
+      "source": "scripts/*.mjs 文件数（2026-10-22 新增 print-parity.mjs + sync-print.mjs + print-tunnel.mjs ⇒ 69→72）"
     },
     "ciJobs": {
       "value": 6,

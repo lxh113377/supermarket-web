@@ -21,6 +21,8 @@
     "verify:print": "node scripts/print-parity.mjs",
     "verify:print:report": "node scripts/print-parity.mjs --advisory",
     "sync:print": "node scripts/sync-print.mjs --apply",
+    "print:tunnel": "node scripts/print-tunnel.mjs",
+    "print:tunnel:check": "node scripts/print-tunnel.mjs --check",
     "uptime": "node scripts/uptime-check.mjs",
     "ci:status": "node scripts/ci-status.mjs",
     "verify:backend": "node scripts/verify-backend.mjs",

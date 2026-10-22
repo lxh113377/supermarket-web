@@ -82,6 +82,7 @@
 | purge-security-events.mjs | 破坏性运维命令（`DELETE FROM security_events … --remote`）。**本轮实测**：修前它在无 tty 下 1s 内直接进入远端 DELETE；现按 `migrate.confirmRemote` 口径要求显式 `--yes`，无授权时 rc=2 ⇒ 用法改成 `npm run maintain:purge-events -- --yes` |
 | smoke-deploy.mjs | 打线上端点（实测 2s，首行 `PASS 静态站 https://supermarket-web.pages.dev/`），部署后才有效，由 `npm run smoke` 在部署后跑。注意：CI 的部署后冒烟是 `ci.yml` 里**内联 curl**（`_health` + `getPublicCategories`），与本脚本不是同一份实现 ⇒ 两处判定会漂移，已记入本轮改进清单 |
 | uptime-check.mjs | 线上探测（实测 13s，打 `/_health` 并解析 JSON），本地 spawn 只会测网络。CI 的 `uptime.yml` 以真命令跑它 |
+| print-tunnel.mjs | 打印页后端的隧道重连器（人工发起）：默认档一次跑完 = ① 起 cloudflared ② 改上游 `.env` 的 `PUBLIC_ORIGIN` ③ 停 4328 的监听进程并重启后端 ④ 写 Pages secret ⑤ 构建 + `wrangler pages deploy` **真上线** ⑥ 真打线上 `/api` 收尾。探针 spawn 它 = 每跑一次 `npm test` 就重部一次生产并换一个隧道域名，结构上绝不能自动跑；它也没有「先停在门口」的档（`--check` 虽只读，但那三处 `/api` 探测已由日巡检 `uptime-check.mjs` 第 ④⑤ 条尺每天真跑并邮件告警，同一批端点）⇒ 观测面不为零，本行只记「没有自动夹具」 |
 | sync-print.mjs | 打印页同步执行器：`--apply` 会**写盘**（覆盖 public/{shared,user} 与登记册），`--fetch` 打网络浅克隆上游仓 —— 两者都绝不能进探针（探针里跑一次 = 测试自己改交付面）。dry-run 腿的取数面是权威源在场（CI 由 checkout step 保证、本机看有没有跑过 --fetch），在 `npm test` 时点上不确定 ⇒ 记本缺口；它的**结论**由同族判据 `print-parity.mjs` 当场对账（该件有 `tests/printParity.test.js` 真跑入口，G8 面内），方向写错当场红 ⇒ 不是无人看守的入口 |
 | check-d1-remote-usage.mjs | 真跑 = 打 Cloudflare GraphQL + 起 `wrangler d1 info` 子进程（本轮实测：无 flag 骨架 **rc=0 / 7.7s**，两通道各走一遍）⇒ 跑它测的是服务商可用性，不是代码；带 `--write` 还会改写受版本控制的 `docs/d1-remote-usage.json`。它**不是**门禁类别名（`report:d1-usage`）⇒ 不占 G8 的门禁面；纯判据由 `tests/d1RemoteUsage.test.js` 注入读数覆盖（U5 三向的四种出口各有断言），入口通道没有 fixture 注数面 ⇒ 记本缺口，CI 侧它是 advisory（`continue-on-error`，理由写在 ci.yml 该步注释里）|
 
@@ -142,6 +143,7 @@ G11 认的是"已证明停在门口"这个整词，不是子串 —— 否则 �
 | purge-security-events.mjs | sql-delete, wrangler | ✅ 已证明停在门口：无 `--yes` 时 rc=2 / 0s 直接 bail —— 修前实测 1s 内就把 DELETE 打到远端 D1（删审计日志）⇒ 回到分母 |
 | smoke-deploy.mjs | network-fetch | ❌ 未停在门口：实测 2s 先打线上（首行 `PASS 静态站 …`）再失败 |
 | uptime-check.mjs | network-fetch | ❌ 未停在门口：实测 13s 真打线上 `/_health`（回 `{"status":"ok","db":"ok",…}`） |
+| print-tunnel.mjs | network-fetch, wrangler | ❌ 不声明停在门口，且永不进自动面：标签两条都实测过 —— `wrangler pages secret put` 与 `pages deploy` 走 `node_modules/wrangler/bin/wrangler.js`（改生产 secret + 真部署），`fetch` 打 trycloudflare 与 pages.dev。默认档还会 `Stop-Process` 掉 4328 监听者并改上游 `.env`。入口真跑由 **2026-10-22 本轮人工全链实测**覆盖：五步逐步回执、①→⑥ 跑通后线上 `/api=200`（`_r79-tunnel5.log`），中途三条红因（npm ENOENT 误判、绝对路径被 join 二次前缀、正则裸 U+001B 被 no-control-regex 拦）也都是这一条真跑抓出来的 |
 | verify-backend.mjs | sql-delete, writes-artifacts | ✅ 已证明停在门口：rc=2 / 0s（缺 `db/schema.sql`）⇒ 夹具链里的 DELETE 分支走不到。它同时是 PROBED 第 11 条。`writes-artifacts` 是本轮 R42-H2 新认出来的：`writeFileSync(SQL_BASELINE_PATH, …)` 的目标走 `join(root,'docs',…)` 表达式，旧口径（只认字面量/裸标识符）推不出 ⇒ 标签补上，登记面与派生面重新相等 |
 | verify-release-parity.mjs | network-fetch | ✅ 已证明停在门口：缺 `PARITY_AFTER_TS` 起点时按设计 rc=2 / 0s（"没有起点就不判看起来一样"）。另见「不可子进程豁免」 |
 | check-branch-protection.mjs | gh-cli | ❌ **未停在门口**：真跑会打 api.github.com（需 gh 鉴权）⇒ 不进 ②③ 自动面；它的**入口**由 `tests/branchProtection.test.js` 以 `BRANCH_PROTECTION_JSON` 注入读数的方式被子进程真跑（7 条，含四态与变异体） |

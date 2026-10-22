@@ -15,6 +15,8 @@ dist-ssr
 # 打印页一致性判据（scripts/print-parity.mjs）的权威源落点：
 # CI 由 checkout step 当场浅克隆（上游是别人的仓，不入库），本机 --fetch 也落这里。
 vendor/CampusPrint-V1
+# print-tunnel 的活日志（隧道域名在里面；每次重连即换，落 git 只会造成脏历史）
+.tunnel/
 
 # 误建的 GPU 日志目录（2026-09-05 清理残留后防再犯）
 NVIDIA Corporation/
