@@ -214,7 +214,7 @@ export default function HomePage() {
         aria-label="打开 AI 导购助手"
         className="safe-offset-bottom fixed right-4 z-30 flex animate-slide-up items-center gap-2 rounded-full bg-ink py-3 pl-3 pr-4 text-white shadow-float transition-all duration-200 hover:bg-ink-soft active:scale-[0.95]"
       >
-        <span className="brand-bar flex h-7 w-7 items-center justify-center rounded-full">
+        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-500">
           <IconRobot className="h-4 w-4 text-ink" />
         </span>
         <span className="text-xs font-semibold tracking-wide">AI 导购</span>

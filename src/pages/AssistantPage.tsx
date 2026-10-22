@@ -115,7 +115,7 @@ export default function AssistantPage() {
         {messages.map((m) => (
           <div key={m.id} className={`flex gap-2 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             {m.role === 'assistant' && (
-              <div className="brand-bar mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[13px] font-bold text-ink">
+              <div className="bg-brand-500 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-ink">
                 <IconRobot className="w-4 h-4" />
               </div>
             )}
@@ -160,7 +160,7 @@ export default function AssistantPage() {
         {/* 输入中指示器 */}
         {pending && (
           <div className="flex gap-2 justify-start" role="status" aria-label="AI 正在输入">
-            <div className="brand-bar mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[13px] font-bold text-ink">
+            <div className="bg-brand-500 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-ink">
               <IconRobot className="w-4 h-4" />
             </div>
             <div className="bg-white border border-gray-100/80 shadow-card rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-1">
@@ -192,7 +192,7 @@ export default function AssistantPage() {
           type="submit"
           disabled={pending || !input.trim()}
           aria-label="发送"
-          className="brand-bar flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink shadow-soft transition-all duration-200 active:scale-[0.94] disabled:pointer-events-none disabled:opacity-40"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-500 text-ink shadow-brand transition-all duration-200 hover:bg-brand-400 active:scale-[0.94] disabled:pointer-events-none disabled:opacity-40"
         >
           <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2"
                strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

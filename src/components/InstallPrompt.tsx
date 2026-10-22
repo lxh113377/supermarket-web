@@ -85,7 +85,7 @@ export default function InstallPrompt() {
        原为 z-[90]，会盖在模态遮罩之上 —— 弹窗打开时「立即添加」按钮可被误点。 */
     <div className="fixed bottom-0 inset-x-0 z-[70] px-4 pb-4 pointer-events-none">
       <div className="max-w-lg mx-auto bg-white rounded-2xl border border-gray-100/80 shadow-elevated p-4 flex items-center gap-3 pointer-events-auto animate-slide-up safe-bottom">
-        <div className="w-10 h-10 rounded-xl brand-bar shrink-0" aria-hidden="true" />
+        <div className="bg-brand-500 h-10 w-10 shrink-0 rounded-xl" aria-hidden="true" />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-ink">添加到主屏幕</p>
           <p className="text-[11px] text-gray-500 leading-relaxed">
