@@ -12,7 +12,7 @@ import { writeFileSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { evaluate, verdictOf, cronPeriodDays, enumerateScheduled, ageOfRegistry, stepCensus } from '../scripts/check-cron-health.mjs'
+import { evaluate, verdictOf, cronPeriodDays, enumerateScheduled, ageOfRegistry, stepCensus, listRunsPaged } from '../scripts/check-cron-health.mjs'
 
 const ROOT = resolve(fileURLToPath(import.meta.url), '../..')
 const SCRIPT = join('scripts', 'check-cron-health.mjs')
@@ -379,5 +379,58 @@ describe('C7 / C8 的演习通道（子进程真跑入口）', () => {
     const { rc, out } = cli(['--fixture', fixtureFile('age.json', GREEN_FIXTURE()), '--max-age-days=abc'])
     expect(rc, out.slice(-500)).toBe(2)
     expect(out).toContain('解不出正整数')
+  })
+})
+
+describe('翻页取数（2026-10-23：唯一看守 cron 的尺被自己的分母晃瞎）', () => {
+  /**
+   * 一手：日巡检里 [cron-health] 每晚 BLOCKED rc=2，报文
+   *   「run 列表被截断 ⇒ 分母不可信：ci-deep.yml(取 30/共 33)」
+   * 旧写法只取第一页（per_page=30）就跟 total_count 比 ⇒ 窗口内 run 一超过 30 条就**永久自锁**。
+   * 本件是唯一能发现「某条 cron 到点没跑」的尺，它 BLOCK 时全仓 cron 一起失去监管，
+   * 而表面看起来还在跑。修法是分页取完，取完仍不齐才 BLOCK —— 这两条腿分别钉住。
+   */
+  const mk = (total, pages) => (path) => {
+    const pg = Number(/(?:^|&)page=(\d+)/.exec(path)?.[1] || 1)
+    const want = pages[pg - 1]
+    if (want === undefined) throw new Error('越界请求第 ' + pg + ' 页')
+    return {
+      total_count: total,
+      workflow_runs: Array.from({ length: want }, (_, k) => ({
+        id: (pg - 1) * 100 + k + 1, created_at: '2026-10-22T00:00:00Z', conclusion: 'success', event: 'schedule', status: 'completed',
+      })),
+    }
+  }
+  it('33 条分两页 ⇒ 全取回、判为未截断（旧写法在这里就 BLOCK）', () => {
+    const seen = []
+    const r = listRunsPaged({
+      repo: 'o/r', file: 'ci-deep.yml', since: '2026-10-15T00:00:00Z', perPage: 30,
+      fetcher: (p) => { seen.push(p); return mk(33, [30, 3])(p) }, // 复刻旧现场的页大小（30）：一页 30 条、共 33 条 ⇒ 必须翻页才取得回
+    })
+    expect(r.runs.length).toBe(33)
+    expect(r.totalCount).toBe(33)
+    expect(r.exhaustedPages).toBe(false)
+    expect(r.pagesUsed).toBe(2)
+    // 页码参数必须真的带上：不带 page= 就等于回到旧写法（取第一页两次）
+    expect(seen.filter((p) => /page=1&/.test(p) || /page=2&/.test(p)).length).toBe(2)
+  })
+  it('取完仍不齐（total 比实际能给的多）⇒ 标记出来给 BLOCK，不静默当"全都好"', () => {
+    // 第 1 页给满 100 条却声称共 130，第 2 页只回 20 ⇒ 120 < 130，属真截断/读数矛盾
+    const r = listRunsPaged({
+      repo: 'o/r', file: 'x.yml', since: 's',
+      fetcher: mk(130, [100, 20]),
+    })
+    expect(r.runs.length).toBe(120)
+    expect(r.exhaustedPages).toBe(false)
+    expect(new Set(r.runs.map((x) => x.id)).size).toBe(120)
+    expect(120).toBeLessThan(r.totalCount)
+  })
+  it('页数用尽仍未取完 ⇒ exhaustedPages=true（不许把"翻到上限"读成"翻完了"）', () => {
+    const r = listRunsPaged({
+      repo: 'o/r', file: 'y.yml', since: 's', maxPages: 2,
+      fetcher: () => ({ total_count: 999, workflow_runs: Array.from({ length: 100 }, (_, k) => ({ id: k, created_at: 'x', conclusion: 'success', event: 'schedule', status: 'completed' })) }),
+    })
+    expect(r.exhaustedPages).toBe(true)
+    expect(r.pagesUsed).toBe(2)
   })
 })

@@ -105,6 +105,36 @@ export function ghApi(path) {
   return JSON.parse(execFileSync('gh', ['api', path], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 }))
 }
 
+export const RUNS_PER_PAGE = 100
+export const MAX_RUN_PAGES = 20
+
+/**
+ * 逐页取某工作流在 since 之后的 run，并带回 total_count 供对账。
+ *
+ * 为什么要翻页而不是一页拉完（2026-10-23 一手）：本件「分母不可信就 BLOCK」是对的，
+ * 但旧写法只取第一页（per_page=30）就拿它跟 total_count 比 ⇒ **窗口内 run 数一超过 30
+ * 就永久自锁**。实测 ci-deep.yml 在 7 天窗口里 33 条 > 30 ⇒ 每晚 [cron-health] BLOCKED
+ * rc=2。而本件是**唯一能发现「某条 cron 到点没跑」**的尺：它自己 BLOCK，等于全部 cron
+ * 一起失去监管 —— 看守的人被自己的手电晃瞎，比没有看守更危险，因为它看起来在跑。
+ *
+ * 翻页后仍按 total_count 对账：翻完还不齐 ⇒ 照样 BLOCK。真截断（页数用尽）与
+ * 页数上限是两件事，都留痕、都不许读成"全都好"。取数面可注入 fetcher，
+ * 因此这条能离线判（不靠网络、不靠本机 gh 凭据）。
+ */
+export function listRunsPaged({ repo, file, since, fetcher, perPage = RUNS_PER_PAGE, maxPages = MAX_RUN_PAGES }) {
+  const grab = fetcher || ghApi
+  const all = []
+  let totalCount = null
+  for (let page = 1; page <= maxPages; page++) {
+    const j = grab(`repos/${repo}/actions/workflows/${encodeURIComponent(file)}/runs?per_page=${perPage}&page=${page}&created=>=${since}`)
+    if (Number.isFinite(j.total_count)) totalCount = j.total_count
+    const chunk = j.workflow_runs || []
+    all.push(...chunk)
+    if (chunk.length < perPage) return { runs: all, totalCount, pagesUsed: page, exhaustedPages: false }
+  }
+  return { runs: all, totalCount, pagesUsed: maxPages, exhaustedPages: true }
+}
+
 /**
  * 逐条 cron 出三态。**连红只数 event === 'schedule'**：手动 dispatch 成功不得顶替调度层
  * （本轮一手：presence 模式的旧尺就是这样把一条最近判红的 cron 读成 OK 的）。
@@ -370,11 +400,13 @@ async function main() {
     let fetchFailed = 0
     for (const d of declared) {
       try {
-        const j = ghApi(`repos/${repo}/actions/workflows/${encodeURIComponent(d.file)}/runs?per_page=30&created=>=${since}`)
-        const list = (j.workflow_runs || []).map((r) => ({ id: r.id, at: r.created_at, conclusion: r.conclusion, event: r.event, status: r.status }))
-        // 分页截断不得读成"没有 run / 全都好"（同上一条取证 :209,217-219）：按**去重后**的条数比 total_count
+        const { runs: raw, totalCount, pagesUsed, exhaustedPages } = listRunsPaged({ repo, file: d.file, since })
+        const list = raw.map((r) => ({ id: r.id, at: r.created_at, conclusion: r.conclusion, event: r.event, status: r.status }))
+        // 分页截断不得读成"没有 run / 全都好"（同上一条取证 :209,217-219）：按**去重后**的条数比 total_count。
+        // 翻完页应当自然对齐；对不齐 = 页数用尽或 GitHub 侧读数矛盾 ⇒ 仍 BLOCK（本件是 cron 的唯一看守）。
         const uniq = new Set(list.map((r) => r.id)).size
-        if (Number.isFinite(j.total_count) && uniq < j.total_count) truncated.push(`${d.file}(取 ${uniq}/共 ${j.total_count})`)
+        if (exhaustedPages) truncated.push(`${d.file}(页数用尽 ${pagesUsed} 页/共 ${totalCount})`)
+        else if (Number.isFinite(totalCount) && uniq < totalCount) truncated.push(`${d.file}(取 ${uniq}/共 ${totalCount})`)
         runsByName[d.file] = list
       } catch (e) { fetchFailed++; runsByName[d.file] = null; console.error(`[cron-health] 取不到 ${d.file} 的 run 历史：${e instanceof Error ? e.message.split('\n')[0] : e}`) }
     }
