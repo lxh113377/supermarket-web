@@ -115,7 +115,7 @@ export default function OrderConfirmPage() {
         >
           ←
         </button>
-        <h2 className="text-base font-bold text-gray-900">确认订单</h2>
+        <h2 className="text-base font-bold text-ink">确认订单</h2>
         <span className="w-9" />
       </div>
 

@@ -89,7 +89,7 @@ export default function ProductInfoSections({ product, categories, combo }: Prop
           {rows.map(([k, v]) => (
             <div key={k} className="flex items-baseline justify-between gap-3 py-2 border-b border-gray-50 last:border-0">
               <dt className="text-gray-500 shrink-0">{k}</dt>
-              <dd className="text-gray-900 text-right min-w-0 break-words">{v}</dd>
+              <dd className="text-ink text-right min-w-0 break-words">{v}</dd>
             </div>
           ))}
         </dl>

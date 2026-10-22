@@ -90,7 +90,7 @@ export default function CartPage() {
         >
           ←
         </button>
-        <h2 className="text-base font-bold text-gray-900">购物车</h2>
+        <h2 className="text-base font-bold text-ink">购物车</h2>
         <div className="flex items-center gap-2">
           {cart.items.length > 0 && (
             <button
@@ -164,7 +164,7 @@ export default function CartPage() {
           <div className="w-full max-w-3xl lg:max-w-4xl mx-auto">
             <div className="flex justify-between items-center mb-4">
               <span className="text-sm text-gray-500">共 {totalCount} 件</span>
-              <span className="text-xl font-bold text-gray-900">
+              <span className="text-xl font-bold text-ink">
                 <span className="text-xs font-medium text-gray-500 mr-1">合计</span>
                 <span className="price-num font-bold text-brand-700">{formatYuan(totalAmount)}</span>
               </span>

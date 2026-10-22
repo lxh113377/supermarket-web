@@ -118,6 +118,15 @@ test('左栏卡片不被网格拉伸，主图下方不留大片空白', async ({
   expect(m.card).toBeLessThan(m.img + 80)
 })
 
+/**
+ * 暖白底 + 近黑字，正文对比度过 AA。
+ *
+ * 前景期望值（2026-10-23 随色温统一更新）：主文字色从冷黑 gray-900(#111827)
+ * 统一为暖黑 ink(#1c1917) —— 两者对暖白底的对比度几乎相同（16.99 vs 16.74），
+ * 这次改的不是可访问性而是**色温一致性**：页底、卡片、暖柿品牌色全是暖调，
+ * 冷黑文字在暖底上会显出轻微的蓝灰边。本件真正锁的是「近黑 + 暖白 + 过 AA」，
+ * 具体色值随令牌走（见 index.css 的 --ink）。
+ */
 test('暖白底 + 近黑字，正文对比度过 AA', async ({ page }) => {
   await open(page, 16)
   const c = await page.evaluate(() => {
@@ -129,7 +138,7 @@ test('暖白底 + 近黑字，正文对比度过 AA', async ({ page }) => {
       pageBg: getComputedStyle(document.querySelector('.bg-surface')!).backgroundColor,
     }
   })
-  expect(c.fg).toBe('rgb(17, 24, 39)') // gray-900 近黑
+  expect(c.fg).toBe('rgb(28, 25, 23)') // ink #1c1917，暖黑主文字色
   expect(c.pageBg).toBe('rgb(250, 250, 249)') // 暖白页底
   expect(c.cardBg).toBe('rgba(0, 0, 0, 0)') // 桌面右栏透出暖白底
   // 相对亮度法算 #111827 on #fafaf9 的对比度（AA 正文要求 >= 4.5）
@@ -440,7 +449,7 @@ test('口味比周边微文案更抢眼（轴标题字重 + 品牌色角标 + �
   })
   expect(axis.weight, '口味轴字重掉回 normal/semibold ⇒「不明显」复发').toBeGreaterThanOrEqual(700)
   expect(axis.size, '口味轴字号掉回 12px 微文案档').toBeGreaterThanOrEqual(14)
-  expect(axis.color).toBe('rgb(17, 24, 39)') // gray-900，主文本色
+  expect(axis.color).toBe('rgb(28, 25, 23)') // ink #1c1917，主文本色
   expect(axis.barBg, '口味轴左侧品牌色竖条丢失').toBe('rgb(234, 179, 8)') // brand-500
   expect(axis.barH).toBeGreaterThanOrEqual(16)
 

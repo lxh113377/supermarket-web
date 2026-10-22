@@ -13,7 +13,7 @@ function OrderItem({ item }: { item: OrderItemType }) {
         <span className="text-sm text-gray-700 truncate">{displayName}</span>
         <span className="text-xs text-gray-500 ml-2">x{item.quantity}</span>
       </div>
-      <span className="text-sm font-semibold text-gray-900 shrink-0">
+      <span className="text-sm font-semibold text-ink shrink-0">
         {formatYuan(item.price * item.quantity)}
       </span>
     </div>

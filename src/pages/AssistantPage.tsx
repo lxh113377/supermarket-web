@@ -97,7 +97,7 @@ export default function AssistantPage() {
         >
           ←
         </button>
-        <span className="ml-2 text-sm font-semibold text-gray-800 flex items-center gap-1.5">
+        <span className="ml-2 text-sm font-semibold text-ink-soft flex items-center gap-1.5">
           <IconRobot className="w-4 h-4 text-brand-700" />
           AI 导购助手
         </span>

@@ -284,7 +284,7 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
                 <p className="text-[10px] text-gray-500">{label}</p>
                 {m ? (
                   <>
-                    <p className="text-lg font-bold text-gray-900">{m.marginPct}%</p>
+                    <p className="text-lg font-bold text-ink">{m.marginPct}%</p>
                     <p className="text-[10px] text-gray-500 mt-0.5">毛利 ¥{formatCount(m.revenue - m.cost)}</p>
                   </>
                 ) : (

@@ -78,7 +78,7 @@ function ProductRow({
             }
           }}
         >
-          <p className={`text-sm font-medium truncate ${enabled ? 'text-gray-900' : 'text-gray-500 line-through'}`}>
+          <p className={`text-sm font-medium truncate ${enabled ? 'text-ink' : 'text-gray-500 line-through'}`}>
             {product.name}{product.spec ? ` (${product.spec})` : ''}
           </p>
           <div className="flex items-center gap-2 mt-0.5">

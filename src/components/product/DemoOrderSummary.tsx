@@ -32,7 +32,7 @@ export default function DemoOrderSummary({
     <Overlay open={open} onClose={onClose} label="演示订单摘要" className="max-w-md">
       <div className="space-y-4">
         <div>
-          <h2 className="text-base font-bold text-gray-900">演示订单摘要</h2>
+          <h2 className="text-base font-bold text-ink">演示订单摘要</h2>
           <p className="text-xs text-gray-500 mt-1">
             本页为演示环境，以下摘要<strong className="text-gray-700">不产生真实订单、不发起任何支付</strong>。
           </p>
@@ -47,7 +47,7 @@ export default function DemoOrderSummary({
         <dl className="border-t border-b border-gray-100 py-3 space-y-2 text-sm">
           <div className="flex items-start justify-between gap-4">
             <dt className="text-gray-500 shrink-0">商品</dt>
-            <dd className="text-gray-900 text-right font-medium min-w-0">
+            <dd className="text-ink text-right font-medium min-w-0">
               {productName}
               {specText && <span className="block text-xs text-gray-500 font-normal mt-0.5">{specText}</span>}
             </dd>
@@ -58,7 +58,7 @@ export default function DemoOrderSummary({
           </div>
           <div className="flex items-center justify-between gap-4">
             <dt className="text-gray-500">数量</dt>
-            <dd className="text-gray-900 tabular-nums">× {quantity}</dd>
+            <dd className="text-ink tabular-nums">× {quantity}</dd>
           </div>
           {combo && (
             <div className="flex items-start justify-between gap-4">
@@ -69,7 +69,7 @@ export default function DemoOrderSummary({
             </div>
           )}
           <div className="flex items-center justify-between gap-4 pt-2 border-t border-gray-100">
-            <dt className="text-gray-900 font-semibold">合计</dt>
+            <dt className="text-ink font-semibold">合计</dt>
             <dd className="price-num text-brand-700 font-bold text-lg">{formatYuan(total)}</dd>
           </div>
         </dl>

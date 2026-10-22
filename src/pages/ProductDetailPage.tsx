@@ -314,7 +314,7 @@ export default function ProductDetailPage() {
         >
           ←
         </button>
-        <h1 className="text-sm font-bold text-gray-900 truncate">{effName}</h1>
+        <h1 className="text-sm font-bold text-ink truncate">{effName}</h1>
       </div>
 
       <div className="flex-1 overflow-y-auto pb-28 lg:pb-10 w-full">
@@ -366,10 +366,10 @@ export default function ProductDetailPage() {
           <div className="px-4 lg:px-0">
             {/* 标题 / 价格 / 口味 */}
             <div className="bg-white lg:bg-transparent mt-2.5 lg:mt-0 p-5 lg:p-0 animate-fade-in-up stagger-1">
-              <h2 className="text-xl lg:text-2xl font-bold text-gray-900 min-w-0 leading-snug">{effName}</h2>
+              <h2 className="text-xl lg:text-2xl font-bold text-ink min-w-0 leading-snug">{effName}</h2>
               {/* 整行保持为直接文本节点（不套 span）：拆成子元素会让按文本定位的用例读不到整串 */}
               {effSpec && (
-                <p className="text-base font-bold text-gray-900 mt-2">口味：{effSpec}</p>
+                <p className="text-base font-bold text-ink mt-2">口味：{effSpec}</p>
               )}
               {avgRating && (
                 <div className="flex items-center gap-2 mt-3">
@@ -426,7 +426,7 @@ export default function ProductDetailPage() {
                   <span
                     role="status"
                     aria-label="购买数量"
-                    className="text-sm font-semibold text-gray-900 w-10 text-center tabular-nums"
+                    className="text-sm font-semibold text-ink w-10 text-center tabular-nums"
                   >{qty}</span>
                   <button
                     type="button"

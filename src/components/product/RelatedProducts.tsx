@@ -64,7 +64,7 @@ export default function RelatedProducts({ current, products, limit = 8 }: Props)
                     <span className="text-2xl" aria-hidden="true">🛒</span>
                   )}
                 </div>
-                <p className="text-sm text-gray-900 mt-2 line-clamp-2 leading-snug">{p.name}</p>
+                <p className="text-sm text-ink mt-2 line-clamp-2 leading-snug">{p.name}</p>
                 {p.spec && <p className="text-xs text-gray-500 mt-0.5 truncate">{p.spec}</p>}
                 <p className="price-num mt-1 text-sm font-bold text-brand-700">{formatYuan(p.price)}</p>
               </Link>

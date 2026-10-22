@@ -149,7 +149,7 @@ export default function AdminPage() {
     <div className="min-h-full bg-surface p-5 pb-24 w-full max-w-5xl lg:max-w-6xl mx-auto">
       {/* 标题区 */}
       <div className="flex items-center justify-between mb-5">
-        <h1 className="text-xl font-bold text-gray-900">管理后台</h1>
+        <h1 className="text-xl font-bold text-ink">管理后台</h1>
         <div className="flex items-center gap-2">
           {/* 打印经营后台入口：本站 /print 页 = 上游校园打印应用（自带订单工作台/优惠券/售后），
               数据在它自己的库里，与本后台的 D1 不通 ⇒ 只能给入口，不能塞进上面的页签。

@@ -17,7 +17,7 @@ function CartItem({ item, onAdd, onRemove, onDelete }: CartItemProps) {
   return (
     <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-gray-100/80 shadow-card transition-all duration-200">
       <div className="flex-1 min-w-0 pr-3">
-        <h3 className="text-sm font-medium text-gray-900 leading-tight truncate">{displayName}</h3>
+        <h3 className="text-sm font-medium text-ink leading-tight truncate">{displayName}</h3>
         <p className="text-brand-700 font-bold mt-1.5">
           <span className="price-num text-sm font-bold text-brand-700"><span className="text-[0.7em] opacity-70">¥</span>{formatPrice(item.price)}</span>
         </p>
@@ -32,7 +32,7 @@ function CartItem({ item, onAdd, onRemove, onDelete }: CartItemProps) {
           >
             <span aria-hidden="true">-</span>
           </button>
-          <span className="text-sm font-semibold w-5 text-center text-gray-800" aria-live="polite">{item.quantity}</span>
+          <span className="text-sm font-semibold w-5 text-center text-ink-soft" aria-live="polite">{item.quantity}</span>
           <button
             onClick={() => onAdd(item)}
             aria-label={`增加${displayName}`}

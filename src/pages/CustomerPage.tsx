@@ -282,7 +282,7 @@ export default function CustomerPage() {
               {/* 刊头：分类当卷名，子类与件数当副题 —— 这是"杂志"隐喻的落点 */}
               <div className="flex items-end justify-between gap-4 flex-wrap pb-4 mb-5 border-b border-gray-200">
                 <div className="min-w-0">
-                  <h1 className="text-3xl font-bold tracking-tight text-gray-900 leading-none">
+                  <h1 className="text-3xl font-bold tracking-tight text-ink leading-none">
                     {category?.name || '全部商品'}
                   </h1>
                   <p className="text-xs text-gray-500 mt-2 tracking-wide">
@@ -343,7 +343,7 @@ export default function CustomerPage() {
         >
           ←
         </button>
-        <span className="ml-2 text-sm font-semibold text-gray-800">
+        <span className="ml-2 text-sm font-semibold text-ink-soft">
           {category?.name || '全部商品'}
         </span>
       </div>

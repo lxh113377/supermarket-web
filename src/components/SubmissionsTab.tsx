@@ -161,7 +161,7 @@ export default function SubmissionsTab() {
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-sm text-gray-800">{s.serviceName}</span>
+                    <span className="font-medium text-sm text-ink-soft">{s.serviceName}</span>
                     <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${STATUS_MAP[s.status || 'pending']?.cls || STATUS_MAP.pending.cls}`}>
                       {STATUS_MAP[s.status || 'pending']?.label || '待处理'}
                     </span>

@@ -31,7 +31,7 @@ export default function OrderSuccessPage() {
             <span className="text-3xl" aria-hidden="true">✅</span>
           </div>
         </div>
-        <h2 className="text-xl font-bold text-gray-900 mb-2 animate-fade-in-up stagger-1">{localFallback ? '订单已暂存本机' : '下单成功！'}</h2>
+        <h2 className="text-xl font-bold text-ink mb-2 animate-fade-in-up stagger-1">{localFallback ? '订单已暂存本机' : '下单成功！'}</h2>
         <p className="text-sm text-gray-500 mb-6 animate-fade-in-up stagger-2">
           {localFallback ? '网络未连通，暂时提交失败' : '订单已提交，请完成支付'}
         </p>
@@ -53,13 +53,13 @@ export default function OrderSuccessPage() {
           {building && (
             <>
               <p className="text-xs text-gray-500 mb-1.5">楼栋号</p>
-              <p className="text-2xl font-bold text-gray-900">{building}</p>
+              <p className="text-2xl font-bold text-ink">{building}</p>
             </>
           )}
           {room && (
             <>
               <p className="text-xs text-gray-500 mb-1.5 mt-3">房间号</p>
-              <p className="text-2xl font-bold text-gray-900">{room}</p>
+              <p className="text-2xl font-bold text-ink">{room}</p>
             </>
           )}
           {totalAmount > 0 && (
