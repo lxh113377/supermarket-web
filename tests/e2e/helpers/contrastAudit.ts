@@ -1,0 +1,125 @@
+/**
+ * 渲染像素对比度审计器（从 tests/e2e-visual/contrast.spec.ts 抽出为共享件）。
+ *
+ * 为什么抽出来：这套度量此前只服务视觉套件（demo 构建），而 demo 模式下
+ * `getDashboardStats` 没有本地实现 ⇒ 管理端「看板」页签只渲染出错误态
+ * （实测含字元素 11、canvas 0）。**有数据的管理端从未被任何对比度判据扫过。**
+ * 唯一能渲染真数据的路径是 tests/e2e-stub（假密钥 + 假 /web + 真生产包），
+ * 所以把审计器抽成两侧共用的一个实现 —— 复制两份必然漂移（本仓反复抓的同族）。
+ *
+ * 度量口径（为什么不是源码级正则、也不是"直方图 top-2"）见 contrast.spec.ts 头注释。
+ * 一句话：前景取 computed color，底色取该元素框内**像素众数**，
+ * 这样渐变底 / 祖先背景 / 半透明叠加三类源码扫不到的情况都能量到。
+ */
+import type { Page } from '@playwright/test'
+
+export interface Problem {
+  sel: string; text: string; ratio: number; need: number
+  fg: string; size: number; weight: number
+}
+
+/** 页内执行：返回「扫到多少个含字元素」与「不合格清单」 */
+export async function auditPage(page: Page): Promise<{ checked: number; problems: Problem[] }> {
+
+  const png = await page.screenshot({ type: 'png' })
+  const dataUrl = 'data:image/png;base64,' + png.toString('base64')
+
+  return page.evaluate(async (src) => {
+    const img = new Image()
+    img.src = src
+    await img.decode()
+    const cv = document.createElement('canvas')
+    cv.width = img.naturalWidth
+    cv.height = img.naturalHeight
+    const ctx = cv.getContext('2d', { willReadFrequently: true })!
+    // 命门：漏了 drawImage，canvas 就是全透明空图 ⇒ 每个元素都采样不到颜色
+    // ⇒ 零违规 ⇒ 全站假绿。首版正是如此，被文件末尾的自证用例抓到。
+    ctx.drawImage(img, 0, 0)
+    const px = ctx.getImageData(0, 0, cv.width, cv.height).data
+
+    const parseRGB = (s: string) => {
+      const m = s.match(/[\d.]+/g)
+      if (!m) return [0, 0, 0, 1]
+      return [Number(m[0]), Number(m[1]), Number(m[2]), m[3] === undefined ? 1 : Number(m[3])]
+    }
+    const lin = (v: number) => { const x = v / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4 }
+    const lum = (c: number[]) => 0.2126 * lin(c[0]) + 0.7152 * lin(c[1]) + 0.0722 * lin(c[2])
+    const ratio = (a: number[], b: number[]) => {
+      const l1 = lum(a), l2 = lum(b)
+      return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05)
+    }
+    const key = (r: number, g: number, b: number) => (r << 16) | (g << 8) | b
+    const unkey = (k: number) => [(k >> 16) & 255, (k >> 8) & 255, k & 255]
+    // 半透明前景（如 text-ink/70）先与底色合成，否则会把"70% 墨压黄底"错算成"墨压黄底"
+    const over = (f: number[], a: number, bg: number[]) => f.map((c, i) => Math.round(c * a + bg[i] * (1 - a)))
+    const near = (a: number[], b: number[]) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]) < 12
+    // 承载信息的文字：含中日韩、拉丁字母或数字；纯 emoji/几何符号（装饰）不算
+    const INFORMATIVE = /[\u4E00-\u9FFF\u3040-\u30FFA-Za-z0-9]/
+
+    const problems: Problem[] = []
+    const seen = new Set<string>()
+
+    const candidates = [...document.querySelectorAll<HTMLElement>('body *')].filter((el) => {
+      if (el.closest('[aria-hidden="true"]')) return false
+      if (!INFORMATIVE.test(el.textContent || '')) return false
+      // 只看"自己直接持有文字节点"的元素：否则容器会把整片子树混成一张直方图
+      const ownsText = [...el.childNodes].some((n) => n.nodeType === 3 && INFORMATIVE.test(n.textContent || ''))
+      if (!ownsText) return false
+      const cs = getComputedStyle(el)
+      if (cs.visibility === 'hidden' || cs.display === 'none' || Number(cs.opacity) < 0.05) return false
+      const r = el.getBoundingClientRect()
+      if (r.width < 4 || r.height < 4) return false
+      if (r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) return false
+      return true
+    })
+
+    for (const el of candidates) {
+      const r = el.getBoundingClientRect()
+      const cs = getComputedStyle(el)
+      const [fr, fg, fb, fa] = parseRGB(cs.color)
+      if (fa < 0.05) continue // 完全透明的文字（占位点号那类）不参与判定
+
+      // 图像像素 ⇄ CSS 像素：截图按 deviceScaleFactor 放大，而 rect 永远是 CSS 像素
+      const s = cv.width / (document.documentElement.clientWidth || innerWidth)
+      const x0 = Math.max(0, Math.round(r.left * s)), y0 = Math.max(0, Math.round(r.top * s))
+      const x1 = Math.min(cv.width, Math.round(r.right * s)), y1 = Math.min(cv.height, Math.round(r.bottom * s))
+      if (x1 - x0 < 4 || y1 - y0 < 4) continue
+
+      const hist = new Map<number, number>()
+      for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
+          const i = (y * cv.width + x) * 4
+          if (px[i + 3] < 250) continue
+          const k = key(px[i], px[i + 1], px[i + 2])
+          hist.set(k, (hist.get(k) || 0) + 1)
+        }
+      }
+      if (hist.size === 0) continue
+      const ranked = [...hist.entries()].sort((a, b) => b[1] - a[1])
+      let bg = unkey(ranked[0][0])
+      // 众数恰好等于文字色（框内几乎只有字、底被字形盖住）⇒ 退到第二众数当底色
+      if (near(bg, [fr, fg, fb]) && ranked[1]) bg = unkey(ranked[1][0])
+
+      const fontSize = parseFloat(cs.fontSize) || 16
+      const weight = parseInt(cs.fontWeight, 10) || 400
+      const isLarge = fontSize >= 24 || (fontSize >= 18.66 && weight >= 700)
+      const need = isLarge ? 3 : 4.5
+      const fgFinal = fa >= 0.999 ? [fr, fg, fb] : over([fr, fg, fb], fa, bg)
+      const got = ratio(fgFinal, bg)
+      const text = (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 28)
+      const dedupe = text + '|' + Math.round(got * 10)
+      if (seen.has(dedupe)) continue
+      seen.add(dedupe)
+
+      if (got < need) {
+        const cls = typeof el.className === 'string' ? el.className.trim().split(/\s+/).slice(0, 3).join('.') : ''
+        problems.push({
+          sel: el.tagName.toLowerCase() + (cls ? '.' + cls : ''),
+          text, ratio: Math.round(got * 100) / 100, need,
+          fg: cs.color, size: Math.round(fontSize), weight,
+        })
+      }
+    }
+    return { checked: candidates.length, problems }
+  }, dataUrl)
+}

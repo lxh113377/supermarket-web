@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { watchErrors, type ErrorWatch } from '../e2e/helpers/watchErrors'
+import { auditPage } from '../e2e/helpers/contrastAudit'
 
 /**
  * 全站「渲染像素」对比度闸（2026-10-22 设计升级随附判据）。
@@ -55,6 +56,12 @@ interface RouteSpec {
   expectText?: string
 }
 
+/** 切到管理端某个页签（demo 模式直进后台，无需密钥） */
+const openAdminTab = (label: string) => async (page: import('@playwright/test').Page) => {
+  await page.getByRole('tab', { name: label }).click()
+  await page.waitForTimeout(1200)
+}
+
 /** 走查面：顾客端主要路由 + 需要交互才出内容的两个态（满车、搜索展开） */
 const ROUTES: RouteSpec[] = [
   { name: 'home', route: '/#/' },
@@ -67,7 +74,28 @@ const ROUTES: RouteSpec[] = [
   { name: 'category-life', route: '/#/category/life' },
   { name: 'category-game', route: '/#/category/entertainment' },
   { name: 'not-found', route: '/#/definitely-not-a-page' },
-  { name: 'admin-login', route: '/#/admin' },
+  /**
+   * 管理端（2026-10-23 更正 + 扩面）。
+   *
+   * 原先这条叫 `admin-login`，但**名字是假的**：本套件跑的是
+   * `vite.config.e2e.js` 构建（envDir 指向 env-empty 屏蔽 .env）⇒ IS_CLOUD=false ⇒
+   * AdminGuard 直接放行、根本不渲染密钥框。实测 `/#/admin` 落在「商品」页签
+   * （AdminPage 的 useState('products') 默认值，且不持久化）。
+   * 也就是说这条一直在审商品列表页，却挂着一个"登录页"的名字 ——
+   * 而登录页真正的覆盖面在 `tests/e2e-stub/dashboard-cloud.spec.ts`（云端模式才出密钥闸）。
+   * 判据的名字必须说清它量的是什么，否则下一次"看着有覆盖其实没有"还会重演。
+   *
+   * 这五条量的是**演示构建下的管理端界面**（商品页签有真种子数据；订单/服务/评价
+   * 与看板在演示模式下是空态/错误态）。空态与错误态本身也是商家天天看的界面，
+   * 值得扫 —— 只是不许管它叫「有数据态」。
+   * 看板**有数据**那一面（KPI 数字 + 四张 echarts）由 tests/e2e-stub/admin-contrast.spec.ts
+   * 覆盖：只有假桩后端会返回 getDashboardStats，演示模式下它没有本地实现。
+   */
+  { name: 'admin-products', route: '/#/admin' },
+  { name: 'admin-dashboard', route: '/#/admin', prepare: openAdminTab('看板') },
+  { name: 'admin-orders', route: '/#/admin', prepare: openAdminTab('订单') },
+  { name: 'admin-reviews', route: '/#/admin', prepare: openAdminTab('评价') },
+  { name: 'admin-services', route: '/#/admin', prepare: openAdminTab('服务') },
   { name: 'home-mobile', route: '/#/', vp: MOBILE },
   // 周四 19:00（营业中）与周四 03:00（已打烊）成对钉死：
   // 打烊态才有"非营业时间"提示与"仍要下单"分支，必须也过 AA。
@@ -104,116 +132,6 @@ test.beforeEach(async ({ page }) => {
   errs = watchErrors(page)
 })
 test.afterEach(() => errs.assertClean())
-
-interface Problem {
-  sel: string; text: string; ratio: number; need: number
-  fg: string; size: number; weight: number
-}
-
-/** 页内执行：前景 = computed color，底色 = 框内像素众数 */
-async function auditPage(page: import('@playwright/test').Page): Promise<{ checked: number; problems: Problem[] }> {
-  const png = await page.screenshot({ type: 'png' })
-  const dataUrl = 'data:image/png;base64,' + png.toString('base64')
-
-  return page.evaluate(async (src) => {
-    const img = new Image()
-    img.src = src
-    await img.decode()
-    const cv = document.createElement('canvas')
-    cv.width = img.naturalWidth
-    cv.height = img.naturalHeight
-    const ctx = cv.getContext('2d', { willReadFrequently: true })!
-    // 命门：漏了 drawImage，canvas 就是全透明空图 ⇒ 每个元素都采样不到颜色
-    // ⇒ 零违规 ⇒ 全站假绿。首版正是如此，被文件末尾的自证用例抓到。
-    ctx.drawImage(img, 0, 0)
-    const px = ctx.getImageData(0, 0, cv.width, cv.height).data
-
-    const parseRGB = (s: string) => {
-      const m = s.match(/[\d.]+/g)
-      if (!m) return [0, 0, 0, 1]
-      return [Number(m[0]), Number(m[1]), Number(m[2]), m[3] === undefined ? 1 : Number(m[3])]
-    }
-    const lin = (v: number) => { const x = v / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4 }
-    const lum = (c: number[]) => 0.2126 * lin(c[0]) + 0.7152 * lin(c[1]) + 0.0722 * lin(c[2])
-    const ratio = (a: number[], b: number[]) => {
-      const l1 = lum(a), l2 = lum(b)
-      return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05)
-    }
-    const key = (r: number, g: number, b: number) => (r << 16) | (g << 8) | b
-    const unkey = (k: number) => [(k >> 16) & 255, (k >> 8) & 255, k & 255]
-    // 半透明前景（如 text-ink/70）先与底色合成，否则会把"70% 墨压黄底"错算成"墨压黄底"
-    const over = (f: number[], a: number, bg: number[]) => f.map((c, i) => Math.round(c * a + bg[i] * (1 - a)))
-    const near = (a: number[], b: number[]) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]) < 12
-    // 承载信息的文字：含中日韩、拉丁字母或数字；纯 emoji/几何符号（装饰）不算
-    const INFORMATIVE = /[\u4E00-\u9FFF\u3040-\u30FFA-Za-z0-9]/
-
-    const problems: Problem[] = []
-    const seen = new Set<string>()
-
-    const candidates = [...document.querySelectorAll<HTMLElement>('body *')].filter((el) => {
-      if (el.closest('[aria-hidden="true"]')) return false
-      if (!INFORMATIVE.test(el.textContent || '')) return false
-      // 只看"自己直接持有文字节点"的元素：否则容器会把整片子树混成一张直方图
-      const ownsText = [...el.childNodes].some((n) => n.nodeType === 3 && INFORMATIVE.test(n.textContent || ''))
-      if (!ownsText) return false
-      const cs = getComputedStyle(el)
-      if (cs.visibility === 'hidden' || cs.display === 'none' || Number(cs.opacity) < 0.05) return false
-      const r = el.getBoundingClientRect()
-      if (r.width < 4 || r.height < 4) return false
-      if (r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) return false
-      return true
-    })
-
-    for (const el of candidates) {
-      const r = el.getBoundingClientRect()
-      const cs = getComputedStyle(el)
-      const [fr, fg, fb, fa] = parseRGB(cs.color)
-      if (fa < 0.05) continue // 完全透明的文字（占位点号那类）不参与判定
-
-      // 图像像素 ⇄ CSS 像素：截图按 deviceScaleFactor 放大，而 rect 永远是 CSS 像素
-      const s = cv.width / (document.documentElement.clientWidth || innerWidth)
-      const x0 = Math.max(0, Math.round(r.left * s)), y0 = Math.max(0, Math.round(r.top * s))
-      const x1 = Math.min(cv.width, Math.round(r.right * s)), y1 = Math.min(cv.height, Math.round(r.bottom * s))
-      if (x1 - x0 < 4 || y1 - y0 < 4) continue
-
-      const hist = new Map<number, number>()
-      for (let y = y0; y < y1; y++) {
-        for (let x = x0; x < x1; x++) {
-          const i = (y * cv.width + x) * 4
-          if (px[i + 3] < 250) continue
-          const k = key(px[i], px[i + 1], px[i + 2])
-          hist.set(k, (hist.get(k) || 0) + 1)
-        }
-      }
-      if (hist.size === 0) continue
-      const ranked = [...hist.entries()].sort((a, b) => b[1] - a[1])
-      let bg = unkey(ranked[0][0])
-      // 众数恰好等于文字色（框内几乎只有字、底被字形盖住）⇒ 退到第二众数当底色
-      if (near(bg, [fr, fg, fb]) && ranked[1]) bg = unkey(ranked[1][0])
-
-      const fontSize = parseFloat(cs.fontSize) || 16
-      const weight = parseInt(cs.fontWeight, 10) || 400
-      const isLarge = fontSize >= 24 || (fontSize >= 18.66 && weight >= 700)
-      const need = isLarge ? 3 : 4.5
-      const fgFinal = fa >= 0.999 ? [fr, fg, fb] : over([fr, fg, fb], fa, bg)
-      const got = ratio(fgFinal, bg)
-      const text = (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 28)
-      const dedupe = text + '|' + Math.round(got * 10)
-      if (seen.has(dedupe)) continue
-      seen.add(dedupe)
-
-      if (got < need) {
-        const cls = typeof el.className === 'string' ? el.className.trim().split(/\s+/).slice(0, 3).join('.') : ''
-        problems.push({
-          sel: el.tagName.toLowerCase() + (cls ? '.' + cls : ''),
-          text, ratio: Math.round(got * 100) / 100, need,
-          fg: cs.color, size: Math.round(fontSize), weight,
-        })
-      }
-    }
-    return { checked: candidates.length, problems }
-  }, dataUrl)
-}
 
 for (const r of ROUTES) {
   test(r.name + '：承载信息的文字全部过 WCAG AA', async ({ page }) => {
