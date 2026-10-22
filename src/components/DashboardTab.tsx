@@ -329,7 +329,7 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
           {aiStatus === 'loaded' && (
             <span className={`text-3xs px-2 py-0.5 rounded-full font-medium ${
               aiAdvice?.source === 'dify' ? 'bg-green-50 text-green-700' :
-              aiAdvice?.source === 'rule' ? 'bg-gray-100 text-gray-500' : 'bg-red-50 text-red-700'
+              aiAdvice?.source === 'rule' ? 'bg-gray-100 text-gray-600' : 'bg-red-50 text-red-700'
             }`}>
               {aiAdvice?.source === 'dify' ? 'AI 已接入' : aiAdvice?.source === 'rule' ? '规则版' : 'AI 服务暂不可用'}
             </span>

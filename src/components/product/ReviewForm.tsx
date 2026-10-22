@@ -108,7 +108,7 @@ export default function ReviewForm({ productOrder, onPublished }: { productOrder
                 aria-checked={rating === n}
                 aria-label={`${n}星`}
                 onClick={() => setRating(n)}
-                className={`text-2xl transition-all duration-150 ${n <= rating ? 'text-brand-400 scale-110' : 'text-gray-200 hover:text-brand-200 hover:scale-105'}`}
+                className={`text-2xl transition-all duration-150 ${n <= rating ? 'text-amber-600 scale-110' : 'text-gray-500 hover:text-amber-500 hover:scale-105'}`}
               >
                 ★
               </button>

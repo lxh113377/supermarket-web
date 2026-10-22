@@ -9,7 +9,7 @@ import type { Product, Review } from '../types'
 // 用户完全听不出「几星」。
 function Stars({ rating }: { rating: number }) {
   return (
-    <span className="text-yellow-500 text-sm" role="img" aria-label={`${rating} 星（满分 5 星）`}>
+    <span className="text-amber-600 text-sm" role="img" aria-label={`${rating} 星（满分 5 星）`}>
       <span aria-hidden="true">{'★'.repeat(rating)}{'☆'.repeat(5 - rating)}</span>
     </span>
   )

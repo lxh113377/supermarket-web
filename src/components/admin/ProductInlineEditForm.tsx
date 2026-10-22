@@ -293,7 +293,7 @@ export default function InlineEditForm({ product, categories, onClose, onSaved }
         <button onClick={save} disabled={saving} className="flex-1 py-2 bg-brand-500 text-ink rounded-lg text-xs font-medium hover:bg-brand-400 disabled:opacity-50 transition">
           {saving ? '保存中...' : '保存'}
         </button>
-        <button onClick={onClose} className="px-4 py-2 bg-gray-100 text-gray-500 rounded-lg text-xs hover:bg-gray-200 transition">取消</button>
+        <button onClick={onClose} className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-xs hover:bg-gray-200 transition">取消</button>
       </div>
     </div>
   )

@@ -141,7 +141,7 @@ function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
           <p className="text-xs mt-1 text-transparent select-none" aria-hidden="true">·</p>
         )}
         {disabled && (
-          <span className="self-start mt-1.5 text-3xs bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded-md font-medium">
+          <span className="self-start mt-1.5 text-3xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-md font-medium">
             已下架
           </span>
         )}

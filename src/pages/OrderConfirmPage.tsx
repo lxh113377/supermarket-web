@@ -268,7 +268,7 @@ export default function OrderConfirmPage() {
             disabled={submitting}
             className={`w-full py-4 rounded-2xl font-medium text-base transition-all duration-200 active:scale-[0.98] ${
               submitting
-                ? 'bg-gray-200 text-gray-500'
+                ? 'bg-gray-200 text-gray-600'
                 : open
                   ? 'btn-primary shadow-elevated'
                   : 'bg-amber-600 text-ink hover:bg-amber-500 shadow-elevated'

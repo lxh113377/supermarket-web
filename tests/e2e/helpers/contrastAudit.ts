@@ -21,7 +21,7 @@ export interface Problem {
 }
 
 /** 页内执行：返回「扫到多少个含字元素」与「不合格清单」 */
-export async function auditPage(page: Page): Promise<{ checked: number; problems: Problem[] }> {
+async function measureOnce(page: Page): Promise<{ checked: number; problems: Problem[] }> {
 
   const png = await page.screenshot({ type: 'png' })
   const dataUrl = 'data:image/png;base64,' + png.toString('base64')
@@ -54,6 +54,45 @@ export async function auditPage(page: Page): Promise<{ checked: number; problems
     const unkey = (k: number) => [(k >> 16) & 255, (k >> 8) & 255, k & 255]
     // 半透明前景（如 text-ink/70）先与底色合成，否则会把"70% 墨压黄底"错算成"墨压黄底"
     const over = (f: number[], a: number, bg: number[]) => f.map((c, i) => Math.round(c * a + bg[i] * (1 - a)))
+
+    /**
+     * 底色 = 沿祖先链做 alpha 合成拿到的**计算后实底**（2026-10-23 第三次更正方法）。
+     *
+     * 为什么像素法还不够：12px 中文两行几乎铺满 284×20 的盒子，盒内根本没有
+     * "纯底色像素"可取众数 —— 实测 top-3 是 #98958c/#98968d/#99968d 各占约 3%，
+     * 全是文字与底之间的抗锯齿过渡色，据此算出 2.4:1 的假阳性。
+     * CSSOM 能精确拿到每层 backgroundColor 与 alpha，与文字密度无关。
+     *
+     * 只在链上取到**不透明**底时才采信（sure=true）；若一路都是半透明/transparent
+     * （背景来自 background-image 渐变，如分类页头部那四组渐变），CSSOM 拿不到颜色，
+     * 这时回落到像素法 —— 渐变底只有真实渲染像素能反映。
+     */
+    const cssBackground = (el: HTMLElement): { rgb: number[]; sure: boolean } => {
+      let acc: number[] | null = null
+      let a = 0
+      let node: HTMLElement | null = el
+      for (let d = 0; d < 12 && node; d++) {
+        const [r, g, b, al] = parseRGB(getComputedStyle(node).backgroundColor)
+        if (al > 0.001) {
+          if (!acc) { acc = [r, g, b]; a = al }
+          else {
+            // 已合成的上层(acc,a) 再盖住本层 [r,g,b]：out = acc*a + lower*(1-a)
+            const lower = [r, g, b]
+            acc = acc.map((c, i) => Math.round(c * a + lower[i] * (1 - a)))
+            a = a + al * (1 - a)
+          }
+          if (a >= 0.999) return { rgb: acc, sure: true }
+        }
+        // 祖先带 background-image（Tailwind 的 bg-gradient-* 只设 image，backgroundColor
+        // 保持 transparent）⇒ 这一层的颜色 CSSOM 拿不到。若此时累计 alpha 还不够高，
+        // 继续往上走就会把"渐变上的白字"错算成"页底上的白字"（实测分类页头部
+        // 白字被算成压白 = 1.04:1 假阳性）。此时判定不可信，交回像素法。
+        const bgImg = getComputedStyle(node).backgroundImage
+        if (bgImg && bgImg !== 'none' && a < 0.9) return { rgb: acc || [255, 255, 255], sure: false }
+        node = node.parentElement
+      }
+      return { rgb: acc || [255, 255, 255], sure: false }
+    }
     const near = (a: number[], b: number[]) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]) < 12
     // 承载信息的文字：含中日韩、拉丁字母或数字；纯 emoji/几何符号（装饰）不算
     const INFORMATIVE = /[\u4E00-\u9FFF\u3040-\u30FFA-Za-z0-9]/
@@ -150,10 +189,36 @@ export async function auditPage(page: Page): Promise<{ checked: number; problems
         }
       }
       if (hist.size === 0) continue
-      const ranked = [...hist.entries()].sort((a, b) => b[1] - a[1])
-      let bg = unkey(ranked[0][0])
-      // 众数恰好等于文字色（框内几乎只有字、底被字形盖住）⇒ 退到第二众数当底色
-      if (near(bg, [fr, fg, fb]) && ranked[1]) bg = unkey(ranked[1][0])
+      /**
+       * 底色估计（2026-10-23 第二次更正方法）。
+       *
+       * 首版取"框内像素众数"。两个真实场景把它打穿：
+       *   ① 文字密集的小盒子（如 12px 两行提示语）：字形与抗锯齿像素占比很高，
+       *      而每个抗锯齿像素颜色都不同 ⇒ 众数落在**混合色**上而不是底色。
+       *   ② 底色本身是渐变/被 backdrop-blur 打散（打烊提示压在深绿头部上）：
+       *      实测 top-3 是 #98958c / #98968d / #99968d 各占约 3% —— 全是文字与底
+       *      之间的过渡色，据此算出 2.4:1 的假阳性（真实底是浅琥珀）。
+       *
+       * 新口径：**在与文字色明显不同的像素里取众数**。抗锯齿像素位于"文字色⇄底色"
+       * 这条线上，所以按到文字色的距离筛掉它们与文字本体，剩下的聚簇就是底色。
+       * 距离阈值取最大距离的 60%：既能排除中间调，又不会因为底是渐变而选空。
+       * 深底浅字与浅底深字两个方向都成立（判据是"离文字远"，不是"偏亮"）。
+       */
+      const cssBg = cssBackground(el)
+      let bg: number[]
+      if (cssBg.sure) {
+        bg = cssBg.rgb
+      } else {
+        // 像素兜底（渐变底）：在与文字色明显不同的像素里取众数。
+        // 抗锯齿像素位于"文字色⇄底色"这条线上，按到文字色的距离筛掉它们与文字本体；
+        // 阈值取最大距离的 60% —— 既排除中间调，又不会因底是渐变而选空。
+        const entries = [...hist.entries()].map(([k, n]) => ({ c: unkey(k), n }))
+        const dist = (c: number[]) => Math.abs(c[0] - fr) + Math.abs(c[1] - fg) + Math.abs(c[2] - fb)
+        const dmax = entries.reduce((m, e) => Math.max(m, dist(e.c)), 0)
+        const far = entries.filter((e) => dist(e.c) > dmax * 0.6)
+        const pool = far.length ? far : entries
+        bg = pool.sort((a, b) => b.n - a.n)[0].c
+      }
 
       const fontSize = parseFloat(cs.fontSize) || 16
       const weight = parseInt(cs.fontWeight, 10) || 400
@@ -268,4 +333,61 @@ export async function auditPage(page: Page): Promise<{ checked: number; problems
 
     return { checked: candidates.length + iconChecked, problems }
   }, dataUrl)
+}
+
+
+/**
+ * 滚动覆盖审计（2026-10-23 新增，治「只测首屏」这个系统性盲区）。
+ *
+ * 一手触发：detail 页的评分星在 top=2177，而视口只有 900/1600 ⇒ 判据一条都没扫到，
+ * text-brand-400（压白底 1.53:1）就这么漏了过去。根因不是阈值也不是色值，是
+ * 判据只看初始视口 —— 而本站多个页面用内部滚动容器（div.flex-1.overflow-y-auto），
+ * 首屏之外的内容与「这页根本没写判据」没区别。实测同页把视口拉到 2600 才看得见 5 颗星。
+ *
+ * 做法：把所有滚动容器按视口高度逐屏推进，每屏跑一次 measureOnce 并合并
+ * （按 text+ratio+need 去重）。MAX_STEPS 防极端长页拖垮判据；结束后还原滚动位置，
+ * 避免污染同页后续用例。
+ */
+const MAX_STEPS = 6
+
+export async function auditPage(page: Page): Promise<{ checked: number; problems: Problem[] }> {
+  const seen = new Map<string, Problem>()
+  let maxChecked = 0
+  for (let step = 0; step < MAX_STEPS; step++) {
+    const more = await page.evaluate((s: number) => {
+      // 必须内联：page.evaluate 是序列化后在页内执行的，拿不到本文件的外层作用域
+      const list: HTMLElement[] = []
+      const doc = document.scrollingElement as HTMLElement | null
+      if (doc && doc.scrollHeight > doc.clientHeight + 4) list.push(doc)
+      for (const el of Array.from(document.querySelectorAll<HTMLElement>('body *'))) {
+        const cs = getComputedStyle(el)
+        if (/auto|scroll/.test(cs.overflowY) && el.scrollHeight > el.clientHeight + 4) list.push(el)
+      }
+      let anyMore = false
+      for (const el of list) {
+        el.scrollTop = s * Math.max(120, el.clientHeight - 40)
+        if (el.scrollTop + el.clientHeight < el.scrollHeight - 4) anyMore = true
+      }
+      return anyMore
+    }, step)
+    await page.waitForTimeout(260)
+    const r = await measureOnce(page)
+    maxChecked = Math.max(maxChecked, r.checked)
+    for (const p of r.problems) {
+      const k = [p.text, Math.round(p.ratio * 10), p.need].join("|")
+      if (!seen.has(k)) seen.set(k, p)
+    }
+    if (!more) break
+  }
+  await page.evaluate(() => {
+    const list: HTMLElement[] = []
+    const doc = document.scrollingElement as HTMLElement | null
+    if (doc) list.push(doc)
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>('body *'))) {
+      const cs = getComputedStyle(el)
+      if (/auto|scroll/.test(cs.overflowY)) list.push(el)
+    }
+    for (const el of list) el.scrollTop = 0
+  })
+  return { checked: maxChecked, problems: Array.from(seen.values()) }
 }

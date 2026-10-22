@@ -6,7 +6,7 @@ import { resolveReviewImages } from '../../utils/reviewImages'
 
 export function Stars({ rating }: { rating: number }) {
   return (
-    <span className="text-brand-400 text-sm tracking-tight" aria-label={`${rating} 星`}>
+    <span className="text-amber-600 text-sm tracking-tight" aria-label={`${rating} 星`}>
       {'★'.repeat(rating)}{'☆'.repeat(5 - rating)}
     </span>
   )

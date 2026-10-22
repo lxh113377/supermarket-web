@@ -24,7 +24,7 @@ interface Props {
 
 function DemoBadge() {
   return (
-    <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-500 text-3xs font-semibold align-middle">
+    <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-600 text-3xs font-semibold align-middle">
       演示文案
     </span>
   )
