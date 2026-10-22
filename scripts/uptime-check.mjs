@@ -14,7 +14,10 @@ const getArg = (name, fallback) => {
 const API_BASE = getArg('base', 'https://supermarket-web.pages.dev')
 const WEB_BASE = getArg('web', 'https://lxh113377.github.io')
 
-async function get(url) {
+/**
+ * 一次取数（不含重试）。抽出来是为了让重试逻辑可被 --selftest 用假 fetcher 判。
+ */
+async function attempt(url) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
   try {
@@ -23,6 +26,103 @@ async function get(url) {
   } finally {
     clearTimeout(timer)
   }
+}
+
+export const ATTEMPTS = 3
+export const BACKOFF_MS = 1500
+
+/**
+ * 取数：只对「问都没问到」重试，不对「服务器的判决」重试。
+ *
+ * 为什么分这一刀（2026-10-23 一手）：本机跑本件时顾客端那条抛 TypeError，
+ * 而同一个 URL 用 curl 与裸 fetch 都是 200 —— 本机代理（127.0.0.1:7897）瞬时抖动。
+ * 抛错 = 取数面坏了（网络/代理/DNS），它不是「线上挂了」的证据 ⇒ 重试是有据的；
+ * 而 404/503 是活着的服务器给出的真实结论 ⇒ 重试只会拖慢告警，绝不改变结论。
+ * 混起来的代价不是吵一次：本仓 backupLiveness.test.js 记着 uptime.yml 曾
+ * 「每夜都在跑、全是 failure」—— 误报烧掉的是整条告警链的信用。
+ *
+ * 措辞也跟着改：报「连续 N 次取不到」而不是裸抛错名，让邮件自己说清这不是单次抖动。
+ */
+export async function getWithRetry(url, { fetcher = attempt, sleep, attempts = ATTEMPTS, backoff = BACKOFF_MS } = {}) {
+  const nap = sleep || ((ms) => new Promise((r) => setTimeout(r, ms)))
+  let lastErr = null
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      const r = await fetcher(url)
+      return { status: r.status, body: r.body, attempts: i }
+    } catch (e) {
+      lastErr = e
+      if (i < attempts) await nap(backoff * i)
+    }
+  }
+  const name = lastErr && (lastErr.name || lastErr.message) ? (lastErr.name || lastErr.message) : String(lastErr)
+  throw new Error(name + '（连续 ' + attempts + ' 次取不到，非单次抖动）')
+}
+
+const get = (url) => getWithRetry(url)
+
+/**
+ * 判据自证（`node scripts/uptime-check.mjs --selftest`）：只判重试的分寸，不触网。
+ * 三条腿各自只断言一件事，且都是「反着来就会红」的形状：
+ *  腿1 前两次抛错、第三次成功 ⇒ 必须成功且恰好试 3 次（证明真在重试，不是恒绿）；
+ *  腿2 第一次就回 503 ⇒ 必须**只试 1 次**就把 503 如实交出去（证明不对结论重试 ——
+ *     这条是牙齿：一旦有人把它改成「非 200 就重试」，本腿当场红）；
+ *  腿3 三次全抛 ⇒ 必须红，且措辞含「连续 3 次」（证明误报烧完就响亮认，不伪装成单次抖动）。
+ */
+function selftest() {
+  const results = []
+  const t = async (label, fn) => {
+    try {
+      const detail = await fn()
+      results.push([true, label, detail])
+    } catch (e) {
+      results.push([false, label, String(e && e.message ? e.message : e)])
+    }
+  }
+  const noSleep = () => Promise.resolve()
+  return (async () => {
+    await t('腿1 抛错两次后成功 ⇒ 重试确实发生', async () => {
+      let calls = 0
+      const r = await getWithRetry('https://example.invalid/x', {
+        fetcher: async () => { calls++; if (calls < 3) throw new Error('proxy blip'); return { status: 200, body: 'ok' } },
+        sleep: noSleep,
+      })
+      if (r.status !== 200) throw new Error('最终状态 ' + r.status)
+      if (calls !== 3) throw new Error('调用次数 ' + calls + '（期望 3）')
+      return '第 3 次拿到 200，共试 ' + calls + ' 次'
+    })
+    await t('腿2 服务器回 503 ⇒ 只试 1 次且如实交出结论', async () => {
+      let calls = 0
+      const r = await getWithRetry('https://example.invalid/y', {
+        fetcher: async () => { calls++; return { status: 503, body: 'down' } },
+        sleep: noSleep,
+      })
+      if (r.status !== 503) throw new Error('状态被改写为 ' + r.status)
+      if (calls !== 1) throw new Error('对结论重试了：调用 ' + calls + ' 次（期望 1）')
+      return '503 原样上报，未重试'
+    })
+    await t('腿3 连续取不到 ⇒ 判红且措辞点明非单次', async () => {
+      let calls = 0
+      let msg = ''
+      try {
+        await getWithRetry('https://example.invalid/z', {
+          fetcher: async () => { calls++; throw new TypeError('TypeError') },
+          sleep: noSleep,
+        })
+      } catch (e) { msg = String(e.message) }
+      if (calls !== ATTEMPTS) throw new Error('调用 ' + calls + ' 次（期望 ' + ATTEMPTS + '）')
+      if (!/连续 3 次/.test(msg)) throw new Error('措辞未点明重试次数：' + msg)
+      return msg
+    })
+    const bad = results.filter(([ok]) => !ok)
+    for (const [ok, label, detail] of results) console.log((ok ? 'PASS  ' : 'FAIL  ') + label + ' :: ' + detail)
+    console.log('[uptime-check] selftest ' + (results.length - bad.length) + '/' + results.length)
+    return bad.length ? 1 : 0
+  })()
+}
+
+if (args.includes('--selftest')) {
+  process.exit(await selftest())
 }
 
 const failures = []

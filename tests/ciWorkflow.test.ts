@@ -19,6 +19,9 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { join } from 'node:path'
+// 带 timeout 位的 CLI 腿必须过守卫（cli-leg-coverage 的欠账上限是硬 0）：
+// 裸 spawnSync 把「子进程没跑起来」与「跑了但判红」混成同一种红，本文件⑤那条自证腿属于此类。
+import { assertCliRan } from './helpers/cliLeg.js'
 
 const WF_DIR = join(__dirname, '..', '.github', 'workflows')
 /**
@@ -973,5 +976,30 @@ describe('CI 的时间上界与浏览器下载单一逻辑（G-72-1）', () => {
     expect(m, `自证汇总行取不到 ⇒ 脚本没打印"自证 N/M"，本件失去判据（stdout 末行：${(r.stdout || '').trim().split('\n').pop() || '空'}）`).toBeTruthy()
     expect(Number(m![1]), `安装脚本自证 ${m![1]}/${m![2]} ⇒ 有腿没咬住`).toBe(Number(m![2]))
     expect(Number(m![2]), '自证分母为 0 ⇒ 脚本一条腿都没跑，空集不是通过').toBeGreaterThan(0)
+  })
+
+  /**
+   * ⑤ 探活脚本的自证必须被当场复跑（2026-10-23）。
+   *
+   * 为什么值得接：uptime-check.mjs 是打印下单链路唯一的告警来源（日巡检 uptime.yml 跑它），
+   * 而它今天刚暴露一个真缺陷 —— 无重试：本机代理瞬时抖动就报「顾客端请求异常：TypeError」，
+   * 同一个 URL 用 curl 与裸 fetch 都是 200。误报烧掉的是整条告警链的信用：本仓
+   * backupLiveness.test.js 就记着 uptime.yml 曾「每夜都在跑、全是 failure」那种被无视的形态。
+   * 修法是「只对取不到重试、不对服务器给出的结论重试」，而这层分寸只有假 fetcher 能判 ——
+   * 不接线的话 --selftest 写没写过、咬不咬得住，没人知道（本仓口径：没接线的判据=半成品）。
+   */
+  it('⑤ 探活脚本自证全过 —— 重试的分寸（只重试取不到，不重试结论）必须当场复跑', () => {
+    const r = spawnSync(process.execPath, [join(WF_DIR, '..', '..', 'scripts', 'uptime-check.mjs'), '--selftest'], {
+      encoding: 'utf8', timeout: 60_000,
+    })
+    assertCliRan(r, { label: 'uptime-check --selftest' })
+    expect(r.status, `探活自证未过 rc=${r.status}`).toBe(0)
+    // 与④同规：判「分子 == 分母」，不写死腿数（写死 = 下次加腿就自过期，本轮已踩过一次）。
+    const m = /selftest\s*(\d+)\/(\d+)/.exec(r.stdout || '')
+    expect(m, `自证汇总行取不到 ⇒ 脚本没打印 selftest N/M（stdout 末行：${(r.stdout || '').trim().split('\n').pop() || '空'}）`).toBeTruthy()
+    expect(Number(m![1]), `探活自证 ${m![1]}/${m![2]} ⇒ 有腿没咬住`).toBe(Number(m![2]))
+    expect(Number(m![2]), '自证分母为 0 ⇒ 一条腿都没跑，空集不是通过').toBeGreaterThan(0)
+    // 反向腿必须在场：只验「重试发生了」会放过「连 503 也重试」这种把告警拖慢的错法。
+    expect(r.stdout, '探活自证缺「对结论不重试」这条反向腿 ⇒ 判据没有牙齿').toContain('只试 1 次')
   })
 })
