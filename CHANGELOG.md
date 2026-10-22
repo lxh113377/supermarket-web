@@ -58,7 +58,19 @@
 - **验证（本机当场实跑）**：lint / 两处 tsc / 全量 vitest / `verify:backend` / `verify:errors` /
   `verify:limits` / 响应契约 / 文档一致性 / 行尾纯度 / 记忆体量 / `check:gate-parity` / `vite build` /
   Playwright 三层 —— 读数见本轮交付报告与 `npm test` 当场输出，本条不写死数字（写死即第二真相源）。
-  未跑：现网部署（顾客端 github.io 与 pages.dev 上线需按 `chaoshi-web-deploy` skill 走，本轮未上线）。
+  另：`npm run audit:deps` 在本机报 audit 端点网络超时（环境侧，与本轮改动无关）。
+- **已上线并线上实测（本轮收尾，先加载 `chaoshi-web-deploy` skill 再动）**：提交 `dbb3619` 推 main ⇒
+  CI run `39716603948` **completed/success**（deploy 与 dispatch 双发、release-parity 均 success），
+  `/_health` 回 `deploy=dbb3619` 与本仓提交逐字相同；**线上门槛真跑**：`POST /pub createOrder`
+  单件 p023（¥2.50）⇒ `HTTP 409 {code:-1, errorCode:"below_min_delivery", kind:"state",
+  retryable:false, message:"不满 ¥6.00 起送，不配送：当前合计 ¥2.50，再挑 ¥3.50 的商品即可下单"}`，
+  且拒单在扣库存/落库之前（未留脏单）；两端产物（pages.dev 与 github.io，同一入口 chunk
+  `index-gCX1YafH.js`）的 5 个目标 chunk 逐一按 UTF-8 数到「不配送」命中：首页 1 / 服务卡 1 /
+  详情页 3 / 购物车 1 / 确认页 2 ⇒ 提示确实到了顾客眼前。
+- ⚠️ 一笔**留名绕过**：pre-push 的 `ci-green` 闸要求 base 绿才推，而 base（并行会话 `f33855a`）的
+  `verify:eol` E7 抓到它自己那笔 CHANGELOG blob 缺末行换行 ⇒ gates 红、deploy skipped；而修好这个
+  缺末行换行的正是本笔（复原后的 CHANGELOG 以 LF 收尾）。不推则 base 的绿永远换不来 ⇒ 死锁，
+  故按闸既定逃生门给 `CI_GREEN_SKIP=1 + CI_GREEN_REASON`，闸自动追加的记录随 `7ab0cdf` 入账。
 ### 2026-10-22 打印页改为同源就地接管（修微信跨域跳转拦截页）
 
 - **一手事故（老大手机截图）**：顾客端在微信里点打印，弹出「即将前往以下网址，无法确认本次跳转是否安全，
