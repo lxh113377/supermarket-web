@@ -57,16 +57,39 @@ const log = (...a) => console.log('[print-tunnel]', ...a)
 const ANSI_RE = new RegExp(String.fromCharCode(27) + '\\[[0-9;]*m', 'g')
 function stripAnsi (s) { return String(s).replace(ANSI_RE, '') }
 
+async function attemptFetch(url, headers) {
+  const res = await fetch(url, { headers: { ...headers, 'User-Agent': 'chaoshi-print-tunnel/1.0' }, signal: AbortSignal.timeout(25000) })
+  const text = await res.text()
+  let code = ''
+  try { code = JSON.parse(text)?.error?.code || '' } catch { /* 非 JSON 不猜 */ }
+  return { status: res.status, code }
+}
+
+/**
+ * 探一次三处 /api。只对「问都没问到」重试，不对服务器的判决重试 —— 与日巡检
+ * scripts/uptime-check.mjs 的 getWithRetry 同一分寸（那两处判据必须同口径，否则
+ * 同一个抖动会在两个工具里给出两种结论，反而更难判断哪个是真的）。
+ *
+ * 一手（2026-10-23）：本机跑 `--check` 报「线上/api = 0 TypeError」，而同一时刻
+ * curl 与 uptime-check 都是 200 —— 本机代理瞬时抖动。这个后果比日巡检误报更直接：
+ * `--check` 是**唯一那条只读的恢复入口**，老大在打印挂掉时第一件事就是跑它；
+ * 它一误报，就会被当成「线上真断了」而触发整套重连（那会换隧道域名、改 Pages secret、
+ * 重新部署生产 —— 为一个 200 的抖动做这些事，代价完全不成比例）。
+ * 状态码是结论：403/503/0 之外拿到就原样交出去，绝不重试掩盖。
+ */
+const PROBE_ATTEMPTS = 3
 async function apiOk(url, headers = {}) {
-  try {
-    const res = await fetch(url, { headers: { ...headers, 'User-Agent': 'chaoshi-print-tunnel/1.0' }, signal: AbortSignal.timeout(25000) })
-    const text = await res.text()
-    let code = ''
-    try { code = JSON.parse(text)?.error?.code || '' } catch { /* 非 JSON 不猜 */ }
-    return { status: res.status, code }
-  } catch (e) {
-    return { status: 0, code: e?.name || 'FETCH_FAILED' }
+  let lastErr = null
+  for (let i = 1; i <= PROBE_ATTEMPTS; i++) {
+    try {
+      const r = await attemptFetch(url, headers)
+      return i > 1 ? { ...r, attempts: i } : r
+    } catch (e) {
+      lastErr = e
+      if (i < PROBE_ATTEMPTS) await sleep(i * 1500)
+    }
   }
+  return { status: 0, code: (lastErr && (lastErr.name || lastErr.message)) || 'FETCH_FAILED', attempts: PROBE_ATTEMPTS }
 }
 
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)) }

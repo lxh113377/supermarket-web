@@ -175,6 +175,27 @@ async function printPage(base, label) {
 await printPage(API_BASE, '管理端')
 await printPage(WEB_BASE, '顾客端')
 
+/**
+ * ④b 经营后台静态面可达，且**页面本体仍是那个后台**。
+ *
+ * 为什么单独立一条（2026-10-23）：`/admin/` 那 11 件是从朋友仓库逐文件搬进来的（不是构建产物），
+ * 一次改坏的 build 或误删 public/admin 就会让商家**打不开后台**，而 ②③ 只判首页、④ 只判顾客端
+ * 打印页 —— 全仓没有一条尺看后台面。判据同 ④：标题含「经营后台」，静态面被回退或产物缺失当场红。
+ * 两端都判：github.io 也伺服同一份 /admin/（实测两端 200），少一端在册就是漏面。
+ */
+async function adminPage(base, label) {
+  try {
+    const { status, body } = await get(`${base}/admin/`)
+    if (status !== 200) { failures.push(`${label} 经营后台 HTTP ${status}`); return }
+    if (!/经营后台/.test(body)) { failures.push(`${label} 经营后台标题不含「经营后台」⇒ 静态面已不是 CampusPrint-V1 的后台`); return }
+    if (!/\/admin\/bootstrap\.js/.test(body)) { failures.push(`${label} 经营后台没引 /admin/bootstrap.js ⇒ 入口脚本掉了，页面能开但不会动`) ; return }
+    console.log(`  ${label} 经营后台 → 200（后台静态面在册）`)
+  } catch (e) {
+    failures.push(`${label} 经营后台请求异常：${e?.name || e?.message}`)
+  }
+}
+await adminPage(API_BASE, '管理端')
+await adminPage(WEB_BASE, '顾客端')
 // ⑤ 打印后端的同源反代可达（= 顾客真能上传/出价）。
 // 为什么单独一条：④ 只判静态面在不在；后端（本机 Node 服务 + 隧道 / 或未来的服务器）挂掉时
 // 页面照样 200、照样能填表，但 /api 一律 503 ⇒ 顾客点了「我已付款」也提不了单。

@@ -42,6 +42,38 @@
   —— 这也再次说明为什么要有那把闸。
 - 验证：oxlint 0 警告 / tsc 零错 / visual **49 条全过**（19 布局 + 30 对比度）+ 1 合法 skip
   / stub 5 条全过 / e2e 25 条全过 / vitest 与 npm run verify 见本条实测戳。
+### 2026-10-23 打印入口判据落进生产构建套件 —— 记一条 dev/生产的服务边界
+
+- 新增 `tests/e2e-visual/print-entry.spec.ts`（4 条）：钉住「打开就是打印页面本身，不跳转不提示」
+  这句原话。此前 grep 全仓 `tests/e2e*` 里 `print` 命中 **0 处** —— 这条要求被两种缺陷破坏过
+  （早期跨域 replace 触发微信拦截页、后端不可达时像死页），却只能靠人肉在手机里点回归。
+- **一手边界（本条真正的信息量）**：搬进来的打印应用是**静态目录**，dev server 与生产构建对它的
+  处理不一样 —— `vite dev` 下 `GET /print/` 回 200 但内容是 **React 入口壳**（SPA 回退），
+  页面里 `<script type=module src=/user/bootstrap.js>` 只回 19B ⇒ 浏览器报
+  「The script has an unsupported MIME type ('text/html')」⇒ 应用根本不起来；
+  而 `vite build` 产物伺服的 `/print/` 才是真 2423B 的「校园打印」，`/admin/` 同理。
+  ⇒ 判据必须放 e2e-visual（跑生产构建）；放 tests/e2e 会去测一个 dev 下不存在的行为。
+  线上两端（Cloudflare Pages / GitHub Pages）都是静态托管 ⇒ 生产构建才是与线上一致的面。
+- **第二个坑**：D 条原本用 `page.content()` 判后台标题，红了两次才定位到 —— 它序列化的是**当前
+  DOM**，而 `shared/i18n.js:61` 运行时会把 `document.title` 改写成 `t('brand')`（本机后端不可达
+  时停在「校园打印」，线上 bootstrap 跑完才补成「校园打印 · 经营后台」）。改成用 request 取
+  **原始字节**判 `<title>` 与 `/admin/bootstrap.js`，与线上探活 uptime-check 的 adminPage() 同口径，
+  也不再绑在后端存活上（CI 里没有那台服务）。
+- 验证：本套件 51 passed + 1 skipped（原有）；lint 0 违规、tsc 无错、verify:eol GREEN、
+  cli-entrypoints 14/14、doc-consistency 9 项 OK（e2e-visual 本就在 vitest 排除面，不动 140 那个数）。
+
+### 2026-10-23 打印服务条目的注释去重 + 口径跟上线上事实
+
+- `src/data/services.ts` 里「仍保留 form-free 的 type:'print'…」这一行**出现了两次**：git blame
+  显示两行分别来自 b97cf723 与 dbb36197，都是我自己这两轮加的（一次改注释没删旧行）。
+- 同处上两行还写着「整体替换为**外站**「校园打印」应用」「点进来即**跳**到该应用」—— 这是
+  2026-10-21 的旧口径，已被 10-22 的就地融合取代（前端 32 件逐文件搬进 public/，同源无跳转）。
+  注释与实际行为不一致，比没注释更贵：下一个人会照旧口径去改回外链。
+- 改成如实描述：不再是外站、32 件在 public/{shared,user,admin}、由 print-parity 对账、
+  入口 = public/print/index.html、同源就地提供无跳转。
+- 纯注释改动（不改任何行为）。验证：`form-free` 注释行数 2 → 1、lint 0 违规、tsc 无错、
+  verify:eol GREEN。
+
 ### 2026-10-23 字号收编进字阶：47 处任意值归位，消灭 9px 中文，价格尺寸成体系
 
 - **量化触发**：前一轮把"留白"维度量化过（18 档间距全部落在网格上、0 处逃逸），
@@ -109,6 +141,7 @@
   凡写"我改了什么"，落笔前先回读原文。
 - 验证：oxlint 0 警告 / tsc 零错 / visual **49 条全过**（19 布局 + 30 对比度）+ 1 合法 skip
   / vitest 与 `npm run verify` 见本条实测戳。
+
 ### 2026-10-23 对比度闸的豁免模型更正：aria-hidden 不等于装饰，抓到序号 1.47:1 与跑马灯 2.96:1
 
 - **判据侧的设计缺陷（本轮最重要的一条）**：审计器原先用 `el.closest('[aria-hidden="true"]')`

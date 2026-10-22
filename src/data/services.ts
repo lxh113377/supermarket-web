@@ -193,9 +193,9 @@ export const SERVICES: Service[] = [
     ],
   },
   {
-    // 打印：2026-10-21 起 /print 这一页整体替换为外站「校园打印」应用（CampusPrint-V1），
-    // 本站不再自建打印表单 —— 点进来即跳到该应用（地址解析见 src/pages/print/printApp.ts）。
-    // 仍保留 form-free 的 type:'print'：CategoryPage 与路由表按它分流，字段不再落在本仓。
+    // 打印：2026-10-21 起 /print 这一页整体换成「校园打印」应用（仓库 CampusPrint-V1）。
+    // 2026-10-22 起它不再是外站：前端 32 件已逐文件搬进 public/{shared,user,admin}（由
+    // scripts/print-parity.mjs 对账），入口 = public/print/index.html，同源就地提供、无跳转。
     // 仍保留 form-free 的 type:'print'：CategoryPage 与路由表按它分流，字段不再落在本仓。
     id: 'print',
     categoryId: 'study',
