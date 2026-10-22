@@ -32,10 +32,19 @@ describe('print-parity：静态判定核（合成面，逐腿双向）', () => {
     expect(r.compared, 'P1 的分母 = 上游 frontend/{shared,user} + print/index.html 的文件数').toBeGreaterThanOrEqual(20)
   })
 
-  it('P2 缺 syncedUtc ⇒ 只有 P2/P4 红：新鲜度不得被缺登记掩盖成绿', () => {
+  it('P2 缺 syncedUtc ⇒ 只 P2 红（P4 是 advisory：算不出龄期也只印不拦）', () => {
     const base = { 'shared/a.js': 'x' }
     const v = evaluate({ expected: base, actual: base, registry: { sourceVersion: '1.4.0', sourceCommit: 'a'.repeat(40) }, upstreamVersion: '1.4.0', buildConst: '1.4.0', now: NOW })
-    expect(v.rows.filter((x) => !x.ok).map((x) => x.id).sort()).toEqual(['P2', 'P4'])
+    expect(v.rows.filter((x) => !x.ok).map((x) => x.id).sort()).toEqual(['P2'])
+    expect(v.rows.find((x) => x.id === 'P4').detail, '龄期算不出时要说清是谁拦的').toContain('P2 已拦')
+  })
+
+  it('P4 不随日历变红（一手坑复发防护：第 31 天那种「没人改动却到点红」只能靠刷时间戳消）', () => {
+    const base = { 'shared/a.js': 'x' }
+    const stale = { ...reg, syncedUtc: new Date(Date.now() - 31 * 86400000).toISOString() }
+    const v = evaluate({ expected: base, actual: base, registry: stale, upstreamVersion: '1.4.0', buildConst: '1.4.0', now: Date.now() })
+    expect(v.rc, '龄期超阈不得让 rc 变红').toBe(0)
+    expect(v.rows.find((x) => x.id === 'P4').warn, '超阈仍要印出来（只报不拦≠不报）').toBe(true)
   })
 
   it('P3 反向：产物常量漂了也要红（三处任意两处不等都拦）', () => {

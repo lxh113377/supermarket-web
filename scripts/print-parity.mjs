@@ -8,7 +8,8 @@
 // 上游一发版、或有人手改了 public/ 下某件，没有任何东西会红。本件把它变成机器闸。
 //
 // 三态（本仓统一口径，绝不把「读不到」当「没问题」）：
-//   PASS(0)       双向逐文件对账 + 版本对账 + 登记册 + 龄期四条全绿
+//   PASS(0)       逐文件双向对账(P1) + 登记册在册(P2) + 版本三处同值(P3) 成立
+//                 （P4 同步龄期是 advisory：只印不拦、不参与 rc，理由见 evaluate 内注）
 //   FAIL(1)       任一漂移（缺件 / 多件 / 内容不同 / 版本不同 / 登记册缺字段）
 //   UNVERIFIED(2) 权威源取不到（上游仓库不在盘面）=> 没有对象可判，不记绿
 //
@@ -138,7 +139,7 @@ export function evaluate({ expected, actual, registry, upstreamVersion, buildCon
       ? '权威源映射出 0 个文件 => 没有对象可判（空集绝不记绿）'
       : dirty
         ? '漂移：缺件 ' + (cmp.missing.join(', ') || '-') + ' | 多件(本站私改或漏删) ' + (cmp.extra.join(', ') || '-') + ' | 内容不同 ' + (cmp.drift.join(', ') || '-')
-          + ' => 同步动作：重拷上游 frontend/{shared,user} 到 public/（只归一行尾，不改内容）并跑 npm run build'
+          + ' => 自愈命令：npm run sync:print（= node scripts/sync-print.mjs --apply，落盘 + 同笔刷三处版本面），之后 npm run build && npm run verify:print'
         : '双向对账成立：' + total + ' 件逐文件 SHA 相同（尺=内容归一行尾后的 SHA-256）')
 
   const regOk = !!registry && typeof registry.sourceVersion === 'string'
@@ -166,14 +167,19 @@ export function evaluate({ expected, actual, registry, upstreamVersion, buildCon
   push('P3', verProblems.length === 0, 'P3 版本三处对账（权威 package.json 与 登记册 与 产物常量）',
     verProblems.length ? verProblems.join(' | ') : '三处同值：' + upstreamVersion)
 
-  let freshOk = false, freshDetail = ''
+  // P4 同步龄期 = **只报不拦**（advisory，不参与 rc）。为什么不当阻断腿（2026-10-22 自己抓到自己的坑）：
+  //   CI 每次跑都当场浅克隆上游 ⇒ P1 比的就是**最新**上游；内容一致时「距上次手工同步多少天」不代表漂移。
+  //   接进 rc 就会在第 31 天制造一次「没人改动却到点变红」的日历型红，而它的处置动作是「提交一笔刷新时间戳」
+  //   —— 为通过判据而改判据的输入，本仓 S6 龄期那次已把它当反面教材记过。真正随上游发版变红的信号在 P3。
+  let freshDetail = ''
+  let freshWarn = false
   if (regOk) {
     const ageDays = (now - Date.parse(registry.syncedUtc)) / 86400000
-    freshOk = ageDays <= maxAgeDays
-    freshDetail = '龄期 ' + ageDays.toFixed(1) + ' 天（阈值 ' + maxAgeDays + '）'
-      + (freshOk ? '' : ' => 超期：上游若已发版，本站打印页就是旧的；重新同步并重跑本判据')
-  } else freshDetail = '登记册缺 => 无从判新鲜'
-  push('P4', freshOk, 'P4 同步龄期 <= ' + maxAgeDays + ' 天（久不同步 = 事实漂移的前兆）', freshDetail)
+    freshWarn = ageDays > maxAgeDays
+    freshDetail = '龄期 ' + ageDays.toFixed(1) + ' 天（提示阈值 ' + maxAgeDays + '，不拦）'
+      + (freshWarn ? ' => 提醒：上游若已发版 P3 会先红；P1 每次拿最新上游比，内容没漂就不算欠账' : '')
+  } else freshDetail = '登记册缺 => 无从算龄期（P2 已拦）'
+  rows.push({ id: 'P4', ok: true, warn: freshWarn, label: 'P4 同步龄期（advisory，不参与 rc）', detail: freshDetail })
 
   const rc = rows.every((r) => r.ok) ? 0 : 1
   return { rows, rc, compared: total, drift: cmp }
@@ -194,7 +200,7 @@ export function selftest() {
   t('4 反例：内容有漂移 => P1 红', { expected: base, actual: { ...base, 'shared/api.js': 'XXX' }, registry: reg, upstreamVersion: '1.4.0', buildConst: '1.4.0' }, (r) => !r.rows.find((y) => y.id === 'P1').ok)
   t('5 反例：上游改版本而登记册没跟着改 => P3 红', { expected: base, actual: { ...base }, registry: { ...reg, sourceVersion: '1.3.0' }, upstreamVersion: '1.4.0', buildConst: '1.3.0' }, (r) => !r.rows.find((y) => y.id === 'P3').ok)
   t('6 反例：登记册缺 syncedUtc => P2 红', { expected: base, actual: { ...base }, registry: { sourceVersion: '1.4.0', sourceCommit: '0'.repeat(40) }, upstreamVersion: '1.4.0', buildConst: '1.4.0' }, (r) => !r.rows.find((y) => y.id === 'P2').ok)
-  t('7 反例：龄期超阈 => 只有 P4 红（证明它单独有牙齿）', { expected: base, actual: { ...base }, registry: { ...reg, syncedUtc: new Date(Date.now() - 31 * 86400000).toISOString() }, upstreamVersion: '1.4.0', buildConst: '1.4.0' }, (r) => r.rows.filter((y) => !y.ok).map((y) => y.id).join(',') === 'P4')
+  t('7 日历腿反向：龄期超阈 => 只 WARN 且 rc 仍 0（日历型红不进阻断链，本仓 S6 那次的教训）', { expected: base, actual: { ...base }, registry: { ...reg, syncedUtc: new Date(Date.now() - 31 * 86400000).toISOString() }, upstreamVersion: '1.4.0', buildConst: '1.4.0' }, (r) => r.rc === 0 && r.rows.find((y) => y.id === 'P4').warn === true)
   t('8 反例：权威映射 0 件 => P1 不得记绿（空集不是没问题）', { expected: {}, actual: {}, registry: reg, upstreamVersion: '1.4.0', buildConst: '1.4.0' }, (r) => !r.rows.find((y) => y.id === 'P1').ok)
   const bad = cases.filter(([, ok]) => !ok)
   for (const [label, ok, detail] of cases) console.log((ok ? 'PASS ' : 'FAIL ') + label + ' :: ' + detail)
@@ -214,10 +220,10 @@ function main() {
   }
   const r = evaluate(s)
   if (process.argv.includes('--json')) {
-    process.stdout.write(JSON.stringify({ rc: r.rc, compared: r.compared, rows: r.rows.map((x) => ({ id: x.id, ok: x.ok, detail: x.detail })) }) + '\n')
+    process.stdout.write(JSON.stringify({ rc: r.rc, compared: r.compared, rows: r.rows.map((x) => ({ id: x.id, ok: x.ok, warn: !!x.warn, detail: x.detail })) }) + '\n')
     process.exit(r.rc)
   }
-  for (const x of r.rows) console.log((x.ok ? 'PASS  ' : 'FAIL  ') + x.label + ' (' + x.detail + ')')
+  for (const x of r.rows) console.log((x.warn ? 'WARN  ' : x.ok ? 'PASS  ' : 'FAIL  ') + x.label + ' (' + x.detail + ')')
   console.log('[print-parity] ' + (r.rc === 0 ? 'GREEN' : 'RED') + ' rc=' + r.rc + '｜对账 ' + r.compared + ' 件｜漂移 ' + (r.drift.missing.length + r.drift.extra.length + r.drift.drift.length) + ' 处')
   // --advisory：只报不拦（户内先量误报率再接闸的退路口；默认档是阻断）。
   if (process.argv.includes('--advisory') && r.rc !== 0) {

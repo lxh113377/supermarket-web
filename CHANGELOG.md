@@ -57,8 +57,16 @@
 - **新增闸（把「必须一直一致」从散文变成判据）**：`scripts/print-parity.mjs`（`npm run verify:print`，并入 `verify` 链与 CI `gates` job）——
   P1 逐文件双向 SHA 对账（缺件/多件/内容漂移三类，尺 = 归一行尾后的 SHA-256，与 vendored 那一次同尺）、
   P2 同步登记册在册（新 `docs/campus-print.json`：sourceCommit/version/syncedUtc）、P3 版本三处对账
-  （上游 `package.json` ⇄ 登记册 ⇄ `printApp.ts` 的 `CAMPUS_PRINT_BUILD`）、P4 同步龄期 ≤30 天；
-  取不到权威源一律 **rc=2 UNVERIFIED**，绝不折算成「一致」。自证 8/8，常驻夹具 `tests/printParity.test.js`（8 条，真跑入口 + 三态）。
+  （上游 `package.json` ⇄ 登记册 ⇄ `printApp.ts` 的 `CAMPUS_PRINT_BUILD`）；P4 同步龄期（>30 天）**只报不拦** ——
+  为什么它不参与 rc（写死在 evaluate 内注，别再改回阻断）：CI 每次都当场浅克隆上游，P1 比的即最新上游，
+  「距上次手工同步多少天」在内容一致时不代表漂移；接进 rc 就会在第 31 天造一次「没人改动却到点变红」的日历型红，
+  而它唯一处置动作是提交一笔刷新时间戳 = 为过闸改闸的输入（本仓 S6 龄期那次已记为反面教材）。随上游发版真会红的信号在 P3。
+  取不到权威源一律 **rc=2 UNVERIFIED**，绝不折算成「一致」，且出口给两行可执行修法。自证 8/8，常驻夹具 `tests/printParity.test.js`。
+- **P1 的红话说清下一步**：漂移行的处置提示由「重拷上游到 public/」改成直接给可跑命令 `npm run sync:print` → `npm run build && npm run verify:print`；
+  UNVERIFIED 出口同样补两行修法（`--fetch` / `CAMPUSPRINT_SRC=`）。红了不知道下一步 = 判据没写完。
+- **夜巡补上游侦察**（`ci-deep.yml`）：再挂一次上游 checkout + `verify:print`（advisory）。理由：阻断腿在推送时比的是**当时**的上游，
+  上游发了新版而没人重同步时 P1/P3 可以一直绿；这条夜巡每天拿最新 commit 比一次，把「上游已前进」当天印出来。
+  `tests/ciWorkflow.test.ts` 41 条过（uses 全部钉 40 位 SHA、独立链不声明依赖两条都守着）。
 - **自愈通道**：`scripts/sync-print.mjs`（`npm run sync:print`）——dry-run 报差异 / `--apply` 落盘并同笔刷三处版本面 /
   `--fetch` 先浅克隆上游。`--apply` 不自动删件（要人确认不是本站自有件）。CLI 入口面记它进「已知缺口」并写清理由
   （会写盘 + 打网络，绝不进探针；其结论由 print-parity 的真跑夹具兜住）。

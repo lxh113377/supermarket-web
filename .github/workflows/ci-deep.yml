@@ -105,6 +105,20 @@ jobs:
       - name: Backend contract verify (node:sqlite mock D1)
         run: node scripts/verify-backend.mjs
 
+      # 打印页与上游的一致性：阻断腿在 ci.yml 的 gates（P1/P2/P3 + 取不到即 UNVERIFIED）。
+      # 这里额外跑一次是拿**上游最新 commit**做只读侦察：上游发了新版而本站静态面还没跟进时，
+      # P1/P3 要等到有人重新同步才会红 —— 这条夜巡把「上游已前进」这件事在当天就印出来（advisory，不拦）。
+      - name: Checkout upstream CampusPrint-V1 (nightly drift scout)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: k01055119509-lang/CampusPrint-V1
+          path: vendor/CampusPrint-V1
+          fetch-depth: 1
+
+      - name: Print page parity (nightly full read, advisory)
+        continue-on-error: true
+        run: npm run verify:print
+
       # —— 以下为 advisory（只报不拦），从 ci.yml 移入：它们要么要联网、要么在 CI 检出面恒 UNVERIFIED，
       #     每晚全量兜底 + 每次后端相关推送留痕即可，不必占用每笔推送的阻断链 ——
 
