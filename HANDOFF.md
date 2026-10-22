@@ -226,7 +226,6 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN`（repo �
 8. **微信顾客端无法打印下单（一手实测已定位到域名层，但根因待一次手机实测收敛）** —
    **实测成立的部分**（2026-10-22 两端浏览器级跑）：GitHub Pages 纯静态托管
    **跑不了 Pages Functions** ⇒ 本站 `/api` 同源反代在那个域名上必然 404（2026-10-22 两端浏览器级实测：
-   pages.dev 上 7 个接口全 200、可上传可报价；github.io 上 `/api/public/config` 与 `/api/auth/me` 全 404）。
    （pages.dev 上 `/print` 7 个接口全 200、可上传可报价；github.io 上 `/api/public/config` 与
    `/api/auth/me` 全 404 —— 后者是静态托管没有 Functions，必然结果）。想"跨域借 pages.dev 的后端"
    也不成立：校园打印的会话是 `httpOnly` + `SameSite=Lax` Cookie（上游 `backend/auth.js:37`），

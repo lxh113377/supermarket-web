@@ -25,6 +25,23 @@ export default defineConfig({
   outputDir: 'playwright-report-visual',
   use: {
     baseURL: BASE,
+    /**
+     * 浏览器时区必须钉死，不能跟随 runner（2026-10-23 一手：main run 39815735065 的 visual job 红）。
+     *
+     * 根因：contrast.spec.ts 的钉钟用例钉的是【瞬间】（Date.parse 带 +08:00 后 super(ms) 覆盖 Date），
+     * 而断言读的是【由浏览器本地时区推导出来的 UI】—— utils/businessHours.ts 用 date.getHours()
+     * 判营业区间（工作日 17:37-23:00）。runner 是 UTC ⇒ 钉 2026-10-22T19:00:00+08:00 在浏览器里
+     * 读成 11:00 ⇒ 判非营业 ⇒ 「营业中」不渲染 ⇒ 报错 element(s) not found。
+     * 本机时区就是 Asia/Shanghai ⇒ 结构上复现不出来（我一开始用 $env:TZ 试，绿了，是假验证：
+     * Windows 上 Chromium 不看进程 TZ 环境变量，必须用 CDP 的 timezoneId 才真覆盖）。
+     *
+     * 双向差分实测（本机，CDP timezoneId 覆盖）：
+     *   timezoneId=UTC           → 逐字复现 CI 的「home-open-pinned 钉的时刻下应当出现「营业中」，没出现」
+     *   timezoneId=Asia/Shanghai → 3 passed
+     * 判 Asia/Shanghai 而非别的：营业时间文案本身就是北京时间口径（getBusinessHoursText() 写死
+     * 「工作日 17:37-23:00」），测它就得用那个时区；这也让判据不再依赖 runner 配置。
+     */
+    timezoneId: 'Asia/Shanghai',
     viewport: { width: 1440, height: 900 },
     actionTimeout: 10_000,
     trace: 'off',
