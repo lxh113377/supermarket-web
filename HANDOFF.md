@@ -199,6 +199,18 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN`（repo �
 4. **无外部探活/告警** — `/_health` 已就绪，可接入 UptimeRobot 等免费探活
 5. **批量操作** — 已支持后端批量端点（batchUpdateProducts/batchDeleteProducts）
 6. **LIMIT 1000 容量边界** — 观测，日订单/商品增长后再评估
+7. **打印订单不在本后台可见（2026-10-22 实测确认，裁定=方案 A，待实施）** — 10-21 起 `/print` 整页替换为
+   CampusPrint-V1 后，打印单落在**上游自己的 SQLite**（`print_orders`），而本后台「服务」页读的是 D1
+   `getSubmissions`（最后一条停在 10-16，即替换前）⇒ 打印单没有任何入口进入本后台。上游**自带**完整
+   经营后台（`frontend/admin/` 11 文件：订单工作台/优惠券/广告/公告/商户设置/补偿，路由 `/api/admin/*`
+   实测 401=存在），但 10-21 只搬了学生端、管理端没搬。
+   **裁定：走方案 A（把上游管理端同源搬入 `public/admin/**`，复用现有 `/api` 反代）。**
+   理由：① 功能完整度最高（订单工作台/优惠券/广告全都有，不用重造）；② 与既有替换策略一致
+   （同一套 parity 对账 + 同源反代），不引入第二套凭据托管；③ 放弃方案 B 是因为它需要服务端持有
+   上游管理员凭据，等于把两套账号体系缝在一起，风险高于收益。
+   **当前影响=零**（上游 `print_orders=0`，只有联调 `print_quotes=7`）；一旦开始接真实单即断链。
+   落地清单：搬 `frontend/admin/**` → 扩 `scripts/print-parity.mjs` 的 MAPPINGS 一组 + 刷新登记册；
+   入口从超市后台加一处跳转；管理员登录用上游自有账号（与 `ADMIN_KEY` 是两套，不混用）。
 
 ***
 
