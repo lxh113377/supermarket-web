@@ -168,7 +168,7 @@ export default function ReviewsTab() {
                 role="radio"
                 aria-checked={formRating === n}
                 aria-label={`${n}星`}
-                className={`p-1 text-2xl ${n <= formRating ? 'text-amber-600' : 'text-gray-400'}`}
+                className={`p-1 text-2xl ${n <= formRating ? 'text-amber-600' : 'text-gray-500'}`}
               >
                 <span aria-hidden="true">★</span>
               </button>

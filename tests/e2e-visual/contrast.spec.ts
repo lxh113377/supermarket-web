@@ -62,6 +62,31 @@ const openAdminTab = (label: string) => async (page: import('@playwright/test').
   await page.waitForTimeout(1200)
 }
 
+/**
+ * 展开「新增评价」表单。
+ *
+ * 为什么要单独一条路由：评分星（未选中的那几颗）在 <button> 里，属**功能性状态图形**，
+ * WCAG 1.4.11 要 3:1 —— 但它默认折叠，不点开就永远扫不到。
+ * 2026-10-23 实测：未选星用 text-gray-400 只有 2.54:1，正是靠"点开再扫"这条路由抓出来的。
+ * 按钮可见文案是「+ 新增评价」（带前缀加号），所以用正则而不是精确名匹配。
+ */
+const openReviewForm = async (page: import('@playwright/test').Page) => {
+  await page.getByRole('tab', { name: '评价' }).click()
+  await page.getByRole('button', { name: /新增评价/ }).click()
+  await expect(page.getByRole('heading', { name: '新增评价' })).toBeVisible({ timeout: 8_000 })
+  /**
+   * 必须先把点评到 1 星，否则**扫不到未选中态**。
+   * 默认值是 `useState(5)` ⇒ 五颗星全部满足 `n <= formRating` 走 amber-600 分支
+   * （3.19:1，本来就合格），`text-gray-*` 那一支在默认态下**根本不执行**。
+   * 第一版没点星，导致"把 gray-500 变异成 gray-400"判据毫无反应 ——
+   * 不是判据坏，是它扫的那个状态里没有未选中星。点成 1 星后 2–5 星进入未选中态，
+   * 这条腿才有对象可量。
+   */
+  await page.getByRole('radio', { name: '1星' }).click()
+  await expect(page.getByRole('radio', { name: '1星' })).toHaveAttribute('aria-checked', 'true')
+  await page.waitForTimeout(500)
+}
+
 /** 走 UI 真加购（凑过起送门槛，避免落在「差 ¥X 起送」的改版面上），再进目标路由 */
 const seedCartThen = (route: string) => async (page: import('@playwright/test').Page) => {
   await page.goto('/#/shop')
@@ -195,6 +220,8 @@ const ROUTES: RouteSpec[] = [
    *   - payment：orderId 有 sessionStorage 兜底（页面自己写了这条 fallback 路径），
    *     注入两个键即可稳定渲染，不依赖上一步。
    */
+  // 评价表单展开态：评分星、必填标记、图片上传区都在这里（折叠时扫不到）
+  { name: 'admin-review-form', route: '/#/admin', prepare: openReviewForm, expectText: '发布' },
   { name: 'order-confirm', route: '/#/order-confirm', prepare: seedCartThen('/#/order-confirm'), expectText: '确认订单' },
   // 「查询订单状态」只在成功页出现（确认页没有），且不受网络态改写标题影响
   { name: 'order-success', route: '/#/order-confirm', prepare: walkToSuccess, expectText: '查询订单状态' },

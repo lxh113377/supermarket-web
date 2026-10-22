@@ -16,6 +16,8 @@ import type { Page } from '@playwright/test'
 export interface Problem {
   sel: string; text: string; ratio: number; need: number
   fg: string; size: number; weight: number
+  /** 'text' = 文字（正文 4.5 / 大字 3）；'icon' = 功能性图标描边（WCAG 1.4.11 一律 3:1） */
+  kind: 'text' | 'icon'
 }
 
 /** 页内执行：返回「扫到多少个含字元素」与「不合格清单」 */
@@ -58,6 +60,7 @@ export async function auditPage(page: Page): Promise<{ checked: number; problems
 
     const problems: Problem[] = []
     const seen = new Set<string>()
+    let iconChecked = 0
 
     const candidates = [...document.querySelectorAll<HTMLElement>('body *')].filter((el) => {
       if (el.closest('[aria-hidden="true"]')) return false
@@ -116,10 +119,100 @@ export async function auditPage(page: Page): Promise<{ checked: number; problems
         problems.push({
           sel: el.tagName.toLowerCase() + (cls ? '.' + cls : ''),
           text, ratio: Math.round(got * 100) / 100, need,
-          fg: cs.color, size: Math.round(fontSize), weight,
+          fg: cs.color, size: Math.round(fontSize), weight, kind: 'text' as const,
         })
       }
     }
-    return { checked: candidates.length, problems }
+    /**
+     * 功能性图标（svg / 图形字符）的描边对比度。
+     *
+     * 为什么必须有这一半：本审计器首版**只扫文字节点**，于是 2026-10-23 出现这样一处
+     * 漏网 —— AI 导购的「发送」按钮是 brand-bar 渐变底 + 白色 SVG 纸飞机，实测
+     * 白描边压渐变中段只有 2.8:1（WCAG 1.4.11 非文本对象要 3:1），25 条用例全绿。
+     * "按钮上有没有字"与"按钮上的图形看不看得见"是两件事，前者盖不住后者。
+     *
+     * 只量**可交互容器内**的图标（button / a / role=button）：纯装饰图标
+     * （aria-hidden 且不在控件里）本就不要求对比度，量了只会制造噪音。
+     */
+    /**
+     * 第三类图形：用**文字字符**渲染的图标（★ 评分星、✓、→、✕ 这类）。
+     * 它们既不是 svg（逃过图标循环的 `querySelector('svg')`），也不含 CJK/拉丁/数字
+     * （逃过文字循环的 INFORMATIVE 正则）—— 于是 2026-10-23 出现漏网：
+     * 评价表单里未选中的评分星 `<button role="radio" aria-label="3星"><span aria-hidden="true">★</span></button>`
+     * 用 text-gray-400（2.54:1）却扫不到。它是**功能性状态图形**（同"未勾选的
+     * checkbox 边框需 3:1"），必须量。
+     *
+     * 判定口径：控件有可访问名字（aria-label / aria-labelledby），而它自己的可见文字
+     * **一个信息字符都没有** ⇒ 它的可见内容就是图形，颜色需 3:1。
+     * 有可见文案的按钮（如「发布」）走文字循环按 4.5:1 判，不在此列。
+     */
+    const hasGlyphIcon = (el: HTMLElement) => {
+      const named = el.getAttribute('aria-label') || el.getAttribute('aria-labelledby')
+      if (!named) return false
+      const visible = (el.textContent || '').trim()
+      return visible.length > 0 && !INFORMATIVE.test(visible)
+    }
+
+    const iconHosts = [...document.querySelectorAll<HTMLElement>('button, a, [role="button"]')].filter((el) => {
+      if (el.closest('[aria-hidden="true"]')) return false
+      const svg = el.querySelector('svg')
+      if (!svg && !hasGlyphIcon(el)) return false
+      const cs = getComputedStyle(el)
+      if (cs.visibility === 'hidden' || cs.display === 'none' || Number(cs.opacity) < 0.05) return false
+      const r = el.getBoundingClientRect()
+      return r.width >= 8 && r.height >= 8 && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth
+    })
+
+    for (const el of iconHosts) {
+      const svg = el.querySelector('svg')
+      // 图标的实际前景色：svg 取 stroke/fill（currentColor 时回落到控件 color）；
+      // 字符图标（★/✓/→）没有 svg，颜色就是控件自身的 color。
+      const csEl = getComputedStyle(el)
+      let cand = csEl.color
+      if (svg) {
+        const csSvg = getComputedStyle(svg as unknown as HTMLElement)
+        const rawStroke = csSvg.stroke && csSvg.stroke !== 'none' ? csSvg.stroke : ''
+        const rawFill = csSvg.fill && csSvg.fill !== 'none' ? csSvg.fill : ''
+        cand = [rawStroke, rawFill, csEl.color].find((s) => !!s && !s.includes('current')) || csEl.color
+      }
+      const [fr, fg2, fb, fa] = parseRGB(cand)
+      if (fa < 0.05) continue
+      const r = el.getBoundingClientRect()
+      const s = cv.width / (document.documentElement.clientWidth || innerWidth)
+      const x0 = Math.max(0, Math.round(r.left * s)), y0 = Math.max(0, Math.round(r.top * s))
+      const x1 = Math.min(cv.width, Math.round(r.right * s)), y1 = Math.min(cv.height, Math.round(r.bottom * s))
+      if (x1 - x0 < 6 || y1 - y0 < 6) continue
+      const hist = new Map<number, number>()
+      for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
+          const i = (y * cv.width + x) * 4
+          if (px[i + 3] < 250) continue
+          const k = key(px[i], px[i + 1], px[i + 2])
+          hist.set(k, (hist.get(k) || 0) + 1)
+        }
+      }
+      if (hist.size === 0) continue
+      const ranked = [...hist.entries()].sort((a, b) => b[1] - a[1])
+      let bg = unkey(ranked[0][0])
+      if (near(bg, [fr, fg2, fb]) && ranked[1]) bg = unkey(ranked[1][0])
+      const fgFinal = fa >= 0.999 ? [fr, fg2, fb] : over([fr, fg2, fb], fa, bg)
+      const got = ratio(fgFinal, bg)
+      const label = (el.getAttribute('aria-label') || el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 24)
+      const dedupe = 'icon|' + label + '|' + Math.round(got * 10)
+      if (seen.has(dedupe)) continue
+      seen.add(dedupe)
+      // 非文本对象：WCAG 1.4.11 要求 3:1
+      if (got < 3) {
+        const cls = typeof el.className === 'string' ? el.className.trim().split(/\s+/).slice(0, 3).join('.') : ''
+        problems.push({
+          sel: el.tagName.toLowerCase() + (cls ? '.' + cls : ''),
+          text: label || '(无标签图标)', ratio: Math.round(got * 100) / 100, need: 3,
+          fg: cand, size: Math.round(r.width), weight: 0, kind: 'icon' as const,
+        })
+      }
+      iconChecked++
+    }
+
+    return { checked: candidates.length + iconChecked, problems }
   }, dataUrl)
 }

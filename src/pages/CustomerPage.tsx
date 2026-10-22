@@ -395,7 +395,7 @@ function toastLayer(toast: string) {
       aria-live="polite"
     >
       {toast && (
-        <div className="bg-gray-900/90 backdrop-blur-sm text-white text-sm px-5 py-2.5 rounded-full shadow-float animate-scale-in">
+        <div className="bg-ink/90 backdrop-blur-sm text-white text-sm px-5 py-2.5 rounded-full shadow-float animate-scale-in">
           {toast}
         </div>
       )}

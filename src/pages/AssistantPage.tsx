@@ -115,14 +115,14 @@ export default function AssistantPage() {
         {messages.map((m) => (
           <div key={m.id} className={`flex gap-2 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             {m.role === 'assistant' && (
-              <div className="brand-bar price-num mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[13px] font-bold text-ink">
+              <div className="brand-bar mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[13px] font-bold text-ink">
                 <IconRobot className="w-4 h-4" />
               </div>
             )}
             <div
               className={`max-w-[78%] px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-line rounded-2xl animate-slide-down ${
                 m.role === 'user'
-                  ? 'bg-gray-900 text-white rounded-br-md'
+                  ? 'bg-ink text-white rounded-br-md'
                   : m.isError
                     ? 'bg-red-50 text-red-700 border border-red-100 rounded-bl-md'
                     : 'bg-white border border-gray-100/80 shadow-card text-gray-700 rounded-bl-md'
@@ -160,7 +160,7 @@ export default function AssistantPage() {
         {/* 输入中指示器 */}
         {pending && (
           <div className="flex gap-2 justify-start" role="status" aria-label="AI 正在输入">
-            <div className="brand-bar price-num mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[13px] font-bold text-ink">
+            <div className="brand-bar mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[13px] font-bold text-ink">
               <IconRobot className="w-4 h-4" />
             </div>
             <div className="bg-white border border-gray-100/80 shadow-card rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-1">
@@ -192,7 +192,7 @@ export default function AssistantPage() {
           type="submit"
           disabled={pending || !input.trim()}
           aria-label="发送"
-          className="w-11 h-11 shrink-0 rounded-full brand-bar text-white flex items-center justify-center shadow-soft transition-all duration-200 active:scale-[0.94] disabled:opacity-40 disabled:pointer-events-none"
+          className="brand-bar flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink shadow-soft transition-all duration-200 active:scale-[0.94] disabled:pointer-events-none disabled:opacity-40"
         >
           <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2"
                strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
