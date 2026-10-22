@@ -229,8 +229,12 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN`（repo �
    房间 1517）；再从超市后台点「打印经营后台」→ 订单工作台**列出这一单**（`200 /api/admin/orders`，
    状态「待接单」，详情给出「确认收款并接单 / 查看生产预览 / 下载单份生产 PDF / 查看查询码」四个
    真实动作）⇒ 顾客下单到商家接单的全链路已在本站域名内闭环。
-   注：该测试单未取消 —— 后台对「待接单」只暴露接单动作，取消需先核款（上游业务约束）；
-   金额 ¥0.50、无真实收款，留作可核对的验收样本。
+   两笔测试单都已清理（见第 10 条）；顺带更正本条上一稿的错误结论：我曾写「后台对「待接单」
+   只暴露接单动作、取消需先核款」，那是**误判** —— 详情区有个折叠的
+   `<details class="action-group">`「取消与退款」，展开就有「商家原因取消」。
+   踩坑记法：探针用 `allInnerTexts()` 扫按钮，而闭合 `<details>` 里的元素不渲染、文本为空
+   ⇒ 被 `filter(Boolean)` 静默吃掉，于是把「我没探到」写成「它没有」。判 UI 有没有某个控件，
+   得先展开折叠容器或直接查 DOM 的 `data-action`，不能只数渲染出来的文本。
 8. **微信顾客端无法打印下单（一手实测已定位到域名层，但根因待一次手机实测收敛）** —
    **实测成立的部分**（2026-10-22 两端浏览器级跑）：GitHub Pages 纯静态托管
    **跑不了 Pages Functions** ⇒ 本站 `/api` 同源反代在那个域名上必然 404（2026-10-22 两端浏览器级实测：
@@ -286,9 +290,11 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN`（repo �
     `CP20261022-01AA01DBE2C3`，订单页**收款码 img 元素 naturalWidth>0 真渲染**，
     「尚未配置收款信息」字样消失（截图 `_print-verify/order-payment-qr.png`）。
     ⚠️ 两点代价，别当免费午餐：① 码现在存在**打印后端自己的数据目录**里（这台笔记本 +
-    隧道），后端迁走时要一并搬；② 本轮共留下 **2 笔测试单**（`CP20261022-FFDA3298E8AC`、
-    `CP20261022-01AA01DBE2C3`，各 ¥0.50、均无真实收款）。后台对「待接单」只暴露接单动作、
-    取消须先核款 ⇒ 我没有伪造收款记录去清账，两笔原样留着当验收样本，老大可在后台自行处置。
+     `CP20261022-01AA01DBE2C3`，各 ¥0.50、均无真实收款）。**两笔都已走后台真实通道取消**：
+     展开详情区折叠组「取消与退款」→「商家原因取消」→ 原因码 `cannot_print` ⇒ 两次
+     `200 POST /admin/orders/:id/cancel-resolution`；实测 `lifecycle=cancelled`、看板
+     `awaitingPrint / awaitingDelivery / exceptions` 全归 0、`confirmedReceivedFen=0`
+     （没有伪造任何收款记录去清账）。
     另记一次踩坑免得重复：探 `/api/public/*` 时**不要**带 `X-CP-Surface: public` —— 该头只认
     `admin`/`me`，带上会被上游判 `403 FORBIDDEN 请求端上下文无效`，看着像端点坏了其实是我方请求错。
 
