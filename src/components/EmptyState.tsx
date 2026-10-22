@@ -21,11 +21,11 @@ interface EmptyStateProps {
 export default function EmptyState({ title, description, icon, action, className = '' }: EmptyStateProps) {
   return (
     <div role="status" className={`flex flex-col items-center justify-center text-center px-6 py-12 ${className}`}>
-      <span className="w-12 h-12 rounded-2xl bg-gray-50 text-gray-300 flex items-center justify-center mb-3">
+      <span className="w-12 h-12 rounded-2xl bg-gray-50 text-gray-400 flex items-center justify-center mb-3">
         {icon ?? <IconEmpty className="w-6 h-6" />}
       </span>
       <p className="text-sm font-medium text-gray-500">{title}</p>
-      {description ? <p className="text-xs text-gray-400 mt-1.5 leading-relaxed max-w-xs">{description}</p> : null}
+      {description ? <p className="text-xs text-gray-500 mt-1.5 leading-relaxed max-w-xs">{description}</p> : null}
       {action ? <div className="mt-4">{action}</div> : null}
     </div>
   )

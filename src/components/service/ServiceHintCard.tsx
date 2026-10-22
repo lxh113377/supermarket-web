@@ -29,7 +29,7 @@ export default function ServiceHintCard({ hint }: { hint?: string }) {
                 const isTitle = line.startsWith('(') || line.startsWith('（')
                 if (isTitle) {
                   return (
-                    <p key={lIdx} className="text-xs font-semibold text-brand-600 mt-2 flex items-center gap-1.5">
+                    <p key={lIdx} className="text-xs font-semibold text-brand-700 mt-2 flex items-center gap-1.5">
                       <span className="w-1 h-3 rounded-full bg-brand-400 inline-block" />
                       {line.replace(/[()（）]/g, '')}
                     </p>

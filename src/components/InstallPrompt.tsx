@@ -94,11 +94,11 @@ export default function InstallPrompt() {
               : manualStep + '，像 App 一样使用'}
           </p>
         </div>
-        <button onClick={dismiss} aria-label="稍后再说" className="text-gray-400 text-xl px-1 hover:text-gray-600 transition shrink-0">×</button>
+        <button onClick={dismiss} aria-label="稍后再说" className="text-gray-500 text-xl px-1 hover:text-gray-600 transition shrink-0">×</button>
         {deferred && (
           <button
             onClick={install}
-            className="px-3.5 py-2 bg-brand-500 text-white rounded-xl text-xs font-medium hover:bg-brand-600 active:scale-95 transition shrink-0"
+            className="px-3.5 py-2 bg-brand-500 text-ink rounded-xl text-xs font-medium hover:bg-brand-400 active:scale-95 transition shrink-0"
           >
             立即添加
           </button>

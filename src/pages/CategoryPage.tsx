@@ -25,7 +25,7 @@ export default function CategoryPage() {
   if (!category) {
     return (
       <div className="page-container flex items-center justify-center">
-        <p className="text-gray-400 text-sm">分类不存在</p>
+        <p className="text-gray-500 text-sm">分类不存在</p>
       </div>
     )
   }
@@ -33,10 +33,13 @@ export default function CategoryPage() {
   return (
     <div className="page-container">
       {/* Header - 分类专属渐变 */}
-      <div className={`relative overflow-hidden bg-gradient-to-r ${category.color} text-white px-5 pt-8 pb-14`}>
-        <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-white/10" />
-        <div className="absolute bottom-0 left-1/4 w-20 h-20 rounded-full bg-white/5" />
-        <div className="relative z-10 flex items-center gap-4 max-w-lg mx-auto">
+      {/* 头部（2026-10-22 设计升级）：旧版是"两个半透明白圆"漂浮 —— 那是与本站
+          无关的通用装饰。现在换成与首页封面同一套语言：顶部品牌色带 + 右下切角，
+          形状全站统一，一眼是同一个产品。渐变色由 data/categories.ts 提供，
+          其两端都保证白字过 AA（口径见该文件头注释）。 */}
+      <div className={`cover-clip relative overflow-hidden bg-gradient-to-r ${category.color} text-white px-5 pt-9 pb-14 sm:px-8`}>
+        <span aria-hidden="true" className="brand-bar absolute inset-x-0 top-0 h-1" />
+        <div className="relative z-10 mx-auto flex max-w-lg items-center gap-4">
           <button
             onClick={() => navigate('/')}
             aria-label="返回"
@@ -45,11 +48,11 @@ export default function CategoryPage() {
             ←
           </button>
           <div className="animate-fade-in-up">
-            <h1 className="text-xl font-bold flex items-center gap-2">
+            <h1 className="flex items-center gap-2 text-display-md leading-tight">
               <span className="text-2xl">{category.icon}</span>
               {category.name}
             </h1>
-            <p className="text-white/70 text-xs mt-1">{category.description}</p>
+            <p className="mt-1.5 text-xs text-white/85">{category.description}</p>
           </div>
         </div>
       </div>
@@ -78,7 +81,7 @@ export default function CategoryPage() {
                 <span className="text-2xl w-11 h-11 flex items-center justify-center bg-gray-50 rounded-xl">{service.icon}</span>
                 <div className="min-w-0 w-full">
                   <p className="font-semibold text-gray-800 text-sm truncate">{service.name}</p>
-                  <p className="text-xs text-gray-400 mt-1 leading-snug line-clamp-2">{service.description}</p>
+                  <p className="text-xs text-gray-500 mt-1 leading-snug line-clamp-2">{service.description}</p>
                 </div>
               </button>
             ))}
@@ -96,9 +99,9 @@ export default function CategoryPage() {
                 </span>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-gray-800 text-sm">{service.name}</p>
-                  <p className="text-xs text-gray-400 mt-1 truncate leading-relaxed">{service.description}</p>
+                  <p className="text-xs text-gray-500 mt-1 truncate leading-relaxed">{service.description}</p>
                 </div>
-                <span className="text-gray-300 text-xl transition-transform duration-200 group-hover:translate-x-0.5">›</span>
+                <span className="text-gray-400 text-xl transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden="true">›</span>
               </button>
             ))}
           </div>

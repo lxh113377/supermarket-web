@@ -7,13 +7,18 @@ export default {
   theme: {
     extend: {
       colors: {
+        // 品牌柿色 —— 保留「柿子黄」这一唯一品牌资产，不下沉色相。
+        // 2026-10-22 对比度重整的结论：问题从来不是黄太亮，而是**黄上放了白字**（1.92:1）。
+        // 铁律（index.css 里由 .btn-primary/.pill-active 落地）：
+        //   柿色底 ⇒ 配墨字 ink（#1c1917 on #eab308 = 9.12:1，AAA）
+        //   要白字 ⇒ 走深绿 dark-600（9.11:1）或墨底 ink（17.49:1）
         brand: {
           50:  '#fefce8',
           100: '#fef9c3',
           200: '#fef08a',
           300: '#fde047',
           400: '#facc15',
-          500: '#eab308',  // 主色 暖黄
+          500: '#eab308',  // 主色 柿子黄（承载**墨字**）
           600: '#ca8a04',  // hover
           700: '#a16207',
           800: '#854d0e',
@@ -29,13 +34,34 @@ export default {
           warm: '#f8f7f4',
           card: '#ffffff',
         },
+        // 墨：全站唯一「深底」与「正文最重」的落点（暖黑，不用纯黑，与暖白页底同色温）
+        ink: {
+          DEFAULT: '#1c1917',
+          soft: '#292524',
+          mute: '#57534e',
+        },
       },
       boxShadow: {
         'soft': '0 2px 8px -2px rgba(0,0,0,0.06), 0 4px 16px -4px rgba(0,0,0,0.04)',
+        // 品牌投影：落影带柿色相而非中性灰（卡片浮起时影子里有颜色）
+        'brand': '0 2px 6px -1px rgba(202,138,4,0.30), 0 10px 28px -10px rgba(180,83,9,0.34)',
         'card': '0 1px 3px rgba(0,0,0,0.04), 0 6px 24px -6px rgba(0,0,0,0.06)',
         'elevated': '0 4px 12px -2px rgba(0,0,0,0.08), 0 12px 40px -8px rgba(0,0,0,0.1)',
         'float': '0 8px 30px -4px rgba(0,0,0,0.12), 0 20px 60px -12px rgba(0,0,0,0.08)',
         'inner-soft': 'inset 0 2px 6px rgba(0,0,0,0.04)',
+      },
+      fontFamily: {
+        // 排版双声部：display = Bricolage Grotesque（自托管 woff2，CSP font-src 'self' 合规）
+        // 正文 = 系统中文字体栈（中文无廉价自托管方案，混排时 display 只管数字与拉丁）
+        display: ['"Bricolage Grotesque"', 'ui-sans-serif', 'system-ui', '"PingFang SC"', '"Microsoft YaHei"', 'sans-serif'],
+        sans: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', '"PingFang SC"', '"Hiragino Sans GB"', '"Microsoft YaHei"', 'sans-serif'],
+      },
+      fontSize: {
+        // 字阶系统（1.2 三度 modular scale，四舍五入到 2px 网格）
+        'display-xl': ['3.25rem', { lineHeight: '1.05', letterSpacing: '-0.03em' }],
+        'display-lg': ['2.25rem', { lineHeight: '1.1', letterSpacing: '-0.025em' }],
+        'display-md': ['1.5rem', { lineHeight: '1.2', letterSpacing: '-0.02em' }],
+        'eyebrow':  ['0.6875rem', { lineHeight: '1.4', letterSpacing: '0.16em' }],
       },
       borderRadius: {
         '2xl': '1rem',

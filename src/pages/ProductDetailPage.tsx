@@ -310,7 +310,7 @@ export default function ProductDetailPage() {
         <button
           onClick={() => navigate(-1)}
           aria-label="返回"
-          className="w-9 h-9 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200 mr-2"
+          className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200 mr-2"
         >
           ←
         </button>
@@ -320,7 +320,7 @@ export default function ProductDetailPage() {
       <div className="flex-1 overflow-y-auto pb-28 lg:pb-10 w-full">
         {/* 面包屑：首页 › 大类 › 子类 › 当前商品，两级分类均可点回商城对应视图 */}
         <nav aria-label="面包屑" className="max-w-6xl mx-auto px-4 lg:px-6 pt-3">
-          <ol className="flex items-center gap-1.5 text-xs text-gray-400 list-none m-0 p-0 flex-wrap">
+          <ol className="flex items-center gap-1.5 text-xs text-gray-500 list-none m-0 p-0 flex-wrap">
             <li><Link to="/" className="hover:text-brand-700 text-gray-500">首页</Link></li>
             {crumb.cat && (
               <>
@@ -374,16 +374,16 @@ export default function ProductDetailPage() {
               {avgRating && (
                 <div className="flex items-center gap-2 mt-3">
                   <Stars rating={Math.round(Number(avgRating))} />
-                  <span className="text-xs text-gray-400">{avgRating} 分 · {productReviews.length} 条评价</span>
+                  <span className="text-xs text-gray-500">{avgRating} 分 · {productReviews.length} 条评价</span>
                 </div>
               )}
-              <p className="text-3xl font-bold text-brand-700 mt-4 tabular-nums">{formatYuan(effPrice)}</p>
+              <p className="price-num mt-4 text-[2.5rem] font-extrabold leading-none text-brand-700">{formatYuan(effPrice)}</p>
               {/* 已选口味回显：口味轴两条来源（后台 specOptions / 跨记录聚合组）共用同一 axis id */}
               {group && combo && selection[SPEC_AXIS_ID] && (
                 <p className="text-xs font-semibold text-brand-700 mt-1.5">已选口味：{selection[SPEC_AXIS_ID]}</p>
               )}
               {combo && Number(effOrder) !== Number(product.order) && (
-                <p className="text-xs text-gray-400 mt-1">
+                <p className="text-xs text-gray-500 mt-1">
                   价格随所选口味变化 · 当前对应目录编号 {String(effOrder)}
                 </p>
               )}
@@ -462,14 +462,14 @@ export default function ProductDetailPage() {
                 )}
               </div>
 
-              <p className="text-[11px] text-gray-400 mt-3 leading-relaxed">
+              <p className="text-[11px] text-gray-500 mt-3 leading-relaxed">
                 「立即购买」只展示演示订单摘要，不创建真实订单、不发起支付；实际下单请通过购物袋结算。
               </p>
               {/* 加购结果就地播报（窄屏时吸底栏遮挡本区块，故同时写进 aria-live 供读屏） */}
               <p className="text-xs text-green-700 mt-2 min-h-[1rem]" role="status" aria-live="polite">{addedNote}</p>
               {inBag > 0 && (
                 <p className="text-xs text-gray-500 mt-1">
-                  <span>购物车已有 {inBag} 件</span> · <Link to="/cart" className="text-brand-600 font-medium">去购物袋结算</Link>
+                  <span>购物车已有 {inBag} 件</span> · <Link to="/cart" className="text-brand-700 font-medium">去购物袋结算</Link>
                 </p>
               )}
             </div>
@@ -510,7 +510,7 @@ export default function ProductDetailPage() {
       {narrow && (
         <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-gray-100 px-4 py-3 z-20 safe-bottom">
           <div className="flex items-center gap-3 w-full max-w-3xl mx-auto">
-            <span className="text-xl font-bold text-brand-700 tabular-nums shrink-0">{formatYuan(effPrice)}</span>
+            <span className="price-num shrink-0 text-xl font-bold text-brand-700">{formatYuan(effPrice)}</span>
             <button
               type="button"
               onClick={() => setSummaryOpen(true)}

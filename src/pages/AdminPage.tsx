@@ -140,7 +140,7 @@ export default function AdminPage() {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3" role="status" aria-live="polite">
         <div className="w-8 h-8 border-[3px] border-brand-200 border-t-brand-500 rounded-full animate-spin" />
-        <span className="text-sm text-gray-400">加载中...</span>
+        <span className="text-sm text-gray-500">加载中...</span>
       </div>
     )
   }
@@ -163,7 +163,7 @@ export default function AdminPage() {
           >
             打印经营后台
           </a>
-          <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${IS_CLOUD ? 'bg-green-50 text-green-600 border border-green-200' : 'bg-amber-50 text-amber-600 border border-amber-200'}`}>
+          <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${IS_CLOUD ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
             {IS_CLOUD ? '云端模式' : '本地演示'}
           </span>
         </div>
@@ -181,7 +181,7 @@ export default function AdminPage() {
           <button onClick={doSeed} disabled={seeding} className="btn-primary w-full py-2.5 text-sm">
             {seeding ? '初始化中...' : '导入种子数据'}
           </button>
-          {seedMsg && <p className="text-brand-600 text-xs">{seedMsg}</p>}
+          {seedMsg && <p className="text-brand-700 text-xs">{seedMsg}</p>}
         </div>
       )}
 

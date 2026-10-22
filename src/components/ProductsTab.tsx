@@ -166,8 +166,8 @@ export default function ProductsTab({ products, categories, onDataChange }: {
         {notice && (
           <div className={`px-3 py-2.5 rounded-xl text-xs border ${
             notice.type === 'error'
-              ? 'bg-red-50 text-red-500 border-red-100'
-              : 'bg-amber-50 text-amber-600 border-amber-100'
+              ? 'bg-red-50 text-red-700 border-red-100'
+              : 'bg-amber-50 text-amber-700 border-amber-100'
           }`}>
             {notice.msg}
           </div>
@@ -183,11 +183,11 @@ export default function ProductsTab({ products, categories, onDataChange }: {
             placeholder="搜索商品名称/口味..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full border border-gray-200 rounded-xl pl-9 pr-3 py-2.5 text-sm focus:border-brand-400 focus:ring-1 focus:ring-brand-200 outline-none"
+            className="w-full border border-gray-200 rounded-xl pl-9 pr-3 py-2.5 text-sm focus:border-brand-600"
           />
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm" aria-hidden="true">🔍</span>
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm" aria-hidden="true">🔍</span>
         </div>
-        <button onClick={() => setEditingId('new')} className="px-4 py-2.5 bg-brand-500 text-white rounded-xl text-sm font-medium hover:bg-brand-600 transition shrink-0">+ 新增</button>
+        <button onClick={() => setEditingId('new')} className="px-4 py-2.5 bg-brand-500 text-ink rounded-xl text-sm font-medium hover:bg-brand-400 transition shrink-0">+ 新增</button>
       </div>
 
       {/* 新增表单（内联在列表顶部，非弹窗） */}
@@ -212,7 +212,7 @@ export default function ProductsTab({ products, categories, onDataChange }: {
             key={f.id}
             onClick={() => setFilterCat(f.id)}
             aria-pressed={filterCat === f.id}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${filterCat === f.id ? 'bg-brand-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${filterCat === f.id ? 'bg-brand-500 text-ink' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
           >
             {f.label}
           </button>
@@ -256,10 +256,10 @@ export default function ProductsTab({ products, categories, onDataChange }: {
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-500 shrink-0" aria-live="polite">已选 {selectedIds.size} 项</span>
               <div className="flex-1 flex gap-1.5">
-                <button onClick={() => batchAction('enable')} className="flex-1 py-2 bg-green-500 text-white rounded-lg text-xs font-medium">上架</button>
-                <button onClick={() => batchAction('disable')} className="flex-1 py-2 bg-gray-500 text-white rounded-lg text-xs font-medium">下架</button>
-                <button onClick={() => batchAction('delete')} className="flex-1 py-2 bg-red-500 text-white rounded-lg text-xs font-medium">删除</button>
-                <button onClick={() => setSelectedIds(new Set())} aria-label="取消选择" className="tap-44 px-3 py-2 text-gray-400 text-xs">✕</button>
+                <button onClick={() => batchAction('enable')} className="flex-1 py-2 bg-green-700 text-white rounded-lg text-xs font-medium">上架</button>
+                <button onClick={() => batchAction('disable')} className="flex-1 py-2 bg-ink text-white rounded-lg text-xs font-medium">下架</button>
+                <button onClick={() => batchAction('delete')} className="flex-1 py-2 bg-red-700 text-white rounded-lg text-xs font-medium">删除</button>
+                <button onClick={() => setSelectedIds(new Set())} aria-label="取消选择" className="tap-44 px-3 py-2 text-gray-500 text-xs">✕</button>
               </div>
             </div>
             <div className="flex gap-1.5">
@@ -270,7 +270,7 @@ export default function ProductsTab({ products, categories, onDataChange }: {
                 onChange={e => setBatchPrice(e.target.value)}
                 className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-xs"
               />
-              <button onClick={batchAdjustPrice} className="px-3 py-1.5 bg-brand-500 text-white rounded-lg text-xs font-medium">应用</button>
+              <button onClick={batchAdjustPrice} className="px-3 py-1.5 bg-brand-500 text-ink rounded-lg text-xs font-medium">应用</button>
             </div>
           </div>
         </div>

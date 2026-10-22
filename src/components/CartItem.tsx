@@ -18,8 +18,8 @@ function CartItem({ item, onAdd, onRemove, onDelete }: CartItemProps) {
     <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-gray-100/80 shadow-card transition-all duration-200">
       <div className="flex-1 min-w-0 pr-3">
         <h3 className="text-sm font-medium text-gray-900 leading-tight truncate">{displayName}</h3>
-        <p className="text-brand-600 font-bold mt-1.5">
-          <span className="text-xs">¥</span>{formatPrice(item.price)}
+        <p className="text-brand-700 font-bold mt-1.5">
+          <span className="price-num text-sm font-bold text-brand-700"><span className="text-[0.7em] opacity-70">¥</span>{formatPrice(item.price)}</span>
         </p>
       </div>
       <div className="flex items-center gap-3">
@@ -36,7 +36,7 @@ function CartItem({ item, onAdd, onRemove, onDelete }: CartItemProps) {
           <button
             onClick={() => onAdd(item)}
             aria-label={`增加${displayName}`}
-            className="tap-44 w-8 h-8 rounded-full bg-brand-500 text-white flex items-center justify-center text-sm shadow-soft hover:bg-brand-600 transition-all duration-200 active:scale-90"
+            className="tap-44 w-8 h-8 rounded-full bg-brand-500 text-ink flex items-center justify-center text-sm shadow-soft hover:bg-brand-400 transition-all duration-200 active:scale-90"
           >
             <span aria-hidden="true">+</span>
           </button>
@@ -44,7 +44,7 @@ function CartItem({ item, onAdd, onRemove, onDelete }: CartItemProps) {
         <button
           onClick={() => onDelete(item)}
           aria-label={`删除${displayName}`}
-          className="text-xs text-red-400 px-2.5 py-1.5 border border-red-100 rounded-lg hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition-all duration-200"
+          className="text-xs text-red-600 px-2.5 py-1.5 border border-red-100 rounded-lg hover:bg-red-50 hover:text-red-700 hover:border-red-200 transition-all duration-200"
         >
           删除
         </button>

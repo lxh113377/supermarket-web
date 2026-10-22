@@ -85,7 +85,7 @@ export default function CartPage() {
       <div className="flex items-center justify-between px-5 py-4 bg-white/95 backdrop-blur-sm border-b border-gray-100">
         <button
           onClick={() => navigate(-1)}
-          className="w-9 h-9 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200"
+          className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200"
           aria-label="返回"
         >
           ←
@@ -101,7 +101,7 @@ export default function CartPage() {
                   saveCart(empty)
                 }
               }}
-              className="text-xs text-red-400 px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition-colors duration-200"
+              className="text-xs text-red-600 px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition-colors duration-200"
             >
               清空
             </button>
@@ -109,7 +109,7 @@ export default function CartPage() {
           <button
             onClick={handleClose}
             aria-label="关闭"
-            className="w-9 h-9 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200 text-lg"
+            className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200 text-lg"
           >
             ×
           </button>
@@ -121,7 +121,7 @@ export default function CartPage() {
           <div className="mb-4 bg-amber-50/80 border border-amber-200/60 rounded-2xl p-4 animate-slide-down" role="status">
             <p className="text-amber-700 text-xs font-medium mb-2">以下商品价格已变动（结算按最新价格）：</p>
             {priceChanges.map((c, i) => (
-              <p key={i} className="text-amber-600 text-xs mt-1">
+              <p key={i} className="text-amber-700 text-xs mt-1">
                 {c.name}：{formatYuan(c.oldPrice)} → {formatYuan(c.newPrice)}
               </p>
             ))}
@@ -166,7 +166,7 @@ export default function CartPage() {
               <span className="text-sm text-gray-500">共 {totalCount} 件</span>
               <span className="text-xl font-bold text-gray-900">
                 <span className="text-xs font-medium text-gray-500 mr-1">合计</span>
-                <span className="text-brand-600">{formatYuan(totalAmount)}</span>
+                <span className="price-num font-bold text-brand-700">{formatYuan(totalAmount)}</span>
               </span>
             </div>
             {/* 起送门槛（2026-10-22 老大立规「总价低于六元不配送」）：

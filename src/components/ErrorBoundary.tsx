@@ -34,15 +34,15 @@ export default class ErrorBoundary extends React.Component<{ children: React.Rea
           <p className="text-sm text-gray-500 mb-2 max-w-xs">
             {this.state.error?.message || '未知错误'}
           </p>
-          <p className="text-xs text-gray-400 mb-5">别担心，数据都在，重试一下试试。</p>
+          <p className="text-xs text-gray-500 mb-5">别担心，数据都在，重试一下试试。</p>
           <div className="flex items-center gap-3">
             <button
               onClick={() => {
                 this.setState({ hasError: false, error: null })
                 window.location.reload()
               }}
-              className="bg-brand-500 text-white px-6 py-2 rounded-lg text-sm
-                         hover:bg-brand-600 transition-all duration-200 active:scale-[0.97]"
+              className="bg-brand-500 text-ink px-6 py-2 rounded-lg text-sm
+                         hover:bg-brand-400 transition-all duration-200 active:scale-[0.97]"
             >
               重试
             </button>

@@ -55,7 +55,7 @@ export default function PaymentPage() {
       <div className="px-5 py-4 bg-white/95 backdrop-blur-sm border-b border-gray-100 flex items-center justify-between">
         <button
           onClick={() => navigate('/order-success', { state: { orderId } })}
-          className="w-9 h-9 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200"
+          className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200"
           aria-label="返回"
         >
           ←
@@ -66,16 +66,16 @@ export default function PaymentPage() {
 
       {!method ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-4 p-6 w-full max-w-lg mx-auto">
-          <p className="text-sm text-gray-400 mb-2">请选择支付方式完成付款</p>
+          <p className="text-sm text-gray-500 mb-2">请选择支付方式完成付款</p>
           <button
             onClick={() => setMethod('wechat')}
-            className="w-full max-w-sm bg-green-500 text-white py-4 rounded-2xl text-base font-medium shadow-elevated hover:bg-green-600 transition-all duration-200 active:scale-[0.98] animate-fade-in-up stagger-1"
+            className="w-full max-w-sm bg-green-700 text-white py-4 rounded-2xl text-base font-medium shadow-elevated hover:bg-green-800 transition-all duration-200 active:scale-[0.98] animate-fade-in-up stagger-1"
           >
             微信支付
           </button>
           <button
             onClick={() => { setMethod('alipay'); setShowTip(true) }}
-            className="w-full max-w-sm bg-blue-500 text-white py-4 rounded-2xl text-base font-medium shadow-elevated hover:bg-blue-600 transition-all duration-200 active:scale-[0.98] animate-fade-in-up stagger-2"
+            className="w-full max-w-sm bg-blue-700 text-white py-4 rounded-2xl text-base font-medium shadow-elevated hover:bg-blue-800 transition-all duration-200 active:scale-[0.98] animate-fade-in-up stagger-2"
           >
             支付宝付款
           </button>
@@ -89,24 +89,24 @@ export default function PaymentPage() {
               <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-green-50 flex items-center justify-center">
                 <span className="text-4xl" aria-hidden="true">✅</span>
               </div>
-              <p className="text-lg font-bold text-green-600">付款已确认</p>
-              <p className="text-sm text-gray-400 mt-2">客服将尽快处理你的订单</p>
+              <p className="text-lg font-bold text-green-700">付款已确认</p>
+              <p className="text-sm text-gray-500 mt-2">客服将尽快处理你的订单</p>
               {orderStatus && orderStatus !== 'paid' && (
                 <p className="text-sm font-medium text-gray-600 mt-1.5">订单进度：{orderStatusLabel(orderStatus)}</p>
               )}
             </div>
           ) : orderStatus === 'cancelled' ? (
             <div className="text-center animate-fade-in-up">
-              <p className="text-lg font-bold text-red-500">该订单已取消</p>
-              <p className="text-sm text-gray-400 mt-2">如有问题请联系商家</p>
+              <p className="text-lg font-bold text-red-700">该订单已取消</p>
+              <p className="text-sm text-gray-500 mt-2">如有问题请联系商家</p>
             </div>
           ) : (
             <div className="text-center w-full max-w-sm animate-fade-in-up flex flex-col items-center">
               {totalAmount > 0 && (
-                <p className="text-xl font-bold text-gray-900 mb-1.5">{formatYuan(totalAmount)}</p>
+                <p className="price-num mb-1 text-[2rem] font-extrabold leading-none text-ink">{formatYuan(totalAmount)}</p>
               )}
               {discountAmount > 0 && (
-                <p className="text-xs text-green-600 mb-1.5" role="status">满减已优惠 {formatYuan(discountAmount)}</p>
+                <p className="text-xs text-green-700 mb-1.5" role="status">满减已优惠 {formatYuan(discountAmount)}</p>
               )}
               <div className="w-full bg-amber-50 border border-amber-200/80 rounded-xl px-3 py-2 mb-2">
                 <p className="text-amber-700 text-xs font-medium">
@@ -126,7 +126,7 @@ export default function PaymentPage() {
               </div>
               <button
                 onClick={() => setMethod(null)}
-                className="mt-4 text-sm text-gray-400 hover:text-gray-600 transition-colors duration-200"
+                className="mt-4 text-sm text-gray-500 hover:text-gray-600 transition-colors duration-200"
               >
                 返回重新选择
               </button>

@@ -123,7 +123,7 @@ export default function ReviewsTab() {
           </button>
           <button
             onClick={() => setShowForm(true)}
-            className="px-3 py-1.5 text-xs bg-brand-500 text-white rounded-lg hover:bg-brand-600"
+            className="px-3 py-1.5 text-xs bg-brand-500 text-ink rounded-lg hover:bg-brand-400"
           >
             + 新增评价
           </button>
@@ -168,7 +168,7 @@ export default function ReviewsTab() {
                 role="radio"
                 aria-checked={formRating === n}
                 aria-label={`${n}星`}
-                className={`p-1 text-2xl ${n <= formRating ? 'text-yellow-400' : 'text-gray-300'}`}
+                className={`p-1 text-2xl ${n <= formRating ? 'text-amber-600' : 'text-gray-400'}`}
               >
                 <span aria-hidden="true">★</span>
               </button>
@@ -185,13 +185,13 @@ export default function ReviewsTab() {
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none"
           />
           <div role="alert" aria-live="assertive">
-            {formError && <p className="text-red-500 text-xs">{formError}</p>}
+            {formError && <p className="text-red-700 text-xs">{formError}</p>}
           </div>
           <div className="flex gap-2">
             <button
               onClick={doAdd}
               disabled={submitting}
-              className="flex-1 bg-brand-500 text-white py-2 rounded-lg text-sm disabled:opacity-50"
+              className="flex-1 bg-brand-500 text-ink py-2 rounded-lg text-sm disabled:opacity-50"
             >
               {submitting ? '提交中...' : '发布'}
             </button>
@@ -219,19 +219,19 @@ export default function ReviewsTab() {
           {reviews.map((rev) => (
             <div key={rev._id} className="flex items-start gap-3 px-4 py-3 border-b border-gray-50 last:border-0">
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 text-xs text-gray-400 mb-1">
+                <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
                   <span className="font-medium text-gray-600">{rev.user}</span>
                   <span>·</span>
                   <span>{rev.date || (rev.createdAt && new Date(rev.createdAt).toISOString().slice(0, 10))}</span>
                 </div>
                 <Stars rating={rev.rating} />
                 <p className="text-sm text-gray-700 mt-1">{rev.text}</p>
-                <p className="text-xs text-brand-500 mt-1">{getProductName(rev.productOrder)}</p>
+                <p className="text-xs text-brand-700 mt-1">{getProductName(rev.productOrder)}</p>
               </div>
               <button
                 onClick={() => doDelete(rev._id || '')}
                 disabled={deleting === (rev._id || '')}
-                className="text-xs text-red-400 hover:text-red-600 py-1 px-2 disabled:opacity-50 flex-shrink-0"
+                className="text-xs text-red-600 hover:text-red-600 py-1 px-2 disabled:opacity-50 flex-shrink-0"
               >
                 {deleting === (rev._id || '') ? '删除中' : '删除'}
               </button>

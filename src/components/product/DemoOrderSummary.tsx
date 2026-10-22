@@ -54,7 +54,7 @@ export default function DemoOrderSummary({
           </div>
           <div className="flex items-center justify-between gap-4">
             <dt className="text-gray-500">单价</dt>
-            <dd className="text-gray-900 tabular-nums">{formatYuan(unitPrice)}</dd>
+            <dd className="price-num text-ink">{formatYuan(unitPrice)}</dd>
           </div>
           <div className="flex items-center justify-between gap-4">
             <dt className="text-gray-500">数量</dt>
@@ -70,7 +70,7 @@ export default function DemoOrderSummary({
           )}
           <div className="flex items-center justify-between gap-4 pt-2 border-t border-gray-100">
             <dt className="text-gray-900 font-semibold">合计</dt>
-            <dd className="text-brand-600 font-bold text-lg tabular-nums">{formatYuan(total)}</dd>
+            <dd className="price-num text-brand-700 font-bold text-lg">{formatYuan(total)}</dd>
           </div>
         </dl>
 

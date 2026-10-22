@@ -7,6 +7,13 @@
   --brand-bar: linear-gradient(90deg, #facc15, #f97316, #14532d);
   /* 品牌主色唯一真相源（JS 内联样式也从此读取，如加购飞行动画圆点） */
   --brand-500: #eab308;
+  /* 墨与纸：全站「深底」和「最重前景」的唯一落点（暖黑，与暖白页底同色温，不用纯黑） */
+  --ink: #1c1917;
+  --paper: #fafaf9;
+  /* 柿色底上永远配墨字（9.12:1 AAA）；这条规则的存在理由见 index.css 顶部注释 */
+  --on-persimmon: #1c1917;
+  /* 焦点环用主色，但落在深底时切换成高亮描边（见 :focus-visible 的 :where 分支） */
+  --focus-ring: #a16207;
   /* 看板图表色板（唯一真相源，ECharts 主题从此读取，消除硬编码色值） */
   --chart-b1: #facc15;
   --chart-b2: #14532d;
@@ -35,11 +42,31 @@
 /* 视口高度：先用 100%，再用 dvh 覆盖。
    dvh = 动态视口高度，解决移动端地址栏收缩 / 键盘弹出时 100% 导致的
    「页面高度跳变、吸底元素被顶出屏幕」问题（不支持 dvh 的旧 WebView 自动留在 100%）。 */
+/* === 排版双声部（2026-10-22 设计升级）===
+   display = Bricolage Grotesque，**自托管** public/fonts/（SIL OFL 1.1，许可证随包），
+   只取 latin 子集 40KB、可变字重 200–800。为什么只 latin：中文没有廉价自托管方案，
+   且本站的拉丁/数字恰恰是最需要识别度的部分（价格、KPI、时间戳、404）。
+   unicode-range 限定后，汉字自动落到下面的中文正文栈，不会出「豆腐块」。
+   CSP：font-src 'self' 已允许同源 woff2，不新增任何放行面。 */
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 200 800;
+  src: url('/fonts/bricolage-latin-wght.woff2') format('woff2-variations');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF;
+}
+
 html, body, #root {
   height: 100%;
   margin: 0;
   padding: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  font-feature-settings: 'tnum' 0;
+  letter-spacing: -0.011em;
+  color: var(--ink);
+  background: var(--paper);
   -webkit-overflow-scrolling: touch;
   touch-action: manipulation;
   text-rendering: optimizeLegibility;
@@ -70,8 +97,8 @@ button {
    完全看不出焦点在哪。这里给所有可交互元素兜一个统一的可见焦点环。
    用 :focus-visible 而非 :focus —— 鼠标点击不会出现焦点环，不干扰视觉。 */
 :focus-visible {
-  outline: 2px solid #eab308; /* brand-500 */
-  outline-offset: 2px;
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
 }
 
 /* 已有自绘焦点样式的元素（Tailwind focus-visible:outline-*）不重复描边 */
@@ -137,19 +164,30 @@ img {
   .card-base {
     @apply bg-white rounded-2xl border border-gray-100/80 shadow-card transition-all duration-300;
   }
+  /* 编辑感分割线：区块之间用「一条短线 + 大留白」代替整幅灰线（留白优先原则） */
+  .rule-short {
+    @apply h-px w-10 bg-gray-200 rounded-full;
+  }
   .card-interactive {
     @apply card-base hover:shadow-elevated hover:-translate-y-0.5 active:scale-[0.98] active:shadow-soft cursor-pointer;
   }
 
   /* 按钮基础 */
+  /* 主按钮：柿底 + 墨字（9.12:1，AAA 级）。
+     旧写法是白字压 #eab308 = 1.92:1，连 AA 大字 3:1 都不过 —— 全站 24 处主控件同根。 */
   .btn-primary {
-    @apply bg-brand-500 text-white font-medium rounded-xl transition-all duration-200
-           hover:bg-brand-600 hover:shadow-soft active:scale-[0.97]
+    @apply bg-brand-500 text-ink font-semibold rounded-xl transition-all duration-200
+           hover:bg-brand-400 hover:shadow-brand active:scale-[0.97]
            disabled:opacity-50 disabled:pointer-events-none;
   }
   .btn-secondary {
-    @apply bg-gray-100 text-gray-700 font-medium rounded-xl transition-all duration-200
-           hover:bg-gray-200 active:scale-[0.97];
+    @apply bg-white text-ink-soft font-medium rounded-xl border border-gray-200 transition-all duration-200
+           hover:border-gray-300 hover:bg-gray-50 active:scale-[0.97];
+  }
+  /* 深底主按钮：需要「白字 + 实底」时的唯一合法形态（墨底 17.49:1） */
+  .btn-ink {
+    @apply bg-ink text-white font-semibold rounded-xl transition-all duration-200
+           hover:bg-ink-soft active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none;
   }
 
   /* 页面容器 */
@@ -159,14 +197,27 @@ img {
 
   /* 区块标题 */
   .section-title {
-    @apply text-sm font-semibold text-gray-900 tracking-wide;
+    @apply text-sm font-semibold text-ink tracking-wide;
+  }
+  /* 眉题（eyebrow）：编辑排版的层级起点 —— 小字、大字距、非粗，压在标题上方 */
+  .eyebrow {
+    @apply text-eyebrow uppercase text-gray-500;
+  }
+  /* 价格/数字专用：展示体 + 等宽（件数与金额变化时不抖动）。
+     命名避开 .font-display —— Tailwind 已由 theme 生成同名工具类，两个 .font-display
+     分处 components/utilities 两层会留下"谁赢看运气"的歧义。 */
+  .price-num {
+    font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1, 'ss01' 1;
+    letter-spacing: -0.02em;
   }
 
   /* 输入框 */
   .input-base {
-    @apply w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm
-           placeholder:text-gray-400 transition-all duration-200
-           focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100;
+    @apply w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-ink
+           placeholder:text-gray-500 transition-all duration-200
+           focus:border-brand-600;
   }
 
   /* 标签药丸 */
@@ -174,10 +225,10 @@ img {
     @apply px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200;
   }
   .pill-active {
-    @apply pill bg-brand-500 text-white shadow-soft;
+    @apply pill bg-brand-500 text-ink font-semibold shadow-soft;
   }
   .pill-inactive {
-    @apply pill bg-white text-gray-600 border border-gray-200 hover:border-brand-300 hover:text-brand-600;
+    @apply pill bg-white text-gray-600 border border-gray-200 hover:border-brand-400 hover:text-brand-700;
   }
 
   /* 图注式画廊的图区底板（阶段二）。
@@ -210,6 +261,8 @@ img {
   .brand-bar {
     background: var(--brand-bar);
   }
+  /* 品牌条上的前景一律墨色（黄段 9:1 / 绿段是装饰带，文字避开中段） */
+  .brand-bar-ink { color: var(--ink); }
 
   /* KPI 首卡强调：顶部品牌渐变细条 + 暖黄底色，拉开主次层级 */
   .card-accent {
@@ -225,19 +278,22 @@ img {
   .seg {
     @apply px-3 py-1.5 rounded-lg text-xs font-medium text-gray-500 transition-all duration-200 cursor-pointer;
   }
+  /* 分段器选中态：白字压在渐变起点 #facc15 上仅 1.77:1 ⇒ 墨字 + 柿底，
+     品牌渐变条退到下方 2px 作「选中」的色相提示，不再当文字底板。 */
   .seg.active {
-    background: var(--brand-bar);
-    color: #fff;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+    background: var(--brand-500);
+    color: var(--on-persimmon);
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.10), inset 0 -2px 0 rgba(20, 83, 45, 0.55);
   }
 
   /* KPI 环比徽章 */
   .delta-badge {
     @apply inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-semibold;
   }
-  .delta-up { @apply bg-green-50 text-green-600; }
-  .delta-down { @apply bg-red-50 text-red-500; }
-  .delta-flat { @apply bg-gray-50 text-gray-400; }
+  .delta-up { @apply bg-green-50 text-green-700; }
+  .delta-down { @apply bg-red-50 text-red-700; }
+  .delta-flat { @apply bg-gray-50 text-gray-600; }
 }
 
 /* === 交错入场动画工具类 === */
@@ -301,3 +357,70 @@ img {
   display: none;
 }
 
+
+/* === 首页：编辑排版的落点（2026-10-22 设计升级）=== */
+
+/* 刊名跑马灯：一条重复两遍的轨道位移 -50%，接缝处无跳变。
+   只在 prefers-reduced-motion 未开启时滚动（全局规则会把时长压到 0.01ms，
+   位移终态就是循环轨道的"零缝"位置，视觉上等于静止的干净轨道）。 */
+@keyframes marquee-track {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.marquee {
+  overflow: hidden;
+  /* 两端淡出：让"可横向滚动"这件事不说教，靠渐隐表达 */
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+}
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee-track 26s linear infinite;
+}
+.marquee:hover .marquee-track { animation-play-state: paused; }
+
+/* 纸纹：极淡的双向网点，让大面积暖白不是"纯色块"而是有材质的纸。
+   刻意压在 3% 不透明度以下 —— 看得见质感、看不见规则本身。 */
+.paper-grain {
+  background-image:
+    radial-gradient(rgba(28, 25, 23, 0.05) 0.5px, transparent 0.5px),
+    radial-gradient(rgba(28, 25, 23, 0.035) 0.5px, transparent 0.5px);
+  background-size: 22px 22px, 22px 22px;
+  background-position: 0 0, 11px 11px;
+}
+
+/* 发丝分割线：获奖级版面的分隔靠"一条短线 + 大留白"，不靠整幅灰线 */
+.hairline {
+  height: 1px;
+  background: linear-gradient(90deg, rgba(28, 25, 23, 0.14), rgba(28, 25, 23, 0));
+}
+
+/* 柿色封面块的右下切角：一个非对称的"破格"，把居中圆装饰那套 AI 默认版式换掉 */
+.cover-clip {
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 2.25rem), calc(100% - 2.25rem) 100%, 0 100%);
+}
+
+/* 索引数字（01/02…）：编辑排版的层级起点，展示体 + 负字距 */
+.index-num {
+  font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
+}
+
+/* 卡片内的图标托：让 emoji 落在同一块浅色台面上，四张卡才像同一套系统 */
+.icon-plate {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(248, 247, 244, 0.9)),
+    var(--brand-bar);
+  background-size: 100% 100%, 100% 2px;
+  background-position: 0 0, 0 100%;
+  background-repeat: no-repeat;
+}
+
+/* 首屏标题的字重与断行控制：中文标题不许在词中间换行 */
+.cover-title {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}

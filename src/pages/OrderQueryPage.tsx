@@ -44,7 +44,7 @@ export default function OrderQueryPage() {
       <div className="px-5 py-4 bg-white/95 backdrop-blur-sm border-b border-gray-100 flex items-center justify-between">
         <button
           onClick={() => navigate(-1)}
-          className="w-9 h-9 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200"
+          className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200"
           aria-label="返回"
         >
           ←
@@ -62,12 +62,12 @@ export default function OrderQueryPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') void lookup(input) }}
-            className="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:border-brand-400 focus:ring-1 focus:ring-brand-200 outline-none"
+            className="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:border-brand-600"
           />
           <button
             onClick={() => void lookup(input)}
             disabled={loading}
-            className="px-4 py-2.5 bg-brand-500 text-white rounded-xl text-sm font-medium disabled:opacity-50 active:scale-[0.98] transition-all"
+            className="px-4 py-2.5 bg-brand-500 text-ink rounded-xl text-sm font-medium disabled:opacity-50 active:scale-[0.98] transition-all"
           >
             {loading ? '查询中' : '查询'}
           </button>
@@ -77,10 +77,10 @@ export default function OrderQueryPage() {
 
           {status && (
             <div className="mt-4 bg-white rounded-2xl p-5 shadow-card border border-gray-100/80">
-              <p className="text-xs text-gray-400 mb-1">订单号</p>
+              <p className="text-xs text-gray-500 mb-1">订单号</p>
               <p className="text-sm font-mono text-gray-700 break-all mb-4">{queried}</p>
               {status.status === 'cancelled' ? (
-                <p className="text-base font-bold text-red-500">该订单已取消</p>
+                <p className="text-base font-bold text-red-700">该订单已取消</p>
               ) : (
                 <ol className="space-y-3">
                   {ORDER_FLOW.map((s, i) => {
@@ -91,15 +91,15 @@ export default function OrderQueryPage() {
                         <span
                           aria-hidden="true"
                           className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] shrink-0 ${
-                            done ? 'bg-green-500 text-white' : current ? 'bg-brand-500 text-white ring-4 ring-brand-100' : 'bg-gray-100 text-gray-300'
+                            done ? 'bg-green-700 text-white' : current ? 'bg-brand-500 text-ink ring-4 ring-brand-300' : 'bg-gray-100 text-gray-500'
                           }`}
                         >
                           {done ? '✓' : i + 1}
                         </span>
-                        <span className={`text-sm ${current ? 'font-bold text-gray-900' : done ? 'text-gray-600' : 'text-gray-300'}`}>
+                        <span className={`text-sm ${current ? 'font-bold text-ink' : done ? 'text-gray-600' : 'text-gray-500'}`}>
                           {orderStatusLabel(s)}
                           {current && status.updatedAt && (
-                            <span className="ml-2 text-xs font-normal text-gray-400">{new Date(status.updatedAt).toLocaleString()}</span>
+                            <span className="ml-2 text-xs font-normal text-gray-500">{new Date(status.updatedAt).toLocaleString()}</span>
                           )}
                         </span>
                       </li>
@@ -110,7 +110,7 @@ export default function OrderQueryPage() {
               {status.status === 'pending' && (
                 <button
                   onClick={() => navigate('/payment', { state: { orderId: queried, totalAmount: 0 } })}
-                  className="mt-4 w-full py-3 bg-brand-500 text-white rounded-xl text-sm font-medium active:scale-[0.98] transition-all"
+                  className="mt-4 w-full py-3 bg-brand-500 text-ink rounded-xl text-sm font-medium active:scale-[0.98] transition-all"
                 >
                   去支付
                 </button>
@@ -119,7 +119,7 @@ export default function OrderQueryPage() {
           )}
         </div>
 
-        <p className="mt-5 text-xs text-gray-400 leading-relaxed">
+        <p className="mt-5 text-xs text-gray-500 leading-relaxed">
           订单号在下单成功页可复制；如订单显示长期「待支付」请先确认已完成扫码付款并联系商家。
         </p>
       </div>

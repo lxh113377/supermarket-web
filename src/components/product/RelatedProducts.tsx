@@ -31,7 +31,7 @@ export default function RelatedProducts({ current, products, limit = 8 }: Props)
     <section aria-labelledby="related-heading" className="mt-4 lg:mt-6">
       <div className="flex items-baseline justify-between gap-3 px-4 lg:px-0 mb-3">
         <h3 id="related-heading" className="section-title">同类商品</h3>
-        <span className="text-xs text-gray-400">共 {related.length} 条 · 取自真实商品目录</span>
+        <span className="text-xs text-gray-500">共 {related.length} 条 · 取自真实商品目录</span>
       </div>
       <ul
         data-related-list=""
@@ -45,7 +45,7 @@ export default function RelatedProducts({ current, products, limit = 8 }: Props)
             <li key={p._id} className="shrink-0 w-32 lg:w-auto">
               <Link
                 to={`/product/${p._id}`}
-                className="block card-interactive p-3 no-underline focus-visible:outline-2 focus-visible:outline-brand-500"
+                className="block card-interactive p-3 no-underline focus-visible:outline-2 focus-visible:outline-brand-700"
               >
                 <div className="h-24 rounded-lg bg-gray-50 flex items-center justify-center overflow-hidden">
                   {thumb ? (
@@ -65,8 +65,8 @@ export default function RelatedProducts({ current, products, limit = 8 }: Props)
                   )}
                 </div>
                 <p className="text-sm text-gray-900 mt-2 line-clamp-2 leading-snug">{p.name}</p>
-                {p.spec && <p className="text-xs text-gray-400 mt-0.5 truncate">{p.spec}</p>}
-                <p className="text-sm font-bold text-brand-600 mt-1 tabular-nums">{formatYuan(p.price)}</p>
+                {p.spec && <p className="text-xs text-gray-500 mt-0.5 truncate">{p.spec}</p>}
+                <p className="price-num mt-1 text-sm font-bold text-brand-700">{formatYuan(p.price)}</p>
               </Link>
             </li>
           )

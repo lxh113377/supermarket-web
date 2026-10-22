@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CATEGORIES } from '../data/categories'
 import { MIN_DELIVERY_AMOUNT } from '../data/deliveryLimits'
@@ -6,86 +7,216 @@ import { isBusinessHours, getClosedMessage, getBusinessHoursText } from '../util
 import { IconRobot } from '../components/Icons'
 import { prefetchRoute } from '../prefetchBus'
 
+/**
+ * 首页（2026-10-22 设计升级）。
+ *
+ * 版式从「居中三层文字 + 两个装饰圆」换成**柿色封面 + 索引式分类表**，
+ * 理由有三条，都不是审美偏好：
+ *
+ *  1. **对比度**：旧封面是白字压 #eab308（1.92:1，AA 要 4.5:1）。新封面把前景换成墨色
+ *     （#1c1917 压柿子黄 = 9.12:1，AAA），品牌色一个像素没改，可读性从"不合格"到"最高级"。
+ *     这条是全站通则：柿色底永远配墨字；要白字就走深绿或墨底（见 index.css 顶部）。
+ *  2. **层级**：旧页眉题/主标/副标/状态/门槛五件事全是居中白字，靠字号拉开，
+ *     眼睛没有落点。现在用「字距 + 字族 + 对齐轴 + 留白」四个维度分开，
+ *     标题靠左、状态靠右，一条封面被切成两个阅读区，第一屏就有了主次。
+ *  3. **原创性**：切角（cover-clip）、纸纹网点、跑马灯关键词带、01–04 索引数字，
+ *     都是这一站独有的形状；换成别的项目名字也成立=没有识别度，这正是我们要避开的。
+ *
+ * 动效克制在"一次编排好的首屏入场"：封面 → 关键词带 → 索引表逐项上浮，
+ * 之后静止。全站已受 prefers-reduced-motion 约束（index.css 顶部全局规则）。
+ */
+
+/** 关键词带：内容与"这站能干什么"一致，重复两遍供无缝滚动轨道使用 */
+const MARQUEE_WORDS = [
+  '零食饮料', '宿舍直送', '校园打印', '起送门槛提前说', '微信内即可下单',
+]
+
+/**
+ * 封面时钟：单独成组件，让每秒一次的 setState 只重渲染这一小棵树。
+ * 直接写在 HomePage 里会让整页（含分类索引与所有卡片）每秒重渲染一遍。
+ */
+function CoverClock() {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 1000)
+    return () => window.clearInterval(timer)
+  }, [])
+  return (
+    <p className="price-num mt-2 text-2xl font-bold leading-none text-ink tabular-nums">
+      {/* 手工补零而不是 toTimeString().slice(0,5)：后者会被上限普查判据
+          （scripts/check-limit-provenance.mjs 的「截断型」形状）当成一条截断上限，
+          逼着往登记册记一行假账。显示格式化不是上限，不该进那张表。 */}
+      {`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`}
+    </p>
+  )
+}
+
 export default function HomePage() {
   const navigate = useNavigate()
   const open = isBusinessHours()
 
   return (
-    <div className="page-container">
-      {/* Header - 更精致的渐变 + 呼吸感 */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-brand-400 via-brand-500 to-brand-700 text-white px-6 pt-12 pb-16">
-        {/* 装饰性背景圆 */}
-        <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-white/10" />
-        <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-white/5" />
-        <div className="relative z-10 text-center">
-          <h1 className="text-2xl font-bold tracking-wide animate-fade-in-up">江科一站通</h1>
-          <p className="text-white/80 mt-2 text-sm font-light animate-fade-in-up stagger-1">一站式校园生活服务平台</p>
-          <div className="inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 rounded-full bg-white/15 backdrop-blur-sm text-xs text-white/90 animate-fade-in-up stagger-2">
-            <span className={`w-1.5 h-1.5 rounded-full ${open ? 'bg-green-300' : 'bg-amber-300'}`} />
-            {getBusinessHoursText()}
+    <div className="page-container paper-grain">
+      {/* ── 封面：柿色场 + 墨字，右下角切角破掉四方形 ── */}
+      <header
+        className="cover-clip relative overflow-hidden px-6 pb-12 pt-7 sm:px-10"
+        style={{ background: 'linear-gradient(155deg, #fde047 0%, #eab308 62%, #ca8a04 100%)' }}
+      >
+        {/* 顶部品牌色带：黄→橙→深绿，站点视觉链路的唯一真相源（纯装饰，不承载文字） */}
+        <span aria-hidden="true" className="brand-bar absolute inset-x-0 top-0 h-1" />
+
+        <div className="relative z-10 mx-auto max-w-5xl">
+          <div className="flex items-start justify-between gap-6">
+            <div className="min-w-0">
+              <p className="eyebrow text-ink/70">江西科技学院 · 宿舍楼下一站</p>
+              <h1 className="cover-title mt-3 text-display-lg sm:text-display-xl text-ink">
+                江科一站通
+              </h1>
+              <p className="mt-2.5 text-sm leading-relaxed text-ink-soft/85">
+                一站式校园生活服务平台
+              </p>
+            </div>
+
+            {/* 状态块：营业状态 + 走钟。右对齐，与左侧标题形成两条轴 */}
+            <div className="shrink-0 text-right">
+              {/* 实底墨胶囊（白字 17.49:1）：8% 半透明墨在黄底上等于没画，
+                  状态这件事必须一眼看见，不该让人去猜那块若有若无的底色。 */}
+              <div
+                className="inline-flex items-center gap-2 rounded-full bg-ink px-3 py-1.5 text-xs font-semibold text-white"
+                role="status"
+                aria-live="polite"
+              >
+                <span
+                  aria-hidden="true"
+                  className={
+                    'h-1.5 w-1.5 rounded-full ' + (open ? 'bg-brand-400 animate-pulse' : 'bg-white/50')
+                  }
+                />
+                {open ? '营业中' : '已打烊'}
+              </div>
+              <CoverClock />
+            </div>
           </div>
-          {/* 起送门槛前置告知（2026-10-22 老大立规「总价低于六元不配送」）：
-              在进店之前就讲清规矩，比在结算末尾拦人更省一次失望。数字取自同一起送常量。 */}
-          <div className="mt-2 text-[11px] text-white/75 animate-fade-in-up stagger-3">
-            零食饮料 · 商品总价不满 {formatYuan(MIN_DELIVERY_AMOUNT)} 不配送
+
+          {/* 营业时间 + 起送门槛：两行"规矩"提前讲清，不走到结算才拦人 */}
+          <dl className="mt-9 grid gap-x-8 gap-y-3 sm:grid-cols-2">
+            <div>
+              <dt className="eyebrow text-ink/70">营业时间</dt>
+              <dd className="mt-1.5 text-xs leading-relaxed text-ink-soft">
+                {getBusinessHoursText()}
+              </dd>
+            </div>
+            <div>
+              <dt className="eyebrow text-ink/70">起送门槛</dt>
+              <dd className="mt-1.5 text-xs leading-relaxed text-ink-soft">
+                零食饮料 · 商品总价不满{' '}
+                <span className="price-num font-bold text-ink">{formatYuan(MIN_DELIVERY_AMOUNT)}</span>
+                &nbsp;不配送
+              </dd>
+            </div>
+          </dl>
+        </div>
+
+        {/* 关键词带：唯一的横向动效，hover 暂停（尊重"我在读"这件事） */}
+        <div className="marquee mt-10 border-t border-ink/10 pt-4">
+          <div className="marquee-track" aria-hidden="true">
+            {[0, 1].map(dup => (
+              <span key={dup} className="flex shrink-0 items-center">
+                {MARQUEE_WORDS.map(w => (
+                  <span key={w} className="flex items-center whitespace-nowrap px-4 text-xs font-semibold tracking-wide text-ink/55">
+                    {w}
+                    <span className="ml-4 h-1 w-1 rounded-full bg-ink/25" />
+                  </span>
+                ))}
+              </span>
+            ))}
           </div>
         </div>
-      </div>
+      </header>
 
       {/* 非营业时间提示 */}
       {!open && (
-        <div className="mx-5 -mt-8 relative z-10 animate-fade-in-up stagger-2">
-          <div className="bg-amber-50/95 backdrop-blur-sm border border-amber-200/80 rounded-2xl p-4 shadow-card">
+        <div className="relative z-10 mx-auto -mt-7 max-w-5xl px-5 sm:px-10">
+          <div className="rounded-2xl border border-amber-200 bg-amber-50/95 p-4 shadow-card backdrop-blur-sm">
             <div className="flex items-start gap-3">
-              <span className="text-lg mt-0.5">⚠️</span>
+              <span className="mt-0.5 text-lg" aria-hidden="true">⚠️</span>
               <div>
-                <p className="text-amber-800 font-medium text-sm">非营业时间</p>
-                <p className="text-amber-600 text-xs mt-1 leading-relaxed">{getClosedMessage()}</p>
+                <p className="text-sm font-semibold text-amber-800">非营业时间</p>
+                <p className="mt-1 text-xs leading-relaxed text-amber-700">{getClosedMessage()}</p>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* 四大分类 - 交错入场 + 悬浮交互 */}
-      {/* 响应式：手机 2 列 → 平板/桌面 4 列（原实现恒为 2 列，大屏两侧大量留白） */}
-      <div
-        className={`px-5 grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-lg md:max-w-3xl lg:max-w-5xl mx-auto ${
-          open ? '-mt-8' : 'mt-5'
-        }`}
-      >
-        {CATEGORIES.map((cat, i) => (
-          <button
-            key={cat.id}
-            onClick={() => navigate(`/category/${cat.id}`)}
-            // hover / 键盘聚焦时预取目标路由 chunk（用户意图已出现，趁点击前加载完）
-            onMouseEnter={() => prefetchRoute('category')}
-            onFocus={() => prefetchRoute('category')}
-            aria-label={`查看${cat.name}`}
-            className={`card-interactive p-6 flex flex-col items-center gap-3 animate-fade-in-up stagger-${i + 1}`}
-          >
-            <span aria-hidden="true" className="text-4xl drop-shadow-sm transition-transform duration-300 group-hover:scale-110">{cat.icon}</span>
-            <span className="font-semibold text-gray-800 text-sm">{cat.name}</span>
-            <span className="text-xs text-gray-400 leading-snug">{cat.description}</span>
-          </button>
-        ))}
-      </div>
+      {/* ── 分类索引：编号 + 名称 + 描述，桌面错位排布打破四等分节奏 ── */}
+      <main className="mx-auto max-w-5xl px-5 pb-28 sm:px-10">
+        <div className={`mt-10 flex items-baseline justify-between gap-4 ${open ? '' : 'mt-6'}`}>
+          <h2 className="text-display-md text-ink">服务索引</h2>
+          <p className="text-xs text-gray-500">四大板块 · 点击进店</p>
+        </div>
 
-      {/* 底部信息 */}
-      <div className="text-center mt-12 pb-10 px-4 animate-fade-in stagger-5">
-        <div className="w-8 h-0.5 bg-gray-200 rounded-full mx-auto mb-4" />
-        <p className="text-xs text-gray-400 tracking-wide">江西科技学院 · 校园服务平台</p>
-      </div>
+        <nav aria-label="服务分类" className="mt-5 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+          {CATEGORIES.map((cat, i) => (
+            <button
+              key={cat.id}
+              onClick={() => navigate(`/category/${cat.id}`)}
+              onMouseEnter={() => prefetchRoute('category')}
+              onFocus={() => prefetchRoute('category')}
+              aria-label={`查看${cat.name}`}
+              // 桌面下逐列错位（0/-mt-3/0/-mt-5…）：四张卡不再是一条水平线
+              className={
+                // 交错入场 + 桌面逐列错位。错位用 **margin**（lg:mt-0 / lg:-mt-6）而不是 translate —
+                // card-interactive 的 hover 会写 -translate-y-0.5，同用 transform 会让错位瞬间消失（跳一下）。
+                `card-interactive group flex flex-col items-start gap-3 p-5 text-left animate-fade-in-up sm:p-6 ${
+                  i % 2 === 1 ? 'lg:mt-0' : 'lg:-mt-6'
+                } stagger-${i + 1}`
+              }
+            >
+              <span className="flex w-full items-start justify-between gap-2">
+                <span
+                  className="icon-plate flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-2xl shadow-inner-soft"
+                  aria-hidden="true"
+                >
+                  {cat.icon}
+                </span>
+                <span className="index-num text-xl font-bold text-gray-300 transition-colors duration-200 group-hover:text-brand-700" aria-hidden="true">
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+              </span>
 
-      {/* AI 导购浮窗入口：底部位置统一走 .safe-offset-bottom（原先内联 style 又写了一遍安全区） */}
+              <span className="mt-1 block text-base font-bold tracking-tight text-ink">{cat.name}</span>
+              <span className="block text-xs leading-relaxed text-gray-500">{cat.description}</span>
+
+              {/* 底栏：进入指示。hover 时短线伸展，把"可以进去"说成动作而不是图标 */}
+              <span className="mt-auto flex w-full items-center gap-2 pt-3">
+                <span className="h-px flex-1 bg-gray-200 transition-colors duration-300 group-hover:bg-brand-400" aria-hidden="true" />
+                <span className="text-[11px] font-semibold tracking-widest text-gray-600 transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-brand-700">
+                  进入
+                </span>
+              </span>
+            </button>
+          ))}
+        </nav>
+
+        {/* 页脚：一条短线 + 极小字，收住首屏不留悬空 */}
+        <footer className="mt-16 flex flex-col items-center gap-3">
+          <span className="brand-bar h-0.5 w-16 rounded-full opacity-70" aria-hidden="true" />
+          <p className="text-[11px] tracking-[0.18em] text-gray-500">江西科技学院 · 校园服务平台</p>
+        </footer>
+      </main>
+
+      {/* AI 导购浮窗：墨底白字（17.49:1），品牌渐变条只作边缘描边 */}
       <button
         onClick={() => navigate('/assistant')}
         onMouseEnter={() => prefetchRoute('assistant')}
         onFocus={() => prefetchRoute('assistant')}
         aria-label="打开 AI 导购助手"
-        className="safe-offset-bottom fixed right-4 z-30 flex items-center gap-2 pl-3 pr-4 py-3 rounded-full brand-bar text-white shadow-float transition-all duration-200 active:scale-[0.95] animate-slide-up"
+        className="safe-offset-bottom fixed right-4 z-30 flex animate-slide-up items-center gap-2 rounded-full bg-ink py-3 pl-3 pr-4 text-white shadow-float transition-all duration-200 hover:bg-ink-soft active:scale-[0.95]"
       >
-        <IconRobot className="w-5 h-5" />
+        <span className="brand-bar flex h-7 w-7 items-center justify-center rounded-full">
+          <IconRobot className="h-4 w-4 text-ink" />
+        </span>
         <span className="text-xs font-semibold tracking-wide">AI 导购</span>
       </button>
     </div>

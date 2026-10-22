@@ -167,7 +167,7 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
   if (statsError) {
     return (
       <div className="bg-white p-5 rounded-2xl border border-gray-100/80 shadow-card">
-        <p className="text-sm text-red-500">⚠️ {statsError}</p>
+        <p className="text-sm text-red-700">⚠️ {statsError}</p>
       </div>
     )
   }
@@ -243,7 +243,7 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
           <h3 className="section-title">近 {rangeDays} 天营收 / 订单趋势</h3>
           <button
             onClick={() => downloadCsv(buildCsv(rangeData), dateStr)}
-            className="text-xs font-medium text-brand-600 hover:text-brand-700 bg-brand-50 px-3 py-1.5 rounded-lg transition-colors"
+            className="text-xs font-medium text-brand-700 hover:text-brand-700 bg-brand-50 px-3 py-1.5 rounded-lg transition-colors"
           >
             导出 CSV
           </button>
@@ -258,8 +258,8 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
           <div ref={reviewRef} className="h-44 w-full" aria-label="近14天评价趋势图" />
         ) : (
           <div className="text-center py-6">
-            <IconChart className="w-8 h-8 mx-auto text-gray-300" />
-            <p className="text-gray-300 text-sm mt-3">暂无数据</p>
+            <IconChart className="w-8 h-8 mx-auto text-gray-400" />
+            <p className="text-gray-500 text-sm mt-3">暂无数据</p>
           </div>
         )}
       </div>
@@ -269,9 +269,9 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
         <h3 className="section-title mb-4">饮品/食品/日用毛利率</h3>
         {margin.withCostItems === 0 ? (
           <div className="text-center py-6">
-            <IconBox className="w-8 h-8 mx-auto text-gray-300" />
-            <p className="text-gray-300 text-sm mt-3">待录入</p>
-            <p className="text-[10px] text-gray-300 mt-1">在商品内联编辑中录入成本价后自动计算</p>
+            <IconBox className="w-8 h-8 mx-auto text-gray-400" />
+            <p className="text-gray-500 text-sm mt-3">待录入</p>
+            <p className="text-[10px] text-gray-500 mt-1">在商品内联编辑中录入成本价后自动计算</p>
           </div>
         ) : (
           <div className="grid grid-cols-3 gap-3">
@@ -281,14 +281,14 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
               ['日用', margin.daily],
             ] as Array<[string, MarginSummary | null]>).map(([label, m]) => (
               <div key={label} className="rounded-xl bg-gray-50 p-3 text-center">
-                <p className="text-[10px] text-gray-400">{label}</p>
+                <p className="text-[10px] text-gray-500">{label}</p>
                 {m ? (
                   <>
                     <p className="text-lg font-bold text-gray-900">{m.marginPct}%</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">毛利 ¥{formatCount(m.revenue - m.cost)}</p>
+                    <p className="text-[10px] text-gray-500 mt-0.5">毛利 ¥{formatCount(m.revenue - m.cost)}</p>
                   </>
                 ) : (
-                  <p className="text-sm text-gray-300 py-2">暂无销售</p>
+                  <p className="text-sm text-gray-500 py-2">暂无销售</p>
                 )}
               </div>
             ))}
@@ -302,7 +302,7 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
         <div className="relative h-56 w-full">
           <div ref={pieRef} className="h-56 w-full" aria-label="饮品、食品与日用销量占比图" />
           {!pieSegments.length && (
-            <div className="absolute inset-0 flex items-center justify-center text-gray-300 text-sm" aria-hidden="true">
+            <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm" aria-hidden="true">
               暂无数据
             </div>
           )}
@@ -314,8 +314,8 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
         <h3 className="section-title mb-2">商品营收 TOP10</h3>
         {topRevenue.length === 0 ? (
           <div className="text-center py-6">
-            <IconBox className="w-8 h-8 mx-auto text-gray-300" />
-            <p className="text-gray-300 text-sm mt-3">暂无数据</p>
+            <IconBox className="w-8 h-8 mx-auto text-gray-400" />
+            <p className="text-gray-500 text-sm mt-3">暂无数据</p>
           </div>
         ) : (
           <div ref={topRef} className="h-64 w-full" aria-label="热销商品营收排行图" />
@@ -328,8 +328,8 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
           <h3 className="section-title flex items-center gap-2">AI 经营建议</h3>
           {aiStatus === 'loaded' && (
             <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-              aiAdvice?.source === 'dify' ? 'bg-green-50 text-green-600' :
-              aiAdvice?.source === 'rule' ? 'bg-gray-100 text-gray-500' : 'bg-red-50 text-red-500'
+              aiAdvice?.source === 'dify' ? 'bg-green-50 text-green-700' :
+              aiAdvice?.source === 'rule' ? 'bg-gray-100 text-gray-500' : 'bg-red-50 text-red-700'
             }`}>
               {aiAdvice?.source === 'dify' ? 'AI 已接入' : aiAdvice?.source === 'rule' ? '规则版' : 'AI 服务暂不可用'}
             </span>
@@ -346,7 +346,7 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
           <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">{aiAdvice.content}</p>
         )}
         {aiStatus === 'error' && (
-          <div className="text-sm text-gray-400">
+          <div className="text-sm text-gray-500">
             <p>AI 服务暂不可用，请稍后重试。</p>
           </div>
         )}
@@ -354,7 +354,7 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
           <button
             onClick={() => loadAdvice(true)}
             disabled={aiLoading}
-            className="mt-3 text-xs font-medium text-brand-600 hover:text-brand-700 bg-brand-50 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+            className="mt-3 text-xs font-medium text-brand-700 hover:text-brand-700 bg-brand-50 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
           >
             刷新
           </button>

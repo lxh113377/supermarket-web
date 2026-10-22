@@ -51,7 +51,7 @@ function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
       className={`group relative flex flex-col overflow-hidden rounded-2xl text-left transition-all duration-300 ${
         disabled
           ? 'bg-gray-50 opacity-50 grayscale border border-gray-100'
-          : 'bg-white/60 border border-transparent hover:border-brand-200 hover:shadow-elevated cursor-pointer active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-brand-500'
+          : 'bg-white/60 border border-transparent hover:border-brand-300 hover:shadow-elevated cursor-pointer active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-brand-700'
       }`}
       onClick={goDetail}
       onMouseEnter={() => {
@@ -88,14 +88,14 @@ function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
             <span className="text-4xl" aria-hidden="true">
               {product.subcategories?.includes('snacks') || product.subcategories?.includes('filling') ? '🍜' : '🥤'}
             </span>
-            <span className="text-[10px] text-gray-400">示意图 · 非商品实拍</span>
+            <span className="text-[10px] text-gray-500">示意图 · 非商品实拍</span>
           </div>
         )}
 
         {/* 已加购件数：角标压在图左上，取代旧版挤在按钮中间的数字 */}
         {quantity > 0 && !disabled && (
           <span
-            className="absolute top-2 left-2 min-w-[1.5rem] h-6 px-1.5 rounded-full bg-brand-500 text-white text-xs font-bold flex items-center justify-center tabular-nums shadow-soft"
+            className="absolute top-2 left-2 min-w-[1.5rem] h-6 px-1.5 rounded-full bg-brand-500 text-ink text-xs font-bold flex items-center justify-center tabular-nums shadow-brand"
             aria-hidden="true"
           >{quantity}</span>
         )}
@@ -110,7 +110,7 @@ function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
                   onRemove(product)
                 }}
                 aria-label={`减少${product.name}`}
-                className="tap-44 w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm border border-gray-200 text-gray-600 flex items-center justify-center text-base leading-none shadow-soft hover:bg-white hover:border-brand-300 transition-all duration-200 active:scale-90"
+                className="tap-44 w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm border border-gray-200 text-gray-600 flex items-center justify-center text-base leading-none shadow-soft hover:bg-white hover:border-brand-500 transition-all duration-200 active:scale-90"
               >
                 <span aria-hidden="true">-</span>
               </button>
@@ -121,7 +121,7 @@ function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
                 onAdd(product, e)
               }}
               aria-label={`添加${product.name}`}
-              className="tap-44 w-9 h-9 rounded-full bg-brand-500 text-white flex items-center justify-center text-lg leading-none shadow-elevated hover:bg-brand-600 transition-all duration-200 active:scale-90"
+              className="tap-44 w-9 h-9 rounded-full bg-brand-500 text-ink flex items-center justify-center text-lg font-semibold leading-none shadow-brand hover:bg-brand-400 hover:scale-105 transition-all duration-200 active:scale-90"
             >
               <span aria-hidden="true">+</span>
             </button>
@@ -131,12 +131,12 @@ function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
 
       {/* 图注区 */}
       <div className="flex flex-col flex-1 min-w-0 px-3 pt-2.5 pb-3">
-        <h3 className={`text-sm font-semibold leading-snug line-clamp-2 ${disabled ? 'text-gray-400' : 'text-gray-900'}`}>
+        <h3 className={`text-[0.9375rem] font-semibold leading-snug tracking-tight line-clamp-2 ${disabled ? 'text-gray-500' : 'text-ink'}`}>
           {product.name}
         </h3>
         {/* 规格独立成行：同名商品（农夫山泉矿泉水 / 怡宝矿泉水）全靠它区分，不能缩成附注 */}
         {product.spec ? (
-          <p className={`text-xs mt-1 ${disabled ? 'text-gray-400' : 'text-gray-500'}`}>{product.spec}</p>
+          <p className={`text-xs mt-1 ${disabled ? 'text-gray-500' : 'text-gray-600'}`}>{product.spec}</p>
         ) : (
           <p className="text-xs mt-1 text-transparent select-none" aria-hidden="true">·</p>
         )}
@@ -145,8 +145,9 @@ function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
             已下架
           </span>
         )}
-        <p className={`text-xl font-bold mt-1.5 tabular-nums ${disabled ? 'text-gray-400' : 'text-brand-700'}`}>
-          <span className="text-xs font-semibold align-top">¥</span>{formatPrice(product.price)}
+        <p className={`price-num mt-1.5 text-[1.375rem] font-bold ${disabled ? 'text-gray-500' : 'text-brand-700'}`}>
+          <span className="mr-px text-sm font-semibold opacity-70">¥</span>{formatPrice(product.price)}
+          {/* 规格与价格之间留一条发丝线：让"这是什么/多少钱"两段各自成组 */}
           {/* 卡面只标这一条记录自己的真实价格，不用「¥x 起」——
               那样点进详情默认选中的是这一条本身，价格会对不上。
               变体数量另用角标提示，进详情页由选择器承载。 */}

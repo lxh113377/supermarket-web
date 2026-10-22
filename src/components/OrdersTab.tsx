@@ -323,7 +323,7 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
                     {o.roomNumber} · {formatYuan(o.totalAmount ?? 0)} · {o.ageMinutes} 分钟前
                     {o.hasPaymentProof && <span className="ml-1 text-[10px] text-green-700 bg-green-100 px-1 py-0.5 rounded">已传付款截图</span>}
                   </span>
-                  <button onClick={() => void cancelStale(o.id)} className="text-[11px] text-red-500 hover:text-red-700 px-2 py-1 shrink-0">
+                  <button onClick={() => void cancelStale(o.id)} className="text-[11px] text-red-700 hover:text-red-700 px-2 py-1 shrink-0">
                     取消并释放库存
                   </button>
                 </div>
@@ -337,7 +337,7 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
           <div className="flex justify-between items-start gap-2 mb-2">
             <span className="text-sm font-bold min-w-0 truncate">房间号：{order.roomNumber}</span>
             <div className="flex items-center gap-2 shrink-0">
-              <button onClick={() => copyOrder(order)} className="text-xs text-brand-600 bg-brand-50 px-2 py-0.5 rounded">复制</button>
+              <button onClick={() => copyOrder(order)} className="text-xs text-brand-700 bg-brand-50 px-2 py-0.5 rounded">复制</button>
               <span className="text-xs text-gray-500">{new Date(order.createdAt).toLocaleString()}</span>
             </div>
           </div>
@@ -361,7 +361,7 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
           </div>
           {/* 管理端行内布局：手机端纵向堆叠，sm 以上左右分列（原实现挤在一行、金额与操作互相挤压） */}
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-            <span className="text-brand-600 font-bold">{formatYuan(order.totalAmount ?? 0)}
+            <span className="price-num text-brand-700 font-bold">{formatYuan(order.totalAmount ?? 0)}
               {(order.discountAmount ?? 0) > 0 && (
                 <span className="ml-1.5 text-[11px] font-medium text-green-700 bg-green-50 rounded px-1 py-px">已优惠 {formatYuan(order.discountAmount ?? 0)}</span>
               )}
@@ -389,7 +389,7 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
                 onClick={() => handleDelete(order._id)}
                 disabled={deleting === order._id}
                 aria-label="删除订单"
-                className="tap-44 text-xs text-red-400 hover:text-red-600 px-2 py-1 disabled:opacity-50"
+                className="tap-44 text-xs text-red-600 hover:text-red-600 px-2 py-1 disabled:opacity-50"
               >
                 {deleting === order._id ? '删除中' : <span aria-hidden="true">🗑</span>}
               </button>
@@ -434,7 +434,7 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
       ))}
       {totalPages > 1 && (
         <div className="flex items-center justify-between pt-1 text-sm">
-          <span className="text-xs text-gray-400">共 {filtered.length} 单 · 第 {page}/{totalPages} 页</span>
+          <span className="text-xs text-gray-500">共 {filtered.length} 单 · 第 {page}/{totalPages} 页</span>
           <div className="flex gap-2">
             <button
               onClick={() => setPage((p) => pageOf(p - 1))}

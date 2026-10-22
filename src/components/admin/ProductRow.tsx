@@ -65,7 +65,7 @@ function ProductRow({
         </div>
 
         <div
-          className="flex-1 min-w-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-brand-500 rounded"
+          className="flex-1 min-w-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-brand-700 rounded"
           role="button"
           tabIndex={0}
           aria-label={`编辑${product.name || '商品'}`}
@@ -78,12 +78,12 @@ function ProductRow({
             }
           }}
         >
-          <p className={`text-sm font-medium truncate ${enabled ? 'text-gray-900' : 'text-gray-400 line-through'}`}>
+          <p className={`text-sm font-medium truncate ${enabled ? 'text-gray-900' : 'text-gray-500 line-through'}`}>
             {product.name}{product.spec ? ` (${product.spec})` : ''}
           </p>
           <div className="flex items-center gap-2 mt-0.5">
-            <span className="text-brand-600 font-bold text-sm">¥{formatPrice(product.price)}</span>
-            {catLabel && <span className="text-[10px] text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded truncate">{catLabel}</span>}
+            <span className="price-num text-brand-700 font-bold text-sm">¥{formatPrice(product.price)}</span>
+            {catLabel && <span className="text-[10px] text-gray-600 bg-gray-50 px-1.5 py-0.5 rounded truncate">{catLabel}</span>}
             {typeof product.stock === 'number' && product.stock === 0 && (
               <span className="text-[10px] text-white bg-red-500 px-1.5 py-0.5 rounded" role="status">缺货</span>
             )}
@@ -127,8 +127,8 @@ function ProductRow({
             style={{ '--tap-x': '4px', '--tap-y': '4px' } as CSSProperties}
             className={`tap-44 w-9 h-9 rounded-lg border flex items-center justify-center text-xs transition ${
               isEditing
-                ? 'bg-brand-500 border-brand-500 text-white'
-                : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-brand-50 hover:border-brand-200 hover:text-brand-600'
+                ? 'bg-brand-500 border-brand-500 text-ink'
+                : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-brand-50 hover:border-brand-300 hover:text-brand-700'
             }`}
           >
             <span aria-hidden="true">✎</span>
@@ -137,7 +137,7 @@ function ProductRow({
             onClick={() => onRemove(product._id)}
             aria-label="删除商品"
             style={{ '--tap-x': '4px', '--tap-y': '4px' } as CSSProperties}
-            className="tap-44 w-9 h-9 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center text-xs text-gray-400 hover:bg-red-50 hover:border-red-200 hover:text-red-500 transition"
+            className="tap-44 w-9 h-9 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center text-xs text-gray-500 hover:bg-red-50 hover:border-red-200 hover:text-red-700 transition"
           >
             <span aria-hidden="true">🗑</span>
           </button>

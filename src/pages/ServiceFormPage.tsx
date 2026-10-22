@@ -35,8 +35,8 @@ export default function ServiceFormPage() {
       <div className="page-container flex items-center justify-center">
         <div className="text-center animate-fade-in-up">
           <span className="text-4xl block mb-3">🔍</span>
-          <p className="text-gray-400 text-sm">服务不存在</p>
-          <button onClick={() => navigate('/')} className="mt-4 text-brand-500 text-sm font-medium">
+          <p className="text-gray-500 text-sm">服务不存在</p>
+          <button onClick={() => navigate('/')} className="mt-4 text-brand-700 text-sm font-medium">
             返回首页
           </button>
         </div>
@@ -137,7 +137,7 @@ export default function ServiceFormPage() {
             <span className="text-4xl">✅</span>
           </div>
           <h2 className="text-xl font-bold text-gray-900">提交成功</h2>
-          <p className="text-gray-400 text-sm mt-2 leading-relaxed">请耐心等待工作人员联系<br/>通常会在30分钟内回复</p>
+          <p className="text-gray-500 text-sm mt-2 leading-relaxed">请耐心等待工作人员联系<br/>通常会在30分钟内回复</p>
           <button
             onClick={() => navigate('/')}
             className="mt-7 btn-primary w-full py-3.5 text-base"
@@ -152,11 +152,10 @@ export default function ServiceFormPage() {
   return (
     <div className="page-container">
       {/* Header */}
-      <div className={`relative overflow-hidden bg-gradient-to-br ${category?.color || 'from-gray-400 to-gray-500'} text-white px-5 pt-10 pb-14`}>
+      <div className={`relative overflow-hidden bg-gradient-to-br ${category?.color || 'from-gray-600 to-gray-700'} text-white px-5 pt-10 pb-14`}>
         {/* 装饰元素 */}
-        <div className="absolute -top-10 -right-10 w-36 h-36 rounded-full bg-white/10" />
-        <div className="absolute top-12 -left-6 w-20 h-20 rounded-full bg-white/5" />
-        <div className="absolute bottom-2 right-16 w-12 h-12 rounded-full bg-white/8" />
+        {/* 装饰圆 → 品牌色带（与首页/分类页同一套形状语言） */}
+        <span aria-hidden="true" className="brand-bar absolute inset-x-0 top-0 h-1" />
 
         <div className="relative z-10 max-w-lg mx-auto">
           {/* 返回按钮 */}
@@ -216,13 +215,13 @@ export default function ServiceFormPage() {
                   className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-2.5"
                 >
                   {field.label}
-                  {field.required && <span className="text-red-400 text-xs" aria-hidden="true">*</span>}
+                  {field.required && <span className="text-red-600 text-xs" aria-hidden="true">*</span>}
                 </label>
 
                 {field.type === 'image' ? (
                   <div>
                     {field.hint && (
-                      <p className="text-xs text-gray-400 mb-3 leading-relaxed" id={`sf-hint-${field.key}`}>{field.hint}</p>
+                      <p className="text-xs text-gray-500 mb-3 leading-relaxed" id={`sf-hint-${field.key}`}>{field.hint}</p>
                     )}
                     {images.length > 0 && (
                       <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 mb-3">
@@ -252,11 +251,11 @@ export default function ServiceFormPage() {
                     )}
                     <button
                       onClick={() => fileInputRef.current?.click()}
-                      className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-8 text-center text-gray-400 text-sm hover:border-brand-300 hover:text-brand-500 hover:bg-brand-50/30 transition-all duration-300 active:scale-[0.98]"
+                      className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-8 text-center text-gray-500 text-sm hover:border-brand-500 hover:text-brand-700 hover:bg-brand-50/30 transition-all duration-300 active:scale-[0.98]"
                     >
                       <span className="block text-2xl mb-2" aria-hidden="true">📷</span>
                       <span className="font-medium">点击上传截图</span>
-                      <span className="block text-xs text-gray-300 mt-1">至少{field.minCount || 1}张，最多{MAX_SUBMISSION_FILES}张</span>
+                      <span className="block text-xs text-gray-500 mt-1">至少{field.minCount || 1}张，最多{MAX_SUBMISSION_FILES}张</span>
                     </button>
                     <input
                       ref={fileInputRef}
@@ -291,7 +290,7 @@ export default function ServiceFormPage() {
           <div role="alert" aria-live="assertive">
             {error && (
               <div className="mt-4 bg-red-50 border border-red-100 rounded-xl px-4 py-3 animate-slide-down">
-                <p className="text-red-500 text-xs flex items-center gap-2">
+                <p className="text-red-700 text-xs flex items-center gap-2">
                   <span aria-hidden="true">⚡</span> {error}
                 </p>
               </div>
@@ -319,7 +318,7 @@ export default function ServiceFormPage() {
         </div>
 
         {/* 底部提示 */}
-        <p className="text-center text-xs text-gray-300 mt-6 flex items-center justify-center gap-1.5">
+        <p className="text-center text-xs text-gray-500 mt-6 flex items-center justify-center gap-1.5">
           <span className="w-1 h-1 rounded-full bg-gray-200" />
           提交后请耐心等待工作人员联系
           <span className="w-1 h-1 rounded-full bg-gray-200" />

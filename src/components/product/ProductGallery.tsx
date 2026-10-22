@@ -29,7 +29,7 @@ function Placeholder({ name, spec }: { name: string; spec?: string }) {
     <div className="w-full h-full min-h-60 flex items-center justify-center bg-gradient-to-br from-brand-50 via-surface-warm to-brand-100/50">
       <div className="text-center animate-scale-in">
         <div className="text-6xl mb-3" aria-hidden="true">🛒</div>
-        <p className="text-brand-600 font-bold text-lg">{name}</p>
+        <p className="text-brand-700 font-bold text-lg">{name}</p>
         {spec && <p className="text-brand-400 text-sm mt-1">{spec}</p>}
         {/* 如实标注：这是占位示意，不是商品实拍 */}
         <p className="text-brand-400/80 text-[11px] mt-2">示意图 · 非商品实拍</p>
@@ -105,7 +105,7 @@ export default function ProductGallery({ product, gallery, items, index, onIndex
         <div className="flex-1 min-w-0" data-main-image="">
           {list.length > 1 ? (
             <div
-              className="relative focus-visible:outline-2 focus-visible:outline-brand-500"
+              className="relative focus-visible:outline-2 focus-visible:outline-brand-700"
               role="group"
               aria-roledescription="轮播图"
               aria-label={`${product.name} 图片，第 ${galleryIdx + 1} / ${list.length} 张`}
@@ -179,10 +179,10 @@ export default function ProductGallery({ product, gallery, items, index, onIndex
                 aria-label={thumbLabel(item, i)}
                 aria-current={i === galleryIdx}
                 title={item.label}
-                className={`shrink-0 w-16 h-16 lg:w-20 lg:h-20 rounded-xl overflow-hidden border-2 bg-gray-50 transition-all duration-200 focus-visible:outline-2 focus-visible:outline-brand-500 ${
+                className={`shrink-0 w-16 h-16 lg:w-20 lg:h-20 rounded-xl overflow-hidden border-2 bg-gray-50 transition-all duration-200 focus-visible:outline-2 focus-visible:outline-brand-700 ${
                   i === galleryIdx
                     ? 'border-brand-500 shadow-soft'
-                    : 'border-gray-100 hover:border-brand-300'
+                    : 'border-gray-100 hover:border-brand-500'
                 }`}
               >
                 {galleryErr[i] ? (

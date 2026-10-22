@@ -93,12 +93,12 @@ export default function AssistantPage() {
         <button
           onClick={() => navigate(-1)}
           aria-label="返回"
-          className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200"
+          className="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200"
         >
           ←
         </button>
         <span className="ml-2 text-sm font-semibold text-gray-800 flex items-center gap-1.5">
-          <IconRobot className="w-4 h-4 text-brand-600" />
+          <IconRobot className="w-4 h-4 text-brand-700" />
           AI 导购助手
         </span>
       </div>
@@ -115,7 +115,7 @@ export default function AssistantPage() {
         {messages.map((m) => (
           <div key={m.id} className={`flex gap-2 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             {m.role === 'assistant' && (
-              <div className="w-7 h-7 rounded-full brand-bar opacity-90 shrink-0 flex items-center justify-center text-white mt-0.5">
+              <div className="brand-bar price-num mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[13px] font-bold text-ink">
                 <IconRobot className="w-4 h-4" />
               </div>
             )}
@@ -124,7 +124,7 @@ export default function AssistantPage() {
                 m.role === 'user'
                   ? 'bg-gray-900 text-white rounded-br-md'
                   : m.isError
-                    ? 'bg-red-50 text-red-500 border border-red-100 rounded-bl-md'
+                    ? 'bg-red-50 text-red-700 border border-red-100 rounded-bl-md'
                     : 'bg-white border border-gray-100/80 shadow-card text-gray-700 rounded-bl-md'
               }`}
             >
@@ -133,7 +133,7 @@ export default function AssistantPage() {
                 <button
                   onClick={() => void send(lastRetryRef.current)}
                   disabled={pending}
-                  className="mt-2 text-xs font-semibold text-brand-600 underline underline-offset-2 disabled:opacity-50"
+                  className="mt-2 text-xs font-semibold text-brand-700 underline underline-offset-2 disabled:opacity-50"
                 >
                   重试
                 </button>
@@ -149,7 +149,7 @@ export default function AssistantPage() {
               <button
                 key={q}
                 onClick={() => void send(q)}
-                className="px-3 py-1.5 rounded-full bg-white border border-gray-200 text-xs text-gray-600 hover:border-brand-300 hover:text-brand-600 transition-colors duration-150"
+                className="px-3 py-1.5 rounded-full bg-white border border-gray-200 text-xs text-gray-600 hover:border-brand-500 hover:text-brand-700 transition-colors duration-150"
               >
                 {q}
               </button>
@@ -160,7 +160,7 @@ export default function AssistantPage() {
         {/* 输入中指示器 */}
         {pending && (
           <div className="flex gap-2 justify-start" role="status" aria-label="AI 正在输入">
-            <div className="w-7 h-7 rounded-full brand-bar opacity-90 shrink-0 flex items-center justify-center text-white mt-0.5">
+            <div className="brand-bar price-num mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[13px] font-bold text-ink">
               <IconRobot className="w-4 h-4" />
             </div>
             <div className="bg-white border border-gray-100/80 shadow-card rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-1">

@@ -32,7 +32,7 @@ function AxisRow({ axis, group, selection, onChange }: {
         <span className="inline-block w-1 h-4 bg-brand-500 rounded-full shrink-0" aria-hidden="true" />
         {axis.name}
         {current === '' && (
-          <span className="text-xs font-normal text-gray-400">当前组合不含此选项</span>
+          <span className="text-xs font-normal text-gray-500">当前组合不含此选项</span>
         )}
       </legend>
       <div className="flex flex-wrap gap-2">
@@ -51,10 +51,10 @@ function AxisRow({ axis, group, selection, onChange }: {
               aria-pressed={selected}
               title={dead ? `${opt.label}（暂无可售组合）` : opt.label}
               className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition-all duration-200
-                focus-visible:outline-2 focus-visible:outline-brand-500 active:scale-[0.97]
+                focus-visible:outline-2 focus-visible:outline-brand-700 active:scale-[0.97]
                 ${selected
                   ? 'border-brand-500 bg-brand-50 text-brand-800 font-semibold shadow-soft'
-                  : 'border-gray-200 bg-white text-gray-700 hover:border-brand-300 hover:text-brand-700'}
+                  : 'border-gray-200 bg-white text-gray-700 hover:border-brand-500 hover:text-brand-700'}
                 ${dead ? 'opacity-40 line-through cursor-not-allowed' : ''}`}
             >
               <span>{opt.label}</span>
@@ -79,7 +79,7 @@ export default function VariantPicker({ group, selection, onChange, autoAdjustNo
         </p>
       )}
       {group.disclosure && (
-        <p className="text-[11px] leading-relaxed text-gray-400 border-t border-gray-100 pt-3">
+        <p className="text-[11px] leading-relaxed text-gray-500 border-t border-gray-100 pt-3">
           <span className="font-semibold text-gray-500">数据说明：</span>
           {group.disclosure}
         </p>

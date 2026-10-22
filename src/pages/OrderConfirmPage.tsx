@@ -110,7 +110,7 @@ export default function OrderConfirmPage() {
       <div className="flex items-center justify-between px-5 py-4 bg-white/95 backdrop-blur-sm border-b border-gray-100">
         <button
           onClick={() => navigate(-1)}
-          className="w-9 h-9 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200"
+          className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200"
           aria-label="返回"
         >
           ←
@@ -125,7 +125,7 @@ export default function OrderConfirmPage() {
           {!open && (
             <div className="bg-red-50/80 border border-red-200/60 rounded-2xl p-4 animate-slide-down">
               <p className="text-red-700 text-sm font-medium">{getClosedMessage()}</p>
-              <p className="text-red-400 text-xs mt-1.5">当前非营业时间，下单后可能无法及时处理</p>
+              <p className="text-red-600 text-xs mt-1.5">当前非营业时间，下单后可能无法及时处理</p>
             </div>
           )}
 
@@ -153,7 +153,7 @@ export default function OrderConfirmPage() {
             </div>
             <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-100">
               <span className="text-sm font-semibold text-gray-700">合计</span>
-              <span className="text-xl font-bold text-brand-600">{formatYuan(totalAmount)}</span>
+              <span className="price-num text-xl font-bold text-brand-700">{formatYuan(totalAmount)}</span>
             </div>
           </div>
 
@@ -162,7 +162,7 @@ export default function OrderConfirmPage() {
           {/* 楼栋号 */}
           <div className="animate-fade-in-up stagger-1">
             <label htmlFor="order-building" className="section-title block mb-2.5">
-              楼栋号 <span className="text-red-400" aria-hidden="true">*</span>
+              楼栋号 <span className="text-red-600" aria-hidden="true">*</span>
             </label>
             <input
               id="order-building"
@@ -181,7 +181,7 @@ export default function OrderConfirmPage() {
           {/* 房间号 */}
           <div className="animate-fade-in-up stagger-1">
             <label htmlFor="order-room" className="section-title block mb-2.5">
-              房间号 <span className="text-red-400" aria-hidden="true">*</span>
+              房间号 <span className="text-red-600" aria-hidden="true">*</span>
             </label>
             <input
               id="order-room"
@@ -232,7 +232,7 @@ export default function OrderConfirmPage() {
                 <button
                   onClick={() => setScreenshot(null)}
                   aria-label="删除付款截图"
-                  className="absolute -top-2 -right-2 w-7 h-7 bg-red-500 text-white rounded-full text-xs flex items-center justify-center shadow-soft hover:bg-red-600 transition-all duration-200 active:scale-90"
+                  className="absolute -top-2 -right-2 w-7 h-7 bg-red-700 text-white rounded-full text-xs flex items-center justify-center shadow-soft hover:bg-red-800 transition-all duration-200 active:scale-90"
                 >
                   ×
                 </button>
@@ -240,7 +240,7 @@ export default function OrderConfirmPage() {
             ) : (
               <button
                 onClick={() => fileRef.current?.click()}
-                className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-8 text-sm text-gray-400 hover:border-brand-300 hover:text-brand-500 hover:bg-brand-50/30 transition-all duration-300"
+                className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-8 text-sm text-gray-500 hover:border-brand-500 hover:text-brand-700 hover:bg-brand-50/30 transition-all duration-300"
               >
                 <span className="block text-2xl mb-2">📷</span>
                 点击上传付款截图
@@ -261,17 +261,17 @@ export default function OrderConfirmPage() {
         <div className="mt-5 space-y-2.5">
           {/* role="alert" + id：读屏会在校验失败时立即播报，并被上方输入框的 aria-describedby 引用 */}
           <div role="alert" aria-live="assertive">
-            {error && <p id="order-error" className="text-red-500 text-sm text-center animate-slide-down">{error}</p>}
+            {error && <p id="order-error" className="text-red-700 text-sm text-center animate-slide-down">{error}</p>}
           </div>
           <button
             onClick={handleConfirm}
             disabled={submitting}
             className={`w-full py-4 rounded-2xl font-medium text-base transition-all duration-200 active:scale-[0.98] ${
               submitting
-                ? 'bg-gray-200 text-gray-400'
+                ? 'bg-gray-200 text-gray-500'
                 : open
                   ? 'btn-primary shadow-elevated'
-                  : 'bg-amber-500 text-white hover:bg-amber-600 shadow-elevated'
+                  : 'bg-amber-600 text-ink hover:bg-amber-500 shadow-elevated'
             }`}
           >
             {submitting ? (

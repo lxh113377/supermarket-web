@@ -371,11 +371,17 @@ test('平板 768 /shop：三列且无横向溢出', async ({ page }) => {
 /**
  * 回归锁：价格原先用 brand-600 (#ca8a04)，对白底只有 2.82:1，
  * 连 AA 大字标准 3:1 都不过。阶段二改 brand-700 (#a16207) 后达 4.79:1。
+ *
+ * 选择器口径（2026-10-22 随排版升级调整）：价格原本靠 .tabular-nums 被找到，
+ * 现在全站金额统一挂 .price-num（展示体 + 等宽，见 index.css 的 components 层）。
+ * **本件真正锁的是"前景色与对比度"这两条断言，它们一字未改**；
+ * 换的只是"去哪儿找价格"这个实现细节 —— 若连选择器也不许动，
+ * 等于把某个 class 名钉成契约，那是给重构上锁而不是给质量上锁。
  */
 test('商城价格文字对比度过 AA（brand-700，不再是 brand-600 的 2.82:1）', async ({ page }) => {
   await openShop(page, '/shop/drinks')
   const c = await page.evaluate(() => {
-    const price = [...document.querySelectorAll('p.tabular-nums')][0]
+    const price = [...document.querySelectorAll('p.price-num')][0]
     const card = price.closest('[role="button"]')!
     const parse = (s: string) => s.match(/\d+/g)!.slice(0, 3).map(Number)
     const lin = (v: number) => { const x = v / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4 }
