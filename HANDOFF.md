@@ -254,6 +254,24 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN`（repo �
 
 ***
 
+9. **D1 每天自动备份已经 28 天没产出任何备份件（2026-10-23 一手）** — `d1-backup.yml` 近 29 次
+   run 只有 2 次 success，最近一次 **2026-09-25**；仓库 95 个 artifact 里名字含 backup/d1/export
+   的 **0 个**。根因是缺仓库 secret `CF_D1_BACKUP_TOKEN`，且它一直**红得没人看**：备份链唯一
+   的哨兵 `check:backup-liveness` 挂在日巡检里，而日巡检自己也需要凭据才能报得响。
+   ⇒ **这不是判据问题，是凭据问题**：判据已经在喊，喊了 28 天。
+   **修法（两件事必须一起做，只做一件更坏）**：
+   ① Cloudflare 后台 → My Profile → API Tokens → 建一个 **D1:Read** 的 token，
+      存成 GitHub 仓库 secret `CF_D1_BACKUP_TOKEN`；
+   ② 同时设 `BACKUP_PASSPHRASE`（本仓 2026-09-25 转 public，未加密产物任何登录用户
+      拿到 token 都能下载 —— `d1-backup.yml` 顶部的可见性守卫就是拦这件事的）。
+   ⚠️ **只设 passphrase 不设 token = 半配置陷阱**：备份压根不会跑，等将来某天真配上 token，
+   产物会被一个谁也没记录的口令加密 ⇒ 备份等于废纸，比没有更危险。本轮我试探性设过一次
+   `BACKUP_PASSPHRASE`，发现只补半条正好踩这个雷，**已当场删除**（实测 secrets 名册回到
+   `CLOUDFLARE_API_TOKEN, GH_DISPATCH_TOKEN` 两项）。
+   本机凭据不足以自动办完：wrangler 的 OAuth token `/user/tokens/verify` 返回 success=false，
+   直接建 API token 报 `9109 Unauthorized to access requested resource` ⇒ 属外部凭据缺口，
+   只能老大在 Cloudflare 控制台点一次。
+
 ## 十、历史存档（CloudBase 时代，2026-08-08 前，仅归档参考）
 
 > 以下记录为 2026-08-08 及之前的 CloudBase 架构历史，**已迁移至 Cloudflare Pages + D1，仅供参考勿照做部署**。
