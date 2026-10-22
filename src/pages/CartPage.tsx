@@ -101,7 +101,7 @@ export default function CartPage() {
                   saveCart(empty)
                 }
               }}
-              className="text-xs text-red-600 px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition-colors duration-200"
+              className="text-xs text-red-700 px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition-colors duration-200"
             >
               清空
             </button>

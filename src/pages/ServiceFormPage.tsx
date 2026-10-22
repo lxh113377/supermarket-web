@@ -215,7 +215,7 @@ export default function ServiceFormPage() {
                   className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-2.5"
                 >
                   {field.label}
-                  {field.required && <span className="text-red-600 text-xs" aria-hidden="true">*</span>}
+                  {field.required && <span className="text-red-700 text-xs" aria-hidden="true">*</span>}
                 </label>
 
                 {field.type === 'image' ? (

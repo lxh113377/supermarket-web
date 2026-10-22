@@ -125,7 +125,7 @@ export default function OrderConfirmPage() {
           {!open && (
             <div className="bg-red-50/80 border border-red-200/60 rounded-2xl p-4 animate-slide-down">
               <p className="text-red-700 text-sm font-medium">{getClosedMessage()}</p>
-              <p className="text-red-600 text-xs mt-1.5">当前非营业时间，下单后可能无法及时处理</p>
+              <p className="text-red-700 text-xs mt-1.5">当前非营业时间，下单后可能无法及时处理</p>
             </div>
           )}
 
@@ -162,7 +162,7 @@ export default function OrderConfirmPage() {
           {/* 楼栋号 */}
           <div className="animate-fade-in-up stagger-1">
             <label htmlFor="order-building" className="section-title block mb-2.5">
-              楼栋号 <span className="text-red-600" aria-hidden="true">*</span>
+              楼栋号 <span className="text-red-700" aria-hidden="true">*</span>
             </label>
             <input
               id="order-building"
@@ -181,7 +181,7 @@ export default function OrderConfirmPage() {
           {/* 房间号 */}
           <div className="animate-fade-in-up stagger-1">
             <label htmlFor="order-room" className="section-title block mb-2.5">
-              房间号 <span className="text-red-600" aria-hidden="true">*</span>
+              房间号 <span className="text-red-700" aria-hidden="true">*</span>
             </label>
             <input
               id="order-room"

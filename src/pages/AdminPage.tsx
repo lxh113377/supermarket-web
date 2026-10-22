@@ -233,7 +233,7 @@ export default function AdminPage() {
         {tab === 'products' && (
           <>
             {productsError && (
-              <div className="mb-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3" role="alert">
+              <div className="mb-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3" role="alert">
                 <span aria-hidden="true">⚠️</span> 商品数据加载失败：{productsError}
               </div>
             )}

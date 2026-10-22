@@ -62,6 +62,63 @@ const openAdminTab = (label: string) => async (page: import('@playwright/test').
   await page.waitForTimeout(1200)
 }
 
+/** 走 UI 真加购（凑过起送门槛，避免落在「差 ¥X 起送」的改版面上），再进目标路由 */
+const seedCartThen = (route: string) => async (page: import('@playwright/test').Page) => {
+  await page.goto('/#/shop')
+  await page.waitForTimeout(700)
+  const btns = page.locator('button[aria-label^="添加"]')
+  for (let i = 0; i < Math.min(4, await btns.count()); i++) {
+    await btns.nth(i).click()
+    await page.waitForTimeout(120)
+  }
+  await page.goto(route)
+  await page.waitForTimeout(900)
+}
+
+/**
+ * 从确认页填完必填项并点提交走到成功页。
+ * 不能直接 goto /#/order-success：那一页只读 useLocation().state，硬进 = 空壳，
+ * 扫出来的是「什么字段都没有」的版面，等于没扫。
+ * 楼栋号/房间号必填（未填会拦提交），所以必须先填。
+ */
+async function walkToSuccess(page: import('@playwright/test').Page) {
+  await seedCartThen('/#/order-confirm')(page)
+  await page.locator('#order-building').fill('36栋')
+  await page.locator('#order-room').fill('501')
+  await page.getByRole('button', { name: /确认支付|仍要下单/ }).click()
+  // 落点必须是成功页：expectText 选的「楼栋号」在确认页也有，光靠它区分不了两页，
+  // 所以这里用 URL 当**唯一有区分度**的证据（提交被拦、或跳去别处都会在这里红）。
+  await expect.poll(() => page.url(), { timeout: 10_000, message: '提交后没落到下单成功页' })
+    .toContain('/order-success')
+  await page.waitForTimeout(800)
+}
+
+/**
+ * 支付页：走页面自己的 sessionStorage 兜底路径（PaymentPage 读
+ * sm_payment_order / sm_payment_amount），稳定渲染金额与二维码区。
+ *
+ * 两个时序坑（第一版就栽在这里，表现为 checked=0）：
+ *   ① addInitScript 只对**之后**的导航生效 —— 路由循环已经 goto 过一次，
+ *      所以这里必须再 goto 一次，否则注入等于没做；
+ *   ② 没有 orderId 时 PaymentPage 会 navigate('/', { replace: true }) 跳回首页，
+ *      扫到的就是首页而不是支付页 —— 所以必须等内容真出现再返回。
+ */
+const seedPayment = async (page: import('@playwright/test').Page) => {
+  // 直接写 sessionStorage，不用 addInitScript：路由循环先前已经 goto 过一次，
+  // 而 /#/ → /#/payment 只是 **同文档的 hash 变化**，不会新建文档 ⇒ init script 根本不跑
+  // （第一版就栽在这里：表现为 heading 等不到、checked=0）。
+  // sessionStorage 是同源同会话级持久的，写完之后 HashRouter 切到 payment 时页面自己就能读到。
+  await page.evaluate(() => {
+    sessionStorage.setItem('sm_payment_order', 'stub-order-0001')
+    sessionStorage.setItem('sm_payment_amount', '10.94')
+  })
+  await page.goto('/#/payment')
+  // 断言落点而不是断言"我导航过了"：没有 orderId 时 PaymentPage 会 replace 跳回首页，
+  // 那种情况下扫到的是首页版面 —— 没有这条断言，本用例就会安静地扫错页。
+  await expect(page.getByRole('heading', { name: '选择支付方式' })).toBeVisible({ timeout: 10_000 })
+  await page.waitForTimeout(600)
+}
+
 /** 走查面：顾客端主要路由 + 需要交互才出内容的两个态（满车、搜索展开） */
 const ROUTES: RouteSpec[] = [
   { name: 'home', route: '/#/' },
@@ -125,6 +182,23 @@ const ROUTES: RouteSpec[] = [
       await page.waitForTimeout(600)
     },
   },
+  /**
+   * 下单主链路三页（2026-10-23 补）。
+   *
+   * 此前对比度闸完全没覆盖确认订单 / 下单成功 / 支付 —— 而它们恰恰是转化漏斗的最后
+   * 三屏，也是上一轮手工改过对比度（琥珀按钮、金额展示体）却没有判据兜着的地方。
+   * 手工改完没闸 = 下一轮必然回归。
+   *
+   * 三页数据来源不同，注入方式也不同（不是随手 goto 就能扫到内容）：
+   *   - order-confirm：读 localStorage 的 sm_cart ⇒ 先走 UI 真加购；
+   *   - order-success：只读 location.state ⇒ 必须从确认页点过去；
+   *   - payment：orderId 有 sessionStorage 兜底（页面自己写了这条 fallback 路径），
+   *     注入两个键即可稳定渲染，不依赖上一步。
+   */
+  { name: 'order-confirm', route: '/#/order-confirm', prepare: seedCartThen('/#/order-confirm'), expectText: '确认订单' },
+  // 「查询订单状态」只在成功页出现（确认页没有），且不受网络态改写标题影响
+  { name: 'order-success', route: '/#/order-confirm', prepare: walkToSuccess, expectText: '查询订单状态' },
+  { name: 'payment', route: '/#/payment', prepare: seedPayment, expectText: '选择支付方式' },
 ]
 
 let errs: ErrorWatch

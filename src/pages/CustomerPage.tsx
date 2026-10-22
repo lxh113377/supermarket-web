@@ -214,7 +214,7 @@ export default function CustomerPage() {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3 p-6" role="alert">
         <span className="text-3xl" aria-hidden="true">😵</span>
-        <p className="text-red-600 text-sm text-center">{error}</p>
+        <p className="text-red-700 text-sm text-center">{error}</p>
         <button
           onClick={refresh}
           className="mt-2 px-5 py-2.5 btn-secondary text-sm"

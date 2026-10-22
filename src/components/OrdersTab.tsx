@@ -389,7 +389,7 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
                 onClick={() => handleDelete(order._id)}
                 disabled={deleting === order._id}
                 aria-label="删除订单"
-                className="tap-44 text-xs text-red-600 hover:text-red-600 px-2 py-1 disabled:opacity-50"
+                className="tap-44 text-xs text-red-700 hover:text-red-800 px-2 py-1 disabled:opacity-50"
               >
                 {deleting === order._id ? '删除中' : <span aria-hidden="true">🗑</span>}
               </button>
@@ -402,7 +402,7 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
               )}
               {!tlLoading[order._id] && tlError[order._id] && (
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs text-red-600">时间线加载失败：{tlError[order._id]}</p>
+                  <p className="text-xs text-red-700">时间线加载失败：{tlError[order._id]}</p>
                   <button
                     onClick={() => void retryTimeline(order._id)}
                     className="text-xs text-gray-700 px-2 py-1 rounded border border-gray-200"

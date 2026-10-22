@@ -231,7 +231,7 @@ export default function ReviewsTab() {
               <button
                 onClick={() => doDelete(rev._id || '')}
                 disabled={deleting === (rev._id || '')}
-                className="text-xs text-red-600 hover:text-red-600 py-1 px-2 disabled:opacity-50 flex-shrink-0"
+                className="text-xs text-red-700 hover:text-red-800 py-1 px-2 disabled:opacity-50 flex-shrink-0"
               >
                 {deleting === (rev._id || '') ? '删除中' : '删除'}
               </button>

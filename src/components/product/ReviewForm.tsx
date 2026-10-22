@@ -164,7 +164,7 @@ export default function ReviewForm({ productOrder, onPublished }: { productOrder
         {/* 发布结果需播报（成功/失败均是瞬时视觉提示） */}
         <div role="status" aria-live="polite">
           {msg && (
-            <p className={`text-xs ${msg.includes('✓') ? 'text-green-700' : 'text-red-600'}`}>{msg}</p>
+            <p className={`text-xs ${msg.includes('✓') ? 'text-green-700' : 'text-red-700'}`}>{msg}</p>
           )}
         </div>
         <button
