@@ -88,7 +88,7 @@ function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
             <span className="text-4xl" aria-hidden="true">
               {product.subcategories?.includes('snacks') || product.subcategories?.includes('filling') ? '🍜' : '🥤'}
             </span>
-            <span className="text-[10px] text-gray-500">示意图 · 非商品实拍</span>
+            <span className="text-3xs text-gray-500">示意图 · 非商品实拍</span>
           </div>
         )}
 
@@ -131,7 +131,7 @@ function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
 
       {/* 图注区 */}
       <div className="flex flex-col flex-1 min-w-0 px-3 pt-2.5 pb-3">
-        <h3 className={`text-[0.9375rem] font-semibold leading-snug tracking-tight line-clamp-2 ${disabled ? 'text-gray-500' : 'text-ink'}`}>
+        <h3 className={`text-card-title font-semibold leading-snug tracking-tight line-clamp-2 ${disabled ? 'text-gray-500' : 'text-ink'}`}>
           {product.name}
         </h3>
         {/* 规格独立成行：同名商品（农夫山泉矿泉水 / 怡宝矿泉水）全靠它区分，不能缩成附注 */}
@@ -141,18 +141,18 @@ function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
           <p className="text-xs mt-1 text-transparent select-none" aria-hidden="true">·</p>
         )}
         {disabled && (
-          <span className="self-start mt-1.5 text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded-md font-medium">
+          <span className="self-start mt-1.5 text-3xs bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded-md font-medium">
             已下架
           </span>
         )}
-        <p className={`price-num mt-1.5 text-[1.375rem] font-bold ${disabled ? 'text-gray-500' : 'text-brand-700'}`}>
+        <p className={`price-num mt-1.5 text-price-sm font-bold ${disabled ? 'text-gray-500' : 'text-brand-700'}`}>
           <span className="mr-px text-sm font-semibold opacity-70">¥</span>{formatPrice(product.price)}
           {/* 规格与价格之间留一条发丝线：让"这是什么/多少钱"两段各自成组 */}
           {/* 卡面只标这一条记录自己的真实价格，不用「¥x 起」——
               那样点进详情默认选中的是这一条本身，价格会对不上。
               变体数量另用角标提示，进详情页由选择器承载。 */}
           {variantCount > 1 && (
-            <span className="ml-1.5 align-middle text-[11px] font-semibold text-brand-700 bg-brand-100 border border-brand-200 rounded-md px-1.5 py-px">
+            <span className="ml-1.5 align-middle text-2xs font-semibold text-brand-700 bg-brand-100 border border-brand-200 rounded-md px-1.5 py-px">
               可选 {variantCount} 种口味
             </span>
           )}

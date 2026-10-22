@@ -90,7 +90,7 @@ export default function OrderQueryPage() {
                       <li key={s} className="flex items-center gap-3">
                         <span
                           aria-hidden="true"
-                          className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] shrink-0 ${
+                          className={`w-5 h-5 rounded-full flex items-center justify-center text-3xs shrink-0 ${
                             done ? 'bg-green-700 text-white' : current ? 'bg-brand-500 text-ink ring-4 ring-brand-300' : 'bg-gray-100 text-gray-600'
                           }`}
                         >

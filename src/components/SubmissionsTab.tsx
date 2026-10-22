@@ -162,7 +162,7 @@ export default function SubmissionsTab() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-sm text-ink-soft">{s.serviceName}</span>
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${STATUS_MAP[s.status || 'pending']?.cls || STATUS_MAP.pending.cls}`}>
+                    <span className={`px-2 py-0.5 rounded text-3xs font-medium ${STATUS_MAP[s.status || 'pending']?.cls || STATUS_MAP.pending.cls}`}>
                       {STATUS_MAP[s.status || 'pending']?.label || '待处理'}
                     </span>
                   </div>
@@ -207,13 +207,13 @@ export default function SubmissionsTab() {
                                   className="w-14 h-14 rounded-lg border border-gray-200 flex flex-col items-center justify-center gap-0.5 hover:bg-gray-50 transition focus-visible:outline-2 focus-visible:outline-brand-700"
                                 >
                                   <span aria-hidden="true" className="text-base">📄</span>
-                                  <span className="text-[9px] text-gray-500">下载</span>
+                                  <span className="text-3xs text-gray-500">下载</span>
                                 </a>
                               )
                             }
                             if (img.startsWith('r2:') && !href) {
                               return (
-                                <span key={i} className="w-14 h-14 rounded-lg border border-dashed border-gray-200 flex items-center justify-center text-[9px] text-gray-500 text-center leading-tight px-1">
+                                <span key={i} className="w-14 h-14 rounded-lg border border-dashed border-gray-200 flex items-center justify-center text-3xs text-gray-500 text-center leading-tight px-1">
                                   文件（未配置下载基址）
                                 </span>
                               )

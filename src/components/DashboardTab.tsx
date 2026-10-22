@@ -271,7 +271,7 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
           <div className="text-center py-6">
             <IconBox className="w-8 h-8 mx-auto text-gray-400" />
             <p className="text-gray-500 text-sm mt-3">待录入</p>
-            <p className="text-[10px] text-gray-500 mt-1">在商品内联编辑中录入成本价后自动计算</p>
+            <p className="text-3xs text-gray-500 mt-1">在商品内联编辑中录入成本价后自动计算</p>
           </div>
         ) : (
           <div className="grid grid-cols-3 gap-3">
@@ -281,11 +281,11 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
               ['日用', margin.daily],
             ] as Array<[string, MarginSummary | null]>).map(([label, m]) => (
               <div key={label} className="rounded-xl bg-gray-50 p-3 text-center">
-                <p className="text-[10px] text-gray-500">{label}</p>
+                <p className="text-3xs text-gray-500">{label}</p>
                 {m ? (
                   <>
                     <p className="text-lg font-bold text-ink">{m.marginPct}%</p>
-                    <p className="text-[10px] text-gray-500 mt-0.5">毛利 ¥{formatCount(m.revenue - m.cost)}</p>
+                    <p className="text-3xs text-gray-500 mt-0.5">毛利 ¥{formatCount(m.revenue - m.cost)}</p>
                   </>
                 ) : (
                   <p className="text-sm text-gray-500 py-2">暂无销售</p>
@@ -327,7 +327,7 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
         <div className="flex items-center justify-between mb-3">
           <h3 className="section-title flex items-center gap-2">AI 经营建议</h3>
           {aiStatus === 'loaded' && (
-            <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+            <span className={`text-3xs px-2 py-0.5 rounded-full font-medium ${
               aiAdvice?.source === 'dify' ? 'bg-green-50 text-green-700' :
               aiAdvice?.source === 'rule' ? 'bg-gray-100 text-gray-500' : 'bg-red-50 text-red-700'
             }`}>

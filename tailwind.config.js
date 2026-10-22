@@ -62,6 +62,18 @@ export default {
         'display-lg': ['2.25rem', { lineHeight: '1.1', letterSpacing: '-0.025em' }],
         'display-md': ['1.5rem', { lineHeight: '1.2', letterSpacing: '-0.02em' }],
         'eyebrow':  ['0.6875rem', { lineHeight: '1.4', letterSpacing: '0.16em' }],
+        // 微字阶（2026-10-23 收编）：全站原本散落 41 处 text-[10px]/text-[11px] 任意值，
+        // 两者只差 1px ⇒ 不是设计选择而是随手写。登记成具名档后"标签级"只有这两档，
+        // 且 3xs 是**下限**（实测再小中文就不可读：本轮消灭了两处 9px）。
+        '2xs':      ['0.6875rem', { lineHeight: '1rem' }],      // 11px 密集标签/角标
+        '3xs':      ['0.625rem', { lineHeight: '0.875rem' }],   // 10px 下限：极紧凑徽章
+        // 价格三档：卡片 / 页面汇总 / 详情主价。金额是本站第一信息，
+        // 尺寸必须成体系（旧写法是 22/32/40px 三个 arbitrary 值各写一次）。
+        'price-sm': ['1.375rem', { lineHeight: '1.5rem', letterSpacing: '-0.02em' }],
+        'price-md': ['2rem',     { lineHeight: '2.25rem', letterSpacing: '-0.025em' }],
+        'price-lg': ['2.5rem',   { lineHeight: '2.75rem', letterSpacing: '-0.03em' }],
+        // 卡片商品名：比 sm(14) 重一档、比 base(16) 轻一档，全站唯一用途
+        'card-title': ['0.9375rem', { lineHeight: '1.35rem' }],
       },
       borderRadius: {
         '2xl': '1rem',

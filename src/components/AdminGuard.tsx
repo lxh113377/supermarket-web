@@ -99,7 +99,7 @@ export default function AdminGuard({ children }: AdminGuardProps) {
           </button>
         </div>
 
-        <p className="mt-5 text-center text-[11px] tracking-wide text-gray-500">
+        <p className="mt-5 text-center text-2xs tracking-wide text-gray-500">
           密钥由 Cloudflare Pages 环境变量下发 · 本站不存明文
         </p>
       </div>

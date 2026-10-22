@@ -24,7 +24,7 @@ interface Props {
 
 function DemoBadge() {
   return (
-    <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-500 text-[10px] font-semibold align-middle">
+    <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-500 text-3xs font-semibold align-middle">
       演示文案
     </span>
   )
@@ -93,7 +93,7 @@ export default function ProductInfoSections({ product, categories, combo }: Prop
             </div>
           ))}
         </dl>
-        <p className="text-[11px] text-gray-500 mt-3 leading-relaxed">
+        <p className="text-2xs text-gray-500 mt-3 leading-relaxed">
           以上字段全部取自商品目录真实记录，未做任何加工。
         </p>
       </Section>
@@ -114,7 +114,7 @@ export default function ProductInfoSections({ product, categories, combo }: Prop
       </Section>
 
       <Section id="after-sale-heading" title="售后说明" badge>
-        <p className="text-[11px] text-gray-500 -mt-1 mb-3 leading-relaxed">
+        <p className="text-2xs text-gray-500 -mt-1 mb-3 leading-relaxed">
           商家未提供售后条款，以下三条为界面演示文案，不构成任何真实承诺。
         </p>
         <ul className="text-sm text-gray-600 space-y-2 leading-relaxed list-disc pl-4 m-0">

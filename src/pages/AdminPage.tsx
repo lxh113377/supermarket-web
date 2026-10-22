@@ -210,7 +210,7 @@ export default function AdminPage() {
             id={`admin-tab-${t.key}`}
             tabIndex={tab === t.key ? 0 : -1}
             onClick={() => setTab(t.key)}
-            className={`flex-1 min-w-0 py-2.5 rounded-xl text-[11px] sm:text-xs font-medium transition-all duration-200 flex flex-col items-center gap-1 ${
+            className={`flex-1 min-w-0 py-2.5 rounded-xl text-2xs sm:text-xs font-medium transition-all duration-200 flex flex-col items-center gap-1 ${
               tab === t.key
                 ? 'bg-ink text-white shadow-soft'
                 : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'

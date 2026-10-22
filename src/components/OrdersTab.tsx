@@ -276,14 +276,14 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
           {promosOpen && (
             <div className="mt-2 space-y-1.5">
               {promos.length === 0 && (
-                <p className="text-[11px] text-emerald-700">暂无满减档位（后端未配置或迁移未执行）</p>
+                <p className="text-2xs text-emerald-700">暂无满减档位（后端未配置或迁移未执行）</p>
               )}
               {promos.map((p) => (
                 <div key={p._id} className="flex items-center justify-between gap-2 bg-white/70 rounded px-2 py-1.5">
                   <span className="text-xs text-gray-700 truncate min-w-0">
                     满{formatYuan(p.threshold)}减{formatYuan(p.discount)}{p.name ? ` · ${p.name}` : ''}
                   </span>
-                  <span className="text-[11px] text-gray-500 shrink-0">
+                  <span className="text-2xs text-gray-500 shrink-0">
                     命中 {p.hits?.orders ?? 0} 单{Number(p.hits?.totalDiscount) > 0 && ` · 已让利 ${formatYuan(p.hits.totalDiscount)}`}
                     <span className={`ml-1.5 px-1 py-px rounded ${p.enabled ? 'text-green-700 bg-green-100' : 'text-gray-500 bg-gray-100'}`}>
                       {p.enabled ? '启用中' : '已停用'}
@@ -313,7 +313,7 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
           {staleOpen && (
             <div className="mt-2 space-y-1.5">
               {stale.stockReserved.length > 0 && (
-                <p className="text-[11px] text-amber-800">
+                <p className="text-2xs text-amber-800">
                   占用明细：{stale.stockReserved.map((x) => `${x.name}×${x.reserved}`).join('、')}
                 </p>
               )}
@@ -321,9 +321,9 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
                 <div key={o.id} className="flex items-center justify-between gap-2 bg-white/70 rounded px-2 py-1.5">
                   <span className="text-xs text-gray-700 truncate min-w-0">
                     {o.roomNumber} · {formatYuan(o.totalAmount ?? 0)} · {o.ageMinutes} 分钟前
-                    {o.hasPaymentProof && <span className="ml-1 text-[10px] text-green-700 bg-green-100 px-1 py-0.5 rounded">已传付款截图</span>}
+                    {o.hasPaymentProof && <span className="ml-1 text-3xs text-green-700 bg-green-100 px-1 py-0.5 rounded">已传付款截图</span>}
                   </span>
-                  <button onClick={() => void cancelStale(o.id)} className="text-[11px] text-red-700 hover:text-red-700 px-2 py-1 shrink-0">
+                  <button onClick={() => void cancelStale(o.id)} className="text-2xs text-red-700 hover:text-red-700 px-2 py-1 shrink-0">
                     取消并释放库存
                   </button>
                 </div>
@@ -350,7 +350,7 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
                   {/* 口味只在顾客真选过的时候显示：2026-09-26 之前的单口味被静态 spec 覆盖，
                       替老单标"未记录"会把"没这个功能"渲染成"顾客没选"，是假信息 */}
                   {flavor && (
-                    <span className="ml-1 mr-0.5 text-[10px] font-medium text-brand-700 bg-brand-100 rounded px-1 py-px">
+                    <span className="ml-1 mr-0.5 text-3xs font-medium text-brand-700 bg-brand-100 rounded px-1 py-px">
                       口味 {flavor}
                     </span>
                   )}
@@ -363,7 +363,7 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
             <span className="price-num text-brand-700 font-bold">{formatYuan(order.totalAmount ?? 0)}
               {(order.discountAmount ?? 0) > 0 && (
-                <span className="ml-1.5 text-[11px] font-medium text-green-700 bg-green-50 rounded px-1 py-px">已优惠 {formatYuan(order.discountAmount ?? 0)}</span>
+                <span className="ml-1.5 text-2xs font-medium text-green-700 bg-green-50 rounded px-1 py-px">已优惠 {formatYuan(order.discountAmount ?? 0)}</span>
               )}
             </span>
             <div className="flex items-center gap-2">
@@ -421,7 +421,7 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
                       <span className="text-xs text-gray-700 truncate min-w-0">
                         {ev.type} · {orderStatusLabel(ev.status) || ev.status}
                       </span>
-                      <span className="text-[11px] text-gray-500 shrink-0">
+                      <span className="text-2xs text-gray-500 shrink-0">
                         {ev.at ? new Date(ev.at).toLocaleString() : ''}
                       </span>
                     </li>

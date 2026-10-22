@@ -32,7 +32,7 @@ function Placeholder({ name, spec }: { name: string; spec?: string }) {
         <p className="text-brand-700 font-bold text-lg">{name}</p>
         {spec && <p className="text-brand-400 text-sm mt-1">{spec}</p>}
         {/* 如实标注：这是占位示意，不是商品实拍 */}
-        <p className="text-brand-400/80 text-[11px] mt-2">示意图 · 非商品实拍</p>
+        <p className="text-brand-400/80 text-2xs mt-2">示意图 · 非商品实拍</p>
       </div>
     </div>
   )

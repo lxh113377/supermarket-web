@@ -200,7 +200,7 @@ export default function InlineEditForm({ product, categories, onClose, onSaved }
       />
       {/* 可选口味：点药丸切显隐（划线=顾客端不显示），× 删除，输入框追加 */}
       <div className="mt-2" role="group" aria-label="可选口味（关掉即顾客端不显示）">
-        <p className="text-[11px] font-semibold text-gray-500 mb-1">
+        <p className="text-2xs font-semibold text-gray-500 mb-1">
           可选口味（关掉即顾客端不显示）
           {form.specOptions.length > 0 && (
             <span className="ml-2 font-normal text-gray-500">
@@ -209,7 +209,7 @@ export default function InlineEditForm({ product, categories, onClose, onSaved }
           )}
         </p>
         {form.specOptions.length === 0 && (
-          <p className="text-[11px] text-gray-500">未配置口味，该商品在顾客端不出现口味选择器</p>
+          <p className="text-2xs text-gray-500">未配置口味，该商品在顾客端不出现口味选择器</p>
         )}
         <ul className="flex flex-wrap gap-1 list-none p-0 m-0">
           {form.specOptions.map((o) => {
@@ -222,7 +222,7 @@ export default function InlineEditForm({ product, categories, onClose, onSaved }
                   aria-pressed={on}
                   aria-label={`口味 ${o.label} 当前${on ? '显示' : '已隐藏'}，点击切换`}
                   title={on ? '点击在顾客端隐藏该口味' : '已隐藏，点击恢复显示'}
-                  className={`px-2 py-0.5 rounded-l text-[11px] border transition ${
+                  className={`px-2 py-0.5 rounded-l text-2xs border transition ${
                     on
                       ? 'bg-brand-500 text-ink border-brand-500'
                       : 'bg-white text-gray-500 border-gray-200 line-through'
@@ -235,7 +235,7 @@ export default function InlineEditForm({ product, categories, onClose, onSaved }
                   onClick={() => removeFlavor(o.label)}
                   aria-label={`删除口味 ${o.label}`}
                   title="从清单中删除"
-                  className="px-1.5 py-0.5 rounded-r text-[11px] border border-l-0 border-gray-200 bg-white text-gray-500 hover:text-red-700 transition"
+                  className="px-1.5 py-0.5 rounded-r text-2xs border border-l-0 border-gray-200 bg-white text-gray-500 hover:text-red-700 transition"
                 >
                   ×
                 </button>
@@ -269,7 +269,7 @@ export default function InlineEditForm({ product, categories, onClose, onSaved }
             key={sub.id}
             onClick={() => toggleSub(sub.id)}
             aria-pressed={form.subcategories.includes(sub.id)}
-            className={`px-2 py-0.5 rounded text-[11px] border transition ${form.subcategories.includes(sub.id) ? 'bg-brand-500 text-ink border-brand-500' : 'bg-white text-gray-500 border-gray-200'}`}
+            className={`px-2 py-0.5 rounded text-2xs border transition ${form.subcategories.includes(sub.id) ? 'bg-brand-500 text-ink border-brand-500' : 'bg-white text-gray-500 border-gray-200'}`}
           >
             {sub.name}
           </button>
@@ -278,7 +278,7 @@ export default function InlineEditForm({ product, categories, onClose, onSaved }
           onClick={() => setForm({ ...form, enabled: !form.enabled })}
           aria-pressed={form.enabled}
           aria-label={form.enabled ? '当前已上架，点击下架' : '当前已下架，点击上架'}
-          className={`px-2 py-0.5 rounded text-[11px] border transition ml-auto ${form.enabled ? 'bg-green-700 text-white border-green-500' : 'bg-white text-gray-500 border-gray-200'}`}
+          className={`px-2 py-0.5 rounded text-2xs border transition ml-auto ${form.enabled ? 'bg-green-700 text-white border-green-500' : 'bg-white text-gray-500 border-gray-200'}`}
         >
           {form.enabled ? '上架' : '下架'}
         </button>

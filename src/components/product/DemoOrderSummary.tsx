@@ -39,7 +39,7 @@ export default function DemoOrderSummary({
         </div>
 
         <div className="bg-amber-50/70 border border-amber-200/70 rounded-xl px-3 py-2">
-          <p className="text-[11px] leading-relaxed text-amber-800">
+          <p className="text-2xs leading-relaxed text-amber-800">
             演示内容：金额、数量与配送说明仅用于展示交互，未接入支付渠道，也未写入订单库。
           </p>
         </div>

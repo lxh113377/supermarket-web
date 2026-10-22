@@ -198,7 +198,7 @@ export default function HomePage() {
               {/* 底栏：进入指示。hover 时短线伸展，把"可以进去"说成动作而不是图标 */}
               <span className="mt-auto flex w-full items-center gap-2 pt-3">
                 <span className="h-px flex-1 bg-gray-200 transition-colors duration-300 group-hover:bg-brand-400" aria-hidden="true" />
-                <span className="text-[11px] font-semibold tracking-widest text-gray-600 transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-brand-700">
+                <span className="text-2xs font-semibold tracking-widest text-gray-600 transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-brand-700">
                   进入
                 </span>
               </span>
@@ -209,7 +209,7 @@ export default function HomePage() {
         {/* 页脚：一条短线 + 极小字，收住首屏不留悬空 */}
         <footer className="mt-16 flex flex-col items-center gap-3">
           <span className="brand-bar h-0.5 w-16 rounded-full opacity-70" aria-hidden="true" />
-          <p className="text-[11px] tracking-[0.18em] text-gray-500">江西科技学院 · 校园服务平台</p>
+          <p className="text-2xs tracking-[0.18em] text-gray-500">江西科技学院 · 校园服务平台</p>
         </footer>
       </main>
 

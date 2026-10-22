@@ -377,7 +377,7 @@ export default function ProductDetailPage() {
                   <span className="text-xs text-gray-500">{avgRating} 分 · {productReviews.length} 条评价</span>
                 </div>
               )}
-              <p className="price-num mt-4 text-[2.5rem] font-extrabold leading-none text-brand-700">{formatYuan(effPrice)}</p>
+              <p className="price-num mt-4 text-price-lg font-extrabold leading-none text-brand-700">{formatYuan(effPrice)}</p>
               {/* 已选口味回显：口味轴两条来源（后台 specOptions / 跨记录聚合组）共用同一 axis id */}
               {group && combo && selection[SPEC_AXIS_ID] && (
                 <p className="text-xs font-semibold text-brand-700 mt-1.5">已选口味：{selection[SPEC_AXIS_ID]}</p>
@@ -462,7 +462,7 @@ export default function ProductDetailPage() {
                 )}
               </div>
 
-              <p className="text-[11px] text-gray-500 mt-3 leading-relaxed">
+              <p className="text-2xs text-gray-500 mt-3 leading-relaxed">
                 「立即购买」只展示演示订单摘要，不创建真实订单、不发起支付；实际下单请通过购物袋结算。
               </p>
               {/* 加购结果就地播报（窄屏时吸底栏遮挡本区块，故同时写进 aria-live 供读屏） */}

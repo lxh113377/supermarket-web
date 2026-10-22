@@ -60,7 +60,7 @@ function ProductRow({
               onError={e => { e.currentTarget.style.display = 'none' }}
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-red-300 text-[10px]">无图</div>
+            <div className="w-full h-full flex items-center justify-center text-red-300 text-3xs">无图</div>
           )}
         </div>
 
@@ -83,12 +83,12 @@ function ProductRow({
           </p>
           <div className="flex items-center gap-2 mt-0.5">
             <span className="price-num text-brand-700 font-bold text-sm">¥{formatPrice(product.price)}</span>
-            {catLabel && <span className="text-[10px] text-gray-600 bg-gray-50 px-1.5 py-0.5 rounded truncate">{catLabel}</span>}
+            {catLabel && <span className="text-3xs text-gray-600 bg-gray-50 px-1.5 py-0.5 rounded truncate">{catLabel}</span>}
             {typeof product.stock === 'number' && product.stock === 0 && (
-              <span className="text-[10px] text-white bg-red-500 px-1.5 py-0.5 rounded" role="status">缺货</span>
+              <span className="text-3xs text-white bg-red-500 px-1.5 py-0.5 rounded" role="status">缺货</span>
             )}
             {typeof product.stock === 'number' && product.stock > 0 && product.stock <= 3 && (
-              <span className="text-[10px] text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded" role="status">低库存 {product.stock}</span>
+              <span className="text-3xs text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded" role="status">低库存 {product.stock}</span>
             )}
           </div>
         </div>

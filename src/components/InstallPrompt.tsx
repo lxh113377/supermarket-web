@@ -88,7 +88,7 @@ export default function InstallPrompt() {
         <div className="bg-brand-500 h-10 w-10 shrink-0 rounded-xl" aria-hidden="true" />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-ink">添加到主屏幕</p>
-          <p className="text-[11px] text-gray-500 leading-relaxed">
+          <p className="text-2xs text-gray-500 leading-relaxed">
             {deferred
               ? '像 App 一样打开江科一站通，下单更方便'
               : manualStep + '，像 App 一样使用'}

@@ -103,7 +103,7 @@ export default function PaymentPage() {
           ) : (
             <div className="text-center w-full max-w-sm animate-fade-in-up flex flex-col items-center">
               {totalAmount > 0 && (
-                <p className="price-num mb-1 text-[2rem] font-extrabold leading-none text-ink">{formatYuan(totalAmount)}</p>
+                <p className="price-num mb-1 text-price-md font-extrabold leading-none text-ink">{formatYuan(totalAmount)}</p>
               )}
               {discountAmount > 0 && (
                 <p className="text-xs text-green-700 mb-1.5" role="status">满减已优惠 {formatYuan(discountAmount)}</p>
