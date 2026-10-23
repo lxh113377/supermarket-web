@@ -200,16 +200,16 @@ export default function InlineEditForm({ product, categories, onClose, onSaved }
       />
       {/* 可选口味：点药丸切显隐（划线=顾客端不显示），× 删除，输入框追加 */}
       <div className="mt-2" role="group" aria-label="可选口味（关掉即顾客端不显示）">
-        <p className="text-2xs font-semibold text-gray-500 mb-1">
+        <p className="text-2xs font-semibold text-stone-500 mb-1">
           可选口味（关掉即顾客端不显示）
           {form.specOptions.length > 0 && (
-            <span className="ml-2 font-normal text-gray-500">
+            <span className="ml-2 font-normal text-stone-500">
               {form.specOptions.filter((o) => o.enabled !== false).length}/{form.specOptions.length} 个在显示
             </span>
           )}
         </p>
         {form.specOptions.length === 0 && (
-          <p className="text-2xs text-gray-500">未配置口味，该商品在顾客端不出现口味选择器</p>
+          <p className="text-2xs text-stone-500">未配置口味，该商品在顾客端不出现口味选择器</p>
         )}
         <ul className="flex flex-wrap gap-1 list-none p-0 m-0">
           {form.specOptions.map((o) => {
@@ -225,7 +225,7 @@ export default function InlineEditForm({ product, categories, onClose, onSaved }
                   className={`px-2 py-0.5 rounded-l text-2xs border transition ${
                     on
                       ? 'bg-brand-500 text-ink border-brand-500'
-                      : 'bg-white text-gray-500 border-gray-200 line-through'
+                      : 'bg-white text-stone-500 border-gray-200 line-through'
                   }`}
                 >
                   {o.label}
@@ -235,7 +235,7 @@ export default function InlineEditForm({ product, categories, onClose, onSaved }
                   onClick={() => removeFlavor(o.label)}
                   aria-label={`删除口味 ${o.label}`}
                   title="从清单中删除"
-                  className="px-1.5 py-0.5 rounded-r text-2xs border border-l-0 border-gray-200 bg-white text-gray-500 hover:text-red-700 transition"
+                  className="px-1.5 py-0.5 rounded-r text-2xs border border-l-0 border-gray-200 bg-white text-stone-500 hover:text-red-700 transition"
                 >
                   ×
                 </button>
@@ -257,7 +257,7 @@ export default function InlineEditForm({ product, categories, onClose, onSaved }
             type="button"
             onClick={addFlavor}
             disabled={!newFlavor.trim() || form.specOptions.length >= SPEC_OPTION_LIMIT}
-            className="px-3 py-2 rounded-lg text-xs bg-white border border-gray-200 text-gray-600 hover:border-brand-500 disabled:opacity-40 transition"
+            className="px-3 py-2 rounded-lg text-xs bg-white border border-gray-200 text-stone-600 hover:border-brand-500 disabled:opacity-40 transition"
           >
             添加
           </button>
@@ -269,7 +269,7 @@ export default function InlineEditForm({ product, categories, onClose, onSaved }
             key={sub.id}
             onClick={() => toggleSub(sub.id)}
             aria-pressed={form.subcategories.includes(sub.id)}
-            className={`px-2 py-0.5 rounded text-2xs border transition ${form.subcategories.includes(sub.id) ? 'bg-brand-500 text-ink border-brand-500' : 'bg-white text-gray-500 border-gray-200'}`}
+            className={`px-2 py-0.5 rounded text-2xs border transition ${form.subcategories.includes(sub.id) ? 'bg-brand-500 text-ink border-brand-500' : 'bg-white text-stone-500 border-gray-200'}`}
           >
             {sub.name}
           </button>
@@ -278,7 +278,7 @@ export default function InlineEditForm({ product, categories, onClose, onSaved }
           onClick={() => setForm({ ...form, enabled: !form.enabled })}
           aria-pressed={form.enabled}
           aria-label={form.enabled ? '当前已上架，点击下架' : '当前已下架，点击上架'}
-          className={`px-2 py-0.5 rounded text-2xs border transition ml-auto ${form.enabled ? 'bg-green-700 text-white border-green-500' : 'bg-white text-gray-500 border-gray-200'}`}
+          className={`px-2 py-0.5 rounded text-2xs border transition ml-auto ${form.enabled ? 'bg-green-700 text-white border-green-500' : 'bg-white text-stone-500 border-gray-200'}`}
         >
           {form.enabled ? '上架' : '下架'}
         </button>
@@ -293,7 +293,7 @@ export default function InlineEditForm({ product, categories, onClose, onSaved }
         <button onClick={save} disabled={saving} className="flex-1 py-2 bg-brand-500 text-ink rounded-lg text-xs font-medium hover:bg-brand-400 disabled:opacity-50 transition">
           {saving ? '保存中...' : '保存'}
         </button>
-        <button onClick={onClose} className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-xs hover:bg-gray-200 transition">取消</button>
+        <button onClick={onClose} className="px-4 py-2 bg-gray-100 text-stone-600 rounded-lg text-xs hover:bg-gray-200 transition">取消</button>
       </div>
     </div>
   )

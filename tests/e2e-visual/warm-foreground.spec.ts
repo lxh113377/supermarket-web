@@ -27,7 +27,10 @@ import { watchErrors, type ErrorWatch } from '../e2e/helpers/watchErrors'
  *   只判**前景**：bg-gray-* / border-gray-* 保留不动 —— 实测 stone-50 与页底 #fafaf9
  *   是同一个值，把背景也换过去会让图标托、分隔线跟页底糊成一片（分离度 1.00）。
  *
- * 只判顾客端路由：管理端（/#/admin）仍有 139 处冷灰，是本轮登记的欠账，不在此面。
+ * 作用面（2026-10-24 更新）：渲染腿只判**顾客端 10 条路由**；管理端由文件末尾那条
+ * 「源码棘轮：管理端」腿守，理由见那条的注释（管理端状态组合多，渲染取样覆盖不全）。
+ * 第十七轮立本件时管理端确有 139 处冷灰并登记为欠账 —— 该欠账已于 2026-10-24 清零
+ * （78 处前景 gray→stone，一手读数见 CHANGELOG 同日条目），两侧现均在判据面上。
  */
 
 const VIEWPORT = { width: 390, height: 844 }
@@ -228,4 +231,55 @@ test('判据自证：注入 gray-500 前景，必须被判为冷色', async ({ p
   // 反向半边：同亮度的暖灰 stone-500 不该被报（否则判据是在"一律报红"）
   const falseHit = r.cold.find((c) => c.text.indexOf('故意用暖灰探针') >= 0)
   expect(falseHit, 'stone-500(#78716c, b*=+3.74) 是暖色，被误报说明判据在误伤正确写法').toBeFalsy()
+})
+
+/**
+ * 源码棘轮腿（管理端面）：2026-10-24 新增，与上面那条顾客端棘轮并列。
+ *
+ * 为什么管理端**不**用渲染腿、必须用源码腿：管理端一个页面里有大量**条件渲染**的状态 ——
+ * 内联编辑表单（ProductInlineEditForm，9 处前景）要点了「✎」才出现、评价筛选要切档、
+ * 图片要"加载中"态、订单时间线要展开某单才渲染。拿路由取样去覆盖这些，要么写成一串
+ * 脆点击（任何一次 DOM 结构调整就假绿），要么覆盖不全（那正是第十七轮 ErrorBoundary
+ * 那个盲区的放大版）。⇒ 管理端用源码面兜底，顾客端保留渲染面 + 源码面双向闭合。
+ *
+ * 口径与顾客端那条一致：只判前景 text-gray-{400..700}，上限 0；
+ * bg-gray-* / border-gray-* 不判（stone-50 与页底 #fafaf9 同值，换了会糊成一片）。
+ * 作用面按**路径白名单**圈定（不是"文件名含 Tab 就算"）：漏圈会给出假绿，所以末尾
+ * 断言作用面文件数下限，且要求每个文件都真实读到（空文件也算读到，但不许静默跳过）。
+ */
+test('源码棘轮：管理端组件里不得有冷灰前景（条件渲染态多，渲染取样覆盖不全）', () => {
+  const srcRoot = join(process.cwd(), 'src')
+  const ADMIN_SCOPE = [
+    'pages/AdminPage.tsx',
+    'components/AdminGuard.tsx',
+    'components/KpiCard.tsx',
+    'components/DashboardTab.tsx',
+    'components/OrdersTab.tsx',
+    'components/ProductsTab.tsx',
+    'components/ReviewsTab.tsx',
+    'components/SubmissionsTab.tsx',
+    'components/admin/',
+  ]
+  const files: string[] = []
+  const walk = (d: string) => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      const p2 = join(d, e.name)
+      if (e.isDirectory()) { walk(p2); continue }
+      if (!/\.tsx$/.test(e.name)) continue
+      files.push(p2.slice(srcRoot.length + 1).replace(/\\/g, '/'))
+    }
+  }
+  walk(srcRoot)
+  const inScope = files.filter((rel) => ADMIN_SCOPE.some((a) => rel === a || rel.startsWith(a)))
+  // 零输入不得通过：作用面为空 ⇒ 路径白名单写错了，不是"管理端很干净"
+  expect(inScope.length, '一个管理端文件都没圈进来 ⇒ 取数面坏了（别把空集读成通过）').toBeGreaterThan(8)
+  const hits: string[] = []
+  for (const rel of inScope) {
+    const src = readFileSync(join(srcRoot, rel), 'utf8').replace(/\r\n/g, '\n')
+    src.split('\n').forEach((l, i) => {
+      if (/\btext-gray-(?:400|500|600|700)\b/.test(l)) hits.push(rel + ':' + (i + 1) + '  ' + l.trim().slice(0, 90))
+    })
+  }
+  expect(hits, '管理端源码面出现冷灰前景 text-gray-{400..700}（应改用同序号 stone 暖灰，\n' +
+    '实测 |ΔL*| ≤ 0.26 故不动对比度；bg-gray-* / border-gray-* 不在此列）：\n  ' + hits.join('\n  ')).toEqual([])
 })

@@ -117,11 +117,11 @@ export default function ReviewsTab() {
     <div className="space-y-4">
       {/* 操作栏 */}
       <div className="flex items-center justify-between">
-        <span className="text-sm text-gray-500">共 {reviews.length} 条评价</span>
+        <span className="text-sm text-stone-500">共 {reviews.length} 条评价</span>
         <div className="flex gap-2">
           <button
             onClick={load}
-            className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs text-gray-600 transition hover:bg-gray-200 active:scale-[0.98]"
+            className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs text-stone-600 transition hover:bg-gray-200 active:scale-[0.98]"
           >
             刷新
           </button>
@@ -164,7 +164,7 @@ export default function ReviewsTab() {
           />
           {/* 评分：radiogroup 语义，读屏能播报「已选 N 星」 */}
           <div className="flex items-center" role="radiogroup" aria-label="评分">
-            <span className="text-sm text-gray-600" aria-hidden="true">评分：</span>
+            <span className="text-sm text-stone-600" aria-hidden="true">评分：</span>
             {[1,2,3,4,5].map(n => (
               <button
                 key={n}
@@ -172,7 +172,7 @@ export default function ReviewsTab() {
                 role="radio"
                 aria-checked={formRating === n}
                 aria-label={`${n}星`}
-                className={`flex h-11 w-11 items-center justify-center text-2xl ${n <= formRating ? 'text-amber-600' : 'text-gray-500'}`}
+                className={`flex h-11 w-11 items-center justify-center text-2xl ${n <= formRating ? 'text-amber-600' : 'text-stone-500'}`}
               >
                 <span aria-hidden="true">★</span>
               </button>
@@ -201,7 +201,7 @@ export default function ReviewsTab() {
             </button>
             <button
               onClick={() => { setShowForm(false); setFormError('') }}
-              className="flex-1 bg-gray-100 text-gray-600 py-2 rounded-lg text-sm"
+              className="flex-1 bg-gray-100 text-stone-600 py-2 rounded-lg text-sm"
             >
               取消
             </button>
@@ -229,13 +229,13 @@ export default function ReviewsTab() {
           {reviews.map((rev) => (
             <div key={rev._id} className="flex items-start gap-3 px-4 py-3 border-b border-gray-50 last:border-0">
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
-                  <span className="font-medium text-gray-600">{rev.user}</span>
+                <div className="flex items-center gap-2 text-xs text-stone-500 mb-1">
+                  <span className="font-medium text-stone-600">{rev.user}</span>
                   <span>·</span>
                   <span>{rev.date || (rev.createdAt && new Date(rev.createdAt).toISOString().slice(0, 10))}</span>
                 </div>
                 <Stars rating={rev.rating} />
-                <p className="text-sm text-gray-700 mt-1">{rev.text}</p>
+                <p className="text-sm text-stone-700 mt-1">{rev.text}</p>
                 <p className="text-xs text-brand-700 mt-1">{getProductName(rev.productOrder)}</p>
               </div>
               <button

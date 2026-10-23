@@ -253,10 +253,10 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
           <option value="all">全部</option>
           {Object.entries(ORDER_STATUS_LABELS).map(([v, label]) => <option key={v} value={v}>{label}</option>)}
         </select>
-        <button onClick={exportCSV} className="px-2.5 py-2 bg-white border border-gray-200 rounded-lg text-xs text-gray-600">CSV</button>
+        <button onClick={exportCSV} className="px-2.5 py-2 bg-white border border-gray-200 rounded-lg text-xs text-stone-600">CSV</button>
       </div>
       {notice && (
-        <p role="status" aria-live="polite" className="text-xs text-gray-600 bg-brand-50 border border-brand-100 rounded-lg px-3 py-2">{notice}</p>
+        <p role="status" aria-live="polite" className="text-xs text-stone-600 bg-brand-50 border border-brand-100 rounded-lg px-3 py-2">{notice}</p>
       )}
       {promos !== null && (
         <div className="bg-emerald-50 border border-emerald-200/80 rounded-lg px-3 py-2">
@@ -280,12 +280,12 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
               )}
               {promos.map((p) => (
                 <div key={p._id} className="flex items-center justify-between gap-2 bg-white/70 rounded px-2 py-1.5">
-                  <span className="text-xs text-gray-700 truncate min-w-0">
+                  <span className="text-xs text-stone-700 truncate min-w-0">
                     满{formatYuan(p.threshold)}减{formatYuan(p.discount)}{p.name ? ` · ${p.name}` : ''}
                   </span>
-                  <span className="text-2xs text-gray-500 shrink-0">
+                  <span className="text-2xs text-stone-500 shrink-0">
                     命中 {p.hits?.orders ?? 0} 单{Number(p.hits?.totalDiscount) > 0 && ` · 已让利 ${formatYuan(p.hits.totalDiscount)}`}
-                    <span className={`ml-1.5 px-1 py-px rounded ${p.enabled ? 'text-green-700 bg-green-100' : 'text-gray-500 bg-gray-100'}`}>
+                    <span className={`ml-1.5 px-1 py-px rounded ${p.enabled ? 'text-green-700 bg-green-100' : 'text-stone-500 bg-gray-100'}`}>
                       {p.enabled ? '启用中' : '已停用'}
                     </span>
                   </span>
@@ -319,7 +319,7 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
               )}
               {stale.orders.map((o) => (
                 <div key={o.id} className="flex items-center justify-between gap-2 bg-white/70 rounded px-2 py-1.5">
-                  <span className="text-xs text-gray-700 truncate min-w-0">
+                  <span className="text-xs text-stone-700 truncate min-w-0">
                     {o.roomNumber} · {formatYuan(o.totalAmount ?? 0)} · {o.ageMinutes} 分钟前
                     {o.hasPaymentProof && <span className="ml-1 text-3xs text-green-700 bg-green-100 px-1 py-0.5 rounded">已传付款截图</span>}
                   </span>
@@ -338,10 +338,10 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
             <span className="text-sm font-bold min-w-0 truncate">房间号：{order.roomNumber}</span>
             <div className="flex items-center gap-2 shrink-0">
               <button onClick={() => copyOrder(order)} className="text-xs text-brand-700 bg-brand-50 px-2 py-0.5 rounded">复制</button>
-              <span className="text-xs text-gray-500">{new Date(order.createdAt).toLocaleString()}</span>
+              <span className="text-xs text-stone-500">{new Date(order.createdAt).toLocaleString()}</span>
             </div>
           </div>
-          <div className="text-sm text-gray-600 mb-2">
+          <div className="text-sm text-stone-600 mb-2">
             {order.items.map((item, idx) => {
               const { base, flavor } = splitOrderSpec(item.spec)
               return (
@@ -381,7 +381,7 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
                 onClick={() => void toggleTimeline(order._id)}
                 aria-expanded={Boolean(tlOpen[order._id])}
                 aria-label={`订单 ${order.roomNumber} 的事件时间线`}
-                className="text-xs text-gray-600 bg-white border border-gray-200 rounded px-2 py-1"
+                className="text-xs text-stone-600 bg-white border border-gray-200 rounded px-2 py-1"
               >
                 {tlOpen[order._id] ? '收起时间线' : '时间线'}
               </button>
@@ -398,30 +398,30 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
           {tlOpen[order._id] && (
             <div className="mt-2 bg-gray-50 border border-gray-200/80 rounded-lg px-3 py-2">
               {tlLoading[order._id] && (
-                <p className="text-xs text-gray-500">时间线加载中…</p>
+                <p className="text-xs text-stone-500">时间线加载中…</p>
               )}
               {!tlLoading[order._id] && tlError[order._id] && (
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-xs text-red-700">时间线加载失败：{tlError[order._id]}</p>
                   <button
                     onClick={() => void retryTimeline(order._id)}
-                    className="text-xs text-gray-700 px-2 py-1 rounded border border-gray-200"
+                    className="text-xs text-stone-700 px-2 py-1 rounded border border-gray-200"
                   >
                     重试
                   </button>
                 </div>
               )}
               {!tlLoading[order._id] && !tlError[order._id] && (tlEvents[order._id] ?? []).length === 0 && tlEvents[order._id] !== undefined && (
-                <p className="text-xs text-gray-500">暂无事件</p>
+                <p className="text-xs text-stone-500">暂无事件</p>
               )}
               {!tlLoading[order._id] && !tlError[order._id] && (tlEvents[order._id] ?? []).length > 0 && (
                 <ol className="space-y-1.5">
                   {(tlEvents[order._id] ?? []).map((ev, i) => (
                     <li key={`${ev.at}-${ev.type}-${i}`} className="flex items-center justify-between gap-2 bg-white/70 rounded px-2 py-1.5">
-                      <span className="text-xs text-gray-700 truncate min-w-0">
+                      <span className="text-xs text-stone-700 truncate min-w-0">
                         {ev.type} · {orderStatusLabel(ev.status) || ev.status}
                       </span>
-                      <span className="text-2xs text-gray-500 shrink-0">
+                      <span className="text-2xs text-stone-500 shrink-0">
                         {ev.at ? new Date(ev.at).toLocaleString() : ''}
                       </span>
                     </li>
@@ -434,17 +434,17 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
       ))}
       {totalPages > 1 && (
         <div className="flex items-center justify-between pt-1 text-sm">
-          <span className="text-xs text-gray-500">共 {filtered.length} 单 · 第 {page}/{totalPages} 页</span>
+          <span className="text-xs text-stone-500">共 {filtered.length} 单 · 第 {page}/{totalPages} 页</span>
           <div className="flex gap-2">
             <button
               onClick={() => setPage((p) => pageOf(p - 1))}
               disabled={page <= 1}
-              className="px-2.5 py-1 bg-white border border-gray-200 rounded-lg text-xs text-gray-600 disabled:opacity-40"
+              className="px-2.5 py-1 bg-white border border-gray-200 rounded-lg text-xs text-stone-600 disabled:opacity-40"
             >上一页</button>
             <button
               onClick={() => setPage((p) => pageOf(p + 1))}
               disabled={page >= totalPages}
-              className="px-2.5 py-1 bg-white border border-gray-200 rounded-lg text-xs text-gray-600 disabled:opacity-40"
+              className="px-2.5 py-1 bg-white border border-gray-200 rounded-lg text-xs text-stone-600 disabled:opacity-40"
             >下一页</button>
           </div>
         </div>

@@ -89,13 +89,13 @@ export default function KpiCard({ label, value, prefix = '', suffix = '', sub, a
       <p className={`price-num text-xl font-bold ${accent ? 'text-brand-700' : 'text-ink'}`}>
         {prefix}{animated.toLocaleString()}{suffix}
       </p>
-      <p className="text-3xs text-gray-500 mt-1">{label}</p>
+      <p className="text-3xs text-stone-500 mt-1">{label}</p>
       {delta && (
         <div className="mt-1 flex justify-center">
           <DeltaBadge value={deltaValue} />
         </div>
       )}
-      {sub && <p className="text-3xs text-gray-500 mt-1">{sub}</p>}
+      {sub && <p className="text-3xs text-stone-500 mt-1">{sub}</p>}
     </div>
   )
 }

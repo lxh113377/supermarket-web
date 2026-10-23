@@ -78,7 +78,7 @@ function ProductRow({
             }
           }}
         >
-          <p title={product.name + (product.spec ? ' (' + product.spec + ')' : '')} className={`text-sm font-medium truncate ${enabled ? 'text-ink' : 'text-gray-500 line-through'}`}>
+          <p title={product.name + (product.spec ? ' (' + product.spec + ')' : '')} className={`text-sm font-medium truncate ${enabled ? 'text-ink' : 'text-stone-500 line-through'}`}>
             {product.name}{product.spec ? ` (${product.spec})` : ''}
           </p>
           {/* min-w-0 + flex-wrap（2026-10-23）：实测 320px 下价格+分类徽章这一行的
@@ -88,7 +88,7 @@ function ProductRow({
                            加 wrap 让窄屏下徽章换到下一行，390px 以上有余量不会换行。 */}
           <div className="flex min-w-0 flex-wrap items-center gap-2 mt-0.5">
             <span className="price-num text-brand-700 font-bold text-sm">¥{formatPrice(product.price)}</span>
-            {catLabel && <span className="text-3xs text-gray-600 bg-gray-50 px-1.5 py-0.5 rounded truncate">{catLabel}</span>}
+            {catLabel && <span className="text-3xs text-stone-600 bg-gray-50 px-1.5 py-0.5 rounded truncate">{catLabel}</span>}
             {typeof product.stock === 'number' && product.stock === 0 && (
               <span className="text-3xs text-white bg-red-500 px-1.5 py-0.5 rounded" role="status">缺货</span>
             )}
@@ -133,7 +133,7 @@ function ProductRow({
             className={`tap-44 w-9 h-9 rounded-lg border flex items-center justify-center text-xs transition active:scale-90 ${
               isEditing
                 ? 'bg-brand-500 border-brand-500 text-ink'
-                : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-brand-50 hover:border-brand-300 hover:text-brand-700'
+                : 'bg-gray-50 border-gray-200 text-stone-500 hover:bg-brand-50 hover:border-brand-300 hover:text-brand-700'
             }`}
           >
             <span aria-hidden="true">✎</span>
@@ -142,7 +142,7 @@ function ProductRow({
             onClick={() => onRemove(product._id)}
             aria-label="删除商品"
             style={{ '--tap-x': '4px', '--tap-y': '4px' } as CSSProperties}
-            className="tap-44 w-9 h-9 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center text-xs text-gray-500 hover:bg-red-50 hover:border-red-200 hover:text-red-700 transition active:scale-90"
+            className="tap-44 w-9 h-9 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center text-xs text-stone-500 hover:bg-red-50 hover:border-red-200 hover:text-red-700 transition active:scale-90"
           >
             <span aria-hidden="true">🗑</span>
           </button>

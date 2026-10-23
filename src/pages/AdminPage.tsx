@@ -140,7 +140,7 @@ export default function AdminPage() {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3" role="status" aria-live="polite">
         <div className="w-8 h-8 border-[3px] border-brand-200 border-t-brand-500 rounded-full animate-spin" />
-        <span className="text-sm text-gray-500">加载中...</span>
+        <span className="text-sm text-stone-500">加载中...</span>
       </div>
     )
   }
@@ -213,7 +213,7 @@ export default function AdminPage() {
             className={`flex-1 min-w-0 py-2.5 rounded-xl text-2xs sm:text-xs font-medium transition-all duration-200 flex flex-col items-center gap-1 active:scale-[0.98] ${
               tab === t.key
                 ? 'bg-ink text-white shadow-soft'
-                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                : 'text-stone-500 hover:text-stone-700 hover:bg-gray-50'
             }`}
           >
             <span className="text-sm" aria-hidden="true">{t.icon}</span>

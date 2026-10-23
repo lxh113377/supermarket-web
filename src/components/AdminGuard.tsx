@@ -27,7 +27,7 @@ export default function AdminGuard({ children }: AdminGuardProps) {
   }, [])
 
   if (!IS_CLOUD) return children
-  if (checking) return <div className="flex items-center justify-center min-h-full text-gray-500" role="status" aria-live="polite">验证中...</div>
+  if (checking) return <div className="flex items-center justify-center min-h-full text-stone-500" role="status" aria-live="polite">验证中...</div>
   if (authed) return children
 
   const handleLogin = async () => {
@@ -65,13 +65,13 @@ export default function AdminGuard({ children }: AdminGuardProps) {
 
       <div className="relative w-full max-w-sm animate-fade-in-up">
         <div className="mb-6">
-          <p className="eyebrow text-gray-500">江科一站通 · 经营侧</p>
+          <p className="eyebrow text-stone-500">江科一站通 · 经营侧</p>
           <h1 className="mt-2 text-display-md text-ink">管理后台</h1>
-          <p className="mt-1.5 text-sm text-gray-500">请输入管理密钥以继续</p>
+          <p className="mt-1.5 text-sm text-stone-500">请输入管理密钥以继续</p>
         </div>
 
         <div className="card-base p-6">
-          <label htmlFor="admin-key-input" className="eyebrow block text-gray-500">
+          <label htmlFor="admin-key-input" className="eyebrow block text-stone-500">
             管理密钥
           </label>
           <input
@@ -101,7 +101,7 @@ export default function AdminGuard({ children }: AdminGuardProps) {
           </button>
         </div>
 
-        <p className="mt-5 text-center text-2xs tracking-wide text-gray-500">
+        <p className="mt-5 text-center text-2xs tracking-wide text-stone-500">
           密钥由 Cloudflare Pages 环境变量下发 · 本站不存明文
         </p>
       </div>

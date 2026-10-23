@@ -163,7 +163,7 @@ export default function SubmissionsTab() {
         <button
           onClick={() => setFilter('all')}
           aria-pressed={filter === 'all'}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition active:scale-[0.98] ${filter === 'all' ? 'bg-brand-500 text-ink' : 'bg-gray-100 text-gray-600'}`}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition active:scale-[0.98] ${filter === 'all' ? 'bg-brand-500 text-ink' : 'bg-gray-100 text-stone-600'}`}
         >
           全部 ({submissions.length})
         </button>
@@ -172,7 +172,7 @@ export default function SubmissionsTab() {
             key={c.id}
             onClick={() => setFilter(c.id)}
             aria-pressed={filter === c.id}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition active:scale-[0.98] ${filter === c.id ? 'bg-brand-500 text-ink' : 'bg-gray-100 text-gray-600'}`}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition active:scale-[0.98] ${filter === c.id ? 'bg-brand-500 text-ink' : 'bg-gray-100 text-stone-600'}`}
           >
             {c.name} ({countsByCategory[c.id] || 0})
           </button>
@@ -197,11 +197,11 @@ export default function SubmissionsTab() {
                       {STATUS_MAP[s.status || 'pending']?.label || '待处理'}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-500 mt-0.5">{s.categoryName} · {s.createdAt ? new Date(s.createdAt).toLocaleString() : ''}</p>
+                  <p className="text-xs text-stone-500 mt-0.5">{s.categoryName} · {s.createdAt ? new Date(s.createdAt).toLocaleString() : ''}</p>
                   {/* 表单数据 */}
                   <div className="mt-2 space-y-1">
                     {Object.entries(s.formData || {}).map(([k, v]) => (
-                      <p key={k} className="text-xs text-gray-600">{formatField(k, v)}</p>
+                      <p key={k} className="text-xs text-stone-600">{formatField(k, v)}</p>
                     ))}
                   </div>
                   {/* 图片：按需加载（列表不再内联 base64，避免手机端首屏下载 MB 级数据） */}
@@ -209,14 +209,14 @@ export default function SubmissionsTab() {
                     <div className="mt-2">
                       <button
                         onClick={() => toggleImages(s._id)}
-                        className="px-2.5 py-1 bg-gray-50 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-100"
+                        className="px-2.5 py-1 bg-gray-50 text-stone-600 rounded-lg text-xs font-medium hover:bg-gray-100"
                       >
                         {expanded[s._id] ? '收起图片' : `查看图片 (${s.images?.length ?? s.imageCount ?? 0})`}
                       </button>
                       {expanded[s._id] && (
                         <div className="flex gap-2 mt-2 flex-wrap">
                           {imageLoading[s._id] && (
-                            <span className="text-xs text-gray-500 py-4" role="status">图片加载中...</span>
+                            <span className="text-xs text-stone-500 py-4" role="status">图片加载中...</span>
                           )}
                           {/* 图片本身可点开预览 —— 用 button 包裹而不是给 img 挂 onClick，
                               键盘用户与读屏用户才能操作（原实现只有鼠标能点） */}
@@ -238,13 +238,13 @@ export default function SubmissionsTab() {
                                   className="w-14 h-14 rounded-lg border border-gray-200 flex flex-col items-center justify-center gap-0.5 hover:bg-gray-50 transition focus-visible:outline-2 focus-visible:outline-brand-700"
                                 >
                                   <span aria-hidden="true" className="text-base">📄</span>
-                                  <span className="text-3xs text-gray-500">下载</span>
+                                  <span className="text-3xs text-stone-500">下载</span>
                                 </a>
                               )
                             }
                             if (img.startsWith('r2:') && !href) {
                               return (
-                                <span key={i} className="w-14 h-14 rounded-lg border border-dashed border-gray-200 flex items-center justify-center text-3xs text-gray-500 text-center leading-tight px-1">
+                                <span key={i} className="w-14 h-14 rounded-lg border border-dashed border-gray-200 flex items-center justify-center text-3xs text-stone-500 text-center leading-tight px-1">
                                   文件（未配置下载基址）
                                 </span>
                               )
@@ -281,7 +281,7 @@ export default function SubmissionsTab() {
                     标记已处理
                   </button>
                 )}
-                <button onClick={() => copySubmission(s)} className="tap-44 px-3 py-2 bg-gray-50 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-100">
+                <button onClick={() => copySubmission(s)} className="tap-44 px-3 py-2 bg-gray-50 text-stone-600 rounded-lg text-xs font-medium hover:bg-gray-100">
                   复制
                 </button>
                 <button onClick={() => handleDelete(s._id)} className="tap-44 px-3 py-2 bg-red-50 text-red-700 rounded-lg text-xs font-medium hover:bg-red-100">
@@ -310,7 +310,7 @@ export default function SubmissionsTab() {
         <button
           onClick={() => setPreview(null)}
           data-autofocus
-          className="mt-3 mx-auto block px-5 py-2.5 bg-white/90 text-gray-700 rounded-xl text-sm font-medium"
+          className="mt-3 mx-auto block px-5 py-2.5 bg-white/90 text-stone-700 rounded-xl text-sm font-medium"
         >
           关闭
         </button>

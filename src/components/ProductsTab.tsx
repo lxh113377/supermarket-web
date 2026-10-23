@@ -185,7 +185,7 @@ export default function ProductsTab({ products, categories, onDataChange }: {
             onChange={e => setSearch(e.target.value)}
             className="w-full border border-gray-200 rounded-xl pl-9 pr-3 py-2.5 text-sm focus:border-brand-600"
           />
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm" aria-hidden="true">🔍</span>
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500 text-sm" aria-hidden="true">🔍</span>
         </div>
         <button onClick={() => setEditingId('new')} className="shrink-0 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-medium text-ink transition hover:bg-brand-400 active:scale-[0.98]">+ 新增</button>
       </div>
@@ -212,12 +212,12 @@ export default function ProductsTab({ products, categories, onDataChange }: {
             key={f.id}
             onClick={() => setFilterCat(f.id)}
             aria-pressed={filterCat === f.id}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition active:scale-[0.98] ${filterCat === f.id ? 'bg-brand-500 text-ink' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition active:scale-[0.98] ${filterCat === f.id ? 'bg-brand-500 text-ink' : 'bg-gray-100 text-stone-600 hover:bg-gray-200'}`}
           >
             {f.label}
           </button>
         ))}
-        <button onClick={selectAllFiltered} className="ml-auto rounded-lg px-3 py-1.5 text-xs text-gray-500 transition hover:bg-gray-100 active:scale-[0.98]">
+        <button onClick={selectAllFiltered} className="ml-auto rounded-lg px-3 py-1.5 text-xs text-stone-500 transition hover:bg-gray-100 active:scale-[0.98]">
           {filtered.length > 0 && selectedIds.size === filtered.length ? '取消全选' : `全选(${filtered.length})`}
         </button>
       </div>
@@ -254,12 +254,12 @@ export default function ProductsTab({ products, categories, onDataChange }: {
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3 z-30 shadow-lg safe-bottom">
           <div className="max-w-lg mx-auto space-y-2">
             <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500 shrink-0" aria-live="polite">已选 {selectedIds.size} 项</span>
+              <span className="text-xs text-stone-500 shrink-0" aria-live="polite">已选 {selectedIds.size} 项</span>
               <div className="flex-1 flex gap-1.5">
                 <button onClick={() => batchAction('enable')} className="flex-1 py-2 bg-green-700 text-white rounded-lg text-xs font-medium">上架</button>
                 <button onClick={() => batchAction('disable')} className="flex-1 py-2 bg-ink text-white rounded-lg text-xs font-medium">下架</button>
                 <button onClick={() => batchAction('delete')} className="flex-1 py-2 bg-red-700 text-white rounded-lg text-xs font-medium">删除</button>
-                <button onClick={() => setSelectedIds(new Set())} aria-label="取消选择" className="tap-44 px-3 py-2 text-gray-500 text-xs">✕</button>
+                <button onClick={() => setSelectedIds(new Set())} aria-label="取消选择" className="tap-44 px-3 py-2 text-stone-500 text-xs">✕</button>
               </div>
             </div>
             <div className="flex gap-1.5">

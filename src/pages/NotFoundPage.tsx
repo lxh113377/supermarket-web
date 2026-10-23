@@ -28,9 +28,13 @@ export default function NotFoundPage() {
         <IconEmpty className="h-9 w-9 text-ink" />
       </div>
 
-      <p aria-hidden="true" data-decorative="true" className="price-num select-none text-[5.5rem] font-extrabold leading-none text-gray-200">
+      <p aria-hidden="true" data-decorative="true" className="price-num select-none text-[5.5rem] font-extrabold leading-none text-stone-200">
         404
       </p>
+      {/* 装饰大字 404 的色温也要跟上：gray-200 实测 b*=-2.18，正好压在暖前景判据的冷阈值
+          之下（|b*|<1.2 才算中性豁免）。虽然它 aria-hidden + data-decorative（零信息字符，
+          按判据口径可豁免），但 5.5rem 的字压在暖白页底上，色温不对就是看得见的蓝灰边。
+          stone-200 与 gray-200 的 L* 只差 0.5（91.6 → 91.1），视觉亮度不变。── */}
       <h1 className="-mt-3 text-display-md text-ink">页面走丢了</h1>
       <p className="mt-2 text-sm text-stone-500">这个地址不存在，可能已被移动或删除。</p>
 
