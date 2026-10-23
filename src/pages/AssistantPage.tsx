@@ -87,7 +87,7 @@ export default function AssistantPage() {
   }
 
   return (
-    <div className="flex flex-col h-full min-h-screen bg-surface">
+    <div role="main" id="main-content" tabIndex={-1} className="flex flex-col h-full min-h-screen bg-surface">
       {/* 返回栏 */}
       <div className="flex items-center px-4 py-2.5 bg-white/95 backdrop-blur-sm border-b border-gray-100">
         <button

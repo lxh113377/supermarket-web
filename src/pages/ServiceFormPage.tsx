@@ -32,7 +32,7 @@ export default function ServiceFormPage() {
 
   if (!service) {
     return (
-      <div className="page-container flex items-center justify-center">
+      <div role="main" id="main-content" tabIndex={-1} className="page-container flex items-center justify-center">
         <div className="text-center animate-fade-in-up">
           <span className="text-4xl block mb-3">🔍</span>
           <p className="text-gray-500 text-sm">服务不存在</p>
@@ -150,7 +150,7 @@ export default function ServiceFormPage() {
   }
 
   return (
-    <div className="page-container">
+    <div role="main" id="main-content" tabIndex={-1} className="page-container">
       {/* Header */}
       <div className={`relative overflow-hidden bg-gradient-to-br ${category?.color || 'from-gray-600 to-gray-700'} text-white px-5 pt-10 pb-14`}>
         {/* 装饰元素 */}

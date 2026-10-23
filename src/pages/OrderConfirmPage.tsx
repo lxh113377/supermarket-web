@@ -120,7 +120,7 @@ export default function OrderConfirmPage() {
       </div>
 
       <div className="flex-1 p-5 overflow-hidden flex flex-col w-full max-w-3xl lg:max-w-4xl mx-auto">
-        <div className="flex-1 overflow-y-auto space-y-5">
+        <div role="main" id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto space-y-5">
           {/* 营业时间提示 */}
           {!open && (
             <div className="bg-red-50/80 border border-red-200/60 rounded-2xl p-4 animate-slide-down">

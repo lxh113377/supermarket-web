@@ -19,7 +19,7 @@ export default function NotFoundPage() {
   const navigate = useNavigate()
 
   return (
-    <div className="page-container paper-grain flex min-h-screen flex-col items-center justify-center p-6 text-center">
+    <div role="main" id="main-content" tabIndex={-1} className="page-container paper-grain flex min-h-screen flex-col items-center justify-center p-6 text-center">
       <div
         aria-hidden="true"
         className="cover-clip relative mb-8 flex h-20 w-20 items-center justify-center"

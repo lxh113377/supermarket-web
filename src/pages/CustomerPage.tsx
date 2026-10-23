@@ -203,7 +203,7 @@ export default function CustomerPage() {
     return (
       <div className="flex flex-col h-full bg-surface">
         {nav}
-        <div className="flex-1 overflow-y-auto p-4 pb-24">
+        <div role="main" id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto p-4 pb-24">
           <SkeletonList rows={6} />
         </div>
       </div>
@@ -274,7 +274,7 @@ export default function CustomerPage() {
           <span className="text-sm font-semibold tracking-[0.2em] text-gray-500">江科一站通</span>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 lg:px-10 py-6 pb-28">
+        <div role="main" id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto px-6 lg:px-10 py-6 pb-28">
           <div className="flex gap-8 items-start max-w-[80rem] mx-auto">
             {nav}
 
@@ -349,7 +349,7 @@ export default function CustomerPage() {
       </div>
       {nav}
 
-      <div className="flex-1 overflow-y-auto px-4 pt-3 pb-32">
+      <div role="main" id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto px-4 pt-3 pb-32">
         {searchPanel}
         <div className="flex items-center justify-between gap-3 flex-wrap pb-2">
           {sortRow}

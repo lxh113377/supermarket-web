@@ -45,8 +45,10 @@ export default function AdminGuard({ children }: AdminGuardProps) {
     }
   }
 
+  // 登录墙与 AdminPage 的 main 互斥（if (!authed) 直接 return），所以这个态也得有
+  // 自己的 main —— 否则 cloud 模式下「跳到主要内容」无处可跳。
   return (
-    <div className="paper-grain relative flex min-h-full items-center justify-center overflow-hidden bg-surface p-6">
+    <div role="main" id="main-content" tabIndex={-1} className="paper-grain relative flex min-h-full items-center justify-center overflow-hidden bg-surface p-6">
       {/* 品牌场：顶部色带 + 一枚切角柿块压在卡片左上角，
           让"登录"这件事也认得出是江科一站通的后台，而不是任意一个开源模板。 */}
       <span aria-hidden="true" className="brand-bar absolute inset-x-0 top-0 h-1" />

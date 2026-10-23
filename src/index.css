@@ -109,6 +109,36 @@ button {
   outline-offset: 3px;
 }
 
+/* 跳到主要内容（见 components/SkipLink.tsx）：未聚焦时**移出视口**。
+   为什么不用常见的「收成 1px + clip-path」写法（本仓实测两轮才走对）：
+     · 只写 width:1px 无效 —— a 是 inline，width/height 压根不生效，实测撑成 32×19；
+     · 补 display:block 仍无效 —— box-sizing:border-box 下 border-box 不会小于
+       padding，16px×2 又把 1px 顶回 32px；
+     · 连 padding 一起归零后盒子确实 1×1 了，但它**仍然占在视口左上角**，
+       被触控目标判据按 WCAG 2.5.8 的「以中心画 24×24 方框」算进重叠
+       （实测与返回按钮压 9px）—— 而那条判据是对的，一个占在屏幕上的东西就该被量。
+   正解是承认它的本质：这是**纯键盘**的跳转入口，不是拇指可点的目标，
+   所以它不该待在视口里。fixed 元素移出视口不会产生滚动条，也不参与任何
+   视口内的几何判据 ⇒ 判据一行未改。 */
+.skip-link {
+  position: fixed;
+  top: -9999px;
+  left: 0;
+  z-index: 200;
+  padding: 0.6rem 1rem;
+  border-radius: 0.75rem;
+  background: var(--ink);
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.skip-link:focus-visible {
+  top: 0.75rem;
+  left: 0.75rem;
+}
+
 /* 已有自绘焦点样式的元素（Tailwind focus-visible:outline-*）不重复描边 */
 [class*='focus-visible:outline']:focus-visible {
   outline: none;

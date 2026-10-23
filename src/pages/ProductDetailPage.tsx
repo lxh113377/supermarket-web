@@ -317,7 +317,7 @@ export default function ProductDetailPage() {
         <div className="min-w-0 flex-1 truncate text-sm font-bold text-ink" aria-hidden="true">{effName}</div>
       </div>
 
-      <div className="flex-1 overflow-y-auto pb-28 lg:pb-10 w-full">
+      <div role="main" id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto pb-28 lg:pb-10 w-full">
         {/* 面包屑：首页 › 大类 › 子类 › 当前商品，两级分类均可点回商城对应视图 */}
         <nav aria-label="面包屑" className="max-w-6xl mx-auto px-4 lg:px-6 pt-3">
           <ol className="flex items-center gap-1.5 text-xs text-gray-500 list-none m-0 p-0 flex-wrap">

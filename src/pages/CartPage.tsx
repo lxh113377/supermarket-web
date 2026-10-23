@@ -116,7 +116,7 @@ export default function CartPage() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-5 w-full max-w-3xl lg:max-w-4xl mx-auto">
+      <div role="main" id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto p-5 w-full max-w-3xl lg:max-w-4xl mx-auto">
         {priceChanges.length > 0 && (
           <div className="mb-4 bg-amber-50/80 border border-amber-200/60 rounded-2xl p-4 animate-slide-down" role="status">
             <p className="text-amber-800 text-xs font-medium mb-2">以下商品价格已变动（结算按最新价格）：</p>

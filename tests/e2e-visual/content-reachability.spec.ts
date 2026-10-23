@@ -337,11 +337,55 @@ async function scan(page: Page): Promise<{ leaves: number; unreachable: Unreacha
       return still
     }
 
+    /**
+     * 聚焦也是一种可达状态（2026-10-23，由 skip link 逼出来的第三层）。
+     *
+     * 加了「跳到主要内容」之后本件把它判成不可达 —— 而这是**对的判据撞上不全的口径**：
+     * skip link 的可见态是 :focus-visible，靠键盘 Tab 唤出，任何滚动位置都叫不出它。
+     * 两种处置里选了这个：
+     *   · 不该把 skip link 常驻视口 —— 实测那样它的 24×24 中心框会压住返回按钮 9px，
+     *     被 touch-targets 判红，而那条判据是对的（占在屏幕上的东西就该被量）；
+     *   · 也不该给 skip link 开白名单 —— 白名单会让"任何靠聚焦露出的内容"都逃过检查。
+     * 所以补一层"聚焦后重测"：它同时把口径修正得更准（可达 = 存在某个用户可造成的
+     * 状态），又保住牙齿 —— 只对**本身可聚焦**的元素尝试，且聚焦后仍要满足
+     * "入镜 + 不被遮"才算可达；一个被吸底栏永久压住的可聚焦元素，聚焦后照样被遮，
+     * 依然报红（自证腿注入的是不可聚焦的 div，走不到这一层）。
+     */
+    const focusConfirm = async (candidates: number[]) => {
+      let left = candidates
+      for (const id of candidates) {
+        const el = elById.get(id) as HTMLElement | null
+        if (!el || !el.isConnected) { left = left.filter((x) => x !== id); continue }
+        const focusable = el.matches('a[href],button,input,select,textarea,[tabindex]')
+        if (!focusable) continue
+        el.focus()
+        await frames()
+        if (document.activeElement !== el) continue   // 叫不出焦点 ⇒ 不算可达，维持违规
+        const rect = visibleWindow(el)
+        if (!rect) continue
+        const inView = rect.top >= -0.5 && rect.bottom <= innerHeight + 0.5
+          && rect.left >= -0.5 && rect.right <= innerWidth + 0.5
+        if (!inView) continue
+        const cx = Math.round(rect.left + rect.width / 2)
+        let blocked = false
+        for (const y of [Math.round(rect.top + 2), Math.round(rect.top + rect.height / 2), Math.round(rect.bottom - 2)]) {
+          const hit = document.elementFromPoint(cx, y)
+          if (!hit || !(hit === el || el.contains(hit) || hit.contains(el))) { blocked = true; break }
+        }
+        if (!blocked) left = left.filter((x) => x !== id)
+        el.blur()
+        await frames()
+      }
+      return left
+    }
+
     return sweep().then(async () => {
       reset()
       const spatialBad = Array.from(badCount.entries()).filter(([, c]) => c === runs)
       const afterScroll = await scrollIntoViewConfirm(spatialBad.map(([k]) => k))
-      const keep = new Set(afterScroll)
+      const scrolledOk = new Set(afterScroll)
+      const afterFocus = await focusConfirm(Array.from(scrolledOk))
+      const keep = new Set(afterFocus)
       // 文本级聚合：判据要保护的是「信息可达」，不是「某个 DOM 节点可达」。
       // 同一段文字若有**另一个实例**可达（跑马灯为无缝循环复制的第二份、网格里
       // 同名商品卡），用户照样看到这条信息 ⇒ 不算缺陷。

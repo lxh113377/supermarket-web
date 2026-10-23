@@ -1,6 +1,7 @@
 import { Suspense, lazy, useEffect } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import ErrorBoundary from './components/ErrorBoundary'
+import SkipLink from './components/SkipLink'
 import AdminGuard from './components/AdminGuard'
 import { routeLoaders } from './routeLoaders'
 import { prefetchHotRoutes } from './prefetchBus'
@@ -55,6 +56,9 @@ export default function App() {
 
   return (
     <ErrorBoundary>
+      {/* 挂在 Suspense 之外：路由 chunk 还在加载时也要能跳（fallback 态本身
+          就是一屏内容，键盘用户不该被卡在加载层） */}
+      <SkipLink />
       <Suspense fallback={<RouteLoader />}>
         <Routes>
           <Route path="/" element={<HomePage />} />

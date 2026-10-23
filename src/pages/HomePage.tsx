@@ -154,7 +154,7 @@ export default function HomePage() {
       )}
 
       {/* ── 分类索引：编号 + 名称 + 描述，桌面错位排布打破四等分节奏 ── */}
-      <main className="mx-auto max-w-5xl px-5 pb-28 sm:px-10">
+      <main id="main-content" tabIndex={-1} className="mx-auto max-w-5xl px-5 pb-28 sm:px-10">
         <div className={`mt-10 flex items-baseline justify-between gap-4 ${open ? '' : 'mt-6'}`}>
           <h2 className="text-display-md text-ink">服务索引</h2>
           <p className="text-xs text-gray-500">四大板块 · 点击进店</p>

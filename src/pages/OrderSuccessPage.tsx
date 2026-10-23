@@ -22,7 +22,7 @@ export default function OrderSuccessPage() {
   }, [orderId])
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-surface items-center justify-center p-6 animate-fade-in">
+    <div role="main" id="main-content" tabIndex={-1} className="fixed inset-0 z-50 flex flex-col bg-surface items-center justify-center p-6 animate-fade-in">
       <div className="text-center max-w-sm w-full" role="status" aria-live="polite">
         {/* 成功动画 */}
         <div className="relative mx-auto w-20 h-20 mb-6">

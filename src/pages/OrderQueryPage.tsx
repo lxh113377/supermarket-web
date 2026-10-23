@@ -53,7 +53,7 @@ export default function OrderQueryPage() {
         <span className="w-9" />
       </div>
 
-      <div className="flex-1 overflow-y-auto p-5 w-full max-w-lg mx-auto">
+      <div role="main" id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto p-5 w-full max-w-lg mx-auto">
         <div className="flex gap-2">
           <input
             aria-label="订单号"

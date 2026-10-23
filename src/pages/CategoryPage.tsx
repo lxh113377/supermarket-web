@@ -24,14 +24,14 @@ export default function CategoryPage() {
 
   if (!category) {
     return (
-      <div className="page-container flex items-center justify-center">
+      <div role="main" id="main-content" tabIndex={-1} className="page-container flex items-center justify-center">
         <p className="text-gray-500 text-sm">分类不存在</p>
       </div>
     )
   }
 
   return (
-    <div className="page-container">
+    <div role="main" id="main-content" tabIndex={-1} className="page-container">
       {/* Header - 分类专属渐变 */}
       {/* 头部（2026-10-22 设计升级）：旧版是"两个半透明白圆"漂浮 —— 那是与本站
           无关的通用装饰。现在换成与首页封面同一套语言：顶部品牌色带 + 右下切角，

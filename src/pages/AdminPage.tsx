@@ -146,7 +146,7 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-full bg-surface p-5 pb-24 w-full max-w-5xl lg:max-w-6xl mx-auto">
+    <div role="main" id="main-content" tabIndex={-1} className="min-h-full bg-surface p-5 pb-24 w-full max-w-5xl lg:max-w-6xl mx-auto">
       {/* 标题区 */}
       <div className="flex items-center justify-between mb-5">
         <h1 className="text-xl font-bold text-ink">管理后台</h1>

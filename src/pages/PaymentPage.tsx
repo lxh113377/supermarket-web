@@ -65,7 +65,7 @@ export default function PaymentPage() {
       </div>
 
       {!method ? (
-        <div className="flex-1 flex flex-col items-center justify-center gap-4 p-6 w-full max-w-lg mx-auto">
+        <div role="main" id="main-content" tabIndex={-1} className="flex-1 flex flex-col items-center justify-center gap-4 p-6 w-full max-w-lg mx-auto">
           <p className="text-sm text-gray-500 mb-2">请选择支付方式完成付款</p>
           <button
             onClick={() => setMethod('wechat')}
@@ -81,7 +81,7 @@ export default function PaymentPage() {
           </button>
         </div>
       ) : (
-        <div className="flex-1 flex flex-col items-center justify-center px-5 py-3">
+        <div role="main" id="main-content" tabIndex={-1} className="flex-1 flex flex-col items-center justify-center px-5 py-3">
           {/* 支付状态变更（轮询到已付款）需播报：原实现是纯视觉变化，读屏用户完全无感知 */}
           <div className="w-full flex flex-col items-center" role="status" aria-live="polite">
           {paid ? (
