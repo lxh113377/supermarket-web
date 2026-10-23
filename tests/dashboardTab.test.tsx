@@ -5,9 +5,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import DashboardTab, { resetAdviceCacheForTest } from '../src/components/DashboardTab'
 
-const { adminCall } = vi.hoisted(() => ({ adminCall: vi.fn() }))
+const { adminCall, cloudFlag } = vi.hoisted(() => ({ adminCall: vi.fn(), cloudFlag: { value: true } }))
 
 vi.mock('../src/auth', () => ({ adminCall }))
+// IS_CLOUD 走可变 ref：vitest 读根目录 .env（内有 VITE_CB_API_BASE）⇒ 真实 IS_CLOUD 恒为 true，
+// 演示模式那条分支在测试里永远进不去。用 getter 把开关交出来，见文件末尾「模式分支」块。
+vi.mock('../src/cloudbase', () => ({ get IS_CLOUD() { return cloudFlag.value } }))
 vi.mock('../src/hooks/useDashboardCharts', () => ({
   useDashboardCharts: () => ({
     trendRef: { current: null }, reviewRef: { current: null },
@@ -39,6 +42,7 @@ function stubStats(over: Record<string, unknown> = {}) {
 beforeEach(() => {
   vi.clearAllMocks()
   resetAdviceCacheForTest()
+  cloudFlag.value = true  // 默认云端模式（与 vitest 读 .env 的真实值一致）
 })
 afterEach(() => {
   cleanup()
@@ -148,5 +152,54 @@ describe('聚合失败降级', () => {
       action === 'getDashboardStats' ? Promise.reject(new Error('boom')) : Promise.resolve({ code: -1 }))
     render(<DashboardTab />)
     await waitFor(() => expect(screen.getByText('⚠️ 看板数据加载失败')).toBeTruthy())
+  })
+})
+
+/**
+ * 模式分支（2026-10-24 新增）。
+ *
+ * 为什么必须有这一块：本文件其余用例都跑在 IS_CLOUD=true 下 —— vitest 读根目录 .env
+ * （vite 默认 envDir=项目根），而 .env 里配了 VITE_CB_API_BASE。于是「本地演示模式」这条
+ * 分支**从来没有被任何测试走到过**，这正是老大报「看板数据加载失败」能长期存在的原因：
+ * 真机 demo 构建 IS_CLOUD=false，测试环境 IS_CLOUD=true，两边看到的不是同一条代码路径。
+ * ⇒ 用 vi.mock 显式造两种模式，把分支各自钉住。
+ */
+describe('模式分支：本地演示 vs 云端', () => {
+  it('演示模式：不发必然失败的聚合请求，且显示设计边界而非「加载失败」', async () => {
+    cloudFlag.value = false  // beforeEach 会复位成 true，所以必须在用例内设
+    const { IS_CLOUD } = await import('../src/cloudbase')
+    expect(IS_CLOUD, '本用例的前提是 vi.mock 已把 IS_CLOUD 置为 false').toBe(false)
+    render(<DashboardTab />)
+    // 关键断言 ①：一次请求都不该发（发了就是白抛「未配置接口地址」+ 一条 console 噪声）
+    expect(adminCall).not.toHaveBeenCalled()
+    // 关键断言 ②：文案必须是"需要连接服务端 / 不可用"，不能出现"加载失败"
+    await waitFor(() => expect(screen.getByText(/本地演示模式/)).toBeTruthy())
+    expect(screen.queryByText(/加载失败/), '演示模式显示"加载失败"会把设计边界误报成故障').toBeNull()
+    expect(screen.getByText(/看板需要连接服务端聚合数据/)).toBeTruthy()
+  })
+
+  it('云端模式：正常发聚合请求（证明上一条的 not.toHaveBeenCalled 不是因为组件根本没挂载）', async () => {
+    cloudFlag.value = true
+    stubStats({ revenueSum: 700, orderSum: 35, totalOrders: 120 })
+    render(<DashboardTab />)
+    await waitFor(() => expect(adminCall).toHaveBeenCalledWith('getDashboardStats', { rangeDays: 7 }))
+  })
+
+  it('错误态必须给出路：有「重试」按钮，点击后重发聚合请求', async () => {
+    cloudFlag.value = true
+    adminCall.mockImplementation((action: string) =>
+      action === 'getDashboardStats' ? Promise.reject(new Error('boom')) : Promise.resolve({ code: -1 }))
+    render(<DashboardTab />)
+    await waitFor(() => expect(screen.getByText('⚠️ 看板数据加载失败')).toBeTruthy())
+    const retry = screen.getByRole('button', { name: '重试' })
+    const before = adminCall.mock.calls.length
+    // 让第二次请求成功，才能证明"重试"真的重发了（而不是只改了文案）
+    adminCall.mockImplementation((action: string) =>
+      action === 'getDashboardStats'
+        ? Promise.resolve({ code: 0, data: { ...EMPTY_STATS, revenueSum: 100, orderSum: 5, totalOrders: 5 } })
+        : Promise.resolve({ code: -1 }))
+    fireEvent.click(retry)
+    await waitFor(() => expect(adminCall.mock.calls.length).toBeGreaterThan(before))
+    expect(screen.queryByText('⚠️ 看板数据加载失败')).toBeNull()
   })
 })

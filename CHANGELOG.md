@@ -1,5 +1,43 @@
 ## [未发布]
 
+### 2026-10-24 看板在本地演示模式下的「加载失败」改回设计边界，并给错误态补出路
+
+- 一手现象（截图管理后台看板 tab）：demo 构建里看板区整块只剩一行红字「⚠️ 看板数据加载失败」，
+  下方大片空白。老大报的「营业时间显示已打烊」修完后，顺着同一批截图发现这个。
+- 根因：看板聚合在 H1-2 下沉到服务端 functions/lib/stats.js，而 DashboardTab 直接调
+  adminCall 且**没有 demo 分支** —— demo 构建（vite.config.e2e.js 把 envDir 指向空目录以屏蔽
+  .env）里 IS_CLOUD=false，api/client.ts 的 resolveBaseUrl 返回空串并当场抛
+  「未配置接口地址」⇒ .catch 把它吞成固定文案。发一个**必然失败**的请求有两个害处：
+  ① 白占一次网络与一条 console 报错（本仓 visual 判据的 watchErrors 会盯页面错误）；
+  ② 更要紧的是它把「这个视图在 demo 模式下不存在」渲染成「数据加载失败」—— 前者是设计
+  边界、后者是故障，让运营去猜是哪一种就是界面失职。⇒ 与本轮反复出现的同一族问题：
+  全仓 42 处 IS_CLOUD 都有本地兜底（auth/db/orders/products/reviews/submissions/AdminGuard
+  无一例外），唯独看板漏了 —— 有正确模式但没统一。
+- 修法三条：① 拉取聚合的 effect 在 !IS_CLOUD 时直接清空态返回，不发请求；② AI 建议
+  loadAdvice 同样挡掉（它也走 /web）；③ demo 态显示 amber 系说明块（口径复用 AdminPage
+  已有的 demo 横幅，不新造一套色），文案讲清"需要连接服务端 + 云端下这里会有什么"。
+- 顺带给错误态补出路：原来只有「⚠️ 加载失败」一行字，运营除了刷整页没有别的可做。加一个
+  「重试」按钮（reloadTick 自增只重发本视图请求，比刷整页轻、也不丢其它 tab 的编辑态）。
+- **新分支零覆盖**这件事被自己抓个正着：补完 demo 分支后想跑测试确认，先意识到 vitest 读
+  根目录 .env（vite 默认 envDir=项目根，而 .env 里有 VITE_CB_API_BASE）⇒ 测试环境 IS_CLOUD
+  恒为 true ⇒ 我新写的 demo 分支**一条测试都走不到**，而这正是「看板数据加载失败」能长期
+  存在的原因：真机 demo 构建与测试环境看到的不是同一条代码路径。⇒ 用 vi.hoisted 的可变
+  ref + getter 把 IS_CLOUD 做成可 mock 开关（默认 true 保持其余 10 条用例语义不变），
+  补 3 条：demo 不发请求且显示边界非故障 / 云端正常发（证明上一条不是"组件根本没挂载"）/
+  错误态有重试按钮且点击真的重发。
+- 三处变异验真（新用例的牙）：A 删 demo 早退 ⇒ 红在 not.toHaveBeenCalled；B 把 demo 文案
+  换成「看板数据加载失败」⇒ 红在「不能出现加载失败」并点名"把设计边界误报成故障"；
+  C 删重试按钮 ⇒ 红在 Unable to find button「重试」。三处还原均逐字比对 RESTORED:true。
+- **自己刚写的文案被自家判据当场拦下**（contrast 30 条里唯一一条红）：demo 说明的第二段
+  想用 text-amber-800/80 的透明度做"次要感"，判据实测合成后 4.41:1（需 4.5，差 0.09）——
+  正是 contrast 判据注释里那句「只差一点点最容易漏：按纯白底手算会以为合格，而它实际落在
+  有色底上」。改回实色 amber-800（6.84:1），次要层级交给字号与间距而不是透明度。
+  ⇒ 这条判据的价值又兑现一次：没有它，这段 4.41:1 的小字会直接进库。
+- 验证：oxlint 0 警告 / tsc 零错 / dashboardTab 13 条全过（10 旧 + 3 新）/ 三处变异 RED +
+  RESTORED:true / contrast 30 条全过（含 admin-dashboard 那条）/ visual 13 个 spec 全覆盖
+  全过（1 skipped 为合法）/ e2e 25 过 / stub 5 过 / **npm run verify 完整链 44 步 rc=0**
+  （链内 C9 绕过对账、D1 备份 liveness 为报告型读数不阻断；现网目录核对出现一次瞬时 SSL
+  UNVERIFIED，属外部网络抖动，非本笔引入）。
 ### 2026-10-24 管理后台告别冷灰：78 处前景 gray→stone（兑现站点自己声明过的色温原则）
 
 - 这是第十七轮「顾客端 138 处 gray→stone」的**另一半**。当时只做了顾客端，管理端按

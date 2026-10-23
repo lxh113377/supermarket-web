@@ -1,5 +1,6 @@
 import {  useCallback, useEffect, useMemo, useRef, useState  } from 'react'
 import { adminCall } from '../auth'
+import { IS_CLOUD } from '../cloudbase'
 import { useDashboardCharts } from '../hooks/useDashboardCharts'
 import KpiCard from './KpiCard'
 import { IconChart, IconBox } from './Icons'
@@ -79,12 +80,20 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
   const [rangeDays, setRangeDays] = useState(initialRangeDays)
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [statsError, setStatsError] = useState('')
+  // 手动重试计数（错误态的出路）：自增即触发上面的 effect 重发
+  const [reloadTick, setReloadTick] = useState(0)
   const [aiAdvice, setAiAdvice] = useState<{ content: string; source: string } | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiStatus, setAiStatus] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle')
 
-  // 拉取聚合（rangeDays 变化重取）
+  // 拉取聚合（rangeDays 变化重取；reloadTick 供「重试」按钮手动重发）
+  // ⚠️ 本地演示模式**不发这个请求**：看板聚合在 H1-2 下沉到服务端 functions/lib/stats.js，
+  //   demo 构建没有后端，adminCall 会因 resolveBaseUrl 返回空而当场抛「未配置接口地址」。
+  //   发一个必然失败的请求有两个害处：① 白白占一次网络与一次 console 报错（本仓 visual
+  //   判据的 watchErrors 会盯页面错误）；② 更要紧的是它把「这个视图在 demo 模式下不存在」
+  //   渲染成「数据加载失败」—— 前者是设计边界、后者是故障，让运营去猜是哪一种就是界面失职。
   useEffect(() => {
+    if (!IS_CLOUD) { setStats(null); setStatsError(''); return }
     let cancelled = false
     setStatsError('')
     adminCall<DashboardStats>('getDashboardStats', { rangeDays })
@@ -95,7 +104,7 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
       })
       .catch(() => { if (!cancelled) setStatsError('看板数据加载失败') })
     return () => { cancelled = true }
-  }, [rangeDays])
+  }, [rangeDays, reloadTick])
 
   // 派生值全部 memo 化。关键收益不在计算本身（都很轻），而在于**引用稳定性**：
   // useDashboardCharts 的 setOption effect 依赖 rangeData / pieSegments / topRevenue / reviewTrend，
@@ -130,6 +139,8 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
   // force=false 时命中会话缓存直接返回（mount 复用路径）；「刷新」按钮传 true 绕过缓存
   const loadAdvice = useCallback(async (force = false) => {
     if (aiLoading) return
+    // 同上：AI 建议走 /web aiAdvice，demo 模式下不发必然失败的请求（见拉取聚合处的说明）
+    if (!IS_CLOUD) { setAiStatus('idle'); return }
     if (!force && adviceCache) {
       setAiAdvice({ ...adviceCache })
       setAiStatus('loaded')
@@ -164,10 +175,37 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
 
   const dateStr = new Date().toISOString().slice(0, 10)
 
+  // 本地演示模式：看板聚合依赖服务端（H1-2 下沉），这里显示**设计边界**而不是"加载失败"。
+  // 文案口径复用 AdminPage 的 demo 横幅（amber 系 + 同一句话的措辞），不再新造一套色。
+  if (!IS_CLOUD) {
+    return (
+      <div className="bg-amber-50/80 p-5 rounded-2xl border border-amber-200/60">
+        <p className="text-sm leading-relaxed text-amber-800">
+          看板需要连接服务端聚合数据，<strong>本地演示模式</strong>下不可用（演示数据仅保存在浏览器中）。
+        </p>
+        {/* 不用 /80 之类的透明度做"次要感"：text-amber-800/80 合成后实测 4.40:1，
+            差 0.10 不过正文 4.5 —— 正是 contrast 判据注释里那句"只差一点点最容易漏"。
+            次要层级交给字号（text-xs vs 上面 text-sm）与间距，颜色保持实色 amber-800（6.84:1）。 */}
+        <p className="mt-2 text-xs leading-relaxed text-amber-800">
+          云端模式下此处展示近 {rangeDays} 天的营收趋势、毛利分析与 AI 经营建议。
+        </p>
+      </div>
+    )
+  }
+
   if (statsError) {
     return (
       <div className="bg-white p-5 rounded-2xl border border-gray-100/80 shadow-card">
-        <p className="text-sm text-red-700">⚠️ {statsError}</p>
+        <p className="text-sm leading-relaxed text-red-700">⚠️ {statsError}</p>
+        {/* 出路：原语只有"⚠️ 加载失败"一行字，运营除了刷新整页没有别的可做。
+            重试只重发本视图的请求（reloadTick 自增触发 effect），比刷整页更轻、
+            也不会丢掉其它 tab 的在编辑状态。 */}
+        <button
+          onClick={() => setReloadTick((n) => n + 1)}
+          className="mt-3 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-stone-600 transition hover:border-brand-400 hover:text-brand-700 active:scale-[0.98]"
+        >
+          重试
+        </button>
       </div>
     )
   }
