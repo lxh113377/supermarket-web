@@ -7,6 +7,7 @@ import Overlay from './Overlay'
 import { IconEmpty } from './Icons'
 import { resolvePrintFileUrl } from '../utils/printUpload'
 import type { Submission } from '../types'
+import { useInlineConfirm } from '../hooks/useInlineConfirm'
 
 const STATUS_MAP: Record<string, { label: string; cls: string }> = {
   pending: { label: '待处理', cls: 'bg-yellow-100 text-yellow-700' },
@@ -27,6 +28,8 @@ export default function SubmissionsTab() {
   // ReviewsTab 同一套内联做法（role="alert" + aria-live）；「已复制」是瞬时反馈，
   // 2.4s 后自动收，不占用用户一次点击。
   const [actionError, setActionError] = useState('')
+  // 删除走内联两步确认（arm → 再点一次 = 确认），替代原生 confirm()：见 hooks/useInlineConfirm
+  const { arm: armDelete, disarm: disarmDelete, isArmed: deleteArmed } = useInlineConfirm()
   const [copyNotice, setCopyNotice] = useState('')
   const copyTimer = useRef<number | undefined>(undefined)
 
@@ -102,7 +105,7 @@ export default function SubmissionsTab() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('确定删除该条提交？')) return
+    disarmDelete()
     try {
       await adminCall('deleteSubmission', { submissionId: id })
       setSubmissions(prev => prev.filter(s => s._id !== id))
@@ -284,8 +287,18 @@ export default function SubmissionsTab() {
                 <button onClick={() => copySubmission(s)} className="tap-44 px-3 py-2 bg-gray-50 text-stone-600 rounded-lg text-xs font-medium hover:bg-gray-100">
                   复制
                 </button>
-                <button onClick={() => handleDelete(s._id)} className="tap-44 px-3 py-2 bg-red-50 text-red-700 rounded-lg text-xs font-medium hover:bg-red-100">
-                  删除
+                {/* 两步确认（替代原生 confirm()）。原先这个按钮连 aria-label 都没有、也没测试
+                    覆盖 ⇒ 顺手补上：可访问名跟着状态走，并加「只点一下不会删」的用例。 */}
+                <button
+                  onClick={() => (deleteArmed(s._id) ? handleDelete(s._id) : armDelete(s._id))}
+                  onBlur={disarmDelete}
+                  aria-label={deleteArmed(s._id) ? '确认删除该提交（不可撤销）' : '删除该提交'}
+                  className={
+                    'tap-44 px-3 py-2 rounded-lg text-xs font-medium transition-colors duration-200 ' +
+                    (deleteArmed(s._id) ? 'bg-red-700 text-white' : 'bg-red-50 text-red-700 hover:bg-red-100')
+                  }
+                >
+                  {deleteArmed(s._id) ? '确认删除' : '删除'}
                 </button>
               </div>
             </div>

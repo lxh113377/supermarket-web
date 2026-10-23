@@ -168,6 +168,10 @@ describe('关键 step 存在性（改名即红，防"门禁静默消失"）', ()
     'PII inventory gate',
     'Production license gate',
     'CHANGELOG entry gate',
+    // 2026-10-24：登记值连续两轮漏更（codeFace.files.src 两次都是隔一轮才被 F2 抓到），
+    // 根因是这条判据只住在本地 verify 链、不在 CI 阻断链 ⇒ 本地跑子集就完全看不见。
+    // 按 I-73-4 的既有做法把它钉进这份名单：拿判据守接线，不靠下一轮人肉 grep。
+    'Governance registry three-way sync gate',
     'Bundle size budget (gzip, first-load)',
     'Pages Functions deployable-artifact check (compile, no deploy)',
   ]

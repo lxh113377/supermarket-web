@@ -67,13 +67,17 @@ describe('ReviewsTab 评价管理', () => {
     expect(await screen.findByText('不错')).toBeTruthy()
   })
 
-  it('删除：confirm 后走 deleteCloudReview 并重拉', async () => {
-    vi.stubGlobal('confirm', () => true)
+  // 内联两步确认（2026-10-24 替代原生 confirm()）：第一下只点亮，第二下才删。
+  // 「只点一下不会删」这条必须测 —— 它是两步确认存在的全部理由。
+  it('删除评价：只点第一下不删，点第二下才走 deleteCloudReview', async () => {
     render(<ReviewsTab />)
-    const del = await screen.findByRole('button', { name: '删除' })
+    const del = await screen.findByRole('button', { name: '删除该评价' })
     fireEvent.click(del)
+    await new Promise((res) => setTimeout(res, 0))
+    expect(h.deleteCloudReview, '第一下就删 ⇒ 两步确认形同虚设').not.toHaveBeenCalled()
+    const confirmBtn = await screen.findByRole('button', { name: '确认删除该评价（不可撤销）' })
+    fireEvent.click(confirmBtn)
     await waitFor(() => expect(h.deleteCloudReview).toHaveBeenCalled())
-    vi.unstubAllGlobals()
   })
 })
 
@@ -99,6 +103,22 @@ describe('SubmissionsTab 服务提交', () => {
     fireEvent.click(await screen.findByRole('button', { name: /查看图片/ }))
     await waitFor(() => expect(h.adminCall).toHaveBeenCalledWith('getSubmissionImages', { submissionId: 's1' }))
     await waitFor(() => expect(screen.getAllByRole('button', { name: /查看截图/ }).length).toBe(2))
+  })
+
+  // 删除提交：这个按钮此前零覆盖（原生 confirm 时代没人测得到它），两步化后补上。
+  it('删除提交：只点第一下不删，点第二下才调 deleteSubmission', async () => {
+    h.adminCall.mockImplementation(async (action: string) => {
+      if (action === 'deleteSubmission') return { code: 0 }
+      return { code: 0, data: subs }
+    })
+    render(<SubmissionsTab />)
+    const del = await screen.findByRole('button', { name: '删除该提交' })
+    fireEvent.click(del)
+    await new Promise((res) => setTimeout(res, 0))
+    expect(h.adminCall.mock.calls.some((c: string[]) => c[0] === 'deleteSubmission'), '第一下就删 ⇒ 两步确认形同虚设').toBe(false)
+    const confirmBtn = await screen.findByRole('button', { name: '确认删除该提交（不可撤销）' })
+    fireEvent.click(confirmBtn)
+    await waitFor(() => expect(h.adminCall).toHaveBeenCalledWith('deleteSubmission', expect.objectContaining({ submissionId: 's1' })))
   })
 
   it('状态处理：updateSubmissionStatus 后刷新', async () => {

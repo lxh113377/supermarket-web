@@ -204,6 +204,16 @@ jobs:
       - name: Memory volume budget gate
         run: npm run verify:volume
 
+      # 契约治理 ⇄ 体量治理登记册的三向对账（F1-F12）。2026-10-24 接进 CI 阻断链：
+      # 立它的事实 —— codeFace.files.src 这类登记值**连续两轮**漏更（85f15cb 漏一次、
+      # 本轮又漏一次），而本地全链能拦、CI 却看不见：此前 gates job 的 46 个 step 里
+      # 没有这条腿，它只住在本地 npm run verify 链里。check-gate-parity 的方向是
+      # 「CI ⊆ 本地」，本地比 CI 宽属合法 ⇒ 这类错位不在任何远端判据面上（第七十三轮
+      # I-73-4 的同一课，做法也照它：写进 ciWorkflow 的 REQUIRED_STEPS，拿既有判据
+      # 把接线本身判住，不另立新闸）。整脚本实测 0.2s，不进 CI 才是说不通的。
+      - name: Governance registry three-way sync gate
+        run: npm run verify:governance
+
       # 对标第三轮 C2：生产依赖（含传递）license 白名单，拦 GPL/AGPL 类传染（本项目 MIT 发布）
       - name: Production license gate
         run: npm run verify:licenses

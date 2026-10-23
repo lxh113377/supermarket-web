@@ -9,6 +9,7 @@ import { IconEmpty } from './Icons'
 import { formatPrice, formatYuan } from '../utils/format'
 import { splitOrderSpec } from '../utils/spec-options'
 import { orderStatusLabel, nextOrderStatuses, ORDER_STATUS_LABELS } from '../utils/orderStatus'
+import { useInlineConfirm } from '../hooks/useInlineConfirm'
 import type { Order, PromotionTier } from '../types'
 
 export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
@@ -19,6 +20,8 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
   const [deleting, setDeleting] = useState<string | null>(null)
+  // 删除走内联两步确认（arm → 再点一次 = 确认），替代原生 confirm()：见 hooks/useInlineConfirm
+  const { arm: armDelete, disarm: disarmDelete, isArmed: deleteArmed } = useInlineConfirm()
   const [notice, setNotice] = useState('')
   // P0-4 分页：订单全量渲染在数据量大时卡顿，按页渲染
   const PAGE_SIZE = 20
@@ -155,7 +158,7 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
   }
 
   const handleDelete = async (orderId: string) => {
-    if (!confirm('确定删除该订单？此操作不可撤销。')) return
+    disarmDelete()
     setDeleting(orderId)
     try {
       const res = await deleteOrder(orderId)
@@ -385,13 +388,26 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
               >
                 {tlOpen[order._id] ? '收起时间线' : '时间线'}
               </button>
+              {/* 两步确认：第一下点亮成「确认删除」（红底白字），再一下才真删。
+                  取消有三条路 —— 点别处（onBlur）、Esc、6s 超时，均由 hook 提供。
+                  aria-label 跟着状态走：读屏用户必须能分辨「这是要删」还是「这是确认删」。 */}
               <button
-                onClick={() => handleDelete(order._id)}
+                onClick={() => (deleteArmed(order._id) ? handleDelete(order._id) : armDelete(order._id))}
+                onBlur={disarmDelete}
                 disabled={deleting === order._id}
-                aria-label="删除订单"
-                className="tap-44 text-xs text-red-700 hover:text-red-800 px-2 py-1 disabled:opacity-50"
+                aria-label={deleteArmed(order._id) ? '确认删除该订单（不可撤销）' : '删除订单'}
+                className={
+                  'tap-44 text-xs px-2 py-1 rounded transition-colors duration-200 disabled:opacity-50 ' +
+                  (deleteArmed(order._id)
+                    ? 'bg-red-700 text-white font-medium'
+                    : 'text-red-700 hover:text-red-800')
+                }
               >
-                {deleting === order._id ? '删除中' : <span aria-hidden="true">🗑</span>}
+                {deleting === order._id
+                  ? '删除中'
+                  : deleteArmed(order._id)
+                    ? '确认删除'
+                    : <span aria-hidden="true">🗑</span>}
               </button>
             </div>
           </div>

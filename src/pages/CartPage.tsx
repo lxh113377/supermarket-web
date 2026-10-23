@@ -7,6 +7,7 @@ import { getCart, saveCart, addToCart, removeFromCart, deleteFromCart, getTotalA
 import { getProducts } from '../db'
 import { formatYuan } from '../utils/format'
 import { MIN_DELIVERY_AMOUNT, meetsMinDelivery, minDeliveryGap } from '../data/deliveryLimits'
+import { useInlineConfirm } from '../hooks/useInlineConfirm'
 import type { Cart, CartItem as CartItemType, Product } from '../types'
 
 interface PriceChange {
@@ -19,6 +20,8 @@ export default function CartPage() {
   const navigate = useNavigate()
   const [cart, setCart] = React.useState<Cart>(() => getCart())
   const [priceChanges, setPriceChanges] = React.useState<PriceChange[]>([])
+  // 清空购物车走内联两步确认（arm → 再点一次 = 确认），替代原生 confirm()：见 hooks/useInlineConfirm
+  const { arm: armClear, disarm: disarmClear, isArmed: clearArmed } = useInlineConfirm()
 
   // 检测价格变动并同步刷新购物车显示价格（仅在页面打开时同步一次）
   const initialCartRef = React.useRef<Cart>(cart)
@@ -92,18 +95,27 @@ export default function CartPage() {
         </button>
         <h1 className="text-base font-bold text-ink">购物车</h1>
         <div className="flex items-center gap-2">
+          {/* 两步确认（替代原生 confirm()）：清空会一次丢掉所有已选商品，误触代价高。第一下点亮成红底
+              「确认清空」，第二下才真清；取消三条路：点别处 / Esc / 6s 超时。
+              ⚠️ 注释必须放在 {cond && ( ... )} 的外面：花括号加斜杠星那种 JSX 注释只在 children
+                 位置合法，放进括号里的表达式位置会当场 SyntaxError（前四处按钮在 children 位所以没这问题）。 */}
           {cart.items.length > 0 && (
             <button
               onClick={() => {
-                if (confirm('确定清空购物车？')) {
-                  const empty = { items: [] }
-                  setCart(empty)
-                  saveCart(empty)
-                }
+                if (!clearArmed('clear')) { armClear('clear'); return }
+                disarmClear()
+                const empty = { items: [] }
+                setCart(empty)
+                saveCart(empty)
               }}
-              className="text-xs text-red-700 px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition-colors duration-200"
+              onBlur={disarmClear}
+              aria-label={clearArmed('clear') ? '确认清空购物车' : '清空购物车'}
+              className={
+                'text-xs px-2.5 py-1.5 rounded-lg transition-colors duration-200 ' +
+                (clearArmed('clear') ? 'bg-red-700 text-white font-medium' : 'text-red-700 hover:bg-red-50')
+              }
             >
-              清空
+              {clearArmed('clear') ? '确认清空' : '清空'}
             </button>
           )}
           <button

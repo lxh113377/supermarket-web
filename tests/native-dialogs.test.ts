@@ -117,11 +117,17 @@ test('src/functions 不得有原生 prompt()', () => {
 })
 
 /**
- * confirm() 棘轮：现值 8（2026-10-23 实测）。只准降不准升 —— 新增处必须改成内联
- * 两步确认（后台禁弹窗红线，不许引入自定义 modal）。清零要改 8 处控制流，属独立
- * 一轮工作；本轮如实登记而不是假装没有。
+ * confirm() 棘轮：现值 3（2026-10-24 实测；立件当天是 8）。只准降不准升 —— 新增处
+ * 必须改成内联两步确认（后台禁弹窗红线，不许引入自定义 modal）。
+ *
+ * 8 → 3 的账：2026-10-24 建 src/hooks/useInlineConfirm.ts（arm → 再点一次 = 确认，
+ * 取消三条路：blur / Esc / 6s 超时），清掉 5 处 —— OrdersTab 删除订单、ReviewsTab
+ * 删除评价、SubmissionsTab 删除提交、AdminPage 导入种子、CartPage 清空购物车。
+ * 剩 3 处全在 ProductsTab（单删 / 批量删 / 批量改价）：它们挂在 fixed 底部批量条上，
+ * 且该文件有 9 条 confirm 桩测试要同步改，布局与测试风险都不同于前 5 处 ⇒ 留下一轮
+ * 单独清。上限写松了棘轮就退化成装饰，所以按实际现值钉死，而不是留着 8 等清零。
  */
-const CONFIRM_CEILING = 8
+const CONFIRM_CEILING = 3
 test('原生 confirm() 不得超过棘轮上限 ' + CONFIRM_CEILING + '（只准降不准升）', () => {
   const hits = findNativeDialogs(ALL, 'confirm')
   expect(hits.length, '原生 confirm() 从 ' + CONFIRM_CEILING + ' 涨到 ' + hits.length

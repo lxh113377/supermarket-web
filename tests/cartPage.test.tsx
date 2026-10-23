@@ -122,4 +122,43 @@ describe('CartPage 购物车页', () => {
     fireEvent.click(screen.getByLabelText('减少冰红茶 (1L · 柠檬味)'))
     expect(mocks.removeFromCart).toHaveBeenCalledWith({ items: [cucumber, lemon] }, 'p_flavor', '1L · 柠檬味')
   })
+
+  /**
+   * 清空购物车：内联两步确认（2026-10-24 替代原生 confirm()）。
+   * 这个按钮原先**完全没有测试** —— 原生 confirm 时代没人测得到它（jsdom 里点一下就会
+   * 因为 window.confirm 不存在而抛错，或被桩掉后跳过整段交互）。两步化后它变成纯状态机，
+   * 于是「第一下不删」这条最关键的产品语义第一次可测、也必须测。
+   */
+  const withOneItem = () => {
+    mocks.getCart.mockReturnValue({ items: [item] })
+    mocks.getTotalAmount.mockReturnValue(11)
+    mocks.getTotalCount.mockReturnValue(2)
+    render(<CartPage />)
+  }
+
+  it('清空：只点第一下进入待确认态，不写空购物车', async () => {
+    withOneItem()
+    const btn = await screen.findByRole('button', { name: '清空购物车' })
+    fireEvent.click(btn)
+    await new Promise((res) => setTimeout(res, 0))
+    expect(mocks.saveCart, '第一下就清空 ⇒ 两步确认形同虚设').not.toHaveBeenCalled()
+    expect(await screen.findByRole('button', { name: '确认清空购物车' })).toBeTruthy()
+  })
+
+  it('清空：第二下才真清（saveCart 收到空 items）', async () => {
+    withOneItem()
+    fireEvent.click(await screen.findByRole('button', { name: '清空购物车' }))
+    fireEvent.click(await screen.findByRole('button', { name: '确认清空购物车' }))
+    await waitFor(() => expect(mocks.saveCart).toHaveBeenCalledWith({ items: [] }))
+  })
+
+  it('清空：待确认态下按 Esc 回退，不写存储', async () => {
+    withOneItem()
+    fireEvent.click(await screen.findByRole('button', { name: '清空购物车' }))
+    await screen.findByRole('button', { name: '确认清空购物车' })
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await new Promise((res) => setTimeout(res, 0))
+    expect(mocks.saveCart, 'Esc 应取消待确认态').not.toHaveBeenCalled()
+    expect(await screen.findByRole('button', { name: '清空购物车' })).toBeTruthy()
+  })
 })

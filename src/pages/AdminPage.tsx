@@ -8,6 +8,7 @@ import ReviewsTab from '../components/ReviewsTab'
 import SubmissionsTab from '../components/SubmissionsTab'
 import type { Category, Order, Product } from '../types'
 import { handleTablistKeyDown } from '../utils/rovingTabs'
+import { useInlineConfirm } from '../hooks/useInlineConfirm'
 
 const TABS = [
   { key: 'dashboard', label: '看板', icon: '📊' },
@@ -25,6 +26,8 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true)
   const [ordersLoading, setOrdersLoading] = useState(false)
   const [seeding, setSeeding] = useState(false)
+  // 导入种子是一次性、不可逆的写操作，走内联两步确认替代原生 confirm()
+  const { arm: armSeed, disarm: disarmSeed, isArmed: seedArmed } = useInlineConfirm()
   const [seedMsg, setSeedMsg] = useState('')
   const [productsError, setProductsError] = useState('')
 
@@ -126,7 +129,7 @@ export default function AdminPage() {
   }, [tab, loadOrders])
 
   const doSeed = async () => {
-    if (!confirm('将创建云端集合并导入种子商品（仅首次需要）。确定？')) return
+    disarmSeed()
     setSeeding(true); setSeedMsg('')
     try {
       const r = await seedCloudData()
@@ -178,8 +181,19 @@ export default function AdminPage() {
       {IS_CLOUD && products.length === 0 && (
         <div className="mb-5 bg-brand-50/80 border border-brand-200/60 rounded-2xl p-4 space-y-3 animate-slide-down">
           <p className="text-brand-700 text-xs">云端模式已启用，但暂无商品数据</p>
-          <button onClick={doSeed} disabled={seeding} className="btn-primary w-full py-2.5 text-sm">
-            {seeding ? '初始化中...' : '导入种子数据'}
+          {/* 两步确认（替代原生 confirm()）：导入是一次性写库操作。第二下换成红底「确认导入」，
+              与「主按钮=柿色」的默认态拉开视觉差，避免用户在同一个柿色按钮上误连续点。 */}
+          <button
+            onClick={() => (seedArmed('seed') ? doSeed() : armSeed('seed'))}
+            onBlur={disarmSeed}
+            disabled={seeding}
+            aria-label={seedArmed('seed') ? '确认导入种子数据（仅首次需要）' : '导入种子数据'}
+            className={
+              'w-full py-2.5 text-sm rounded-xl font-semibold transition-colors duration-200 disabled:opacity-50 ' +
+              (seedArmed('seed') ? 'bg-red-700 text-white' : 'btn-primary')
+            }
+          >
+            {seeding ? '初始化中...' : seedArmed('seed') ? '确认导入种子数据' : '导入种子数据'}
           </button>
           {seedMsg && <p className="text-brand-700 text-xs">{seedMsg}</p>}
         </div>

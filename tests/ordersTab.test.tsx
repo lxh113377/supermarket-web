@@ -146,31 +146,62 @@ describe('状态流转', () => {
   })
 })
 
-describe('删除订单', () => {
-  it('确认取消 → 不调用删除接口', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
+/**
+ * 删除订单：内联两步确认（2026-10-24 替代原生 confirm()）。
+ * 交互契约 —— 第一下只**点亮**（aria-label 变「确认删除该订单（不可撤销）」），
+ * 第二下才真删；取消有三条路：点别处（blur）、Esc、6s 超时。
+ * 所以这里必须有一条测「只点一下不会删」的用例：那正是两步确认存在的全部理由，
+ * 也是从原生 confirm 迁过来最容易写错的地方（漏掉判断就会变成点一下就删）。
+ */
+describe('删除订单（内联两步确认）', () => {
+  it('只点第一下 → 进入待确认态，绝不调用删除接口', async () => {
     setup()
-    fireEvent.click(screen.getAllByLabelText('删除订单')[0])
+    const btn = screen.getAllByLabelText('删除订单')[0]
+    fireEvent.click(btn)
     await new Promise((r) => setTimeout(r, 0))
-    expect(m.deleteOrder).not.toHaveBeenCalled()
+    expect(m.deleteOrder, '第一下就删 ⇒ 两步确认形同虚设').not.toHaveBeenCalled()
+    // 点亮后按钮的可访问名必须变（读屏用户要能分辨这是「要删」还是「确认删」）
+    await waitFor(() => expect(screen.getByLabelText('确认删除该订单（不可撤销）')).toBeTruthy())
   })
 
-  it('确认删除 → 成功后重拉列表并 notice', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
+  it('点第一下后再点第二下 → 真删，成功后重拉列表并 notice', async () => {
     const rest = [mkOrder(2)]
     m.getAllOrders.mockResolvedValue({ orders: rest, maxUpdatedAt: null })
     setup()
     fireEvent.click(screen.getAllByLabelText('删除订单')[0])
+    await waitFor(() => expect(screen.getByLabelText('确认删除该订单（不可撤销）')).toBeTruthy())
+    fireEvent.click(screen.getByLabelText('确认删除该订单（不可撤销）'))
     await waitFor(() => expect(m.deleteOrder).toHaveBeenCalledWith('o1'))
     await waitFor(() => expect(screen.getByRole('status').textContent).toBe('订单已删除'))
     expect(m.onOrdersChange).toHaveBeenCalledWith(rest)
   })
 
+  it('待确认态下按 Esc → 回退且删除接口不被调用', async () => {
+    setup()
+    fireEvent.click(screen.getAllByLabelText('删除订单')[0])
+    await waitFor(() => expect(screen.getByLabelText('确认删除该订单（不可撤销）')).toBeTruthy())
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await new Promise((r) => setTimeout(r, 0))
+    expect(m.deleteOrder, 'Esc 应取消待确认态').not.toHaveBeenCalled()
+    await waitFor(() => expect(screen.getAllByLabelText('删除订单').length).toBeGreaterThan(0))
+  })
+
+  it('待确认态下焦点移出（点别处）→ 回退', async () => {
+    setup()
+    const btn = screen.getAllByLabelText('删除订单')[0]
+    fireEvent.click(btn)
+    await waitFor(() => expect(screen.getByLabelText('确认删除该订单（不可撤销）')).toBeTruthy())
+    fireEvent.blur(screen.getByLabelText('确认删除该订单（不可撤销）'))
+    await new Promise((r) => setTimeout(r, 0))
+    expect(m.deleteOrder).not.toHaveBeenCalled()
+    await waitFor(() => expect(screen.getAllByLabelText('删除订单').length).toBeGreaterThan(0))
+  })
+
   it('删除失败（code!=0）→ notice 展示原因且清除 deleting 态', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     m.deleteOrder.mockResolvedValue({ code: -1, message: '订单不存在' })
     setup()
     fireEvent.click(screen.getAllByLabelText('删除订单')[0])
+    fireEvent.click(screen.getByLabelText('确认删除该订单（不可撤销）'))
     await waitFor(() => expect(screen.getByRole('status').textContent).toContain('删除失败：订单不存在'))
     expect(screen.getAllByLabelText('删除订单')[0].hasAttribute('disabled')).toBe(false)
   })

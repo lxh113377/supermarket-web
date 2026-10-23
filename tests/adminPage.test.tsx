@@ -61,15 +61,19 @@ describe('AdminPage 管理壳', () => {
     expect(screen.getByTestId('tab-products').getAttribute('data-count')).toBe('0')
   })
 
-  it('云端空商品：出现"导入种子数据"，confirm 后 seedCloudData 并回显结果', async () => {
+  // 内联两步确认（2026-10-24 替代原生 confirm()）：导入是一次性写库操作，
+  // 「只点第一下不会真导入」必须单独测 —— 它是两步确认存在的全部理由。
+  it('云端空商品：导入种子走两步确认，第二下才 seedCloudData 并回显结果', async () => {
     h.getAdminProducts.mockResolvedValue([])
-    vi.stubGlobal('confirm', () => true)
     render(<AdminPage />)
     const btn = await screen.findByRole('button', { name: '导入种子数据' })
     fireEvent.click(btn)
+    await new Promise((res) => setTimeout(res, 0))
+    expect(h.seedCloudData, '第一下就导入 ⇒ 两步确认形同虚设（这是写库操作）').not.toHaveBeenCalled()
+    const confirmBtn = await screen.findByRole('button', { name: '确认导入种子数据（仅首次需要）' })
+    fireEvent.click(confirmBtn)
     await waitFor(() => expect(h.seedCloudData).toHaveBeenCalled())
     expect(await screen.findByText('初始化成功：分类 2 个，商品 55 个')).toBeTruthy()
-    vi.unstubAllGlobals()
   })
 
   it('tablist 键盘右移切到订单 tab 并渲染（增量游标复用）', async () => {

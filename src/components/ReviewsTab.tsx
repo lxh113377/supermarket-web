@@ -4,6 +4,7 @@ import EmptyState from './EmptyState'
 import { SkeletonTable } from './Skeleton'
 import { IconEmpty } from './Icons'
 import type { Product, Review } from '../types'
+import { useInlineConfirm } from '../hooks/useInlineConfirm'
 
 // 星级展示：补 role="img" + aria-label —— 原先只有 ★☆ 字符，读屏会逐字符念「黑星白星」，
 // 用户完全听不出「几星」。
@@ -20,6 +21,8 @@ export default function ReviewsTab() {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState<string | null>(null)
+  // 删除走内联两步确认（arm → 再点一次 = 确认），替代原生 confirm()：见 hooks/useInlineConfirm
+  const { arm: armDelete, disarm: disarmDelete, isArmed: deleteArmed } = useInlineConfirm()
 
   // 新增表单
   const [showForm, setShowForm] = useState(false)
@@ -66,7 +69,7 @@ export default function ReviewsTab() {
 
   // 删除评价
   const doDelete = async (reviewId: string) => {
-    if (!confirm('确定删除这条评价？此操作不可撤销。')) return
+    disarmDelete()
     setDeleting(reviewId)
     try {
       await deleteCloudReview(reviewId)
@@ -238,12 +241,22 @@ export default function ReviewsTab() {
                 <p className="text-sm text-stone-700 mt-1">{rev.text}</p>
                 <p className="text-xs text-brand-700 mt-1">{getProductName(rev.productOrder)}</p>
               </div>
+              {/* 两步确认（替代原生 confirm()）：第一下点亮成红底「确认删除」，再一下才真删；
+                  取消三条路：点别处（blur）/ Esc / 6s 超时。补 aria-label 让可访问名不随
+                  文案变化而漂移 —— 原先测试靠文字「删除」定位，两步化后文字会变，没 label 就会假失败。 */}
               <button
-                onClick={() => doDelete(rev._id || '')}
+                onClick={() => (deleteArmed(rev._id || '') ? doDelete(rev._id || '') : armDelete(rev._id || ''))}
+                onBlur={disarmDelete}
                 disabled={deleting === (rev._id || '')}
-                className="text-xs text-red-700 hover:text-red-800 py-1 px-2 disabled:opacity-50 flex-shrink-0"
+                aria-label={deleteArmed(rev._id || '') ? '确认删除该评价（不可撤销）' : '删除该评价'}
+                className={
+                  'text-xs py-1 px-2 rounded disabled:opacity-50 flex-shrink-0 transition-colors duration-200 ' +
+                  (deleteArmed(rev._id || '')
+                    ? 'bg-red-700 text-white font-medium'
+                    : 'text-red-700 hover:text-red-800')
+                }
               >
-                {deleting === (rev._id || '') ? '删除中' : '删除'}
+                {deleting === (rev._id || '') ? '删除中' : deleteArmed(rev._id || '') ? '确认删除' : '删除'}
               </button>
             </div>
           ))}
