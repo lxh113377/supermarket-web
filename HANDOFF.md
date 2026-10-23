@@ -242,6 +242,16 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN`（repo �
    `/api/auth/me` 全 404 —— 后者是静态托管没有 Functions，必然结果）。想"跨域借 pages.dev 的后端"
    也不成立：校园打印的会话是 `httpOnly` + `SameSite=Lax` Cookie（上游 `backend/auth.js:37`），
    跨域请求带不出 Cookie ⇒ 登录态与 CSRF 必断。
+   **2026-10-23 再补一手，把「为什么零食能跨域、打印不能」钉死**：github.io 上超市页其实
+   **是好的**——浏览器实测它把请求打到绝对地址 `https://supermarket-web.pages.dev/pub`（POST 200，
+   响应头 `access-control-allow-origin: *`），所以零食商品/价格照常渲染（基址来自构建期注入的
+   `VITE_CB_API_BASE`，见 `src/cloudbase/client.ts:35`）。而打印**结构上不能照此办理**，三条独立死路：
+   ① 搬进来的前端把接口写死成相对 `/api`（`public/shared/api.js` 四处 `fetch('/api'+route)`；全仓
+   `window.__` / `import.meta.env` / `API_BASE` 这类可注入基址命中 **0 处**），github.io 上相对 `/api`
+   只会打到自己域名的 404；② 即便改指 pages.dev，`/api` 反代**没有 CORS**——实测带 github.io
+   Origin 的响应无 `access-control-allow-origin`、预检 `OPTIONS /api/...` 直接 404，跨域根本读不到；
+   ③ 再叠加上一条 SameSite=Lax Cookie 也带不出。⇒ 「跨域借后端」对打印是零可行性
+   （对零食可行，只因它本就设计成绝对基址 + `/pub` 放开 CORS）。
    **未实测、仅继承自 `chaoshi-web-deploy` skill §1 的部分**：该处写 github.io 是"唯一微信入口"，
    但没留一手证据说明 pages.dev 在微信里到底是被拦、还是只是当年没备案所以没用它。老大截图里
    那次拦截是**脚本触发的跨域导航**（github.io → pages.dev）所致，这并不等于"直接在微信打开
