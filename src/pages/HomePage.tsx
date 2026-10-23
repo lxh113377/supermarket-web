@@ -157,7 +157,7 @@ export default function HomePage() {
       <main id="main-content" tabIndex={-1} className="mx-auto max-w-5xl px-5 pb-28 sm:px-10">
         <div className={`mt-10 flex items-baseline justify-between gap-4 ${open ? '' : 'mt-6'}`}>
           <h2 className="text-display-md text-ink">服务索引</h2>
-          <p className="text-xs text-gray-500">四大板块 · 点击进店</p>
+          <p className="text-xs text-stone-500">四大板块 · 点击进店</p>
         </div>
 
         <nav aria-label="服务分类" className="mt-5 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
@@ -187,18 +187,18 @@ export default function HomePage() {
                 {/* 序号肉眼可见（对视力正常用户是"这是第几类"的线索），所以必须过对比度：
                     gray-300 压白卡只有 1.47:1（大字档也要 3:1）⇒ gray-500 = 4.83:1。
                     aria-hidden 保留（读屏不该念"零一"），但它不再是免检理由。 */}
-                <span className="index-num text-xl font-bold text-gray-500 transition-colors duration-200 group-hover:text-brand-700" aria-hidden="true">
+                <span className="index-num text-xl font-bold text-stone-500 transition-colors duration-200 group-hover:text-brand-700" aria-hidden="true">
                   {String(i + 1).padStart(2, '0')}
                 </span>
               </span>
 
               <span className="mt-1 block text-base font-bold tracking-tight text-ink">{cat.name}</span>
-              <span className="block text-xs leading-relaxed text-gray-500">{cat.description}</span>
+              <span className="block text-xs leading-relaxed text-stone-500">{cat.description}</span>
 
               {/* 底栏：进入指示。hover 时短线伸展，把"可以进去"说成动作而不是图标 */}
               <span className="mt-auto flex w-full items-center gap-2 pt-3">
                 <span className="h-px flex-1 bg-gray-200 transition-colors duration-300 group-hover:bg-brand-400" aria-hidden="true" />
-                <span className="text-2xs font-semibold tracking-widest text-gray-600 transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-brand-700">
+                <span className="text-2xs font-semibold tracking-widest text-stone-600 transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-brand-700">
                   进入
                 </span>
               </span>
@@ -209,7 +209,7 @@ export default function HomePage() {
         {/* 页脚：一条短线 + 极小字，收住首屏不留悬空 */}
         <footer className="mt-16 flex flex-col items-center gap-3">
           <span className="brand-bar h-0.5 w-16 rounded-full opacity-70" aria-hidden="true" />
-          <p className="text-2xs tracking-[0.18em] text-gray-500">江西科技学院 · 校园服务平台</p>
+          <p className="text-2xs tracking-[0.18em] text-stone-500">江西科技学院 · 校园服务平台</p>
         </footer>
       </main>
 

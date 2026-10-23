@@ -31,7 +31,7 @@ export default function RelatedProducts({ current, products, limit = 8 }: Props)
     <section aria-labelledby="related-heading" className="mt-4 lg:mt-6">
       <div className="flex items-baseline justify-between gap-3 px-4 lg:px-0 mb-3">
         <h2 id="related-heading" className="section-title">同类商品</h2>
-        <span className="text-xs text-gray-500">共 {related.length} 条 · 取自真实商品目录</span>
+        <span className="text-xs text-stone-500">共 {related.length} 条 · 取自真实商品目录</span>
       </div>
       <ul
         data-related-list=""
@@ -65,7 +65,7 @@ export default function RelatedProducts({ current, products, limit = 8 }: Props)
                   )}
                 </div>
                 <p className="text-sm text-ink mt-2 line-clamp-2 leading-snug">{p.name}</p>
-                {p.spec && <p className="text-xs text-gray-500 mt-0.5 truncate">{p.spec}</p>}
+                {p.spec && <p className="text-xs text-stone-500 mt-0.5 truncate">{p.spec}</p>}
                 <p className="price-num mt-1 text-sm font-bold text-brand-700">{formatYuan(p.price)}</p>
               </Link>
             </li>

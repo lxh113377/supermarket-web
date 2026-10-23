@@ -88,7 +88,7 @@ function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
             <span className="text-4xl" aria-hidden="true">
               {product.subcategories?.includes('snacks') || product.subcategories?.includes('filling') ? '🍜' : '🥤'}
             </span>
-            <span className="text-3xs text-gray-500">示意图 · 非商品实拍</span>
+            <span className="text-3xs text-stone-500">示意图 · 非商品实拍</span>
           </div>
         )}
 
@@ -110,7 +110,7 @@ function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
                   onRemove(product)
                 }}
                 aria-label={`减少${product.name}`}
-                className="tap-44 w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm border border-gray-200 text-gray-600 flex items-center justify-center text-base leading-none shadow-soft hover:bg-white hover:border-brand-500 transition-all duration-200 active:scale-90"
+                className="tap-44 w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm border border-gray-200 text-stone-600 flex items-center justify-center text-base leading-none shadow-soft hover:bg-white hover:border-brand-500 transition-all duration-200 active:scale-90"
               >
                 <span aria-hidden="true">-</span>
               </button>
@@ -138,21 +138,21 @@ function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
             data-card-name 是给测试的稳定钩子：判据曾按字面标签名（h3）取数，本轮把分区标题
             从 h3 归位到 h2 时它们静默取到空串，报成「目录里没有同名商品」—— 那是把选择器
             打偏误读成业务缺陷。视觉样式一字未改，纯语义调整。 */}
-        <div data-card-name className={`text-card-title font-semibold leading-snug tracking-tight line-clamp-2 ${disabled ? 'text-gray-500' : 'text-ink'}`}>
+        <div data-card-name className={`text-card-title font-semibold leading-snug tracking-tight line-clamp-2 ${disabled ? 'text-stone-500' : 'text-ink'}`}>
           {product.name}
         </div>
         {/* 规格独立成行：同名商品（农夫山泉矿泉水 / 怡宝矿泉水）全靠它区分，不能缩成附注 */}
         {product.spec ? (
-          <p className={`text-xs mt-1 ${disabled ? 'text-gray-500' : 'text-gray-600'}`}>{product.spec}</p>
+          <p className={`text-xs mt-1 ${disabled ? 'text-stone-500' : 'text-stone-600'}`}>{product.spec}</p>
         ) : (
           <p className="text-xs mt-1 text-transparent select-none" aria-hidden="true">·</p>
         )}
         {disabled && (
-          <span className="self-start mt-1.5 text-3xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-md font-medium">
+          <span className="self-start mt-1.5 text-3xs bg-gray-200 text-stone-600 px-1.5 py-0.5 rounded-md font-medium">
             已下架
           </span>
         )}
-        <p className={`price-num mt-1.5 text-price-sm font-bold ${disabled ? 'text-gray-500' : 'text-brand-700'}`}>
+        <p className={`price-num mt-1.5 text-price-sm font-bold ${disabled ? 'text-stone-500' : 'text-brand-700'}`}>
           <span className="mr-px text-sm font-semibold opacity-70">¥</span>{formatPrice(product.price)}
           {/* 规格与价格之间留一条发丝线：让"这是什么/多少钱"两段各自成组 */}
           {/* 卡面只标这一条记录自己的真实价格，不用「¥x 起」——

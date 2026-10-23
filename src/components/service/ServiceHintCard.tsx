@@ -38,7 +38,7 @@ export default function ServiceHintCard({ hint }: { hint?: string }) {
                 // 检测是否含价格信息
                 const hasPrice = /\d+元/.test(line) || /\d+\.\d+元/.test(line)
                 return (
-                  <p key={lIdx} className={`text-xs leading-relaxed flex items-start gap-2 ${hasPrice ? 'text-ink-soft font-medium' : 'text-gray-500'}`}>
+                  <p key={lIdx} className={`text-xs leading-relaxed flex items-start gap-2 ${hasPrice ? 'text-ink-soft font-medium' : 'text-stone-500'}`}>
                     <span className={`mt-1 w-1 h-1 rounded-full flex-shrink-0 ${hasPrice ? 'bg-brand-400' : 'bg-gray-300'}`} />
                     {line}
                   </p>

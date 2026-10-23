@@ -99,7 +99,7 @@ export default function ReviewForm({ productOrder, onPublished }: { productOrder
           className="input-base"
         />
         <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-500" id="review-rating-label">评分</span>
+          <span className="text-sm text-stone-500" id="review-rating-label">评分</span>
           {/* 触控目标（2026-10-23）：原先按钮布局盒只有 19x32、相邻间距 2~4px，
               按 WCAG 2.5.8 的 spacing 例外要"以中心画 24x24 方框不重叠"⇒ 需横向各扩
               2.5px，而实际间距小于它 ⇒ 例外不成立，是真违规（微信内单手写评价会误触）。
@@ -113,7 +113,7 @@ export default function ReviewForm({ productOrder, onPublished }: { productOrder
                 aria-checked={rating === n}
                 aria-label={`${n}星`}
                 onClick={() => setRating(n)}
-                className={`flex h-11 w-11 items-center justify-center text-2xl transition duration-150 active:scale-90 ${n <= rating ? 'text-amber-600' : 'text-gray-500 hover:text-amber-500'}`}
+                className={`flex h-11 w-11 items-center justify-center text-2xl transition duration-150 active:scale-90 ${n <= rating ? 'text-amber-600' : 'text-stone-500 hover:text-amber-500'}`}
               >
                 ★
               </button>
@@ -159,7 +159,7 @@ export default function ReviewForm({ productOrder, onPublished }: { productOrder
             </div>
           )}
           {images.length < MAX_REVIEW_IMAGES && (
-            <label className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-4 text-sm text-gray-500 hover:border-brand-500 hover:text-brand-700 hover:bg-brand-50/30 transition-all duration-300 flex flex-col items-center cursor-pointer">
+            <label className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-4 text-sm text-stone-500 hover:border-brand-500 hover:text-brand-700 hover:bg-brand-50/30 transition-all duration-300 flex flex-col items-center cursor-pointer">
               <span className="text-xl mb-1">📷</span>
               添加图片（选填，最多 {MAX_REVIEW_IMAGES} 张）
               <input type="file" accept="image/*" multiple aria-label="选择要上传的评价图片" className="hidden" onChange={handleImages} />

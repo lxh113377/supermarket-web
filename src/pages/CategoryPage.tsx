@@ -33,7 +33,7 @@ export default function CategoryPage() {
   if (!category) {
     return (
       <div role="main" id="main-content" tabIndex={-1} className="page-container flex items-center justify-center">
-        <p className="text-gray-500 text-sm">分类不存在</p>
+        <p className="text-stone-500 text-sm">分类不存在</p>
       </div>
     )
   }
@@ -89,7 +89,7 @@ export default function CategoryPage() {
                 <span className="text-2xl w-11 h-11 flex items-center justify-center bg-gray-50 rounded-xl">{service.icon}</span>
                 <div className="min-w-0 w-full">
                   <p className="font-semibold text-ink-soft text-sm truncate">{service.name}</p>
-                  <p className="text-xs text-gray-500 mt-1 leading-snug line-clamp-2">{service.description}</p>
+                  <p className="text-xs text-stone-500 mt-1 leading-snug line-clamp-2">{service.description}</p>
                 </div>
               </button>
             ))}
@@ -107,9 +107,9 @@ export default function CategoryPage() {
                 </span>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-ink-soft text-sm">{service.name}</p>
-                  <p className="text-xs text-gray-500 mt-1 truncate leading-relaxed">{service.description}</p>
+                  <p className="text-xs text-stone-500 mt-1 truncate leading-relaxed">{service.description}</p>
                 </div>
-                <span className="text-gray-400 text-xl transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden="true">›</span>
+                <span className="text-stone-400 text-xl transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden="true">›</span>
               </button>
             ))}
           </div>

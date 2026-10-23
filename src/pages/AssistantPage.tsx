@@ -93,7 +93,7 @@ export default function AssistantPage() {
         <button
           onClick={() => navigate(-1)}
           aria-label="返回"
-          className="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200 active:scale-90"
+          className="w-8 h-8 rounded-full flex items-center justify-center text-stone-500 hover:text-stone-700 hover:bg-gray-100 transition-all duration-200 active:scale-90"
         >
           ←
         </button>
@@ -125,7 +125,7 @@ export default function AssistantPage() {
                   ? 'bg-ink text-white rounded-br-md'
                   : m.isError
                     ? 'bg-red-50 text-red-700 border border-red-100 rounded-bl-md'
-                    : 'bg-white border border-gray-100/80 shadow-card text-gray-700 rounded-bl-md'
+                    : 'bg-white border border-gray-100/80 shadow-card text-stone-700 rounded-bl-md'
               }`}
             >
               {m.text}
@@ -149,7 +149,7 @@ export default function AssistantPage() {
               <button
                 key={q}
                 onClick={() => void send(q)}
-                className="px-3 py-1.5 rounded-full bg-white border border-gray-200 text-xs text-gray-600 hover:border-brand-500 hover:text-brand-700 transition-all duration-150 active:scale-[0.98]"
+                className="px-3 py-1.5 rounded-full bg-white border border-gray-200 text-xs text-stone-600 hover:border-brand-500 hover:text-brand-700 transition-all duration-150 active:scale-[0.98]"
               >
                 {q}
               </button>

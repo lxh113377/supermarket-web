@@ -41,7 +41,7 @@ export default function ServiceFormPage() {
       <div role="main" id="main-content" tabIndex={-1} className="page-container flex items-center justify-center">
         <div className="text-center animate-fade-in-up">
           <span className="text-4xl block mb-3">🔍</span>
-          <p className="text-gray-500 text-sm">服务不存在</p>
+          <p className="text-stone-500 text-sm">服务不存在</p>
           <button onClick={() => navigate('/')} className="mt-4 text-brand-700 text-sm font-medium">
             返回首页
           </button>
@@ -151,7 +151,7 @@ export default function ServiceFormPage() {
             <span className="text-4xl">✅</span>
           </div>
           <h1 className="text-xl font-bold text-ink">提交成功</h1>
-          <p className="text-gray-500 text-sm mt-2 leading-relaxed">请耐心等待工作人员联系<br/>通常会在30分钟内回复</p>
+          <p className="text-stone-500 text-sm mt-2 leading-relaxed">请耐心等待工作人员联系<br/>通常会在30分钟内回复</p>
           <button
             onClick={() => navigate('/')}
             className="mt-7 btn-primary w-full py-3.5 text-base"
@@ -226,7 +226,7 @@ export default function ServiceFormPage() {
                     读屏只念「编辑框」不念字段名 */}
                 <label
                   htmlFor={`sf-${field.key}`}
-                  className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-2.5"
+                  className="flex items-center gap-1.5 text-sm font-medium text-stone-700 mb-2.5"
                 >
                   {field.label}
                   {field.required && <span className="text-red-700 text-xs" aria-hidden="true">*</span>}
@@ -235,7 +235,7 @@ export default function ServiceFormPage() {
                 {field.type === 'image' ? (
                   <div>
                     {field.hint && (
-                      <p className="text-xs text-gray-500 mb-3 leading-relaxed" id={`sf-hint-${field.key}`}>{field.hint}</p>
+                      <p className="text-xs text-stone-500 mb-3 leading-relaxed" id={`sf-hint-${field.key}`}>{field.hint}</p>
                     )}
                     {images.length > 0 && (
                       <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 mb-3">
@@ -269,11 +269,11 @@ export default function ServiceFormPage() {
                          读屏不会念隐藏元素，给它加 aria-invalid 等于没加。 */
                       aria-invalid={errorField === field.key || undefined}
                       aria-describedby={[field.hint ? `sf-hint-${field.key}` : '', errorField === field.key ? 'sf-error' : ''].filter(Boolean).join(' ') || undefined}
-                      className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-8 text-center text-gray-500 text-sm hover:border-brand-500 hover:text-brand-700 hover:bg-brand-50/30 transition-all duration-300 active:scale-[0.98]"
+                      className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-8 text-center text-stone-500 text-sm hover:border-brand-500 hover:text-brand-700 hover:bg-brand-50/30 transition-all duration-300 active:scale-[0.98]"
                     >
                       <span className="block text-2xl mb-2" aria-hidden="true">📷</span>
                       <span className="font-medium">点击上传截图</span>
-                      <span className="block text-xs text-gray-500 mt-1">至少{field.minCount || 1}张，最多{MAX_SUBMISSION_FILES}张</span>
+                      <span className="block text-xs text-stone-500 mt-1">至少{field.minCount || 1}张，最多{MAX_SUBMISSION_FILES}张</span>
                     </button>
                     <input
                       ref={fileInputRef}
@@ -342,7 +342,7 @@ export default function ServiceFormPage() {
         </div>
 
         {/* 底部提示 */}
-        <p className="text-center text-xs text-gray-500 mt-6 flex items-center justify-center gap-1.5">
+        <p className="text-center text-xs text-stone-500 mt-6 flex items-center justify-center gap-1.5">
           <span className="w-1 h-1 rounded-full bg-gray-200" />
           提交后请耐心等待工作人员联系
           <span className="w-1 h-1 rounded-full bg-gray-200" />

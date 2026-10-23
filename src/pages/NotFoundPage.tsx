@@ -32,7 +32,7 @@ export default function NotFoundPage() {
         404
       </p>
       <h1 className="-mt-3 text-display-md text-ink">页面走丢了</h1>
-      <p className="mt-2 text-sm text-gray-500">这个地址不存在，可能已被移动或删除。</p>
+      <p className="mt-2 text-sm text-stone-500">这个地址不存在，可能已被移动或删除。</p>
 
       <button
         onClick={() => navigate('/')}

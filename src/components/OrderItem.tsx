@@ -10,8 +10,8 @@ function OrderItem({ item }: { item: OrderItemType }) {
   return (
     <div className="flex justify-between items-center gap-3 py-2.5 border-b border-gray-50 last:border-0">
       <div className="flex-1 min-w-0">
-        <span className="text-sm text-gray-700 truncate">{displayName}</span>
-        <span className="text-xs text-gray-500 ml-2">x{item.quantity}</span>
+        <span className="text-sm text-stone-700 truncate">{displayName}</span>
+        <span className="text-xs text-stone-500 ml-2">x{item.quantity}</span>
       </div>
       <span className="text-sm font-semibold text-ink shrink-0">
         {formatYuan(item.price * item.quantity)}

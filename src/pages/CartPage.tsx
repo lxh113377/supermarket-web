@@ -85,7 +85,7 @@ export default function CartPage() {
       <div className="flex items-center justify-between px-5 py-4 bg-white/95 backdrop-blur-sm border-b border-gray-100">
         <button
           onClick={() => navigate(-1)}
-          className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200 active:scale-90"
+          className="w-9 h-9 rounded-full flex items-center justify-center text-stone-500 hover:text-stone-700 hover:bg-gray-100 transition-all duration-200 active:scale-90"
           aria-label="返回"
         >
           ←
@@ -109,7 +109,7 @@ export default function CartPage() {
           <button
             onClick={handleClose}
             aria-label="关闭"
-            className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200 active:scale-90 text-lg"
+            className="w-9 h-9 rounded-full flex items-center justify-center text-stone-500 hover:text-stone-700 hover:bg-gray-100 transition-all duration-200 active:scale-90 text-lg"
           >
             ×
           </button>
@@ -163,9 +163,9 @@ export default function CartPage() {
         <div className="border-t border-gray-100 px-5 pt-5 bg-white/95 backdrop-blur-sm safe-bottom">
           <div className="w-full max-w-3xl lg:max-w-4xl mx-auto">
             <div className="flex justify-between items-center mb-4">
-              <span className="text-sm text-gray-500">共 {totalCount} 件</span>
+              <span className="text-sm text-stone-500">共 {totalCount} 件</span>
               <span className="text-xl font-bold text-ink">
-                <span className="text-xs font-medium text-gray-500 mr-1">合计</span>
+                <span className="text-xs font-medium text-stone-500 mr-1">合计</span>
                 <span className="price-num font-bold text-brand-700">{formatYuan(totalAmount)}</span>
               </span>
             </div>

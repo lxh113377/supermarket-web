@@ -44,7 +44,7 @@ export default function OrderQueryPage() {
       <div className="px-5 py-4 bg-white/95 backdrop-blur-sm border-b border-gray-100 flex items-center justify-between">
         <button
           onClick={() => navigate(-1)}
-          className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200 active:scale-90"
+          className="w-9 h-9 rounded-full flex items-center justify-center text-stone-500 hover:text-stone-700 hover:bg-gray-100 transition-all duration-200 active:scale-90"
           aria-label="返回"
         >
           ←
@@ -77,8 +77,8 @@ export default function OrderQueryPage() {
 
           {status && (
             <div className="mt-4 bg-white rounded-2xl p-5 shadow-card border border-gray-100/80">
-              <p className="text-xs text-gray-500 mb-1">订单号</p>
-              <p className="text-sm font-mono text-gray-700 break-all mb-4">{queried}</p>
+              <p className="text-xs text-stone-500 mb-1">订单号</p>
+              <p className="text-sm font-mono text-stone-700 break-all mb-4">{queried}</p>
               {status.status === 'cancelled' ? (
                 <p className="text-base font-bold text-red-700">该订单已取消</p>
               ) : (
@@ -91,15 +91,15 @@ export default function OrderQueryPage() {
                         <span
                           aria-hidden="true"
                           className={`w-5 h-5 rounded-full flex items-center justify-center text-3xs shrink-0 ${
-                            done ? 'bg-green-700 text-white' : current ? 'bg-brand-500 text-ink ring-4 ring-brand-300' : 'bg-gray-100 text-gray-600'
+                            done ? 'bg-green-700 text-white' : current ? 'bg-brand-500 text-ink ring-4 ring-brand-300' : 'bg-gray-100 text-stone-600'
                           }`}
                         >
                           {done ? '✓' : i + 1}
                         </span>
-                        <span className={`text-sm ${current ? 'font-bold text-ink' : done ? 'text-gray-600' : 'text-gray-500'}`}>
+                        <span className={`text-sm ${current ? 'font-bold text-ink' : done ? 'text-stone-600' : 'text-stone-500'}`}>
                           {orderStatusLabel(s)}
                           {current && status.updatedAt && (
-                            <span className="ml-2 text-xs font-normal text-gray-500">{new Date(status.updatedAt).toLocaleString()}</span>
+                            <span className="ml-2 text-xs font-normal text-stone-500">{new Date(status.updatedAt).toLocaleString()}</span>
                           )}
                         </span>
                       </li>
@@ -119,7 +119,7 @@ export default function OrderQueryPage() {
           )}
         </div>
 
-        <p className="mt-5 text-xs text-gray-500 leading-relaxed">
+        <p className="mt-5 text-xs text-stone-500 leading-relaxed">
           订单号在下单成功页可复制；如订单显示长期「待支付」请先确认已完成扫码付款并联系商家。
         </p>
       </div>

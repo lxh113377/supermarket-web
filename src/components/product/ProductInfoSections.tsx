@@ -24,7 +24,7 @@ interface Props {
 
 function DemoBadge() {
   return (
-    <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-600 text-3xs font-semibold align-middle">
+    <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-gray-100 text-stone-600 text-3xs font-semibold align-middle">
       演示文案
     </span>
   )
@@ -88,18 +88,18 @@ export default function ProductInfoSections({ product, categories, combo }: Prop
         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-0 text-sm">
           {rows.map(([k, v]) => (
             <div key={k} className="flex items-baseline justify-between gap-3 py-2 border-b border-gray-50 last:border-0">
-              <dt className="text-gray-500 shrink-0">{k}</dt>
+              <dt className="text-stone-500 shrink-0">{k}</dt>
               <dd className="text-ink text-right min-w-0 break-words">{v}</dd>
             </div>
           ))}
         </dl>
-        <p className="text-2xs text-gray-500 mt-3 leading-relaxed">
+        <p className="text-2xs text-stone-500 mt-3 leading-relaxed">
           以上字段全部取自商品目录真实记录，未做任何加工。
         </p>
       </Section>
 
       <Section id="delivery-heading" title="配送说明">
-        <ul className="text-sm text-gray-600 space-y-2 leading-relaxed list-disc pl-4 m-0">
+        <ul className="text-sm text-stone-600 space-y-2 leading-relaxed list-disc pl-4 m-0">
           <li>营业时间：{getBusinessHoursText()}</li>
           <li>
             当前状态：
@@ -114,10 +114,10 @@ export default function ProductInfoSections({ product, categories, combo }: Prop
       </Section>
 
       <Section id="after-sale-heading" title="售后说明" badge>
-        <p className="text-2xs text-gray-500 -mt-1 mb-3 leading-relaxed">
+        <p className="text-2xs text-stone-500 -mt-1 mb-3 leading-relaxed">
           商家未提供售后条款，以下三条为界面演示文案，不构成任何真实承诺。
         </p>
-        <ul className="text-sm text-gray-600 space-y-2 leading-relaxed list-disc pl-4 m-0">
+        <ul className="text-sm text-stone-600 space-y-2 leading-relaxed list-disc pl-4 m-0">
           <li>签收时请当场核对品名与数量，发现错送或漏送可在群内反馈。</li>
           <li>预包装食品请留意包装上的生产日期与保质期，包装破损不建议食用。</li>
           <li>如需退换，请在取货后尽快与商家联系，处理结果以商家确认为准。</li>

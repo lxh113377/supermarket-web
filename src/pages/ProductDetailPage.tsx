@@ -310,7 +310,7 @@ export default function ProductDetailPage() {
         <button
           onClick={() => navigate(-1)}
           aria-label="返回"
-          className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200 active:scale-90 mr-2"
+          className="w-9 h-9 rounded-full flex items-center justify-center text-stone-500 hover:text-stone-700 hover:bg-gray-100 transition-all duration-200 active:scale-90 mr-2"
         >
           ←
         </button>
@@ -320,13 +320,13 @@ export default function ProductDetailPage() {
       <div role="main" id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto pb-28 lg:pb-10 w-full">
         {/* 面包屑：首页 › 大类 › 子类 › 当前商品，两级分类均可点回商城对应视图 */}
         <nav aria-label="面包屑" className="max-w-6xl mx-auto px-4 lg:px-6 pt-3">
-          <ol className="flex items-center gap-1.5 text-xs text-gray-500 list-none m-0 p-0 flex-wrap">
-            <li><Link to="/" className="hover:text-brand-700 text-gray-500">首页</Link></li>
+          <ol className="flex items-center gap-1.5 text-xs text-stone-500 list-none m-0 p-0 flex-wrap">
+            <li><Link to="/" className="hover:text-brand-700 text-stone-500">首页</Link></li>
             {crumb.cat && (
               <>
                 <li aria-hidden="true">›</li>
                 <li>
-                  <Link to={`/shop/${crumb.cat._id}`} className="hover:text-brand-700 text-gray-500">
+                  <Link to={`/shop/${crumb.cat._id}`} className="hover:text-brand-700 text-stone-500">
                     {crumb.cat.name}
                   </Link>
                 </li>
@@ -336,14 +336,14 @@ export default function ProductDetailPage() {
               <>
                 <li aria-hidden="true">›</li>
                 <li>
-                  <Link to={`/shop/${crumb.cat!._id}/${crumb.sub.id}`} className="hover:text-brand-700 text-gray-500">
+                  <Link to={`/shop/${crumb.cat!._id}/${crumb.sub.id}`} className="hover:text-brand-700 text-stone-500">
                     {crumb.sub.name}
                   </Link>
                 </li>
               </>
             )}
             <li aria-hidden="true">›</li>
-            <li className="text-gray-700 truncate max-w-[12rem]" aria-current="page">{effName}</li>
+            <li className="text-stone-700 truncate max-w-[12rem]" aria-current="page">{effName}</li>
           </ol>
         </nav>
 
@@ -374,7 +374,7 @@ export default function ProductDetailPage() {
               {avgRating && (
                 <div className="flex items-center gap-2 mt-3">
                   <Stars rating={Math.round(Number(avgRating))} />
-                  <span className="text-xs text-gray-500">{avgRating} 分 · {productReviews.length} 条评价</span>
+                  <span className="text-xs text-stone-500">{avgRating} 分 · {productReviews.length} 条评价</span>
                 </div>
               )}
               <p className="price-num mt-4 text-price-lg font-extrabold leading-none text-brand-700">{formatYuan(effPrice)}</p>
@@ -383,7 +383,7 @@ export default function ProductDetailPage() {
                 <p className="text-xs font-semibold text-brand-700 mt-1.5">已选口味：{selection[SPEC_AXIS_ID]}</p>
               )}
               {combo && Number(effOrder) !== Number(product.order) && (
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-stone-500 mt-1">
                   价格随所选口味变化 · 当前对应目录编号 {String(effOrder)}
                 </p>
               )}
@@ -405,7 +405,7 @@ export default function ProductDetailPage() {
             {product.description && (
               <div className="bg-white lg:bg-transparent mt-2.5 lg:mt-6 p-5 lg:p-0 lg:border-t lg:border-gray-100 lg:pt-5 animate-fade-in-up stagger-2">
                 <h2 className="section-title mb-3">商品介绍</h2>
-                <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">{product.description}</p>
+                <p className="text-sm text-stone-600 leading-relaxed whitespace-pre-line">{product.description}</p>
               </div>
             )}
 
@@ -419,7 +419,7 @@ export default function ProductDetailPage() {
                     onClick={() => setQty((n) => Math.max(1, n - 1))}
                     disabled={qty <= 1}
                     aria-label="减少购买数量"
-                    className="tap-44 w-9 h-9 rounded-lg text-gray-600 transition hover:bg-gray-100 active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="tap-44 w-9 h-9 rounded-lg text-stone-600 transition hover:bg-gray-100 active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <span aria-hidden="true">−</span>
                   </button>
@@ -433,7 +433,7 @@ export default function ProductDetailPage() {
                     onClick={() => setQty((n) => Math.min(MAX_QTY_PER_LINE, n + 1))}
                     disabled={qty >= MAX_QTY_PER_LINE}
                     aria-label="增加购买数量"
-                    className="tap-44 w-9 h-9 rounded-lg text-gray-600 transition hover:bg-gray-100 active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="tap-44 w-9 h-9 rounded-lg text-stone-600 transition hover:bg-gray-100 active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <span aria-hidden="true">＋</span>
                   </button>
@@ -458,17 +458,17 @@ export default function ProductDetailPage() {
                   </>
                 )}
                 {narrow && (
-                  <p className="text-xs text-gray-500">数量已选定，结算入口在屏幕底部。</p>
+                  <p className="text-xs text-stone-500">数量已选定，结算入口在屏幕底部。</p>
                 )}
               </div>
 
-              <p className="text-2xs text-gray-500 mt-3 leading-relaxed">
+              <p className="text-2xs text-stone-500 mt-3 leading-relaxed">
                 「立即购买」只展示演示订单摘要，不创建真实订单、不发起支付；实际下单请通过购物袋结算。
               </p>
               {/* 加购结果就地播报（窄屏时吸底栏遮挡本区块，故同时写进 aria-live 供读屏） */}
               <p className="text-xs text-green-700 mt-2 min-h-[1rem]" role="status" aria-live="polite">{addedNote}</p>
               {inBag > 0 && (
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-stone-500 mt-1">
                   <span>购物车已有 {inBag} 件</span> · <Link to="/cart" className="text-brand-700 font-medium">去购物袋结算</Link>
                 </p>
               )}
@@ -477,7 +477,7 @@ export default function ProductDetailPage() {
             {/* 配送说明（右栏摘要；完整口径见下方「配送说明」区块） */}
             <div className="bg-white lg:bg-transparent mt-2.5 lg:mt-6 p-5 lg:p-0 lg:border-t lg:border-gray-100 lg:pt-5 animate-fade-in-up stagger-4">
               <h2 className="section-title mb-2">配送说明</h2>
-              <ul className="text-xs text-gray-500 space-y-1.5 leading-relaxed list-disc pl-4 m-0">
+              <ul className="text-xs text-stone-500 space-y-1.5 leading-relaxed list-disc pl-4 m-0">
                 <li>宿舍楼栋配送，下单时填写楼栋号。</li>
                 <li>商品总价不满 {formatYuan(MIN_DELIVERY_AMOUNT)} 不配送。</li>
                 <li>营业时间外需先在群内与商家确认。</li>

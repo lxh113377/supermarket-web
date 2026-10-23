@@ -32,7 +32,7 @@ function Placeholder({ name, spec }: { name: string; spec?: string }) {
         <p className="text-brand-700 font-bold text-lg">{name}</p>
         {spec && <p className="text-brand-700 text-sm mt-1">{spec}</p>}
         {/* 如实标注：这是占位示意，不是商品实拍 */}
-        <p className="text-gray-600 text-2xs mt-2">示意图 · 非商品实拍</p>
+        <p className="text-stone-600 text-2xs mt-2">示意图 · 非商品实拍</p>
       </div>
     </div>
   )
@@ -133,14 +133,14 @@ export default function ProductGallery({ product, gallery, items, index, onIndex
               <button
                 onClick={prev}
                 aria-label="上一张图片"
-                className="tap-44 absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/85 backdrop-blur-sm shadow-soft flex items-center justify-center text-gray-500 hover:bg-white transition"
+                className="tap-44 absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/85 backdrop-blur-sm shadow-soft flex items-center justify-center text-stone-500 hover:bg-white transition"
               >
                 <span aria-hidden="true">‹</span>
               </button>
               <button
                 onClick={next}
                 aria-label="下一张图片"
-                className="tap-44 absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/85 backdrop-blur-sm shadow-soft flex items-center justify-center text-gray-500 hover:bg-white transition"
+                className="tap-44 absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/85 backdrop-blur-sm shadow-soft flex items-center justify-center text-stone-500 hover:bg-white transition"
               >
                 <span aria-hidden="true">›</span>
               </button>

@@ -13,7 +13,7 @@ export default function ServicePopup({ popup, onClose }: { popup: string; onClos
           <span className="text-3xl" aria-hidden="true">📋</span>
         </div>
         <h2 className="font-bold text-ink text-lg">温馨提示</h2>
-        <p className="text-gray-500 text-sm mt-3 leading-relaxed">{popup}</p>
+        <p className="text-stone-500 text-sm mt-3 leading-relaxed">{popup}</p>
       </div>
       <button
         onClick={onClose}

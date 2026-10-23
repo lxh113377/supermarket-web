@@ -55,7 +55,7 @@ export default function PaymentPage() {
       <div className="px-5 py-4 bg-white/95 backdrop-blur-sm border-b border-gray-100 flex items-center justify-between">
         <button
           onClick={() => navigate('/order-success', { state: { orderId } })}
-          className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200 active:scale-90"
+          className="w-9 h-9 rounded-full flex items-center justify-center text-stone-500 hover:text-stone-700 hover:bg-gray-100 transition-all duration-200 active:scale-90"
           aria-label="返回"
         >
           ←
@@ -66,7 +66,7 @@ export default function PaymentPage() {
 
       {!method ? (
         <div role="main" id="main-content" tabIndex={-1} className="flex-1 flex flex-col items-center justify-center gap-4 p-6 w-full max-w-lg mx-auto">
-          <p className="text-sm text-gray-500 mb-2">请选择支付方式完成付款</p>
+          <p className="text-sm text-stone-500 mb-2">请选择支付方式完成付款</p>
           <button
             onClick={() => setMethod('wechat')}
             className="w-full max-w-sm bg-green-700 text-white py-4 rounded-2xl text-base font-medium shadow-elevated hover:bg-green-800 transition-all duration-200 active:scale-[0.98] animate-fade-in-up stagger-1"
@@ -90,15 +90,15 @@ export default function PaymentPage() {
                 <span className="text-4xl" aria-hidden="true">✅</span>
               </div>
               <p className="text-lg font-bold text-green-700">付款已确认</p>
-              <p className="text-sm text-gray-500 mt-2">客服将尽快处理你的订单</p>
+              <p className="text-sm text-stone-500 mt-2">客服将尽快处理你的订单</p>
               {orderStatus && orderStatus !== 'paid' && (
-                <p className="text-sm font-medium text-gray-600 mt-1.5">订单进度：{orderStatusLabel(orderStatus)}</p>
+                <p className="text-sm font-medium text-stone-600 mt-1.5">订单进度：{orderStatusLabel(orderStatus)}</p>
               )}
             </div>
           ) : orderStatus === 'cancelled' ? (
             <div className="text-center animate-fade-in-up">
               <p className="text-lg font-bold text-red-700">该订单已取消</p>
-              <p className="text-sm text-gray-500 mt-2">如有问题请联系商家</p>
+              <p className="text-sm text-stone-500 mt-2">如有问题请联系商家</p>
             </div>
           ) : (
             <div className="text-center w-full max-w-sm animate-fade-in-up flex flex-col items-center">
@@ -126,7 +126,7 @@ export default function PaymentPage() {
               </div>
               <button
                 onClick={() => setMethod(null)}
-                className="mt-4 text-sm text-gray-500 hover:text-gray-600 transition-colors duration-200"
+                className="mt-4 text-sm text-stone-500 hover:text-stone-600 transition-colors duration-200"
               >
                 返回重新选择
               </button>
@@ -142,7 +142,7 @@ export default function PaymentPage() {
         <div className="text-center">
           <span className="text-4xl block mb-3" aria-hidden="true">💡</span>
           <h2 className="font-bold text-ink">温馨提示</h2>
-          <p className="text-gray-500 text-sm mt-2.5 leading-relaxed">商家无支付宝消息提示，支付宝付款请告知商家</p>
+          <p className="text-stone-500 text-sm mt-2.5 leading-relaxed">商家无支付宝消息提示，支付宝付款请告知商家</p>
         </div>
         <button
           onClick={() => setShowTip(false)}

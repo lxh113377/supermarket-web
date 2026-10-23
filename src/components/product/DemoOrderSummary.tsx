@@ -33,8 +33,8 @@ export default function DemoOrderSummary({
       <div className="space-y-4">
         <div>
           <h2 className="text-base font-bold text-ink">演示订单摘要</h2>
-          <p className="text-xs text-gray-500 mt-1">
-            本页为演示环境，以下摘要<strong className="text-gray-700">不产生真实订单、不发起任何支付</strong>。
+          <p className="text-xs text-stone-500 mt-1">
+            本页为演示环境，以下摘要<strong className="text-stone-700">不产生真实订单、不发起任何支付</strong>。
           </p>
         </div>
 
@@ -46,24 +46,24 @@ export default function DemoOrderSummary({
 
         <dl className="border-t border-b border-gray-100 py-3 space-y-2 text-sm">
           <div className="flex items-start justify-between gap-4">
-            <dt className="text-gray-500 shrink-0">商品</dt>
+            <dt className="text-stone-500 shrink-0">商品</dt>
             <dd className="text-ink text-right font-medium min-w-0">
               {productName}
-              {specText && <span className="block text-xs text-gray-500 font-normal mt-0.5">{specText}</span>}
+              {specText && <span className="block text-xs text-stone-500 font-normal mt-0.5">{specText}</span>}
             </dd>
           </div>
           <div className="flex items-center justify-between gap-4">
-            <dt className="text-gray-500">单价</dt>
+            <dt className="text-stone-500">单价</dt>
             <dd className="price-num text-ink">{formatYuan(unitPrice)}</dd>
           </div>
           <div className="flex items-center justify-between gap-4">
-            <dt className="text-gray-500">数量</dt>
+            <dt className="text-stone-500">数量</dt>
             <dd className="text-ink tabular-nums">× {quantity}</dd>
           </div>
           {combo && (
             <div className="flex items-start justify-between gap-4">
-              <dt className="text-gray-500 shrink-0">对应目录商品</dt>
-              <dd className="text-gray-500 text-right text-xs">
+              <dt className="text-stone-500 shrink-0">对应目录商品</dt>
+              <dd className="text-stone-500 text-right text-xs">
                 编号 {combo.order} · {combo.productName}
               </dd>
             </div>
@@ -74,8 +74,8 @@ export default function DemoOrderSummary({
           </div>
         </dl>
 
-        <div className="text-xs text-gray-500 space-y-1">
-          <p className="font-semibold text-gray-700 text-sm">配送说明</p>
+        <div className="text-xs text-stone-500 space-y-1">
+          <p className="font-semibold text-stone-700 text-sm">配送说明</p>
           <p>营业时间：{getBusinessHoursText()}</p>
           <p>
             {open_

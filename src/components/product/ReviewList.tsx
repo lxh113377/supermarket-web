@@ -55,7 +55,7 @@ function ReviewImages({ images }: { images: string[] }) {
               onError={() => setFailed((prev) => (prev[j] ? prev : { ...prev, [j]: true }))}
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-400 text-lg">🖼</div>
+            <div className="w-full h-full flex items-center justify-center bg-gray-50 text-stone-400 text-lg">🖼</div>
           )}
         </div>
       ))}
@@ -91,18 +91,18 @@ export default function ReviewList({ reviews, sort, onSortChange }: {
       {reviews.length === 0 ? (
         <div className="text-center py-8">
           <span className="text-3xl block mb-2">💬</span>
-          <p className="text-sm text-gray-500">暂无评价，快来抢沙发~</p>
+          <p className="text-sm text-stone-500">暂无评价，快来抢沙发~</p>
         </div>
       ) : (
         <div className="space-y-4">
           {reviews.map((review, i) => (
             <div key={i} className="border-b border-gray-50 pb-4 last:border-0 last:pb-0">
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-sm font-medium text-gray-700">{review.user}</span>
-                <span className="text-xs text-gray-500">{formatReviewDate(review)}</span>
+                <span className="text-sm font-medium text-stone-700">{review.user}</span>
+                <span className="text-xs text-stone-500">{formatReviewDate(review)}</span>
               </div>
               <Stars rating={review.rating} />
-              <p className="text-sm text-gray-600 mt-1.5 leading-relaxed">{review.text}</p>
+              <p className="text-sm text-stone-600 mt-1.5 leading-relaxed">{review.text}</p>
               {Array.isArray(review.images) && review.images.length > 0 && (
                 <ReviewImages images={review.images.slice(0, 5)} />
               )}

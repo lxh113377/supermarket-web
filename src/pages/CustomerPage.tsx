@@ -165,7 +165,7 @@ export default function CustomerPage() {
               onClick={() => { setDraftQ(p.name); setQuery(p.name); setShowSearch(false) }}
               className="w-full text-left px-4 py-3 text-sm hover:bg-brand-50/50 flex justify-between items-center transition-colors duration-150 border-b border-gray-50 last:border-0"
             >
-              <span className="text-gray-700">{p.name}{p.spec ? ` (${p.spec})` : ''}</span>
+              <span className="text-stone-700">{p.name}{p.spec ? ` (${p.spec})` : ''}</span>
               <span className="price-num text-brand-700 text-xs font-semibold">{formatYuan(p.price)}</span>
             </button>
           ))}
@@ -192,7 +192,7 @@ export default function CustomerPage() {
   // 筛选结果计数：分类/子分类/搜索/排序任一变化都会改写这里的数字，
   // 作为 aria-live 区域播报，避免视力正常用户也要靠数卡片才知道筛完了
   const counterRow = (
-    <p className="text-xs text-gray-500" role="status" aria-live="polite">
+    <p className="text-xs text-stone-500" role="status" aria-live="polite">
       共 {filteredProducts.length} 件
       {deferredQ && <> · 匹配「{deferredQ}」</>}
       {sort !== 'default' && <> · 按{sort === 'price-asc' ? '价格升序' : '价格降序'}</>}
@@ -267,11 +267,11 @@ export default function CustomerPage() {
           <button
             onClick={() => (location.state?.fromCategory ? navigate(-1) : navigate('/'))}
             aria-label="返回"
-            className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200 active:scale-90 -ml-2 mr-3"
+            className="w-9 h-9 rounded-full flex items-center justify-center text-stone-500 hover:text-stone-700 hover:bg-gray-100 transition-all duration-200 active:scale-90 -ml-2 mr-3"
           >
             ←
           </button>
-          <span className="text-sm font-semibold tracking-[0.2em] text-gray-500">江科一站通</span>
+          <span className="text-sm font-semibold tracking-[0.2em] text-stone-500">江科一站通</span>
         </div>
 
         <div role="main" id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto px-6 lg:px-10 py-6 pb-28">
@@ -285,7 +285,7 @@ export default function CustomerPage() {
                   <h1 className="text-3xl font-bold tracking-tight text-ink leading-none">
                     {category?.name || '全部商品'}
                   </h1>
-                  <p className="text-xs text-gray-500 mt-2 tracking-wide">
+                  <p className="text-xs text-stone-500 mt-2 tracking-wide">
                     {activeSubName || '全部'}
                   </p>
                 </div>
@@ -339,7 +339,7 @@ export default function CustomerPage() {
         <button
           onClick={() => (location.state?.fromCategory ? navigate(-1) : navigate('/'))}
           aria-label="返回"
-          className="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200 active:scale-90"
+          className="w-8 h-8 rounded-full flex items-center justify-center text-stone-500 hover:text-stone-700 hover:bg-gray-100 transition-all duration-200 active:scale-90"
         >
           ←
         </button>

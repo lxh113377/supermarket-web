@@ -260,7 +260,7 @@ img {
   }
   /* 眉题（eyebrow）：编辑排版的层级起点 —— 小字、大字距、非粗，压在标题上方 */
   .eyebrow {
-    @apply text-eyebrow uppercase text-gray-500;
+    @apply text-eyebrow uppercase text-stone-500;
   }
   /* 价格/数字专用：展示体 + 等宽（件数与金额变化时不抖动）。
      命名避开 .font-display —— Tailwind 已由 theme 生成同名工具类，两个 .font-display
@@ -275,7 +275,7 @@ img {
   /* 输入框 */
   .input-base {
     @apply w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-ink
-           placeholder:text-gray-500 transition-all duration-200
+           placeholder:text-stone-500 transition-all duration-200
            focus:border-brand-600;
   }
 
@@ -288,7 +288,7 @@ img {
     @apply pill bg-brand-500 text-ink font-semibold shadow-soft;
   }
   .pill-inactive {
-    @apply pill bg-white text-gray-600 border border-gray-200 hover:border-brand-400 hover:text-brand-700;
+    @apply pill bg-white text-stone-600 border border-gray-200 hover:border-brand-400 hover:text-brand-700;
   }
 
   /* 图注式画廊的图区底板（阶段二）。
@@ -342,11 +342,13 @@ img {
   .seg-bar {
     @apply inline-flex items-center gap-1 bg-gray-100 p-1 rounded-xl;
   }
-  /* 未选中段：gray-500 压 gray-100 实测 4.39:1（差 0.11 不过正文 4.5）⇒ 下沉 gray-600（6.87:1）。
+  /* 未选中段：当年 gray-500 压 gray-100 实测 4.39:1（差 0.11 不过正文 4.5）⇒ 下沉 gray-600
+     （6.87:1）。本行后来换成同序号暖灰 stone-600（压 gray-100 实测 6.93:1，见下方色温说明），
+     亮度 L* 只差 0.3 所以视觉不变，只是不再偏蓝。
      这种"只差一点点"最容易漏：按纯白底手算 gray-500 是 4.83 会以为合格，
      而它实际落在 .seg-bar 的 gray-100 灰底上。渲染像素判据量的就是这件事。 */
   .seg {
-    @apply px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 transition-all duration-200 cursor-pointer active:scale-[0.98];
+    @apply px-3 py-1.5 rounded-lg text-xs font-medium text-stone-600 transition-all duration-200 cursor-pointer active:scale-[0.98];
   }
   /* 分段器选中态：白字压在渐变起点 #facc15 上仅 1.77:1 ⇒ 墨字 + 柿底，
      品牌渐变条退到下方 2px 作「选中」的色相提示，不再当文字底板。 */
@@ -363,7 +365,7 @@ img {
   }
   .delta-up { @apply bg-green-50 text-green-700; }
   .delta-down { @apply bg-red-50 text-red-700; }
-  .delta-flat { @apply bg-gray-50 text-gray-600; }
+  .delta-flat { @apply bg-gray-50 text-stone-600; }
 }
 
 /* === 交错入场动画工具类 === */
