@@ -47,8 +47,29 @@
 - 验证：oxlint 0 警告 / tsc 零错 / check-doc-consistency rc=0（单测文件 145 未变）/
   report:item-budgets GREEN（最大三件 HomePage 2.4KB 等，均远低于预算）/ motion-consistency
   9 条全过 / businessHoursHook 6 条全过 / 变异验真 RED + RESTORED:true。
-### 2026-10-23 营业状态冻结 bug：走钟每秒跳、「营业中/已打烊」却只在挂载时算一次
 
+### 2026-10-23 打印入口的分叉从构建期挪到运行时 —— 修掉我自己造成的「两端不是同一批产物」
+
+- **红从哪来**：`verify-release-parity` 从 e830844 起判红。我一度以为是「设计内分歧」（两端本来就
+  该长得不一样），查到底是我错、判据对。线上实测：pages.dev 入口 bundle = `index-B6SGJfm0.js`、
+  github.io = `index-BxlIxZqh.js`，43 个依赖块里 15 个不同名，入口首差异偏移 69 —— 差的是
+  `__vite__mapDeps` 里 HomePage 那一项。根因不是打印块，是我给 github.io 的 deploy.yml 配了
+  `VITE_CAMPUS_PRINT_URL`：那一项在**构建期**被烘焙进代码 ⇒ 同一份源码在两个域名产出不同产物。
+- **为什么不能改判据**：`evaluateParity` 判「两端入口 bundle 不同名 ⇒ 不同构建」不是噪音。两端一旦
+  不同批，「两端 sw 指纹差几分钟属正常抖动」这类推理全部失去前提 —— 判据是在替我兜住一个我自己
+  没看见的后果。正确处置是让产物重新一致。
+- **改法（分叉放回它该在的层）**：`printApp.ts` 新增 `CAMPUS_PRINT_FORM_PATH`、`isStaticCustomerHost()`、
+  `pickCampusPrintPath()`；`resolveCampusPrintUrl()` 改按 `window.location.hostname` 现算 ——
+  `*.github.io` ⇒ 本站表单 `/#/service/print`（纯静态托管跑不了 Pages Functions，同源 `/api` 必 404，
+  搬进来的应用对顾客只剩「无法读取服务配置」），其余 ⇒ 应用页 `/print/#print`。显式配置仍优先，
+  非法配置照样回落该宿主默认。两个候选都是**同源路径**，不拼跨域地址 ⇒ 撞不到微信那条拦截页。
+- **实测**：同一棵树各构建一次，不设参数与设为 `/#/service/print` 的产物文件名逐个相同（66/66、
+  零差异）；浏览器实测两端各自落到正确入口（github.io ⇒ `/#/service/print` 表单可用、未跳域名；
+  pages.dev ⇒ `/print/#print` 应用页）。`tests/printApp.test.ts` 加两条钉住宿主二选一（含反向腿
+  `mygithub.io.evil.com` 不许命中）⇒ 12/12 绿；tsc rc=0、oxlint 0 项。
+- 一并把 github.io 的 deploy.yml 里那 8 行 + 1 行开关删掉，改写为「为什么这里不再设」的说明。
+[object Object]
+[object Object]
 - 一手现象（老大报「营业时间显示已打烊」）：五个消费点都写成 const open = isBusinessHours()
   —— 组件体里一次性求值。HomePage 的封面走钟每秒 setState，但那只重渲染 CoverClock 自己，
   open 不会重算；其余四处（CategoryPage / OrderConfirmPage / ServiceFormPage /
