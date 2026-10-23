@@ -78,10 +78,15 @@ function ProductRow({
             }
           }}
         >
-          <p className={`text-sm font-medium truncate ${enabled ? 'text-ink' : 'text-gray-500 line-through'}`}>
+          <p title={product.name + (product.spec ? ' (' + product.spec + ')' : '')} className={`text-sm font-medium truncate ${enabled ? 'text-ink' : 'text-gray-500 line-through'}`}>
             {product.name}{product.spec ? ` (${product.spec})` : ''}
           </p>
-          <div className="flex items-center gap-2 mt-0.5">
+          {/* min-w-0 + flex-wrap（2026-10-23）：实测 320px 下价格+分类徽章这一行的
+                           内容宽超过行盒，徽章溢出 8px 压到右侧开关按钮上（徽章盒 12px
+                           而文字需 20px，中心点 elementFromPoint 命中的是隔壁 button）。
+                           行盒没有 min-w-0 时 flex 子项按 min-width:auto 不收缩 ⇒ 溢出；
+                           加 wrap 让窄屏下徽章换到下一行，390px 以上有余量不会换行。 */}
+          <div className="flex min-w-0 flex-wrap items-center gap-2 mt-0.5">
             <span className="price-num text-brand-700 font-bold text-sm">¥{formatPrice(product.price)}</span>
             {catLabel && <span className="text-3xs text-gray-600 bg-gray-50 px-1.5 py-0.5 rounded truncate">{catLabel}</span>}
             {typeof product.stock === 'number' && product.stock === 0 && (
