@@ -266,6 +266,61 @@ const ROUTES: RouteSpec[] = [
   { name: 'admin-orders', route: '/#/admin', prepare: openAdminTab('订单') },
   { name: 'admin-reviews', route: '/#/admin', prepare: openAdminTab('评价') },
   { name: 'admin-services', route: '/#/admin', prepare: openAdminTab('服务') },
+  /**
+   * 商品行的删除按钮「待确认态」（2026-10-24 补，随内联两步确认改造）。
+   * 与 cart-clear-armed 同一条规矩：armed 的红底白字只在点过第一下之后才进 DOM，
+   * 不自己走一遍交互就永远扫不到。行内按钮刻意保持 36px 方形、只换文字为「确认」，
+   * 所以这里同时是在守「armed 态不换尺寸 ⇒ 版面不跳」那条设计决定。
+   */
+  {
+    name: 'admin-row-delete-armed',
+    route: '/#/admin',
+    prepare: async (page) => {
+      const btn = page.getByLabel('删除商品').first()
+      await expect(btn).toBeVisible({ timeout: 8_000 })
+      await btn.click()
+      await expect(page.getByLabel('确认删除该商品（不可撤销）')).toBeVisible({ timeout: 5_000 })
+      await page.waitForTimeout(400)
+    },
+    expectText: '确认',
+  },
+  /**
+   * 批量操作栏的「批量删除」与「应用改价」待确认态。
+   * 批量条本身也是交互后才出现（勾选任意商品才有），armed 又是二次交互后才出现，
+   * 所以这条路由要走两步：勾选 → 点亮。
+   *
+   * 改价按钮的 armed 文案里带**目标值**（「确认改为 ¥5.00」），因此比 idle 态的
+   * 「应用」长得多 —— 本条路由只保证这个更长的文案仍然过对比度（contrast 判据的
+   * 口径就是对比度，它不量溢出；撑破布局属 layout/touch 那两条判据的地盘）。
+   * （第一版这里写的是「确认改为统一设为 ¥5」—— 两个动词叠在一起的语病，
+   *  被对比度变异点名文案时才被发现，已在 ProductsTab 侧改成名词短语。）
+   */
+  {
+    name: 'admin-batch-armed',
+    route: '/#/admin',
+    prepare: async (page) => {
+      await page.getByRole('button', { name: /全选/ }).click()
+      const del = page.getByLabel('批量删除选中商品')
+      await expect(del).toBeVisible({ timeout: 5_000 })
+      await del.click()
+      await expect(page.getByLabel(/确认删除选中的/)).toBeVisible({ timeout: 5_000 })
+      // 退掉删除的待确认态必须用 Esc，不能点第二下 —— 那会真的批量删除，
+      // 批量条随 selectedIds 清空而消失，后面就点不到改价按钮了。
+      // 顺带这也是在验 hook 的 Esc 通路真的生效。
+      await page.keyboard.press('Escape')
+      await expect(page.getByLabel(/确认删除选中的/)).toHaveCount(0, { timeout: 5_000 })
+      await page.waitForTimeout(200)
+      // 必须精确匹配 input 的 label：正则 /批量改价/ 会同时命中我给按钮起的
+      // 可访问名「应用批量改价：…」⇒ strict mode violation。这也是一条真实信号：
+      // 我给按钮加的名字与输入框的名字有共同前缀，读屏用户听到的是同一串关键词。
+      const priceInput = page.getByLabel('批量改价：数字表示统一价，数字加百分号表示打折')
+      await priceInput.fill('5')
+      await page.getByLabel(/应用批量改价/).click()
+      await expect(page.getByLabel(/确认把选中的/)).toBeVisible({ timeout: 5_000 })
+      await page.waitForTimeout(400)
+    },
+    expectText: '确认改为',
+  },
   { name: 'home-mobile', route: '/#/', vp: MOBILE },
   // 周四 19:00（营业中）与周四 03:00（已打烊）成对钉死：
   // 打烊态才有"非营业时间"提示与"仍要下单"分支，必须也过 AA。

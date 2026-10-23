@@ -50,6 +50,19 @@ const pickSome = (n: number) => {
   for (let i = 0; i < n; i++) fireEvent.click(boxes[i])
 }
 
+/**
+ * 两步确认（内联 arm → 再点一次 = 执行）的通用点击，替代原先的 confirm 桩。
+ * 2026-10-24：ProductsTab 的三处原生 confirm() 已改成内联两步确认，所以
+ * 「点一下按钮」不再等于「执行操作」—— 测试必须真的点两下，并且中间那下
+ * 之后要断言按钮进入了待确认态（否则 helper 自己坏了也会假绿）。
+ * idle/armed 用正则：armed 文案里带选中数量与目标值，精确名会随夹具漂移。
+ */
+const armThenConfirm = async (idle: RegExp, armed: RegExp) => {
+  fireEvent.click(screen.getByRole('button', { name: idle }))
+  await waitFor(() => expect(screen.getByRole('button', { name: armed })).toBeTruthy())
+  fireEvent.click(screen.getByRole('button', { name: armed }))
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   m.updateProduct.mockResolvedValue({ ok: true })
@@ -132,10 +145,9 @@ describe('批量操作成功路径与原生 alert 禁回归（并自旧 Products
   })
 
   it('「删除」只走 batchDeleteProducts，不误触批量改状态', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     render(<ProductsTab products={simple} categories={cats} onDataChange={m.onDataChange} />)
     fireEvent.click(screen.getAllByRole('checkbox')[0])
-    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+    await armThenConfirm(/批量删除选中商品/, /确认删除选中的/)
     await waitFor(() => expect(m.batchDeleteProducts).toHaveBeenCalledWith(['p1']))
     expect(m.batchUpdateProducts).not.toHaveBeenCalled()
   })
@@ -166,21 +178,22 @@ describe('批量上下架与删除', () => {
     expect(screen.queryByText(/已选 2 项/)).toBeNull()
   })
 
-  it('批量删除必须二次确认；取消则不发请求', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
+  // 两步确认的核心不变量：第一下只点亮，绝不发请求。原生 confirm 时代这条测的是
+  // 「桩返回 false」，现在测的是「只点了一下」—— 语义更强，因为它连着 UI 一起验。
+  it('批量删除第一下只进入待确认态，不发请求', async () => {
     setup()
     pickSome(1)
-    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+    fireEvent.click(screen.getByRole('button', { name: /批量删除选中商品/ }))
+    await waitFor(() => expect(screen.getByRole('button', { name: /确认删除选中的/ })).toBeTruthy())
     await new Promise((r) => setTimeout(r, 0))
-    expect(m.batchDeleteProducts).not.toHaveBeenCalled()
+    expect(m.batchDeleteProducts, '第一下就删 ⇒ 两步确认形同虚设').not.toHaveBeenCalled()
   })
 
   it('部分失败要 warn 播报（服务端 failed 明细不能被吞掉）', async () => {
     m.batchDeleteProducts.mockResolvedValue({ code: 0, data: { failed: [{ id: 'p1', message: '被订单引用' }], total: 2 } })
     setup()
     pickSome(2)
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
-    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+    await armThenConfirm(/批量删除选中商品/, /确认删除选中的/)
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('批量删除部分失败：1/2 未生效'))
   })
 
@@ -198,9 +211,8 @@ describe('批量改价取整口径', () => {
   it('数字 = 统一价（元），保留两位', async () => {
     setup()
     pickSome(2)
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     fireEvent.change(screen.getByLabelText('批量改价：数字表示统一价，数字加百分号表示打折'), { target: { value: '9.99' } })
-    fireEvent.click(screen.getByRole('button', { name: '应用' }))
+    await armThenConfirm(/应用批量改价/, /确认把选中的 2 个商品改为 ¥9\.99/)
     await waitFor(() => expect(m.batchUpdateProducts).toHaveBeenCalledWith([
       { productId: 'p1', updates: { price: 9.99 } },
       { productId: 'p2', updates: { price: 9.99 } },
@@ -210,43 +222,41 @@ describe('批量改价取整口径', () => {
   it('百分号 = 按原价百分比，四舍五入到分（3.33×33% 这类分位必须准）', async () => {
     setup([mkProduct(1, { price: 3.33 }), mkProduct(2, { price: 10 })])
     pickSome(2)
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     fireEvent.change(screen.getByLabelText('批量改价：数字表示统一价，数字加百分号表示打折'), { target: { value: '33%' } })
-    fireEvent.click(screen.getByRole('button', { name: '应用' }))
+    await armThenConfirm(/应用批量改价/, /确认把选中的 2 个商品改为 原价的 33%/)
     await waitFor(() => expect(m.batchUpdateProducts).toHaveBeenCalledWith([
       { productId: 'p1', updates: { price: 1.1 } }, // 3.33*33=109.89 → round → 1.10
       { productId: 'p2', updates: { price: 3.3 } }, // 10*33=330 → 3.30
     ]))
   })
 
-  it('非数字输入 → error 播报且不发请求、不弹确认', async () => {
+  it('非数字输入 → error 播报且不发请求、不进入待确认态', async () => {
     setup()
     pickSome(1)
-    const spy = vi.spyOn(window, 'confirm').mockReturnValue(true)
     fireEvent.change(screen.getByLabelText('批量改价：数字表示统一价，数字加百分号表示打折'), { target: { value: 'abc' } })
-    fireEvent.click(screen.getByRole('button', { name: '应用' }))
+    fireEvent.click(screen.getByRole('button', { name: /应用批量改价/ }))
     await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('请输入有效数字'))
     expect(m.batchUpdateProducts).not.toHaveBeenCalled()
-    expect(spy).not.toHaveBeenCalled()
+    // 非法输入应在「点亮确认」之前就被拦下：按钮不得进入 armed 态
+    expect(screen.queryByRole('button', { name: /确认把选中的/ })).toBeNull()
   })
 
-  it('确认框取消 → 不改价', async () => {
+  it('批量改价第一下只进入待确认态，不发请求', async () => {
     setup()
     pickSome(1)
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
     fireEvent.change(screen.getByLabelText('批量改价：数字表示统一价，数字加百分号表示打折'), { target: { value: '5' } })
-    fireEvent.click(screen.getByRole('button', { name: '应用' }))
+    fireEvent.click(screen.getByRole('button', { name: /应用批量改价/ }))
+    await waitFor(() => expect(screen.getByRole('button', { name: /确认把选中的 1 个商品改为/ })).toBeTruthy())
     await new Promise((r) => setTimeout(r, 0))
-    expect(m.batchUpdateProducts).not.toHaveBeenCalled()
+    expect(m.batchUpdateProducts, '第一下就改价 ⇒ 两步确认形同虚设').not.toHaveBeenCalled()
   })
 
   it('改价失败抛错 → error 播报', async () => {
     m.batchUpdateProducts.mockRejectedValue(new Error('D1 超时'))
     setup()
     pickSome(1)
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     fireEvent.change(screen.getByLabelText('批量改价：数字表示统一价，数字加百分号表示打折'), { target: { value: '5' } })
-    fireEvent.click(screen.getByRole('button', { name: '应用' }))
+    await armThenConfirm(/应用批量改价/, /确认把选中的 1 个商品改为/)
     await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('批量改价失败：D1 超时'))
   })
 })
@@ -260,10 +270,12 @@ describe('行内操作与内联展开铁律', () => {
   })
 
   it('单条删除失败 → error 播报（不静默）', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     m.deleteProduct.mockRejectedValue(new Error('网络错误'))
     setup()
+    // 行内两步确认：第一下点亮成「确认删除该商品」，第二下才真删
     fireEvent.click(screen.getAllByRole('button', { name: '删除商品' })[0])
+    await waitFor(() => expect(screen.getByRole('button', { name: '确认删除该商品（不可撤销）' })).toBeTruthy())
+    fireEvent.click(screen.getByRole('button', { name: '确认删除该商品（不可撤销）' }))
     await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('删除失败：网络错误'))
   })
 

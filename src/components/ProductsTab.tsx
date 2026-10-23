@@ -7,6 +7,7 @@ import EmptyState from './EmptyState'
 import { IconBox, IconEmpty } from './Icons'
 import { formatPrice } from '../utils/format'
 import { specSearchText } from '../utils/spec-options'
+import { useInlineConfirm } from '../hooks/useInlineConfirm'
 
 // 管理后台商品 Tab（2026-09-23 拆分：408 行 → 主壳 ~200 行）
 // 拆分出的子件：admin/ProductInlineEditForm（内联编辑表单）、admin/ProductRow（商品行）
@@ -22,7 +23,16 @@ export default function ProductsTab({ products, categories, onDataChange }: {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [editingId, setEditingId] = useState<string | null>(null) // null | 'new' | product._id
   const [batchPrice, setBatchPrice] = useState('')
-  // 内联反馈条（替代原生 alert；confirm 确认语义保留）
+  /**
+   * 破坏性操作走内联两步确认（arm → 再点一次 = 确认），替代原生 confirm()。
+   * 一个实例管三处（单删 key=product._id / 批量删 key=batch:delete / 批量改价
+   * key=batch:price）—— hook 的 armedKey 是单值，这正好是想要的语义：
+   * 点了某一行的删除，批量条不会同时亮着，反之亦然。
+   * 取消三条路（点别处 blur / Esc / 6s 超时）由 hook 提供，见其注释。
+   */
+  const { arm: armConfirm, disarm: disarmConfirm, isArmed: isConfirmArmed } = useInlineConfirm()
+
+  // 内联反馈条（替代原生 alert）
   const [notice, setNotice] = useState<{ type: 'error' | 'warn'; msg: string } | null>(null)
 
   // notice 定时器可清理：原实现每次 showNotice 直接 setTimeout，卸载后仍会 setState
@@ -101,11 +111,18 @@ export default function ProductsTab({ products, categories, onDataChange }: {
     } catch (err) { showNotice('error', '操作失败：' + (err instanceof Error ? err.message : '未知错误')) }
   }, [onDataChange, showNotice])
 
+  /**
+   * 单行删除拆成两个稳定回调，是为了保住 ProductRow 的 memo：
+   * 判断「这是第一下还是第二下」放在 ProductRow 的按钮里（它拿到 deleteArmed 布尔），
+   * 这里只暴露 requestDelete（点亮）与 remove（真删）。若把判断写成读 armedKey 的闭包，
+   * 每次点亮都会让 onRemove 换引用 ⇒ 整表 60+ 行全部重渲染。
+   */
+  const requestDelete = useCallback((productId: string) => armConfirm(productId), [armConfirm])
   const remove = useCallback(async (productId: string) => {
-    if (!confirm('确定删除该商品？')) return
+    disarmConfirm()
     try { await deleteProduct(productId); onDataChange() }
     catch (err) { showNotice('error', '删除失败：' + (err instanceof Error ? err.message : '未知错误')) }
-  }, [onDataChange, showNotice])
+  }, [onDataChange, showNotice, disarmConfirm])
 
   const toggleEdit = useCallback((id: string | null) => setEditingId(id), [])
 
@@ -113,7 +130,9 @@ export default function ProductsTab({ products, categories, onDataChange }: {
     const ids = [...selectedIds]
     const count = ids.length
     if (!count) return
-    if (action === 'delete' && !confirm(`确定删除 ${count} 个商品？`)) return
+    // 只有「删除」需要二次确认（不可逆）；上架/下架可逆，不套两步确认免得拖慢日常操作。
+    // 第一下：点亮批量条的删除按钮并直接返回，等用户再点一次。
+    if (action === 'delete' && !isConfirmArmed('batch:delete')) { armConfirm('batch:delete'); return }
     const label = action === 'enable' ? '上架' : action === 'disable' ? '下架' : '删除'
     try {
       const result = action === 'delete'
@@ -131,14 +150,36 @@ export default function ProductsTab({ products, categories, onDataChange }: {
     } catch (err) { showNotice('error', `批量${label}失败：` + (err instanceof Error ? err.message : '未知错误')) }
   }
 
+  /**
+   * 批量改价的目标值文案，提到组件级：armed 态的按钮要把「应用」写成「确认改为 X」——
+   * 光写「确认改价」不够，用户第二下点之前必须还能看见自己设定的是什么值。
+   *
+   * ⚠️ 刻意返回**名词短语**（¥5.00 / 原价的 33%）而不是动词短语。第一版返回的是
+   *    「统一设为 ¥5.00」，拼进按钮就成了「确认改为统一设为 ¥5.00」—— 两个动词叠在
+   *    一起读不通。这个语病是被对比度变异顺带抓出来的：把 armed 底色调浅让判据点名
+   *    按钮文案，人才第一次读到它长什么样。⇒ 界面文案也要有人读第二遍。
+   * 只在批量条出现时（selectedIds.size>0）才计算；输入非法时返回空串，由调用侧兜底。
+   */
+  const priceTarget = useMemo(() => {
+    const raw = batchPrice.trim()
+    if (!raw || !selectedIds.size) return ''
+    if (raw.includes('%')) {
+      const v = parseFloat(raw)
+      return isNaN(v) ? '' : `原价的 ${v}%`
+    }
+    const v = parseFloat(raw)
+    return isNaN(v) ? '' : `¥${formatPrice(v)}`
+  }, [batchPrice, selectedIds.size])
+
   const batchAdjustPrice = async () => {
     const ids = [...selectedIds]
     if (!batchPrice.trim() || !ids.length) return
     const isPercent = batchPrice.includes('%')
     const val = parseFloat(batchPrice)
     if (isNaN(val)) return showNotice('error', '请输入有效数字')
-    const label = isPercent ? `调整为原价的 ${val}%` : `统一设为 ¥${formatPrice(val)}`
-    if (!confirm(`${ids.length} 个商品${label}？`)) return
+    // 批量改价会一次覆盖 N 个商品的现价且不可撤销 ⇒ 同样两步确认。第一下把「应用」
+    // 按钮点亮成「确认改价」，第二下才真写。
+    if (!isConfirmArmed('batch:price')) { armConfirm('batch:price'); return }
     try {
       // id → 商品一次建索引：原先 ids.map 内 products.find 是 O(选中数×全量)，全选批量改价时浪费
       const priceById = new Map(products.map(p => [p._id, p.price]))
@@ -243,7 +284,12 @@ export default function ProductsTab({ products, categories, onDataChange }: {
             onToggleSelect={toggleSelect}
             onToggleEdit={toggleEdit}
             onQuickToggle={quickToggle}
+            onRequestDelete={requestDelete}
             onRemove={remove}
+            // 每行自己算布尔：armedKey 变化时只有「刚点亮的那行」和
+            // 「刚退掉的那行」值真的变了 ⇒ 其余行 memo 不失效。
+            deleteArmed={isConfirmArmed(product._id)}
+            onDisarmDelete={disarmConfirm}
             onSaved={onDataChange}
           />
         ))}
@@ -258,7 +304,17 @@ export default function ProductsTab({ products, categories, onDataChange }: {
               <div className="flex-1 flex gap-1.5">
                 <button onClick={() => batchAction('enable')} className="flex-1 py-2 bg-green-700 text-white rounded-lg text-xs font-medium">上架</button>
                 <button onClick={() => batchAction('disable')} className="flex-1 py-2 bg-ink text-white rounded-lg text-xs font-medium">下架</button>
-                <button onClick={() => batchAction('delete')} className="flex-1 py-2 bg-red-700 text-white rounded-lg text-xs font-medium">删除</button>
+                {/* 两步确认：batchAction 内部判断第一下只点亮。armed 态把数量写进文案，
+                    让用户第二下点之前还能看清「要删几个」—— 原生 confirm 就是这个信息量。
+                    上架/下架可逆，不套两步确认（见 batchAction 注释）。 */}
+                <button
+                  onClick={() => batchAction('delete')}
+                  onBlur={disarmConfirm}
+                  aria-label={isConfirmArmed('batch:delete') ? `确认删除选中的 ${selectedIds.size} 个商品（不可撤销）` : '批量删除选中商品'}
+                  className="flex-1 py-2 bg-red-700 text-white rounded-lg text-xs font-medium transition-colors duration-200"
+                >
+                  {isConfirmArmed('batch:delete') ? `确认删除 ${selectedIds.size} 个` : '删除'}
+                </button>
                 <button onClick={() => setSelectedIds(new Set())} aria-label="取消选择" className="tap-44 px-3 py-2 text-stone-500 text-xs">✕</button>
               </div>
             </div>
@@ -270,7 +326,21 @@ export default function ProductsTab({ products, categories, onDataChange }: {
                 onChange={e => setBatchPrice(e.target.value)}
                 className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-xs"
               />
-              <button onClick={batchAdjustPrice} className="px-3 py-1.5 bg-brand-500 text-ink rounded-lg text-xs font-medium">应用</button>
+              {/* 两步确认（同上）：armed 态把目标值写进文案，「应用」→「确认改为 X」。
+                  未点亮时沿用 btn-primary 的柿底墨字（主控件口径：白字压柿黄只有 1.92:1）。 */}
+              <button
+                onClick={batchAdjustPrice}
+                onBlur={disarmConfirm}
+                aria-label={isConfirmArmed('batch:price')
+                  ? `确认把选中的 ${selectedIds.size} 个商品改为 ${priceTarget}（不可撤销）`
+                  : `应用批量改价：${priceTarget || '请先输入价格'}`}
+                className={
+                  'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors duration-200 ' +
+                  (isConfirmArmed('batch:price') ? 'bg-red-700 text-white' : 'bg-brand-500 text-ink')
+                }
+              >
+                {isConfirmArmed('batch:price') ? `确认改为 ${priceTarget}` : '应用'}
+              </button>
             </div>
           </div>
         </div>

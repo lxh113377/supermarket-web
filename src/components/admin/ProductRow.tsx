@@ -14,13 +14,20 @@ interface ProductRowProps {
   onToggleSelect: (id: string) => void
   onToggleEdit: (id: string | null) => void
   onQuickToggle: (product: Product) => void
+  /** 第一下：点亮本行的删除按钮（真删由 onRemove 在第二下时执行） */
+  onRequestDelete: (id: string) => void
   onRemove: (id: string) => void
+  /** 本行是否处于待确认态（父组件用单值 armedKey 算好布尔传进来，保住 memo） */
+  deleteArmed: boolean
+  /** 焦点移出即回退待确认态（取消三条路之一，另两条是 Esc 与 6s 超时） */
+  onDisarmDelete: () => void
   onSaved: () => void
 }
 
 function ProductRow({
   product, catLabel, isEditing, selected, categories,
-  onToggleSelect, onToggleEdit, onQuickToggle, onRemove, onSaved,
+  onToggleSelect, onToggleEdit, onQuickToggle, onRequestDelete, onRemove,
+  deleteArmed, onDisarmDelete, onSaved,
 }: ProductRowProps) {
   const imgSrc = product.image || productImageUrl(product.order)
   const imgSrcSet = product.image ? undefined : productSrcSet(product.order)
@@ -138,13 +145,28 @@ function ProductRow({
           >
             <span aria-hidden="true">✎</span>
           </button>
+          {/* 两步确认（替代原生 confirm()）。刻意**保持 36px 方形不变**、只把垃圾桶图标
+              换成「确认」两字并转成实底红：行内按钮一排右对齐、尺寸固定，若 armed 时撑宽
+              成胶囊会把整行的名称/价格往左挤 —— 用户点第一下不该看到版面跳动。
+              两档视口实测（1280 / 390）：按钮宽恒 36px 不变、文字矩形完整被包含
+              （「确认」实测 23.66px，内容盒 36px 无左右 padding ⇒ 余 12.34px）。
+              ⚠️ 第一版这里写的是「余 6px」，那是按"有 6px padding"估的、没量过；
+                 而探针第一次报「溢出」也是假的 —— scrollWidth 38 > clientWidth 34 是
+                 .tap-44 外扩伪元素造成的（idle 态同样 38），与 armed 文字无关。
+              取消三条路：点别处（onBlur）/ Esc / 6s 超时，由父组件的 hook 提供。 */}
           <button
-            onClick={() => onRemove(product._id)}
-            aria-label="删除商品"
+            onClick={() => (deleteArmed ? onRemove(product._id) : onRequestDelete(product._id))}
+            onBlur={onDisarmDelete}
+            aria-label={deleteArmed ? '确认删除该商品（不可撤销）' : '删除商品'}
             style={{ '--tap-x': '4px', '--tap-y': '4px' } as CSSProperties}
-            className="tap-44 w-9 h-9 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center text-xs text-stone-500 hover:bg-red-50 hover:border-red-200 hover:text-red-700 transition active:scale-90"
+            className={
+              'tap-44 w-9 h-9 rounded-lg border flex items-center justify-center text-xs transition active:scale-90 ' +
+              (deleteArmed
+                ? 'bg-red-700 border-red-700 text-white font-semibold'
+                : 'bg-gray-50 border-gray-200 text-stone-500 hover:bg-red-50 hover:border-red-200 hover:text-red-700')
+            }
           >
-            <span aria-hidden="true">🗑</span>
+            {deleteArmed ? '确认' : <span aria-hidden="true">🗑</span>}
           </button>
         </div>
       </div>

@@ -117,17 +117,20 @@ test('src/functions 不得有原生 prompt()', () => {
 })
 
 /**
- * confirm() 棘轮：现值 3（2026-10-24 实测；立件当天是 8）。只准降不准升 —— 新增处
- * 必须改成内联两步确认（后台禁弹窗红线，不许引入自定义 modal）。
+ * confirm() 棘轮：现值 0（2026-10-24 清零；立件当天是 8）。与 alert / prompt 同级
+ * 零容忍 —— 新增处必须用 src/hooks/useInlineConfirm.ts（后台禁弹窗红线，不许自定义 modal）。
  *
- * 8 → 3 的账：2026-10-24 建 src/hooks/useInlineConfirm.ts（arm → 再点一次 = 确认，
- * 取消三条路：blur / Esc / 6s 超时），清掉 5 处 —— OrdersTab 删除订单、ReviewsTab
- * 删除评价、SubmissionsTab 删除提交、AdminPage 导入种子、CartPage 清空购物车。
- * 剩 3 处全在 ProductsTab（单删 / 批量删 / 批量改价）：它们挂在 fixed 底部批量条上，
- * 且该文件有 9 条 confirm 桩测试要同步改，布局与测试风险都不同于前 5 处 ⇒ 留下一轮
- * 单独清。上限写松了棘轮就退化成装饰，所以按实际现值钉死，而不是留着 8 等清零。
+ * 8 → 0 的账（分两轮，每轮清完就把上限钉到实际现值，不留"等清零"的空档）：
+ *   第一轮清 5 处：OrdersTab 删除订单、ReviewsTab 删除评价、SubmissionsTab 删除提交、
+ *     AdminPage 导入种子、CartPage 清空购物车（8 → 3）。
+ *   第二轮清 3 处：ProductsTab 单条删除、批量删除、批量改价（3 → 0）。这三处挂在 fixed
+ *     底部批量条 + 行内 36px 方框上，且 productsTab.test.tsx 有 9 条、productRow.test.tsx
+ *     有 1 条 confirm 桩测试要同步改成两步语义，风险与前 5 处不同 ⇒ 当时刻意分开做。
+ * 清零后这条判据从"棘轮"升级为"硬零"：任何一处回潮（哪怕从别处复制粘贴一段 confirm）
+ * 都会当场红。这也是为什么 helper 要带 blur / Esc / 6s 三条取消路 —— 少了任何一条，
+ * 用户就会被困在确认态，那比原生弹窗更糟，届时宁可留 confirm 也不该那样做。
  */
-const CONFIRM_CEILING = 3
+const CONFIRM_CEILING = 0
 test('原生 confirm() 不得超过棘轮上限 ' + CONFIRM_CEILING + '（只准降不准升）', () => {
   const hits = findNativeDialogs(ALL, 'confirm')
   expect(hits.length, '原生 confirm() 从 ' + CONFIRM_CEILING + ' 涨到 ' + hits.length

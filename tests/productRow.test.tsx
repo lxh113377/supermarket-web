@@ -19,7 +19,7 @@ const noop = () => undefined
 function setup(over: Partial<Product> = {}, props: Record<string, unknown> = {}) {
   const handlers = {
     onToggleSelect: vi.fn(), onToggleEdit: vi.fn(), onQuickToggle: vi.fn(),
-    onRemove: vi.fn(), onSaved: noop,
+    onRequestDelete: vi.fn(), onRemove: vi.fn(), onDisarmDelete: vi.fn(), onSaved: noop,
   }
   const r = render(
     <ProductRow
@@ -31,7 +31,11 @@ function setup(over: Partial<Product> = {}, props: Record<string, unknown> = {})
       onToggleSelect={handlers.onToggleSelect}
       onToggleEdit={handlers.onToggleEdit}
       onQuickToggle={handlers.onQuickToggle}
+      onRequestDelete={handlers.onRequestDelete}
       onRemove={handlers.onRemove}
+      // 默认未点亮；两步用例显式传 deleteArmed 覆盖（走下面的 {...props}）
+      deleteArmed={false}
+      onDisarmDelete={handlers.onDisarmDelete}
       onSaved={handlers.onSaved}
       {...props}
     />,
@@ -110,12 +114,30 @@ describe('上下架与操作回调', () => {
     expect(h.getByText('可乐 (500ml)').className).toContain('line-through')
   })
 
-  it('勾选框回调商品 id；删除按钮回调 id', () => {
+  it('勾选框回调商品 id；删除第一下只请求点亮、不真删', () => {
     const h = setup()
     fireEvent.click(h.getByLabelText('选择 可乐'))
     expect(h.onToggleSelect).toHaveBeenCalledWith('p1')
     fireEvent.click(h.getByRole('button', { name: '删除商品' }))
+    // 两步确认：未点亮时点一下 = arm，只回调 onRequestDelete，绝不回调 onRemove
+    expect(h.onRequestDelete).toHaveBeenCalledWith('p1')
+    expect(h.onRemove, '第一下就删 ⇒ 两步确认形同虚设').not.toHaveBeenCalled()
+  })
+
+  it('已点亮时再点一下才真删（回调 onRemove 并带 id）', () => {
+    const h = setup({}, { deleteArmed: true })
+    // armed 态可访问名必须变：读屏用户要能分辨「这是要删」还是「这是确认删」
+    const btn = h.getByRole('button', { name: '确认删除该商品（不可撤销）' })
+    fireEvent.click(btn)
     expect(h.onRemove).toHaveBeenCalledWith('p1')
+    expect(h.onRequestDelete).not.toHaveBeenCalled()
+  })
+
+  it('待确认态下焦点移出（点别处）回调 disarm（取消三条路之一）', () => {
+    const h = setup({}, { deleteArmed: true })
+    fireEvent.blur(h.getByRole('button', { name: '确认删除该商品（不可撤销）' }))
+    expect(h.onDisarmDelete).toHaveBeenCalled()
+    expect(h.onRemove).not.toHaveBeenCalled()
   })
 })
 
