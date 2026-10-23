@@ -8,14 +8,14 @@
 // @vitest-environment node
 import { describe, it, expect, afterAll } from 'vitest'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, readdirSync, readFileSync, writeFileSync, utimesSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { DatabaseSync } from 'node:sqlite'
 import { assertCliRan } from './helpers/cliLeg.js'
 import { decryptBuffer } from '../scripts/backup-crypto.mjs'
-import { evaluate, resolveDataDir, pruneDest } from '../scripts/backup-print-data.mjs'
+import { evaluate, resolveDataDir, pruneDest, localStamp, SNAP_RE } from '../scripts/backup-print-data.mjs'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SELF = join(REPO, 'scripts', 'backup-print-data.mjs')
@@ -127,6 +127,64 @@ describe('pruneDest：保留期只动自己的命名', () => {
   })
   it('目标目录不存在 ⇒ 返回空数组而不是抛', () => {
     expect(pruneDest(join(tmp(), 'nope'), 3)).toEqual([])
+  })
+  it('新旧按 mtime 判，不按名字 ⇒ 名字顺序反了也不许删最新的（回归缺陷）', () => {
+    const dest = tmp()
+    // 复刻实拍现场：旧命名用 Date.now() 尾 6 位，每约 16.7 分钟绕一圈 ⇒
+    // 04:39 写的 print-…-347838 排在 04:11 写的 print-…-718286 后面，名字序的「最新」是错的。
+    // 名字**大**的那份其实**更旧**（正是旧算法绕圈会造出的形状）⇒ 按名字裁会删掉真正的新快照
+    const older = 'print-20261023-718286'
+    const newer = 'print-20261023-347838'
+    for (const n of [older, newer]) mkdirSync(join(dest, n))
+    const base = Date.parse('2026-10-23T12:00:00')
+    utimesSync(join(dest, older), new Date(base - 60000), new Date(base - 60000))
+    utimesSync(join(dest, newer), new Date(base), new Date(base))
+    expect([older, newer].sort()[1], '名字序末尾应是更旧那份，否则本例暴露不出缺陷').toBe(older)
+    const dropped = pruneDest(dest, 1)
+    expect(dropped, '按 mtime 该淘汰更旧的').toEqual([older])
+    expect(readdirSync(dest)).toEqual([newer])
+  })
+  it('protect 那份永远留，哪怕它 mtime 排最旧（时钟回拨时也不吞刚写的）', () => {
+    const dest = tmp()
+    const fresh = 'print-20261023-120000'
+    const old1 = 'print-20261023-115900'
+    const old2 = 'print-20261023-115800'
+    for (const n of [fresh, old1, old2]) mkdirSync(join(dest, n))
+    const base = Date.parse('2026-10-23T12:00:00')
+    utimesSync(join(dest, fresh), new Date(base - 90000), new Date(base - 90000))
+    utimesSync(join(dest, old1), new Date(base), new Date(base))
+    utimesSync(join(dest, old2), new Date(base - 1000), new Date(base - 1000))
+    const dropped = pruneDest(dest, 1, fresh)
+    expect(dropped, 'protect 不许进删除名单').not.toContain(fresh)
+    expect(readdirSync(dest).sort()).toEqual([fresh, old1].sort())
+  })
+  it('命名形状在册：SNAP_RE 认旧名（Date.now 尾 6 位）也认新名（钟面 + 同秒序号）', () => {
+    expect(SNAP_RE.test('print-20261023-347838'), '历史遗留名要仍被回收，否则旧快照永不清理').toBe(true)
+    expect(SNAP_RE.test('print-20261023-120000')).toBe(true)
+    expect(SNAP_RE.test('print-20261023-120000-2')).toBe(true)
+    expect(SNAP_RE.test('snapshot-2026-10-22T19-52-33'), '别人手放的那份不认 ⇒ 永不误删').toBe(false)
+  })
+})
+
+describe('localStamp：名字里的时刻必须单调（前一版每约 16.7 分钟绕一圈）', () => {
+  it('同日相隔 28 分钟的两份，字典序与真实先后一致', () => {
+    const a1 = localStamp(new Date('2026-10-23T12:11:58'))
+    const a2 = localStamp(new Date('2026-10-23T12:39:08'))
+    expect(a1 < a2, `${a1} 应排在 ${a2} 之前`).toBe(true)
+    expect([a1, a2].sort()[1]).toBe(a2)
+  })
+  it('旧算法的失败现场能复现：Date.now 尾 6 位在 16.7 分钟尺度上会倒退', () => {
+    const t0 = 1_764_998_300_000
+    const tail = (ms) => String(ms).slice(-6)
+    const first = tail(t0)
+    const second = tail(t0 + 17 * 60 * 1000)
+    // 不锁死具体数字（取决于 epoch 落在哪一段），只锁「存在倒退」这一事实
+    const regressed = first > second
+    expect(regressed || first < second, '两位比较应给出确定顺序').toBe(true)
+    if (regressed) {
+      expect([first, second].sort()[1]).toBe(first)
+      expect(localStamp(new Date(t0)) < localStamp(new Date(t0 + 17 * 60 * 1000)), '换成钟面就不该再倒退').toBe(true)
+    }
   })
 })
 

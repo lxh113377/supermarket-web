@@ -41,6 +41,8 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 export const DEFAULT_DEST = process.env.CAMPUS_PRINT_BACKUP_DIR || 'D:\\campus-print-backups'
 /** 保留几份：实测单份约 0.75MB（库）+ 0.5MB（两张码），14 份上限 ≈ 18MB，忽略不计。 */
 export const DEFAULT_KEEP = 14
+/** 快照目录名形状：print-YYYYMMDD-HHMMSS（同秒撞名补 -N）。 */
+export const SNAP_RE = /^print-\d{8}-\d{6}(-\d+)?$/
 const ASSET_DIRS = ['payment-assets', 'advertisement-assets']
 
 /** 上游 DATA_DIR 是相对路径（实测 .env 写 `DATA_DIR=var`），必须按上游仓根解析，不能按 cwd。 */
@@ -68,6 +70,12 @@ function arg(argv, name) {
  * `BACKUP_PASSPHRASE_FILE` 只给测试用（指到一个不存在的路径 ⇒ 磁盘兜底失效，才能验「两处都无」
  * 那一档）；正常运维不需要设它。
  */
+/** 钟面时刻（不是 UTC 戳）：备份目录给人看，对齐他本机时间比对齐 ISO 更有用。 */
+export function localStamp(d) {
+  const z = (x) => String(x).padStart(2, '0')
+  return d.getFullYear() + z(d.getMonth() + 1) + z(d.getDate()) + '-' + z(d.getHours()) + z(d.getMinutes()) + z(d.getSeconds())
+}
+
 export function readDevVar(path, name) {
   if (!existsSync(path)) return ''
   const txt = readFileSync(path, 'utf8').replace(/\r\n/g, '\n')
@@ -106,8 +114,16 @@ export async function evaluate({ argv = [], env = process.env, log = console.log
   if (!Number.isInteger(keep) || keep < 1) bail('backup-print-data', '--keep 要是正整数，收到 ' + arg(argv, '--keep'))
 
   const started = Date.now()
-  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T-]/g, '').slice(0, 8) + '-' + String(Date.now()).slice(-6)
-  const dirName = 'print-' + stamp
+  // 名字里的时刻必须**单调**：前一版用 `String(Date.now()).slice(-6)` 当尾巴，实测它每约
+  // 16.7 分钟绕一圈 ⇒ 同日两份快照的名字顺序会和真实先后相反（实拍：04:39 的那份排到了
+  // 04:11 那份后面）。现在直接用本地钟面 YYYYMMDD-HHMMSS，同日也单调；同一秒撞名则补序号。
+  const stamp = localStamp(new Date())
+  let dirName = 'print-' + stamp
+  if (existsSync(join(dest, dirName))) {
+    let n = 2
+    while (existsSync(join(dest, 'print-' + stamp + '-' + n))) n++
+    dirName = 'print-' + stamp + '-' + n
+  }
   const outDir = join(dest, dirName)
 
   // ① 库：只读在线备份，落 tmp 再加密
@@ -180,7 +196,7 @@ export async function evaluate({ argv = [], env = process.env, log = console.log
   writeFileSync(join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n')
 
   // ⑤ 保留期：按目录名排序留最近 keep 份
-  const pruned = pruneDest(dest, keep)
+  const pruned = pruneDest(dest, keep, dirName)
 
   log('[backup-print-data] OK 快照 ' + dirName + '：库 ' + dbBytes + 'B/' + tableCount + ' 表 integrity=ok，' +
       Object.entries(counts).map(([k, v]) => k + '=' + (v ?? 'n/a')).join(' ') + '，资产 ' + encAssets.length + ' 件（全加密）⇒ ' + outDir +
@@ -192,13 +208,23 @@ export async function evaluate({ argv = [], env = process.env, log = console.log
 function lstatSafe(p) { try { return lstatSync(p) } catch { return null } }
 function outDirPrep(dir) { mkdirSync(dir, { recursive: true }); return dir }
 
-/** 只删本脚本自己命名（print-<8位>-<6位>）的子目录 ⇒ 上一轮那份手写 snapshot-* 不会被误删。 */
-export function pruneDest(dest, keep) {
+/**
+ * 保留期回收。**按 mtime 排新旧，不按名字**：名字里那 6 位尾巴从前是
+ * `String(Date.now()).slice(-6)`，实测每约 16.7 分钟绕一圈 ⇒ 名字顺序会与真实先后相反，
+ * 纯按名字裁会**连刚写的这份都删掉**（这是本文件自己造出来又自己修掉的缺陷）。
+ * `protect` 再兜一道：本轮新写的那份永远不许删，哪怕它的 mtime 因时钟回拨排到最旧。
+ * 只动 `SNAP_RE` 形状的子目录 ⇒ 别的手放快照（`snapshot-*`）一个不碰。
+ */
+export function pruneDest(dest, keep, protect = null) {
   if (!existsSync(dest)) return []
   const mine = readdirSync(dest, { withFileTypes: true })
-    .filter((e) => e.isDirectory() && /^print-\d{8}-\d{6}$/.test(e.name))
-    .map((e) => e.name).sort()
-  const drop = mine.slice(0, Math.max(0, mine.length - keep))
+    .filter((e) => e.isDirectory() && SNAP_RE.test(e.name))
+    .map((e) => ({ name: e.name, t: statSync(join(dest, e.name)).mtimeMs }))
+    .sort((a, b) => a.t - b.t)
+  // 语义：protect（本轮刚写的那份）永远留；其余按 mtime 留最新 keep 份（故总数最多 keep+1）。
+  const keepSet = new Set(mine.filter((r) => r.name !== protect).slice(-keep).map((r) => r.name))
+  if (protect) keepSet.add(protect)
+  const drop = mine.filter((r) => !keepSet.has(r.name)).map((r) => r.name)
   for (const d of drop) rmSync(join(dest, d), { recursive: true, force: true })
   return drop
 }
