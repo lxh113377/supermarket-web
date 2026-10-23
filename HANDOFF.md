@@ -369,6 +369,24 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN`（repo �
     本轮转成加密容器（转前逐字节校验、校验过了才删明文），并删掉同日那份带 `-shm`/`-wal`
     明文伴生件的重复快照 ⇒ 实测目录内非 `.enc`/`.json` 件数 = 0。
 
+13. **朋友的后台账号已在线上建好（`dragon_maiden`），并纠正两条我记错的 API 契约** —
+    老大转来朋友那份 `admin-login.json`（`dragon_maiden` / 创建 2026-10-17，文件里自带上游原话
+    「禁止提交 Git、README、日志或截图」⇒ 本条只记**账号名**，不记口令）。实测：直接拿它登线上
+    回 401 —— 那份账号建在朋友自己机器的库里，不在合并后的部署里（这正是「他的代码 + 我的后端
+    合并」漏掉的一格）。已在上游仓跑它的 `admin:init`（`CP_ADMIN_USERNAME/CP_ADMIN_PASSWORD`
+    走环境变量，不落脚本文件）把同名账号建进线上库 ⇒ 实测登录 `200 role=admin`。
+    所以第 11 条现在的口径：后台有两个管理员（`admin`=我早期建的临时号、`dragon_maiden`=朋友的号）,
+    接管对象改成朋友的号即可，我那个临时号建议由老大在他自己的登录态下处置。
+    顺带纠正两条我自己记错的契约（都是实测打出来的，不是读文档读出来的）：
+    ① `POST /admin/orders/:id/cancel-resolution` 的真实入参是 `{ expectedVersion, action:'cancel',
+       reasonCode }` —— 我此前记的 `action:'merchant'` 与 `note` 都被 `VALIDATION_ERROR` 当场拒
+       （`action` 只认 cancel/approve/reject；`note` 属「不支持此字段」；`action:'request'` 上游
+       已移除并回 410）。另需 **`Idempotency-Key` 头（8–100 位字母数字 . _ : -）**，前端自动带、
+       裸调接口不会带 ⇒ 「UI 能点、API 不通」的常见来源。
+    ② 登录**之后**再 `GET /auth/csrf` 会**新开会话**并把管理端 Cookie 换掉 ⇒ 后续写操作回
+       `401 AUTH_REQUIRED`（看着像 CSRF 失败，其实是会话被顶掉）。正解：用登录响应头
+       `X-CSRF-Token`（上游 `routes/auth.js:17` 就在响应里回吐它），别再取一次 /auth/csrf。
+
 ## 十、历史存档（CloudBase 时代，2026-08-08 前，仅归档参考）
 
 > 以下记录为 2026-08-08 及之前的 CloudBase 架构历史，**已迁移至 Cloudflare Pages + D1，仅供参考勿照做部署**。
