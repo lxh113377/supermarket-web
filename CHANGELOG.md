@@ -4,6 +4,54 @@
 
 ## [未发布]
 
+### 2026-10-23 消除原生 alert()：4 处内联化（含一处静默失败），并立原生对话框棘轮
+
+- **量化触发（原创性 / 精致度维度）**：这个维度最难客观化，但有一类代理指标是硬事实 ——
+  **浏览器默认痕迹**。扫描发现全站 12 处原生对话框（4 处 alert + 8 处 confirm）。原生
+  对话框阻塞整条线程、样式完全由浏览器决定（与本站暖色品牌毫无关系），是"没设计过"的
+  铁证。另扫 console.log 残留 / TODO / FIXME / debugger：全部 **0 处** ⇒ 代码卫生面干净。
+- **UI 文案质量也顺手量了**：全 src 扫中文文案里的半角标点（逗号/冒号/分号/括号/问号），
+  唯一命中是「全选(${n})」这种数字插值（我的正则误判）⇒ **这个维度已过关，如实记录不改**。
+- **为什么 alert() 判零、confirm() 只登记欠账**（不是一起清零，理由要说清）：
+  · alert() 是纯展示，且原先三处直接把内部异常串糊在用户脸上
+    （alert('删除失败：' + e.message)）。仓库里本来就有正确做法（ReviewsTab 的
+    formError + role="alert" 内联提示）⇒ 那 4 处属「没统一」，改掉零风险，直接判零。
+  · confirm() 是同步阻塞式二次确认，换成内联两步确认要改 8 处调用点的**控制流**；而且
+    本仓有硬红线「后台禁弹窗/禁抽屉，唯一交互是内联展开」⇒ 既不能上自定义 modal，也不
+    该在本轮顺手大改控制流。做法是登记为**棘轮**：现值 8、只准降不准升，清一处就同步
+    下调上限。假装它不存在才是问题。
+- 实施：4 处 alert()（ReviewsTab 1 + SubmissionsTab 3）全部改为内联提示（复用本页/仓库既有的
+  role="alert" + aria-live 模式）。配色刻意复用既有配对（红 text-red-700/bg-red-50、绿
+  text-green-700/bg-green-50）—— 沿用惯例不等于合格，实测数学校验：红 5.91:1、绿 4.79:1，
+  且即使背景未生效（压白底）也分别是 6.47:1 / 5.02:1，全部过 AA；同款配对仓库已有红 13 处、
+  绿 5 处（早被对比度闸审过）。
+- **顺带修掉一处静默失败**：「已复制」原先是 clipboard.writeText(...).then(() => alert(
+  '已复制')) —— 没有 catch。剪贴板 API 在非安全上下文或被用户拒绝时会 reject，  那种情况下用户**以为复制成功了**。现在成功走中性提示（2.4s 自动收，不占用户一次点击）、
+  失败走红色 assertive 并给出可执行的下一步（长按文本手动复制）。
+- 无障碍细节：失败提示用 role="alert" + aria-live="assertive"，成功提示用 role="status" +
+  aria-live="polite" —— 两者分开容器，否则读屏会把「已复制」也当 assertive 打断用户。
+  实测两页签的容器都已就位（服务页 alert+status 两个、评价页 alert 一个）。
+- **新增判据** tests/native-dialogs.test.ts（4 条，放 unit 层）：alert() 判零、prompt()
+  判零、confirm() 棘轮上限 8（并每次印现值方便下次同步下调）。纯文件系统扫描不碰 DOM，
+  标 @vitest-environment node（66ms 量级，没必要起 jsdom）。
+- 取数口径三处易错，全部实测过：① 先剥注释再匹配 —— 本文件注释里就写着 alert( 字样，
+  不剥会自判红；② 排除 role="alert" / aria-live 这类属性值（它们是无障碍设施）；
+  ③ 排除 deferred.prompt() —— 那是 PWA beforeinstallprompt 的 API，不是 window.prompt。
+  实现用**字符状态机**而不是正则：本会话已被转义层级坑过多次，状态机可读且无此风险。
+- **判据验真 + 一次假信号的纠正**：把 ReviewsTab 的 setActionError 临时改回 alert() ⇒
+  判据精准报出 components/ReviewsTab.tsx:76 带上下文，还原后逐字比对 RESTORED:true。
+  过程中第一次跑变异显示 exit=1，我差点当成"有牙齿"的证据 —— 读日志才发现两次运行都因
+  --reporter=basic 不被支持而**根本没跑起来**（loadCustomReporterModule 报错），那个 1 是
+  启动失败的退出码不是断言失败。换回仓库既有的 --reporter=dot 才拿到真结论。
+  ⇒ 退出码非零不等于判据生效，先看它有没有真的跑。
+- 一次数字自查（本会话第二次，同一毛病）：本条初稿写「ReviewsTab 1 处、SubmissionsTab',
+'  4 处」= 5 处，与开头声明的 4 处自相矛盾；用 git show 逐文件实测是 ReviewsTab 1 +',
+'  SubmissionsTab 3 ⇒ 已改正。教训与上一轮 visual 条数同形：分解数字必须现量，不能凭印象。',
+'- 另记一次自己踩的门禁：新判据里用了 console.log 印现值，被 oxlint 的 no-console
+  （--max-warnings 0）判红导致 verify exit=1；改 console.warn（本仓先例见 layout.spec.ts
+  量开关几何那段）。
+- 验证：oxlint 0 警告 / tsc 零错 / vitest **141 文件 2069 用例全过**（+1 文件 +4 用例）/ 
+  npm run verify exit 0 / report:item-budgets rc=0 / check:size 3/3。
 ### 2026-10-23 键盘可达性补齐：11 个页面没有 main landmark，新增跳到主内容与结构闸
 
 - **量化触发**：第八轮修了标题层级，但漏了同族的一半 —— **landmark 结构**。实测 12 个

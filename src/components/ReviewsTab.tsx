@@ -29,6 +29,9 @@ export default function ReviewsTab() {
   const [formText, setFormText] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState('')
+  // 删除失败的提示（2026-10-23）：原先用原生 alert()，既阻塞又把内部异常串直接糊在
+  // 用户脸上；改成与本页 formError 同一套内联做法（role="alert" + aria-live）。
+  const [actionError, setActionError] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -68,8 +71,9 @@ export default function ReviewsTab() {
     try {
       await deleteCloudReview(reviewId)
       setReviews(prev => prev.filter(r => r._id !== reviewId))
+      setActionError('')
     } catch (e) {
-      alert('删除失败：' + (e instanceof Error ? e.message : '未知错误'))
+      setActionError('删除失败：' + (e instanceof Error ? e.message : '未知错误'))
     } finally {
       setDeleting(null)
     }
@@ -204,6 +208,12 @@ export default function ReviewsTab() {
           </div>
         </div>
       )}
+
+      {/* 删除失败提示：放在列表之前（空态与非空态都看得见），沿用本页既有的
+          role="alert" + aria-live 内联做法，不再用原生 alert() 阻塞。 */}
+      <div role="alert" aria-live="assertive">
+        {actionError && <p className="mb-3 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700">{actionError}</p>}
+      </div>
 
       {/* 评价列表 */}
       {reviews.length === 0 ? (

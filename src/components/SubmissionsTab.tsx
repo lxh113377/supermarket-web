@@ -1,4 +1,4 @@
-import {  useState, useEffect, useMemo, useCallback  } from 'react'
+import {  useState, useEffect, useMemo, useCallback, useRef  } from 'react'
 import { adminCall } from '../auth'
 import { CATEGORIES } from '../data/categories'
 import EmptyState from './EmptyState'
@@ -22,6 +22,15 @@ export default function SubmissionsTab() {
   const [imageCache, setImageCache] = useState<Record<string, string[]>>({})
   const [imageLoading, setImageLoading] = useState<Record<string, boolean>>({})
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  // 操作结果提示（2026-10-23）：原先 4 处都用原生 alert() —— 它阻塞整页、样式由
+  // 浏览器决定（与本站暖色品牌无关），且把内部异常串直接糊在用户脸上。改成与
+  // ReviewsTab 同一套内联做法（role="alert" + aria-live）；「已复制」是瞬时反馈，
+  // 2.4s 后自动收，不占用用户一次点击。
+  const [actionError, setActionError] = useState('')
+  const [copyNotice, setCopyNotice] = useState('')
+  const copyTimer = useRef<number | undefined>(undefined)
+
+  useEffect(() => () => { if (copyTimer.current) window.clearTimeout(copyTimer.current) }, [])
 
   const loadImages = async (id: string) => {
     if (imageCache[id] || imageLoading[id]) return
@@ -86,8 +95,9 @@ export default function SubmissionsTab() {
     try {
       await adminCall('updateSubmissionStatus', { submissionId: id, status })
       setSubmissions(prev => prev.map(s => s._id === id ? { ...s, status } : s))
+      setActionError('')
     } catch (e) {
-      alert('更新失败: ' + (e instanceof Error ? e.message : '未知错误'))
+      setActionError('更新失败: ' + (e instanceof Error ? e.message : '未知错误'))
     }
   }
 
@@ -96,8 +106,9 @@ export default function SubmissionsTab() {
     try {
       await adminCall('deleteSubmission', { submissionId: id })
       setSubmissions(prev => prev.filter(s => s._id !== id))
+      setActionError('')
     } catch (e) {
-      alert('删除失败: ' + (e instanceof Error ? e.message : '未知错误'))
+      setActionError('删除失败: ' + (e instanceof Error ? e.message : '未知错误'))
     }
   }
 
@@ -108,7 +119,17 @@ export default function SubmissionsTab() {
       `图片：${s.images?.length ?? s.imageCount ?? 0}张`,
       `时间：${s.createdAt ? new Date(s.createdAt).toLocaleString() : ''}`,
     ]
-    navigator.clipboard.writeText(lines.join('\n')).then(() => alert('已复制'))
+    navigator.clipboard.writeText(lines.join('\n')).then(
+      () => {
+        setActionError('')
+        setCopyNotice('已复制到剪贴板')
+        if (copyTimer.current) window.clearTimeout(copyTimer.current)
+        copyTimer.current = window.setTimeout(() => setCopyNotice(''), 2400)
+      },
+      // clipboard API 在非安全上下文或被拒绝时会 reject：原先根本没有 catch，
+      // 失败时用户以为复制成功了。现在明确告知并给出可执行的下一步。
+      () => setActionError('复制失败：浏览器拒绝了剪贴板访问，请长按文本手动复制'),
+    )
   }
 
   const formatField = (key: string, value: string): string => {
@@ -127,6 +148,16 @@ export default function SubmissionsTab() {
 
   return (
     <div>
+      {/* 操作结果提示：内联而非原生 alert()（见 state 处注释）。失败用红色 assertive，
+          成功用中性提示并自动收 —— 两者共用一个 role="status" 容器，避免读屏把
+          「已复制」也当 assertive 打断用户。 */}
+      <div role="alert" aria-live="assertive">
+        {actionError && <p className="mb-3 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700">{actionError}</p>}
+      </div>
+      <div role="status" aria-live="polite">
+        {copyNotice && <p className="mb-3 rounded-lg border border-green-100 bg-green-50 px-3 py-2 text-sm text-green-700">{copyNotice}</p>}
+      </div>
+
       {/* 筛选 */}
       <div className="flex gap-2 mb-4 flex-wrap" role="group" aria-label="按服务分类筛选">
         <button
