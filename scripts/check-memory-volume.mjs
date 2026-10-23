@@ -11,6 +11,7 @@
 //
 // 用法：node scripts/check-memory-volume.mjs            # 只判 git 暂存区里的记忆文件（pre-commit 用）
 //       node scripts/check-memory-volume.mjs --all      # 判全量（CI 用）
+//       node scripts/check-memory-volume.mjs --all --born  # 第七十八轮 V4b：出生即贴线**普查**（存量按 BORN_BASELINE 棘轮豁免、基线外新增违例判红；历史不可达 ⇒ 未验证，不折算干净）
 import { readFileSync, existsSync, statSync, readdirSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
@@ -68,6 +69,35 @@ function stagedAdded(dir = root) {
 /** 新卷出生余量下限：25%（= 3,072B）。取 25% 的实测依据见登记册「体量预算」节与第三十五轮报告。 */
 export const NEW_VOLUME_MIN_HEADROOM = 0.25
 
+/** V4b 存量基线（第七十八轮 I-77-3 落地 @2026-10-24 普查实测）：这些卷出生即 >3072B，
+ *  违例发生在"规则在册之前"或判据没牙齿的年代 ⇒ 豁免在册，**棘轮只准减不准增**。
+ *  摘名 = 把该卷拆薄到出生口径以内后从名单删除（拆卷是正解，压措辞不是）。
+ *  复算普查：本件 `--born`（= `git log --diff-filter=A` + `git cat-file --batch-check` 两次批量调用）。 */
+export const BORN_BASELINE = [
+  '07-next-steps.part46.md',
+  '07-next-steps.part45.md',
+  '07-next-steps.part42.md',
+  '07-next-steps.part36.md',
+  '07-next-steps.part35.md',
+  '05-feature-status.part1.md',
+  '05-feature-status.part2.md',
+  '07-next-steps.part1.md',
+  '07-next-steps.part10.md',
+  '07-next-steps.part11.md',
+  '07-next-steps.part12.md',
+  '07-next-steps.part19.md',
+  '07-next-steps.part20.md',
+  '07-next-steps.part21.md',
+  '07-next-steps.part22.md',
+  '07-next-steps.part24.md',
+  '07-next-steps.part25.md',
+  '07-next-steps.part4.md',
+  '07-next-steps.part5.md',
+  '07-next-steps.part6.md',
+  '07-next-steps.part7.md',
+  '07-next-steps.part8.md',
+]
+
 /** 入口卷的名字 —— 每轮真正往下写的只有它，所以"贴死"只判它。 */
 export const MAIN_VOLUME = '07-next-steps.md'
 
@@ -93,7 +123,7 @@ export function partNumbersOf(names) {
   return [...new Set(names.map((n) => /^07-next-steps\.part(\d+)\.md$/.exec(n)?.[1]).filter(Boolean).map(Number))].sort((a, b) => a - b)
 }
 
-export function evaluate({ files, max, all = true, added = null, partNumbers, declaredRange, remeasure = null }) {
+export function evaluate({ files, max, all = true, added = null, partNumbers, declaredRange, remeasure = null, born = null }) {
   const rows = []
   const overs0 = files.filter((f) => f.size > max)
   // V6（第四十六轮，R45-H3 的落地）：**共享工作树里读到的字节数可能是别人写到一半的形态**。
@@ -166,6 +196,32 @@ export function evaluate({ files, max, all = true, added = null, partNumbers, de
             + '**禁止**用压措辞/删事实换绿 —— 上一轮压到 4,096B 整就是这条恒真放行的'
           : (headroom < max * 0.15 ? '（贴线：还能写一条，但本轮收尾前先腾地方）' : '')),
     })
+  }
+
+  // V4b（第七十八轮，I-77-3 的"下轮"）：把**存量**贴线卷从"没人普查过的传闻"变成当场可复算的数。
+  // 一手实测：本轮 `git log --diff-filter=A` + `cat-file --batch-check` 全史普查，
+  // 在册 181 个出生事件里 22 本在作用面卷**出生即 >3072B**（part45 4081B / part46 4055B / part22 3985B……），
+  // 而 V4 只管"本次暂存的新增"——历史违例既不被判、也不被数，"历史干净"是**没人量过**，不是量出来绿。
+  // 口径：出生字节 = 首提 blob 字节（eol=lf ⇒ blob⇄工作树同形，见 verify:eol E2）；基线在册存量豁免，
+  // 基线外违例 ⇒ 红（新卷违例本就该被 V4 拦，走到 V4b 说明它绕过了暂存面，例如 amend/合并带入）。
+  // V4b（第七十八轮，I-77-3）：**存量**贴线卷从"传闻"变成可当场复算的普查。
+  // 一手：本轮全史普查实测 181 个出生事件、22 本在作用面卷出生即贴线 —— 此前没有任何判据数过它们，
+  // "历史干净"是**没量过**，不是量出来绿（同族病：R44"在册即已验"）。
+  if (born) {
+    if (born.unreachable) {
+      rows.push({ id: 'V4b', pass: true, status: 'UNVERIFIED',
+        detail: `出生即贴线普查不可达（${born.unreachable}）⇒ 不判；绝不折算成"存量干净"` })
+    } else {
+      const bornMax = Math.floor(max * (1 - NEW_VOLUME_MIN_HEADROOM))
+      const out = born.viol.filter((v) => v.bytes > bornMax && !BORN_BASELINE.includes(v.name))
+      const stale = BORN_BASELINE.filter((n) => !born.presentNames.has(n))
+      rows.push({
+        id: 'V4b', pass: out.length === 0,
+        detail: `普查 ${born.events} 个出生事件：作用面出生即 >${bornMax}B 共 ${born.viol.length} 本（基线在册 ${BORN_BASELINE.length}，棘轮只减不增${stale.length ? `；基线中 ${stale.length} 本已不在违例面（${stale.join(' , ')}）可摘名` : ''}）`
+          + (out.length ? ` ⇒ **基线外新增违例** ${out.length} 本：${out.map((v) => `${v.name} ${v.bytes}B(余 ${max - v.bytes}B)`).join(' , ')} ⇒ 拆成两卷（V4 出生口径），别压措辞`
+            : `；基线外新增违例 0 ⇒ 从立线那一次起，新贴线卷会被 V4/V4b 双闸拦下`),
+      })
+    }
   }
 
   // V4（第三十五轮）：**新建**的记忆卷必须带着余量出生。
@@ -273,7 +329,39 @@ export function outerFaceReport({ memDir, size, shellMax, source }) {
   }
 }
 
-export function main({ dir = root, all = false, outerMemDir = OUTER_MEM_DEFAULT } = {}) {
+/** V4b 取数：两次 git 批量调用（log --diff-filter=A + cat-file --batch-check），不逐件 spawn。 */
+export function bornCensus({ dir = root, max, headroom = NEW_VOLUME_MIN_HEADROOM } = {}) {
+  const git = (args, input, timeoutMs = 120_000) => spawnSync('git', args, { cwd: dir, encoding: 'utf8', input, timeout: timeoutMs })
+  const log = git(['log', '--diff-filter=A', '--format=C%H', '--name-only', '--', 'memory/'], undefined)
+  if (log.status !== 0) return { unreachable: `git log rc=${log.status}（浅克隆/非 git 面 ⇒ 出生不可达：${String(log.stderr || '').split('\n')[0].slice(0, 100)}）` }
+  const birth = new Map()
+  let cur = null
+  for (const l of String(log.stdout || '').split('\n')) {
+    if (l.startsWith('C') && l.length > 40) { cur = l.slice(1); continue }
+    const f = l.trim()
+    if (cur && /^memory\/.*\.md$/.test(f) && !birth.has(f)) birth.set(f, cur)
+  }
+  if (!birth.size) return { unreachable: '出生事件 0 条 ⇒ 取数面空，不判（这不是"零违例"）' }
+  const check = git(['cat-file', '--batch-check'], [...birth].map(([f, sha]) => `${sha}:${f}`).join('\n') + '\n')
+  if (check.status !== 0) return { unreachable: `cat-file --batch-check rc=${check.status}` }
+  const names = [...birth.keys()]
+  const viol = []
+  const presentNames = new Set()
+  String(check.stdout || '').split('\n').forEach((line, i) => {
+    const f = names[i]
+    if (!f) return
+    const parts = line.split(' ')
+    if (parts[1] !== 'blob' || !/^\d+$/.test(parts[2])) return
+    const bytes = Number(parts[2])
+    const name = f.replace(/^memory\//, '')
+    presentNames.add(name)
+    const c = classify(name)
+    if (c.inScope && bytes > max * (1 - headroom)) viol.push({ name, bytes })
+  })
+  return { events: names.length, viol, presentNames }
+}
+
+export function main({ dir = root, all = false, outerMemDir = OUTER_MEM_DEFAULT, born = false } = {}) {
   const { max, source } = loadBudget()
   const memDir = join(dir, 'memory')
   if (!existsSync(memDir)) bail('memory-volume', `取不到 ${memDir}`)
@@ -289,6 +377,7 @@ export function main({ dir = root, all = false, outerMemDir = OUTER_MEM_DEFAULT 
   }
   const res = evaluate({
     files: scope, max, all, added: all ? null : stagedAdded(dir),
+    born: born ? bornCensus({ dir, max }) : null,
     partNumbers: partNumbersOf(allNames), declaredRange: readDeclaredRange(memDir),
     // 只有"已经要判红"的卷才付这次重读的成本（150ms 自旋后二次 stat）；一致 ⇒ 照常 FAIL。
     remeasure: (name) => {
@@ -357,5 +446,6 @@ const outerArg = (process.argv.find((a) => a.startsWith('--outer-memory=')) || '
 if (isCli) process.exit(main({
   dir: root,
   all: process.argv.includes('--all'),
+    born: process.argv.includes('--born'),
   ...(outerArg ? { outerMemDir: resolve(outerArg) } : {}),
 }))

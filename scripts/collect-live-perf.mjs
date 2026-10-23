@@ -36,6 +36,15 @@ export const DEFAULT_DIR = join(ROOT, '.lighthouse')
 const LH_TIMEOUT_MS = 180_000
 const PREFLIGHT_MS = 20_000
 
+/** 读 `~/.npmrc` 的 `cache=` 键（第七十八轮，resolveLighthouse 的基数之一）。只认行首 cache=，不跑 npm。 */
+export function npmRcCache(home = homedir()) {
+  try {
+    const t = readFileSync(join(home, '.npmrc'), 'utf8')
+    const m = t.match(/^cache=(.+)$/m)
+    return m ? m[1].trim() : null
+  } catch { return null }
+}
+
 /** Chromium 载体探测：本机无 Chrome，用 Edge。顺序=环境变量 → 已知安装路径 → 命令名。 */
 export function resolveBrowser(env = process.env) {
   const cands = []
@@ -97,7 +106,10 @@ export function resolveLighthouse(env = process.env) {
   else {
     try { cands.push(req.resolve('lighthouse/cli/index.js')) } catch { /* 没装成依赖，继续往下探 */ }
   }
-  const bases = explicit ? [] : [env.npm_config_cache, env.NPM_CONFIG_CACHE, join(homedir(), 'AppData', 'Local', 'npm-cache'), 'D:/npm-cache', 'C:/npm-cache']
+  // 第七十八轮：本机实测 BLOCKED 一次 —— npx 缓存面在 `~/.npmrc` 的 `cache=` 指到的目录
+  // （本仓采过样时是 D:/npm-cache/_npx，现 npmrc 写 D:\app-cache\npm-cache ⇒ 全清单不命中 ⇒
+  // "缺执行器"假象，而 lighthouse 其实在盘上）。bases 追加 npmrc 读数（只取 cache= 一行，不 exec npm）。
+  const bases = explicit ? [] : [env.npm_config_cache, env.NPM_CONFIG_CACHE, npmRcCache(homedir()), join(homedir(), 'AppData', 'Local', 'npm-cache'), 'D:/npm-cache', 'C:/npm-cache']
   for (const b of bases) {
     if (!b) continue
     const npxDir = join(b, '_npx')
