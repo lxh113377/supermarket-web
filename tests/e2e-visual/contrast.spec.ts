@@ -143,6 +143,34 @@ const seedOrderQueryResult = async (page: import('@playwright/test').Page) => {
   await page.waitForTimeout(600)
 }
 
+/**
+ * 购物车「清空」按钮的**待确认态**（armed）（2026-10-24 补，随内联两步确认改造一起立）。
+ *
+ * 为什么必须单独一条路由：armed 态只在**点过第一下之后**才存在 —— 红底白字的
+ * 「确认清空」按钮平时根本不在 DOM 里，contrast 扫默认渲染面时永远看不见它。
+ * 这与本文件 openReviewForm 那条立的同一课（原话：「第一版没点星 ⇒ 变异毫无反应，
+ * 不是判据坏，是它扫的那个状态里没有未选中星」）：一个只在交互后出现的态，
+ * 判据必须自己走过去，否则等于没扫。
+ *
+ * 走真加购而不是直接 seed localStorage：清空按钮的前提是 cart.items.length > 0，
+ * 用页面自己的通路（点商品卡的加号）最不容易和实现细节脱钩。
+ */
+const armCartClear = async (page: import('@playwright/test').Page) => {
+  await page.goto('/#/shop')
+  await page.waitForTimeout(700)
+  const btns = page.locator('button[aria-label^="添加"]')
+  for (let i = 0; i < Math.min(4, await btns.count()); i++) {
+    await btns.nth(i).click()
+    await page.waitForTimeout(120)
+  }
+  await page.goto('/#/cart')
+  await page.waitForTimeout(900)
+  // 第一下：进入待确认态（不点第二下 —— 那会真清空，页面就换态了）
+  await page.getByLabel('清空购物车').click()
+  await expect(page.getByLabel('确认清空购物车')).toBeVisible({ timeout: 5_000 })
+  await page.waitForTimeout(400)
+}
+
 /** 走 UI 真加购（凑过起送门槛，避免落在「差 ¥X 起送」的改版面上），再进目标路由 */
 const seedCartThen = (route: string) => async (page: import('@playwright/test').Page) => {
   await page.goto('/#/shop')
@@ -207,6 +235,10 @@ const ROUTES: RouteSpec[] = [
   { name: 'shop-drinks', route: '/#/shop/drinks' },
   { name: 'detail', route: '/#/product/p_46' },
   { name: 'cart-empty', route: '/#/cart' },
+  // 待确认态（armed）：红底白字的「确认清空」只在点过第一下后才进 DOM，
+  // 不单独走一遍交互就永远扫不到它。expectText 是前置条件 —— 万一 armed 态
+  // 没出现，扫描会对着默认态给出「零违规」的假绿。
+  { name: 'cart-clear-armed', route: '/#/cart', prepare: armCartClear, expectText: '确认清空' },
   { name: 'assistant', route: '/#/assistant' },
   { name: 'order-query', route: '/#/order-query' },
   { name: 'category-life', route: '/#/category/life' },
