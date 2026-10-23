@@ -120,6 +120,40 @@
   a11y CLI GATE-PASS（46 文件 3 规则 0 违规）+ selftest 12/12 / docCommands 暂存面 6 条腿全过 /
   真跑 pre-commit 五腿 GATE-PASS / 覆盖率四项达标（从产物复算）/ 两档视口 computed style
   实测五处达标 / 文档级横向溢出 0px。
+
+### 2026-10-23 顾客端（纯静态托管）的打印入口改走本站提交表单
+
+- **为什么非改不可（一手实测）**：搬进来的校园打印应用把接口写死成相对 `/api`，而
+  `lxh113377.github.io` 是 GitHub Pages 纯静态托管 ⇒ 跑不了 Pages Functions，那个域名上 `/api` 必 404。
+  浏览器实测（微信 UA）：点「打印」后应用**起来了**，但 `/api/public/config` 与 `/api/auth/me` 全 404、
+  页面显示「无法读取服务配置」、传不了文件。「跨域借后端」的三条自救路各自都堵（前端无可注入基址、
+  `/api` 反代没有 CORS、上游会话是 SameSite=Lax Cookie）⇒ 只能换入口。
+- **入口换成本站自己的提交表单，且用的是早就在册却一直是孤儿代码的那条链**：`uploadPrintFile()`
+  （`/upload` 直传 R2，端点不可用则 ≤512KB 内联）+ `/pub createSubmission`。这两条本来就有跨域 CORS
+  （`functions/lib/security.js` 的 `DEFAULT_ALLOWED_ORIGINS` 精确含 github.io；实测 OPTIONS 200 且 POST 回显
+  `access-control-allow-origin`）。给 `src/types.ts` 加 `type:'file'` 字段型、给打印服务补 fields、
+  `ServiceFormPage` 补文档上传分支（`images` 与 `fileMeta` **同下标**存「引用 + 文件名」：`r2:<key>` 和
+  data: URL 读不出文件名，而后台要看的正是顾客传了哪个文件）。
+- **开关不新增，复用已登记的 `VITE_CAMPUS_PRINT_URL`**（只接受同源路径 ⇒ 天然撞不到微信那条跨域拦截）：
+  pages.dev 不设、继续走应用页；github.io 的 deploy.yml 设成 `/#/service/print`。**顺序必须先推代码、
+  后翻开关** —— 那个 workflow 构建时拉 `main`，先翻会让线上指向一个还没有 `file` 字段的表单。
+- **准入按服务端真函数算，不按我们的记忆算**：新增 `PRINT_INLINE_ALLOWED_EXT`（窄名单）。动因是实测
+  `validateSubmissionFiles`：宽名单里的 `ppt/xls/heic/txt` 在**内联形态**下会被服务端拒（它只认
+  image/jpeg|png|webp|gif、application/pdf、msword、officedocument.*）。照宽名单收就是「顾客按屏上提示
+  选了、提交才被拒」——正是本仓反复防的那类错。`tests/printCapParity.test.ts` 加两条腿钉住：窄名单每项
+  服务端都真收、被排除的四项确实不收（直接 import 那个真函数跑，不读它的正则猜）。
+- **顺手修掉两处我自己埋的雷**：① 两个字段共用一个 `fileInputRef` ⇒ 「点击上传」会打开错的选择器，
+  拆成 `docInputRef`；② 切服务时只清 `images` 不清 `fileMeta` ⇒ 后台会看到「A 服务的文件配 B 服务的
+  文件名」，`useEffect` 里一起清。
+- 明确**不做**：不把这类表单单镜像进上游打印后台。上游 `backend/orders/service.js:196` 硬要求
+  `confirmedPreview === true` ⇒ 服务端代客提交等于伪造顾客没做过的预览确认，是虚假业务记录。
+- 实测闭环：`500 /upload`（R2 未开通，如实降级内联）→ `200 /pub code=0` → 后台「服务」页看到该条 →
+  `getSubmissionImages` 取回**文件本体**（base64 解出 2081B、头部 `%PDF-1.4`）。测试残留 3 条探针已用
+  `deleteSubmission` 清干净（残留 0，真实 22 条未动）。
+- 验证：tsc --noEmit rc=0、oxlint 这五个件 0 项、printCapParity 8/8、a11y 静态 GATE-PASS 46 文件 0 违例
+  （一度被我自己注释里的 `<input>` 字面量判红 —— 判据不剥注释是它的既定口径，改的是措辞不是判据）、
+  limit-provenance 13/13（新上限补了登记行）、env-docs 16/16、doc-consistency 9 项 OK、
+  print-entry 4 passed（不设开关时入口行为不变）。
 ### 2026-10-23 次级文字告别冷灰：顾客端 138 处 gray→stone，兑现站点自己声明过的色温原则
 
 - **量化触发（原创性 × 色彩一致性）**：本站的底色与主文字都是暖的 —— 页底 --paper
