@@ -194,9 +194,9 @@
     {
       "id": "service-form-page",
       "pattern": "ServiceFormPage-*.js",
-      "budget": 4100,
-      "measuredAtBuild": "3716B gz（2026-10-23 07:20 本机 npx vite build，HEAD 61acefe）",
-      "note": "管理后台服务登记表单页（唯一进名册的业务页路由块，其余 <3,500B）"
+      "budget": 5100,
+      "measuredAtBuild": "4553B gz（2026-10-23 15:45 本机 npx vite build，HEAD d3127ef；CI 同笔构建读到 4552B，差 1B 来自 hash 后缀长度）",
+      "note": "顾客端服务提交表单（含 2026-10-23 新增的打印文件上传分支）。预算按本名册既有机械规则重算，规则一个字没改：4553 ×1.10 = 5008.3 → 上取整到 100B = 5100。旧值 4100 对应 3716B 那一版，被新增的 file 字段分支（准入 + images/fileMeta 双态 + 提示轨）挤出。顺带纠正原 note 的误标：这个 chunk 来自 src/pages/ServiceFormPage.tsx，是**顾客**填服务单的页面，管理后台是 AdminPage 另一块。"
     },
     {
       "id": "echarts-datazoom-inside",
