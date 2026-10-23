@@ -16,8 +16,8 @@
       "source": "package.json scripts.verify 的 && 段数（2026-10-22 并入 verify:print 打印页一致性闸 ⇒ 43→44）"
     },
     "gateScripts": {
-      "value": 72,
-      "source": "scripts/*.mjs 文件数（2026-10-22 新增 print-parity.mjs + sync-print.mjs + print-tunnel.mjs ⇒ 69→72）"
+      "value": 73,
+      "source": "scripts/*.mjs 文件数（口径=顶层 readdirSync、不递归 scripts/lib：实测磁盘顶层 73，git 跟踪含子目录 82、差的 9 个全在 lib）。2026-10-22 新增 print-parity.mjs + sync-print.mjs + print-tunnel.mjs ⇒ 69→72；2026-10-23 beb20ca 新增 backup-print-data.mjs ⇒ 72→73，该笔未同步本册，而 CI 的 gates job 跑自己的步骤列表、不含 npm run verify ⇒ 只有本地聚合链会暴露，本轮按 F2 口径「改册追上现值」补记。"
     },
     "ciJobs": {
       "value": 6,
