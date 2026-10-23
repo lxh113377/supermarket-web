@@ -154,6 +154,12 @@
   mock，属于我复制经验时漏掉的那一半）。
 - 单测文件数 142 → **143**：README:171、HANDOFF:5/30/58 四处同步追上真相源（`check-doc-consistency`
   的口径是「改文档追上真相源，禁改真相源凑绿」）。
+- **第三处红在推上去之后才露出来**（同一 CI 的另一个 step）：分项体积预算 `ServiceFormPage-*.js` 实测
+  4552B > 预算 4100B —— 名册那条 4100 对应的是 3716B 那一版，被我这 130 行挤爆了。处置**不是**抬天花板：
+  按名册自己写死的机械规则重算（`实测 ×1.10 上取整到 100B` ⇒ 4553 ×1.10 = 5008.3 → **5100**），
+  规则一个字没改，重算后余 547B；聚合那条腿同时复核通过（首屏 JS 87.3KB ≤ 95.0、CSS 11.1 ≤ 12.0、
+  最大 chunk 66.0 ≤ 300.0）。顺带纠正该条 note 的误标：这个 chunk 来自 `src/pages/ServiceFormPage.tsx`，
+  是**顾客**填服务单的页面，不是「管理后台服务登记表单页」（后台是 AdminPage 另一块）。
 - 验证：`vitest run --coverage` 阈值腿绿、`serviceFormPrint` 8/8、`check-doc-consistency` 9 项 OK、
   tsc --noEmit rc=0、oxlint 0 项。
 [object Object]

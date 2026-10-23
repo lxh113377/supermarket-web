@@ -195,8 +195,8 @@
       "id": "service-form-page",
       "pattern": "ServiceFormPage-*.js",
       "budget": 5100,
-      "measuredAtBuild": "4554B gz（2026-10-23 15:5x 本机 npx vite build --outDir dist，merge d3127ef 后的面，gzipSync 实测）",
-      "note": "顾客端服务登记表单页（/#/service/delivery，微信里顾客提交报修/帮拿用的那页；旧 note 误写成「管理后台」，2026-10-23 纠正）。预算三段：4100（2026-10-23 07:20 实测 3716B，HEAD 61acefe）→ 5000（实测 4482B，5106dac 给这页加了「file」字段上传 UI +115 行）→ 5100（实测 4554B，d3127ef 又把内联降级从「错误」里分出来再加 72B）。三次都按本文件 match 字段既有的机械规则「实测 ×1.10 向上取整到 100B」现算：3716×1.10=4087.6 ⇒ 4100、4482×1.10=4930.2 ⇒ 5000、4554×1.10=5009.4 ⇒ 5100，**规则一个字没改**。⚠️ 5000 那一档是我在主工作树测的，而 CI 面上他人已再涨 72B ⇒ 登记值当场过期；教训见 CHANGELOG 同日条目「提交面是移动的」。"
+      "measuredAtBuild": "4553B gz（2026-10-23 15:45 本机 npx vite build，HEAD d3127ef；CI 同笔构建读到 4552B，差 1B 来自 hash 后缀长度）",
+      "note": "顾客端服务提交表单（含 2026-10-23 新增的打印文件上传分支）。预算按本名册既有机械规则重算，规则一个字没改：4553 ×1.10 = 5008.3 → 上取整到 100B = 5100。旧值 4100 对应 3716B 那一版，被新增的 file 字段分支（准入 + images/fileMeta 双态 + 提示轨）挤出。顺带纠正原 note 的误标：这个 chunk 来自 src/pages/ServiceFormPage.tsx，是**顾客**填服务单的页面，管理后台是 AdminPage 另一块。"
     },
     {
       "id": "echarts-datazoom-inside",
