@@ -22,6 +22,12 @@ export default function ServiceFormPage() {
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState('')
+  // 出错字段的 key（2026-10-23）：错误文本单独放在表单下方时，读屏用户听到
+  // 「请填写楼栋号」却不知道焦点在哪个框上。aria-invalid + aria-describedby 指向
+  // 错误容器才能把「这条错误属于这个字段」说清楚。刻意用 key 而不是拿 error 文本
+  // 反查字段名（OrderConfirmPage 那种 error.includes('楼栋') 的写法依赖 label 文案
+  // 不变，label 一改就静默失效）—— 这里字段是数据驱动的，key 是唯一稳定身份。
+  const [errorField, setErrorField] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -48,7 +54,10 @@ export default function ServiceFormPage() {
 
   const handleInputChange = (key: string, value: string) => {
     setFormData(prev => ({ ...prev, [key]: value }))
-    setError('')
+    // 只清「正在改的这个字段」的错误：用户改楼栋号时不该把手机号的错误提示也抹掉，
+    // 也不该留着本字段的 aria-invalid（否则修正后读屏仍报「无效」）。
+    setError(errorField === key ? '' : error)
+    if (errorField === key) setErrorField('')
   }
 
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -71,6 +80,7 @@ export default function ServiceFormPage() {
       )
       setImages(prev => [...prev, ...compressed])
       setError('')
+      setErrorField('')
     } catch {
       setError('图片处理失败，请重试')
     }
@@ -87,10 +97,12 @@ export default function ServiceFormPage() {
         if (field.type === 'image') {
           if (images.length < (field.minCount || 1)) {
             setError(`请上传${field.label}`)
+            setErrorField(field.key)
             return false
           }
         } else if (!formData[field.key]?.trim()) {
           setError(`请填写${field.label}`)
+            setErrorField(field.key)
           return false
         }
       }
@@ -99,9 +111,11 @@ export default function ServiceFormPage() {
     if (phoneField && formData[phoneField.key]) {
       if (!/^1\d{10}$/.test(formData[phoneField.key].trim())) {
         setError('请输入正确的11位手机号')
+        setErrorField(phoneField.key)
         return false
       }
     }
+    setErrorField('')
     return true
   }
 
@@ -251,6 +265,10 @@ export default function ServiceFormPage() {
                     )}
                     <button
                       onClick={() => fileInputRef.current?.click()}
+                      /* 关联落在**可见的按钮**上：真正的 file input 是 className="hidden"，
+                         读屏不会念隐藏元素，给它加 aria-invalid 等于没加。 */
+                      aria-invalid={errorField === field.key || undefined}
+                      aria-describedby={[field.hint ? `sf-hint-${field.key}` : '', errorField === field.key ? 'sf-error' : ''].filter(Boolean).join(' ') || undefined}
                       className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-8 text-center text-gray-500 text-sm hover:border-brand-500 hover:text-brand-700 hover:bg-brand-50/30 transition-all duration-300 active:scale-[0.98]"
                     >
                       <span className="block text-2xl mb-2" aria-hidden="true">📷</span>
@@ -278,7 +296,12 @@ export default function ServiceFormPage() {
                     maxLength={field.type === 'tel' ? 11 : 50}
                     required={field.required}
                     aria-required={field.required || undefined}
-                    aria-describedby={field.hint ? `sf-hint-${field.key}` : undefined}
+                    aria-invalid={errorField === field.key || undefined}
+                    /* 只引 sf-error：hint 那个 <p> **只在图片分支**渲染（见上面
+                       field.type === 'image' 一段），文本框这边就算数据里有 hint 也不会
+                       画出该元素 ⇒ 引它就是悬空 id（读屏会念一段空描述）。文本字段的
+                       辅助说明走 placeholder，不占 describedby。 */
+                    aria-describedby={errorField === field.key ? 'sf-error' : undefined}
                     className="input-base"
                   />
                 )}
@@ -286,8 +309,9 @@ export default function ServiceFormPage() {
             ))}
           </div>
 
-          {/* 错误提示：role="alert" 让读屏在提交校验失败时立即播报 */}
-          <div role="alert" aria-live="assertive">
+          {/* 错误提示：role="alert" 让读屏在提交校验失败时立即播报；id 供出错字段的
+              aria-describedby 反向指过来（读屏在字段上能听到「这条错误属于我」）。 */}
+          <div id="sf-error" role="alert" aria-live="assertive">
             {error && (
               <div className="mt-4 bg-red-50 border border-red-100 rounded-xl px-4 py-3 animate-slide-down">
                 <p className="text-red-700 text-xs flex items-center gap-2">

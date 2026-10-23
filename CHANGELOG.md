@@ -4,6 +4,59 @@
 
 ## [未发布]
 
+### 2026-10-23 表单错误与字段的关联：ServiceFormPage 补齐 aria-invalid，并纠正一条我自己记错的教训
+
+- **先纠正上一轮记错的教训**：第十轮我把「CI 红」归因成「漏跑 verify 全链」，本轮被证伪 ——
+  我上一轮**跑了 verify 且 exit 0，CI 还是红了**。真因是 `verify:eol` 刻意读 **index 侧**
+  （脚本注释原文：取 `:<path>` 而不是 `HEAD:<path>`，为让「正在修这个问题的这笔能判绿」），
+  而我跑 verify 时 CHANGELOG.md 还没 `git add` ⇒ 门禁读的是旧 blob；之后 `git add -A`
+  才把带尾随空白的版本送进 blob ⇒ CI（checkout 后 index==HEAD）判红。
+  ⇒ **跑了 verify 且 exit 0，不等于验的是要提交的那个面**；正确顺序是先 add 再 verify。
+  实测本判据耗时 3.09s、读 index blob ⇒ 属「提交那一刻就能拦」的事（pre-commit 现有 5 条腿
+  不含它），已列待办：把 verify:eol 接进 pre-commit。pre-commit 注释第④条记的同族教训原文
+  是「根因不是尺不准，是顺序」，本机绿 CI 红已栽 4 次 —— 本次是第 5 次，形态是「verify 早于 add」。
+- **另登记一条判据盲区（本轮实测发现，尚未修）**：D2「每条现行主张都成立」的别名面只读
+  根 package.json（98 条），不认厂商子包 —— 实测 `admin:init` 确实存在于
+  `vendor/CampusPrint-V1/package.json`（该包 22 条 scripts），所以文档里那句主张**是真的**，
+  却被判成「不成立」。本轮没红是因为并行会话把那句撤出了文档，**盲区本身还在**：任何引用
+  vendor 子包脚本的文档主张都会被误判。修法要连带处理 D5/D6/D7（扩别名面会改 counts），
+  且不能在他人 WIP 未提交时跑 `--update`（会把工作树面数字写进生成物，CI 检出 HEAD 面即对不上）
+  —— 本轮实测过这个差分：工作树面 376/361/1 ⇄ HEAD 面 374/359/0 ⇄ 登记册 374/359/0。
+- **本轮实质工作（微交互 × 无障碍的交叉面）**：上一轮我把原生 alert() 换成内联错误提示后，
+  留了个没验的问题 —— 读屏听到「请填写楼栋号」时，**能不能知道是哪个字段**。按渲染实测：
+  33 个输入控件里 `aria-invalid` 只有 4 处、`aria-describedby` 7 处，而顾客端最高频的
+  ServiceFormPage 有字段级必填校验却 `aria-invalid=0` —— 又是「同仓已有正确模式但没统一」
+  （OrderConfirmPage 是模范：aria-invalid + aria-describedby 指向错误容器）。
+- 给 ServiceFormPage 补上关联。关键取舍：刻意**不用** OrderConfirmPage 那种
+  `error.includes(楼栋)` 字符串反查 —— 那依赖 label 文案不变，label 一改就静默失效；本页
+  字段是数据驱动的（39 个字段来自 data/services.ts），`field.key` 才是唯一稳定身份，
+  所以新增 `errorField` state 显式记录出错字段。
+- 图片字段的关联落在**可见按钮**上而不是 `<input type=file>`：实测该 input 是
+  `className="hidden"`，读屏不会念隐藏元素，给它加 aria-invalid 等于没加。
+- **自己引入又当场修掉的两个缺陷**（都是"顺手写对"的幻觉）：
+  ① `handleInputChange` 里只清了 error 没清 errorField ⇒ 用户修正输入后 aria-invalid 会卡在
+     字段上，读屏继续报「无效」；改成只清「正在改的这个字段」的错误 —— 顺带避免改楼栋号时
+     把手机号的错误提示也一起抹掉。
+  ② 第一版给文本框写了 `aria-describedby` 无条件包含 `sf-hint-*`，而实测那个 hint 元素
+     **只在图片分支渲染** ⇒ 文本框引的是悬空 id（读屏会念一段空描述）。当前数据里文本字段
+     恰好都无 hint 所以没暴露，属于"靠数据侥幸不炸"的写法，已改为只引真实存在的 `sf-error`。
+- 端到端实测（真浏览器 + 真点提交，不是读代码）：提交后 `aria-invalid` 只落在出错的那一个
+  字段（sf-phone）、`aria-describedby` 指向真实存在的 sf-error、填入合法值后两者自动清掉、
+  全站**悬空 ARIA 引用 = 0**（扫 aria-describedby/labelledby/controls/activedescendant 四类）。
+- 改后实测计数：`aria-invalid` 4 → **9**、`aria-describedby` 7 → **10**（ServiceFormPage
+  从 0/0 到 5/4）。
+- 一次代码破坏与重建：批量替换图片按钮 class 时我把 JSX 弄破（`className="` 被改成
+  `className={"` 并吞掉 `<button>`/`onClick` 数行），oxlint 当场报 Unterminated string；
+  按实际内容重建后 lint/tsc 双清。教训沿用本仓既有口径：批量替换必须逐处看真实文本，
+  不能凭记忆构造锚点（这次是我自己写坏的锚点）。
+- 一次提交纪律的自我纠正：本轮 `git add -A` 把并行会话写进 HANDOFF.md 的未提交 WIP 一起
+  暂存了（还有他人正在改的 CategoryPage.tsx）。已 `git restore --staged` 撤出并做**字符级**
+  核对（他人文件 28728B 与备份逐字节相同、未被改动），改为只提交自己的文件。
+  ⇒ 本仓多会话同仓工作，提交必须用显式文件清单，`add -A` 是危险动作。
+  另清掉一个我自己造出来的垃圾：PowerShell 里 `Measure-Command { ... } > $null` 的写法
+  会真建出一个名为 `$null` 的文件（872B 的 UTF-16 git 输出转储），已删除。
+- 验证：oxlint 0 警告 / tsc 零错 / vitest 141 文件全过 / visual **142 条全过** + 1 合法 skip /
+  e2e 25 条全过 / stub 5 条全过 / verify:eol verdict=GREEN（E7 四项违例全 0）/ D2 复跑 PASS。
 ### 2026-10-23 消除原生 alert()：4 处内联化（含一处静默失败），并立原生对话框棘轮
 
 - **量化触发（原创性 / 精致度维度）**：这个维度最难客观化，但有一类代理指标是硬事实 ——
@@ -50,7 +103,7 @@
 '- 另记一次自己踩的门禁：新判据里用了 console.log 印现值，被 oxlint 的 no-console
   （--max-warnings 0）判红导致 verify exit=1；改 console.warn（本仓先例见 layout.spec.ts
   量开关几何那段）。
-- 验证：oxlint 0 警告 / tsc 零错 / vitest **141 文件 2069 用例全过**（+1 文件 +4 用例）/ 
+- 验证：oxlint 0 警告 / tsc 零错 / vitest **141 文件 2069 用例全过**（+1 文件 +4 用例）/
   npm run verify exit 0 / report:item-budgets rc=0 / check:size 3/3。
 ### 2026-10-23 键盘可达性补齐：11 个页面没有 main landmark，新增跳到主内容与结构闸
 
