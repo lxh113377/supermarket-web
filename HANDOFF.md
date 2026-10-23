@@ -2,7 +2,7 @@
 
 > 最后更新：2026-10-17（架构：Cloudflare Pages + D1，README 为准；CloudBase 历史记录见文末存档）
 >
-> ✅ **最后实测验证：2026-10-17**（UTC 日；本地已过 08:00 才算新的一天，本仓取数口径同 live-perf） —— main@ef56f1f（第 75 轮：阈值消费 + 静态长缓存 + SBOM 跨平台可复现 + a11y 静态闸 + 分支保护 ENFORCED）（第 74 轮：逃生门对偶 + cron 豁免换理由 + 性能重采），CI run 39078182648 `completed/success`（六个必需 job 全 success：gates / browser-install / e2e / e2e-cloud-stub / visual / deploy），线上 `/_health` 回 `deploy=ef56f1f` **与本仓 HEAD 逐字相同**；`npm run verify` VERIFY_RC=0、`verify:backend` **204 通过 / 0 失败**、vitest **141 文件**（用例条数以 `npm test` 当场输出为准）；`check-live-shape` 3/3 PASS、漂移 0。复算三通道：`node scripts/ci-status.mjs`（run 终态与部署判定）、`node scripts/check-live-shape.mjs`（线上 sha ⇄ HEAD）、`npm run verify`（本机全链）。**ADMIN_KEY 已回退固定值**：09-05 轮换为随机串后用户拍板恢复 `supermarket-admin-****（掩码；真值见 .dev.vars / Pages secret）`（线上 secret + .dev.vars 同值，login code 0 实测通过）。**本轮新增交付面判据**：`verify:cache`（静态资源缓存语义，读 `public/_headers` 声明面）、`verify:sbom`（跨平台可复现组件清单）、`verify:a11y`（可访问性静态规则）。
+> ✅ **最后实测验证：2026-10-17**（UTC 日；本地已过 08:00 才算新的一天，本仓取数口径同 live-perf） —— main@ef56f1f（第 75 轮：阈值消费 + 静态长缓存 + SBOM 跨平台可复现 + a11y 静态闸 + 分支保护 ENFORCED）（第 74 轮：逃生门对偶 + cron 豁免换理由 + 性能重采），CI run 39078182648 `completed/success`（六个必需 job 全 success：gates / browser-install / e2e / e2e-cloud-stub / visual / deploy），线上 `/_health` 回 `deploy=ef56f1f` **与本仓 HEAD 逐字相同**；`npm run verify` VERIFY_RC=0、`verify:backend` **204 通过 / 0 失败**、vitest **142 文件**（用例条数以 `npm test` 当场输出为准）；`check-live-shape` 3/3 PASS、漂移 0。复算三通道：`node scripts/ci-status.mjs`（run 终态与部署判定）、`node scripts/check-live-shape.mjs`（线上 sha ⇄ HEAD）、`npm run verify`（本机全链）。**ADMIN_KEY 已回退固定值**：09-05 轮换为随机串后用户拍板恢复 `supermarket-admin-****（掩码；真值见 .dev.vars / Pages secret）`（线上 secret + .dev.vars 同值，login code 0 实测通过）。**本轮新增交付面判据**：`verify:cache`（静态资源缓存语义，读 `public/_headers` 声明面）、`verify:sbom`（跨平台可复现组件清单）、`verify:a11y`（可访问性静态规则）。
 >
 > **事故记录**：5 提交推送触发 CI 自动部署，因 ci.yml 缺 VITE_CB_API_BASE 注入产出未烘焙版（坑 27 复发）→ 已修 ci.yml（两处 Build step 注入 env）并手动部署烘焙版救火。本文档中早于该日期的状态描述若与本戳冲突，**以本戳和磁盘实测为准**。
 
@@ -27,7 +27,7 @@
 | 数据库  | D1（SQLite，7 表）+ Workers KV（限流计数）                              |
 | 双前端  | Cloudflare Pages（同源）/ GitHub Pages（dispatch CI 双发）            |
 | Lint | oxlint                                                        |
-| 测试   | vitest（141 文件；**用例条数以 `npm test` 当场输出为准，本文不写死**——写死即第二真相源，此处原记的 631/126 已落后十余轮）+ `scripts/verify-backend.mjs`（断言数以 `npm run verify:backend` 当场输出为准，原记 102 已过期）+ Playwright 三层（`tests/e2e` 演示模式 / `tests/e2e-visual` 生产构建几何 / `tests/e2e-stub` 云端模式真渲染，条数以各自命令输出为准） |
+| 测试   | vitest（142 文件；**用例条数以 `npm test` 当场输出为准，本文不写死**——写死即第二真相源，此处原记的 631/126 已落后十余轮）+ `scripts/verify-backend.mjs`（断言数以 `npm run verify:backend` 当场输出为准，原记 102 已过期）+ Playwright 三层（`tests/e2e` 演示模式 / `tests/e2e-visual` 生产构建几何 / `tests/e2e-stub` 云端模式真渲染，条数以各自命令输出为准） |
 
 ## 三、项目结构
 
@@ -55,7 +55,7 @@ supermarket-web/
 │   ├── utils/              # businessHours / reviewImages（评价图压缩+base64）
 │   ├── components/         # UI 组件（含管理端 InlineEditForm 内联编辑）
 │   └── pages/              # 顾客端 + 管理端页面
-├── tests/                  # vitest 单测（141 文件；用例条数以 `npm test` 当场输出为准）
+├── tests/                  # vitest 单测（142 文件；用例条数以 `npm test` 当场输出为准）
 ├── public/                 # 商品图 webp + sm/ 小图、sw.js、manifest、收款码
 ├── .github/workflows/      # ci.yml（门禁）+ dispatch.yml（github.io 双发）
 ├── wrangler.toml           # Pages 构建输出 + D1/KV 绑定
@@ -337,6 +337,26 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN`（repo �
     恢复入口（口令忘了也能重来，不必换库）：在上游仓库内跑它的 `admin:init`，
     需要 `CP_ADMIN_USERNAME`/`CP_ADMIN_PASSWORD` 两个环境变量；它**新建**账号而不是改旧密码 ⇒
     真要夺回控制权就新建一个管理员，旧的那个另行停用。
+
+12. **打印数据快照脚本在册（`npm run backup:print-data`），但它不是定时任务** —
+    为什么需要：顾客下单与收款码全部只落在这台笔记本的一个 SQLite 文件里（实测 704512B、
+    44 张表、`print_orders` 3 / `users` 40 / `files` 17 / `payment_channels` 2），而
+    ① 上游 `backend/files/backups.js` 那套在册机制实测**从没跑过**（`var/managed-backups`
+    0 个子项、`GET /api/admin/backups` 回 404、前端 0 处引用 backups）；② 本仓 `d1-backup.yml`
+    只管 Cloudflare D1，管不到这个文件库。
+    口径：用 `node:sqlite` 的在线备份 API 而不是拷文件（库在 WAL 下被持续写，直接 cp 会拿到
+    半截页），读侧 `{ readOnly: true }`；产物一律走 `scripts/backup-crypto.mjs` 的容器
+    （与 D1 备份同格式同口令 ⇒ 恢复只有一条路要练）；未配 `BACKUP_PASSPHRASE` ⇒ **rc=2 拒绝
+    落盘，绝不退回明文**（库里有顾客房间号与手机号）。
+    实测一轮：快照 737280B/44 表 `integrity=ok`、逐表数与现网相等、收款码回解逐字节相等。
+    ⚠️ 两点别当成品质：① 默认落 `D:\campus-print-backups`，但实测 C: 与 D: 是**同一块物理盘**
+    （Get-Partition：两分区 DiskNumber 都是 0，一块 954GB NVMe）⇒ 只防误删，**不防盘坏**，
+    真要异地得接对象存储；② 它只有手动触发、没有计划任务 ⇒ 快照新不新取决于人记不记得跑。
+    `tests/backupPrintData.test.js`（9 例）只保证「这条链是对的」，保证不了「它今天跑过」——
+    把这句写在这里，是因为把前者的绿读成后者是本仓最常见的一类自欺。
+    顺手清的历史债：2026-10-22 那份手写快照是**明文**的（未加密 SQLite + 两张收款码原图）。
+    本轮转成加密容器（转前逐字节校验、校验过了才删明文），并删掉同日那份带 `-shm`/`-wal`
+    明文伴生件的重复快照 ⇒ 实测目录内非 `.enc`/`.json` 件数 = 0。
 
 ## 十、历史存档（CloudBase 时代，2026-08-08 前，仅归档参考）
 
