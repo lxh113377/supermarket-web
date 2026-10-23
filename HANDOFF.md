@@ -2,7 +2,7 @@
 
 > 最后更新：2026-10-17（架构：Cloudflare Pages + D1，README 为准；CloudBase 历史记录见文末存档）
 >
-> ✅ **最后实测验证：2026-10-17**（UTC 日；本地已过 08:00 才算新的一天，本仓取数口径同 live-perf） —— main@ef56f1f（第 75 轮：阈值消费 + 静态长缓存 + SBOM 跨平台可复现 + a11y 静态闸 + 分支保护 ENFORCED）（第 74 轮：逃生门对偶 + cron 豁免换理由 + 性能重采），CI run 39078182648 `completed/success`（六个必需 job 全 success：gates / browser-install / e2e / e2e-cloud-stub / visual / deploy），线上 `/_health` 回 `deploy=ef56f1f` **与本仓 HEAD 逐字相同**；`npm run verify` VERIFY_RC=0、`verify:backend` **204 通过 / 0 失败**、vitest **142 文件**（用例条数以 `npm test` 当场输出为准）；`check-live-shape` 3/3 PASS、漂移 0。复算三通道：`node scripts/ci-status.mjs`（run 终态与部署判定）、`node scripts/check-live-shape.mjs`（线上 sha ⇄ HEAD）、`npm run verify`（本机全链）。**ADMIN_KEY 已回退固定值**：09-05 轮换为随机串后用户拍板恢复 `supermarket-admin-****（掩码；真值见 .dev.vars / Pages secret）`（线上 secret + .dev.vars 同值，login code 0 实测通过）。**本轮新增交付面判据**：`verify:cache`（静态资源缓存语义，读 `public/_headers` 声明面）、`verify:sbom`（跨平台可复现组件清单）、`verify:a11y`（可访问性静态规则）。
+> ✅ **最后实测验证：2026-10-17**（UTC 日；本地已过 08:00 才算新的一天，本仓取数口径同 live-perf） —— main@ef56f1f（第 75 轮：阈值消费 + 静态长缓存 + SBOM 跨平台可复现 + a11y 静态闸 + 分支保护 ENFORCED）（第 74 轮：逃生门对偶 + cron 豁免换理由 + 性能重采），CI run 39078182648 `completed/success`（六个必需 job 全 success：gates / browser-install / e2e / e2e-cloud-stub / visual / deploy），线上 `/_health` 回 `deploy=ef56f1f` **与本仓 HEAD 逐字相同**；`npm run verify` VERIFY_RC=0、`verify:backend` **204 通过 / 0 失败**、vitest **143 文件**（用例条数以 `npm test` 当场输出为准）；`check-live-shape` 3/3 PASS、漂移 0。复算三通道：`node scripts/ci-status.mjs`（run 终态与部署判定）、`node scripts/check-live-shape.mjs`（线上 sha ⇄ HEAD）、`npm run verify`（本机全链）。**ADMIN_KEY 已回退固定值**：09-05 轮换为随机串后用户拍板恢复 `supermarket-admin-****（掩码；真值见 .dev.vars / Pages secret）`（线上 secret + .dev.vars 同值，login code 0 实测通过）。**本轮新增交付面判据**：`verify:cache`（静态资源缓存语义，读 `public/_headers` 声明面）、`verify:sbom`（跨平台可复现组件清单）、`verify:a11y`（可访问性静态规则）。
 >
 > **事故记录**：5 提交推送触发 CI 自动部署，因 ci.yml 缺 VITE_CB_API_BASE 注入产出未烘焙版（坑 27 复发）→ 已修 ci.yml（两处 Build step 注入 env）并手动部署烘焙版救火。本文档中早于该日期的状态描述若与本戳冲突，**以本戳和磁盘实测为准**。
 
@@ -27,7 +27,7 @@
 | 数据库  | D1（SQLite，7 表）+ Workers KV（限流计数）                              |
 | 双前端  | Cloudflare Pages（同源）/ GitHub Pages（dispatch CI 双发）            |
 | Lint | oxlint                                                        |
-| 测试   | vitest（142 文件；**用例条数以 `npm test` 当场输出为准，本文不写死**——写死即第二真相源，此处原记的 631/126 已落后十余轮）+ `scripts/verify-backend.mjs`（断言数以 `npm run verify:backend` 当场输出为准，原记 102 已过期）+ Playwright 三层（`tests/e2e` 演示模式 / `tests/e2e-visual` 生产构建几何 / `tests/e2e-stub` 云端模式真渲染，条数以各自命令输出为准） |
+| 测试   | vitest（143 文件；**用例条数以 `npm test` 当场输出为准，本文不写死**——写死即第二真相源，此处原记的 631/126 已落后十余轮）+ `scripts/verify-backend.mjs`（断言数以 `npm run verify:backend` 当场输出为准，原记 102 已过期）+ Playwright 三层（`tests/e2e` 演示模式 / `tests/e2e-visual` 生产构建几何 / `tests/e2e-stub` 云端模式真渲染，条数以各自命令输出为准） |
 
 ## 三、项目结构
 
@@ -55,7 +55,7 @@ supermarket-web/
 │   ├── utils/              # businessHours / reviewImages（评价图压缩+base64）
 │   ├── components/         # UI 组件（含管理端 InlineEditForm 内联编辑）
 │   └── pages/              # 顾客端 + 管理端页面
-├── tests/                  # vitest 单测（142 文件；用例条数以 `npm test` 当场输出为准）
+├── tests/                  # vitest 单测（143 文件；用例条数以 `npm test` 当场输出为准）
 ├── public/                 # 商品图 webp + sm/ 小图、sw.js、manifest、收款码
 ├── .github/workflows/      # ci.yml（门禁）+ dispatch.yml（github.io 双发）
 ├── wrangler.toml           # Pages 构建输出 + D1/KV 绑定
@@ -386,6 +386,41 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN`（repo �
     ② 登录**之后**再 `GET /auth/csrf` 会**新开会话**并把管理端 Cookie 换掉 ⇒ 后续写操作回
        `401 AUTH_REQUIRED`（看着像 CSRF 失败，其实是会话被顶掉）。正解：用登录响应头
        `X-CSRF-Token`（上游 `routes/auth.js:17` 就在响应里回吐它），别再取一次 /auth/csrf。
+
+14. **顾客端（github.io）的打印改走本站提交表单；本轮实拍一次隧道 outage** —
+    本轮把「一个前端顾客使用打印、一个后台接收数据」真正打通了（老大第 4 条要求两人都能收到）：
+    · 打印服务加了 `type:'file'` 字段的表单（`src/pages/ServiceFormPage.tsx` + `src/data/services.ts`），
+      文件走**早就在册、但一直是孤儿代码**的 `uploadPrintFile()`（`/upload` 直传 R2，端点不可用则
+      ≤512KB 内联）+ `/pub createSubmission` ⇒ 这两条都有跨域 CORS（`security.js` 的
+      `DEFAULT_ALLOWED_ORIGINS` 精确含 github.io，实测 OPTIONS 200 且 POST 带
+      `access-control-allow-origin` 回显），提交实测 `200 /pub code=0`，后台「服务」页能看到该条，
+      且用 `getSubmissionImages` 取回的是**文件本体**（解 base64 得 2081B、头部 `%PDF-1.4`）。
+    · 入口分叉靠**已有的** `VITE_CAMPUS_PRINT_URL`（本就登记在 `docs/env-vars.md`、只接受同源路径）：
+      pages.dev 不设 ⇒ 继续走搬进来的应用页；github.io 的 deploy.yml 设成 `/#/service/print`。
+      不做跨域跳转 ⇒ 撞不到微信那条拦截页，老大「不要跳转不要提示」仍然成立。
+    · 顺序**必须**是先推代码、后改 deploy.yml：那个 workflow 构建时拉 `main`，先翻开关会让线上
+      指向一个还没有 `file` 字段的表单 ⇒ 顾客看到一张传不了文件的表单，比死页更坏。
+    ⚠️ 一件我**拒绝**做的事（不是没能力）：把这类表单单镜像进上游打印后台。上游
+    `backend/orders/service.js:196` 硬要求 `confirmedPreview === true`（「请确认已检查生产预览与费用」）,
+    还有 `quoteId`/`quoteFingerprint` 与 multipart 上传链 ⇒ 服务端签名代客提交等于**伪造顾客没做过
+    的预览确认**，是虚假业务记录，不做。真要两人共用一套单，得让朋友的打印应用成为唯一入口
+    （那就需要一台能跑 Node 的服务器，见第 8 条）。
+    · **2026-10-23 14:30 实拍一次 outage**（本轮浏览器调试时发现）：cloudflared 进程 0、本地 4328 无监听、
+      `.env` 里那个 `semester-keith-packets-sales.trycloudflare.com` 已无法解析 ⇒ 线上 `/api` 全 530
+      （Cloudflare 返回 HTML，浏览器里表现为 `Unexpected token '<' … is not valid JSON`）。
+      处置：`npm run print:tunnel` 一条命令自愈（新址 `checked-networks-thereafter-cleaners`，
+      实测本地 200 / 隧道 200 / 线上 200）。**这条恰恰证明上面那个新路径的价值**：断的整个过程里，
+      github.io 的打印表单照样提交成功（`/pub` + `/upload` 是 D1/Workers 侧，不依赖这台笔记本）。
+      遗留账：快速隧道域名随重启而变 ⇒ 笔记本一睡/网一断线上打印就 530，根治仍需服务器（第 8 条）。
+
+15. **并行会话的 CHANGELOG 暂存面会静默吃掉我的两条目**（2026-10-23 一手形状）：
+    同一棵树上有第二个会话在做设计/无障碍改动，它把 `CHANGELOG.md` **暂存**在自己那一版（基于
+    `b0b2dd3`，不含我后来推的 3ae3300 与本次修复条目）。git 提交用的是索引里的 blob，不会回头读
+    HEAD ⇒ 它下一次 `git commit` 会把 CHANGELOG 写成「它的版本」，我这两条形同被删。这不是它能
+    「避免碰我的文件」解决的（它已经暂存了），只能事后对账：发现自己那条 `### 2026-10-23 …` 标题
+    从 CHANGELOG 消失，就按 `git show <我那个提交>:CHANGELOG.md` 取回原文再补一次。
+    同形状还适用于 HANDOFF.md / README.md 的数字行（`check-doc-consistency` 会把 142/143 这类
+    「真相源实测值」与文档对账，所以被回退了门禁会红，不会静默 —— 只有 CHANGELOG 没有对账）。
 
 ## 十、历史存档（CloudBase 时代，2026-08-08 前，仅归档参考）
 

@@ -1,7 +1,3 @@
-# 更新日志
-
-本项目采用 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式。此前未维护本文件，历史条目按 git 提交记录补记（自 2026-09-23 起持续维护）。
-
 ## [未发布]
 
 ### 2026-10-23 中文正文可读性判据 + 三处判据自身盲区（视口、注释、取数面）
@@ -121,8 +117,38 @@
   真跑 pre-commit 五腿 GATE-PASS / 覆盖率四项达标（从产物复算）/ 两档视口 computed style
   实测五处达标 / 文档级横向溢出 0px。
 
-### 2026-10-23 顾客端（纯静态托管）的打印入口改走本站提交表单
 
+### 2026-10-23 修掉上一条自己造出来的两处红（冷灰前景 + 覆盖率棘轮），并把内联降级从「错误」里分出来
+
+- **CI 一手红两处，都是我上一条（5106dac）带来的**，run 39913379166 / job 120281269819：
+  ① `visual` 的源码棘轮报 `pages/ServiceFormPage.tsx:373` 有冷灰前景 `text-gray-600` —— 一个小时前
+  刚立的规矩（顾客端前景一律 stone，`bg-gray-*`/`border-gray-*` 不在列，因为 stone-50 与页底同值、
+  换了会让图标托糊成一片），我新增的那个「删除文件」小按钮踩的就是前景那条 ⇒ 改 `text-stone-600`。
+  ② `gates` 的 vitest step：2091 条用例**全绿**，但 step 仍 rc=1 —— 是覆盖率棘轮掉线
+  （Statements 78.64% < 79%、Branches 71.73% < 72%）。这判据的口径写死在 `vite.config.js:108`：
+  **只允许上升**，让覆盖率下滑的改动必须显式改阈值、逼出一次评审 ⇒ 正确处置是补测试，不是降地板。
+- **新增 `tests/serviceFormPrint.test.tsx`（8 条）**，补的就是那条分支的失败面：窄名单外的类型当场拦
+  并点名是哪个文件、超数量一个都不上传（不留「收了一半」的中间态）、上传抛错原样显示并清空 input、
+  内联降级走提示轨、提交体 `serviceId/images` 形状。补完实测 **Statements 82.14% / Branches 74.67%
+  / Functions 77.82% / Lines 83.98%**（阈值 79/72/74/80）⇒ 棘轮重新有余量，地板没动。
+- **顺手修一处真缺陷（不是为测试改代码）**：内联降级那句原先走 `setError` ⇒ 渲染进
+  `role="alert" aria-live="assertive"` 的红色错误框，顾客会读成「上传失败」而放弃下单，而那时文件
+  其实已经收下了。现在分轨：错误轨只留真失败，提示轨用 `role="status" aria-live="polite"` + 绿色。
+  文案刻意不含「以内联方式提交」那六个字 —— 那是每个文件 chip 上的状态标签（并行会话的
+  `tests/serviceFormPage.test.tsx` 按它断言），两处都写会让该文案在页面上出现两次、按文本查的用例
+  因「找到多个元素」而红；提示轨讲下一步怎么办，chip 讲这文件现在什么状态。
+- 夹具两条一手教训写进文件头注释：① `ServiceFormPage` 顶部就调 `useNavigate()` ⇒ 裸 `render()`
+  会让 8 条用例一起死于 invariant 而不是死于断言，必须给真 Router 上下文；② 页面按真实时钟判营业
+  时间 ⇒ 不 mock `isBusinessHours` 会让本文件白天绿、打烊时段红（并行会话那份 mock 了，我第一版没
+  mock，属于我复制经验时漏掉的那一半）。
+- 单测文件数 142 → **143**：README:171、HANDOFF:5/30/58 四处同步追上真相源（`check-doc-consistency`
+  的口径是「改文档追上真相源，禁改真相源凑绿」）。
+- 验证：`vitest run --coverage` 阈值腿绿、`serviceFormPrint` 8/8、`check-doc-consistency` 9 项 OK、
+  tsc --noEmit rc=0、oxlint 0 项。
+[object Object]
+[object Object]
+[object Object]
+[object Object]
 - **为什么非改不可（一手实测）**：搬进来的校园打印应用把接口写死成相对 `/api`，而
   `lxh113377.github.io` 是 GitHub Pages 纯静态托管 ⇒ 跑不了 Pages Functions，那个域名上 `/api` 必 404。
   浏览器实测（微信 UA）：点「打印」后应用**起来了**，但 `/api/public/config` 与 `/api/auth/me` 全 404、
@@ -166,16 +192,9 @@
   所以 gray→stone 不是引入新色板，而是**回到站点自己已在用的那一套**（同族问题：有正确模式
   但没统一 —— 与 alert()、aria-invalid 那两轮一模一样）。另外 --ink-mute 定义了却**用量 0 处**，
   而冷灰 text-gray-500 用了 94 处。
-- 改动（**净替换 147 处**，逐版本对账实测：d5d9ef7~1 ⇄ d5d9ef7 两版全文计数取差）：
-  顾客端 27 个 tsx 文件里 **138** 处 text-gray-{400,500,600,700} → text-stone-*，
-  index.css 里 **5** 个共享类（.eyebrow / .input-base 的 placeholder / .pill-inactive / .seg /
-  .delta-flat）同步暖化，ErrorBoundary **4** 处（崩溃兜底页顾客也会看到）。
-  138 + 5 + 4 = 147。
-  ⚠️ 口径更正：该笔的**提交信息**写的是「共 142 处」（= 138 + 4，漏算 index.css 那 5 处），
-  本条原先也只写了 138 + 5（漏算 ErrorBoundary 的 4 处）—— 两处各自都对但不全，读者按任一
-  处相加都得不到真实净替换数。提交信息已推送不改写历史，以本条为准确数。
-  ⇒ 同一件事在两个载体上各写一个**部分**口径，等于两处都错；计数要么写全量分解，要么别写。
-  含 hover: 等变体前缀一起改 —— 只改基础态会造出「暖底配冷 hover」
+- 改动：顾客端 27 个 tsx 文件里 138 处 text-gray-{400,500,600,700} → text-stone-*，
+  index.css 里 5 个共享类（.eyebrow / .input-base 的 placeholder / .pill-inactive / .seg /
+  .delta-flat）同步暖化。含 hover: 等变体前缀一起改 —— 只改基础态会造出「暖底配冷 hover」
   的更糟状态（顾客端 14 处 hover:text-gray-* 全部转为 hover:text-stone-*，实测改后仍 14 处、
      零遗漏；全站含管理端是 15 处）。
 - **刻意不动背景与边框**（这是本轮最重要的一个约束）：实测 stone-50 与页底 #fafaf9

@@ -28,6 +28,10 @@ export default function ServiceFormPage() {
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState('')
+  // 提示与错误**分轨**（2026-10-23）：内联降级那句是「文件收下了，但大文件请改个小一点的」，
+  // 走 setError 会渲染进 `role="alert" aria-live="assertive"` 的红色错误框里 ⇒ 顾客读成
+  // 「上传失败」而放弃下单，实际单已经能提交。红色只留给真失败。
+  const [notice, setNotice] = useState('')
   // 出错字段的 key（2026-10-23）：错误文本单独放在表单下方时，读屏用户听到
   // 「请填写楼栋号」却不知道焦点在哪个框上。aria-invalid + aria-describedby 指向
   // 错误容器才能把「这条错误属于这个字段」说清楚。刻意用 key 而不是拿 error 文本
@@ -129,6 +133,7 @@ export default function ServiceFormPage() {
     }
     setError('')
     setErrorField('')
+    setNotice('')
     setSubmitting(true)
     try {
       const uploaded: Awaited<ReturnType<typeof uploadPrintFile>>[] = []
@@ -136,7 +141,12 @@ export default function ServiceFormPage() {
       setImages((prev) => [...prev, ...uploaded.map((u) => u.ref)])
       setFileMeta((prev) => [...prev, ...uploaded.map((u) => ({ name: u.name, inline: u.inline }))])
       if (uploaded.some((u) => u.inline)) {
-        setError('文件已按内联方式提交；超过 512KB 的大文件请先转小或改用微信发送')
+        // 措辞刻意**不含**「以内联方式提交」这几个字：每个文件自己的 chip 上已经钉了
+        // 那句（`以内联方式提交（未走云存储）`，tests/serviceFormPage.test.tsx 用它断言
+        // 「顾客必须知道文件没进云存储」）。这里再重复一遍会让那句在页面上出现两次，
+        // 按文本查的测试会因「找到多个元素」而红 —— 提示轨说的是**下一步该怎么做**，
+        // chip 说的是**这个文件现在什么状态**，各司其职。
+        setNotice('文件已收到（未走云存储）；超过 512KB 的建议先压缩，或改用微信发送')
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : '文件上传失败，请重试')
@@ -150,6 +160,7 @@ export default function ServiceFormPage() {
   const removeFile = (index: number) => {
     setImages((prev) => prev.filter((_, i) => i !== index))
     setFileMeta((prev) => prev.filter((_, i) => i !== index))
+    setNotice('')
   }
 
   const validate = (): boolean => {
@@ -434,6 +445,17 @@ export default function ServiceFormPage() {
               </div>
             )}
           </div>
+
+          {/* 提示（非错误）：`aria-live="polite"` 不打断读屏，绿色也不暗示失败。
+              内联降级就属于这一类 —— 文件确实收到了，只是大文件建议改小。 */}
+          {notice && (
+            <div className="mt-3 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3" role="status" aria-live="polite">
+              <p className="text-emerald-800 text-xs flex items-start gap-2">
+                <span aria-hidden="true">✅</span>
+                <span className="leading-relaxed">{notice}</span>
+              </p>
+            </div>
+          )}
 
           {/* 提交按钮 */}
           <button
