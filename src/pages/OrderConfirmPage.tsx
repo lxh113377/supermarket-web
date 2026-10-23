@@ -4,7 +4,8 @@ import OrderItem from '../components/OrderItem'
 import { getCart, getTotalAmount, clearCart } from '../cart'
 import { createOrder } from '../db'
 import { OrderRejectedError } from '../api/error-codes'
-import { isBusinessHours, getClosedMessage } from '../utils/businessHours'
+import { getClosedMessage } from '../utils/businessHours'
+import { useBusinessHours } from '../hooks/useBusinessHours'
 import { MIN_DELIVERY_AMOUNT, meetsMinDelivery, minDeliveryGap } from '../data/deliveryLimits'
 import { formatYuan } from '../utils/format'
 import { compressImageFile } from '../utils/imageCompress'
@@ -35,7 +36,7 @@ export default function OrderConfirmPage() {
   const fileRef = useRef<HTMLInputElement>(null)
 
   const totalAmount = getTotalAmount(cart)
-  const open = isBusinessHours()
+  const open = useBusinessHours()
 
   // 本次下单意图的幂等键：挂载时生成一次，重试/双击复用同一条
   const requestKey = useRef(newRequestKey())

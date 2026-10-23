@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { getCategoryById, getServicesByCategory } from '../data/services'
-import { isBusinessHours, getClosedMessage } from '../utils/businessHours'
+import { getClosedMessage } from '../utils/businessHours'
+import { useBusinessHours } from '../hooks/useBusinessHours'
 import { resolveCampusPrintUrl } from './print/printApp'
 import type { Service } from '../types'
 
@@ -9,7 +10,7 @@ export default function CategoryPage() {
   const navigate = useNavigate()
   const category = categoryId ? getCategoryById(categoryId) : undefined
   const services = categoryId ? getServicesByCategory(categoryId) : []
-  const open = isBusinessHours()
+  const open = useBusinessHours()
 
   const openService = (service: Service) => {
     if (service.type === 'supermarket') {

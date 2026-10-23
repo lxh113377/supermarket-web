@@ -2,7 +2,8 @@ import type { ReactNode } from 'react'
 import type { Product, Category } from '../../types'
 import type { VariantCombo } from '../../utils/variants'
 import { formatYuan } from '../../utils/format'
-import { getBusinessHoursText, isBusinessHours } from '../../utils/businessHours'
+import { getBusinessHoursText } from '../../utils/businessHours'
+import { useBusinessHours } from '../../hooks/useBusinessHours'
 import { MIN_DELIVERY_AMOUNT } from '../../data/deliveryLimits'
 
 // 商品参数 / 配送说明 / 售后说明
@@ -70,7 +71,7 @@ function stockText(product: Product): string {
 }
 
 export default function ProductInfoSections({ product, categories, combo }: Props) {
-  const open = isBusinessHours()
+  const open = useBusinessHours()
   const rows: Array<[string, string]> = [
     ['商品名称', combo ? combo.productName : product.name],
     ['口味', (combo?.specText ?? product.spec) || '未标注'],

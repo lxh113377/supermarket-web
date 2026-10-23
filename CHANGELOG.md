@@ -1,5 +1,38 @@
 ## [未发布]
 
+### 2026-10-23 营业状态冻结 bug：走钟每秒跳、「营业中/已打烊」却只在挂载时算一次
+
+- 一手现象（老大报「营业时间显示已打烊」）：五个消费点都写成 const open = isBusinessHours()
+  —— 组件体里一次性求值。HomePage 的封面走钟每秒 setState，但那只重渲染 CoverClock 自己，
+  open 不会重算；其余四处（CategoryPage / OrderConfirmPage / ServiceFormPage /
+  ProductInfoSections）连定时器都没有。⇒ 17:36 打开页面不刷新的人，17:37 之后仍看到
+  「已打烊」，直到手动刷新。用假时钟探针实测坐实：挂载时打烊、跨过起点后界面不变。
+- 这不是样式问题，是**状态与真相源脱钩**：营业起点/终点是时间点，界面把它当常量用。
+  纯函数 isBusinessHours 的 11 条边界用例（17:36/17:37/22:59/23:00、周末跨零点）全是对的
+  ⇒ 逻辑没错，错在"只算一次"。组件层此前从未被测，所以这类"逻辑对、接线错"的 bug
+  判据看不见 —— 与上几轮「同仓有正确模式但没统一」是同一族。
+- 修法：新建 src/hooks/useBusinessHours.ts，五个消费点统一改用它。口径三条：
+  ① 对齐到下一个整分钟再起跳（不是固定 30s 轮询）—— 营业区间最小粒度是分钟，对齐后
+     翻牌最多晚 1 分钟而不是 30 秒；② 比较布尔值本身，同值 React 自动 bail out，
+     不制造无谓重渲染；③ 监听 visibilitychange 立即重算 —— 手机锁屏/切后台期间定时器
+     会被节流甚至暂停，回到前台必须以真实时间纠正，否则又回到冻结的老毛病（微信内
+     打开本站是主路径，这条不是锦上添花）。
+- 新增 tests/businessHoursHook.test.tsx 共 6 条：hook 层 4 条（跨起点翻 true、跨终点翻
+  false、卸载后定时器必须清掉、切回前台立即纠正）+ 真实组件层 2 条（HomePage 封面、
+  CategoryPage 闭店提示）。**组件层必须有** —— 这个 bug 恰好只在"组件 + 真实时钟推进"
+  时才现形，只测 hook 会给出假安全感。
+- 判据验真：把 HomePage 退回一次性求值 ⇒ 组件腿红并点名「首页封面仍显示已打烊」；
+  还原逐字比对 RESTORED:true。
+- 一次自己写的假断言（当场被实测打回）：分类页那条第一版写成 queryByText(...) &&
+  queryByText(...) 判 truthy —— 两个 queryByText 都返回 null 时表达式是 null，
+  而我把 null 当成了"断言通过"的依据；且 CategoryPage 用 useParams 取 categoryId，
+  没喂参数时它渲染「分类不存在」，闭店提示根本不在页面上 ⇒ 那条腿会以"没找到提示"的
+  方式假绿。改成喂真实在册分类 life + 用容器整体文本判（toContain / not.toContain）。
+  ⇒ 探针第一次跑出的"红"里，有一部分是我的探针自己坏，不是被测代码坏；先归因再动手。
+- 验证：oxlint 0 警告 / tsc 零错 / businessHours 与 businessHoursHook 共 19 条全过 /
+  变异验真 RED + RESTORED:true / visual 全套件与 e2e、stub 三层全过（unit 剩 2 条红是
+  docCommands 读工作树被他人未提交的 HANDOFF 顶成 mentions 376→377，属已知连坐噪声，
+  同一判据在暂存面上 rc=0）。
 ### 2026-10-23 中文正文可读性判据 + 三处判据自身盲区（视口、注释、取数面）
 
 - 本轮四件事：① 新增中文正文可读性判据，顺带挖出标题判据只测宽屏导致**手机整页无标题**的

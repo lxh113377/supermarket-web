@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { CATEGORIES } from '../data/categories'
 import { MIN_DELIVERY_AMOUNT } from '../data/deliveryLimits'
 import { formatYuan } from '../utils/format'
-import { isBusinessHours, getClosedMessage, getBusinessHoursText } from '../utils/businessHours'
+import { getClosedMessage, getBusinessHoursText } from '../utils/businessHours'
+import { useBusinessHours } from '../hooks/useBusinessHours'
 import { IconRobot } from '../components/Icons'
 import { prefetchRoute } from '../prefetchBus'
 
@@ -53,7 +54,7 @@ function CoverClock() {
 
 export default function HomePage() {
   const navigate = useNavigate()
-  const open = isBusinessHours()
+  const open = useBusinessHours()
 
   return (
     <div className="page-container paper-grain">

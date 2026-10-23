@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, type CSSProperties } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getServiceById, getCategoryById } from '../data/services'
-import { isBusinessHours, getClosedMessage } from '../utils/businessHours'
+import { getClosedMessage } from '../utils/businessHours'
+import { useBusinessHours } from '../hooks/useBusinessHours'
 import { createSubmission } from '../db'
 import ServiceHintCard from '../components/service/ServiceHintCard'
 import ServicePopup from '../components/service/ServicePopup'
@@ -16,7 +17,7 @@ export default function ServiceFormPage() {
   const navigate = useNavigate()
   const service = serviceId ? getServiceById(serviceId) : undefined
   const category: ServiceCategory | undefined = service ? getCategoryById(service.categoryId) : undefined
-  const open = isBusinessHours()
+  const open = useBusinessHours()
 
   const [showPopup, setShowPopup] = useState(false)
   const [formData, setFormData] = useState<Record<string, string>>({})
