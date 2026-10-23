@@ -316,6 +316,28 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN`（repo �
     另记一次踩坑免得重复：探 `/api/public/*` 时**不要**带 `X-CP-Surface: public` —— 该头只认
     `admin`/`me`，带上会被上游判 `403 FORBIDDEN 请求端上下文无效`，看着像端点坏了其实是我方请求错。
 
+11. **打印经营后台的账号需要老大自己接管（凭据是我早期建的，只有我知道不等于你有）** —
+    后台在 `https://supermarket-web.pages.dev/admin/`，登录是**第二套凭据**，与超市后台的
+    `ADMIN_KEY`（`supermarket-admin-****`）无关：账号 `admin` / 口令 `admin****`
+    （**明文按本仓红线不进文档**；真值在 gitignore 的 `.dev.vars` 里，键名 `PRINT_ADMIN_PASSWORD`——
+    实测该文件被 `.gitignore:32` 忽略、未被 git 跟踪、也不被任何判据读内容）。
+    它是 2026-10-22 由 agent 在**上游仓库**里跑它的 `admin:init` 脚本建的（那是上游的脚本，
+    不是本仓别名，别在本仓敲）。该口令**从未进过本仓 git**：实测按该值做 `git log --all -S`
+    命中 **0 笔**，公开仓里查不到；口令规则来自上游 `account-security.js:5`
+    的 `[A-Za-z0-9]{6,12}` 且须含字母+数字。
+    **接管步骤（两分钟，必须你本人做，我不能代答）**：登录后 → 右上「账号安全」→
+    先「设置三个密保问题」（答案必须是**只有你知道**的内容，我替你编等于留一个假的后门）→
+    再「修改密码」换成你自己的。上游设计是**没设密保就不给改密**（`account-security.js:23`
+    的 `state.configured` 分支），所以顺序不能反。
+    为什么这不是「待修缺陷」而是外部凭据缺口：密保答案与最终口令属个人知识，Agent 代填
+    只会让「谁能恢复这个账号」继续指向错误的方向；且本仓红线明确「后台密钥强度是用户拍板
+    的取舍，禁止 agent 擅自加固」。
+    限速现状（实测上游 `config.rateLimits`）：`authIp=30/15min`、`authAccount=12/15min`
+    ⇒ 弱口令有节流但不算强，接管后建议直接换掉。
+    恢复入口（口令忘了也能重来，不必换库）：在上游仓库内跑它的 `admin:init`，
+    需要 `CP_ADMIN_USERNAME`/`CP_ADMIN_PASSWORD` 两个环境变量；它**新建**账号而不是改旧密码 ⇒
+    真要夺回控制权就新建一个管理员，旧的那个另行停用。
+
 ## 十、历史存档（CloudBase 时代，2026-08-08 前，仅归档参考）
 
 > 以下记录为 2026-08-08 及之前的 CloudBase 架构历史，**已迁移至 Cloudflare Pages + D1，仅供参考勿照做部署**。
