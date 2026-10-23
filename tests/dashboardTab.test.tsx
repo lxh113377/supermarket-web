@@ -8,8 +8,9 @@ import DashboardTab, { resetAdviceCacheForTest } from '../src/components/Dashboa
 const { adminCall, cloudFlag } = vi.hoisted(() => ({ adminCall: vi.fn(), cloudFlag: { value: true } }))
 
 vi.mock('../src/auth', () => ({ adminCall }))
-// IS_CLOUD 走可变 ref：vitest 读根目录 .env（内有 VITE_CB_API_BASE）⇒ 真实 IS_CLOUD 恒为 true，
-// 演示模式那条分支在测试里永远进不去。用 getter 把开关交出来，见文件末尾「模式分支」块。
+// IS_CLOUD 走可变 ref：vite.config.js 的 test.env 已把 VITE_CB_API_BASE 钉成非空
+// （消除"本机有没有 .env"这种机器依赖，见那里的注释），所以默认 IS_CLOUD=true，
+// 演示模式那条分支要靠这个 getter 显式翻。见文件末尾「模式分支」块。
 vi.mock('../src/cloudbase', () => ({ get IS_CLOUD() { return cloudFlag.value } }))
 vi.mock('../src/hooks/useDashboardCharts', () => ({
   useDashboardCharts: () => ({
@@ -158,9 +159,8 @@ describe('聚合失败降级', () => {
 /**
  * 模式分支（2026-10-24 新增）。
  *
- * 为什么必须有这一块：本文件其余用例都跑在 IS_CLOUD=true 下 —— vitest 读根目录 .env
- * （vite 默认 envDir=项目根），而 .env 里配了 VITE_CB_API_BASE。于是「本地演示模式」这条
- * 分支**从来没有被任何测试走到过**，这正是老大报「看板数据加载失败」能长期存在的原因：
+ * 为什么必须有这一块：vite.config.js 的 test.env 把 VITE_CB_API_BASE 钉成非空 ⇒ 本文件
+ * 其余用例都跑在 IS_CLOUD=true 下。于是「本地演示模式」这条分支**没有任何测试走到过**，这正是老大报「看板数据加载失败」能长期存在的原因：
  * 真机 demo 构建 IS_CLOUD=false，测试环境 IS_CLOUD=true，两边看到的不是同一条代码路径。
  * ⇒ 用 vi.mock 显式造两种模式，把分支各自钉住。
  */

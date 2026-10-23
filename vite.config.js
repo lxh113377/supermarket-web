@@ -59,6 +59,29 @@ export default defineConfig({
     // vitest 4 读取本字段；setup 统一注册 RTL cleanup（非 globals 模式不自动清理）
     environment: 'jsdom',
     setupFiles: ['./tests/setup.ts'],
+    /**
+     * 钉死「有后端」这一判定环境（2026-10-24，一手 CI 红的根因修复）。
+     *
+     * 一手：61c7f05 的 gates step 20 判红 —— tests/DashboardAiCard.test.tsx 三条失败
+     * （source=rule 徽章 / source=dify 徽章 / 接口失败降级文案）。本地跑完整 verify 链
+     * 44 步全绿，CI 却红 ⇒ 典型的"本地绿 CI 红"，而这次根因不在判据也不在代码，在**环境**：
+     *   vite 默认 envDir=项目根，会读根目录 .env（内有 VITE_CB_API_BASE=…pages.dev/web）
+     *   ⇒ 本地 vitest 里 src/cloudbase.ts 的 IS_CLOUD = Boolean(API_BASE) 恒为 **true**；
+     *   而 CI 的检出没有 .env（它是本机私有文件、不入库）⇒ 同一份代码在 CI 里 IS_CLOUD=false。
+     * DashboardTab 的 AI 建议卡与聚合拉取都按 IS_CLOUD 分支（demo 模式不发请求），于是在 CI 上
+     * 三条用例等不到任何 adminCall 就被早退挡掉 ⇒ 红。
+     *
+     * 为什么钉成非空而不是钉成空串（两边都 demo）：全仓 42 处 IS_CLOUD 里，管理端组件测试有
+     * 8 个文件（ordersTab / productsTab / DashboardAiCard / inflightIntake / native-dialogs /
+     * piiExportAllowlist / smallUtils / stats）只 mock 了 adminCall、没 mock cloudbase ——
+     * 钉成空串会让这 8 个文件的管理组件集体走进 demo 分支（正是 CI 现在红的放大版）。
+     * 钉成非空则与本地现状一致、且与 CI 首次对齐；demo 分支本身由
+     * tests/dashboardTab.test.tsx 用可变 ref 显式 mock IS_CLOUD 测到（3 条，含变异验真）。
+     *
+     * ⚠️ 这个 env 必须存在且非空，由 tests/ciWorkflow.test.ts 的「钉死判定环境」腿守着 ——
+     *   删掉它会让 IS_CLOUD 重新变成"取决于本机有没有 .env"，那批红就会复发。
+     */
+    env: { VITE_CB_API_BASE: '/test-api', VITE_CB_PUBLIC_API_BASE: '/test-pub' },
     // e2e（Playwright）用例由 `npm run test:e2e` / `npm run test:visual` 单独跑：它们需要真实
     // 浏览器与 server，若被 vitest 收集会因缺少 browser fixture 而失败。
     // e2e-visual 是跑生产构建的那一套（CSP 会拦 dev 注入的 <style>，几何判据只能在 prod 下成立），

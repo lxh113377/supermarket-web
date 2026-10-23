@@ -243,6 +243,38 @@ describe('关键 step 存在性（改名即红，防"门禁静默消失"）', ()
     expect(block).toContain('github.event.before')
   })
 
+  /**
+   * 钉死 vitest 的判定环境（2026-10-24，一手 CI 红的根因修复 + 它自己的守门腿）。
+   *
+   * 案发现场：61c7f05 的 gates step 20 判红三条（DashboardAiCard 的 rule 徽章 / dify 徽章 /
+   * 接口失败降级）。本地跑完整 verify 链 44 步全绿、CI 却红 —— 根因既不在判据也不在代码，
+   * 在环境：vite 默认 envDir=项目根会读根目录 .env（内有 VITE_CB_API_BASE），于是 IS_CLOUD
+   * 在本地恒 true、在没有 .env 的 CI 上恒 false，同一份代码两边跑的是不同分支。
+   *
+   * 本腿的职责：把 vite.config.js 里那句 test.env 钉成「必须存在且两个端点键都是非空」的
+   * sentinel。删掉它 ⇒ IS_CLOUD 重新变成「取决于本机有没有一个私有文件」，那批红就会复发，
+   * 而且是「本地绿 CI 红」这种最费人的复发形态。与下面那条 Build step 烘焙端点是同族防线。
+   *
+   * 刻意不写正则、不碰行尾归一：本仓已两次栽在往代码里塞转义序列（一次把字符串劈成两行，
+   * 一次把 CRLF 判成机器依赖），这里用 indexOf 切片就够，少一层不确定性。
+   */
+  it('vitest 判定环境必须钉死（IS_CLOUD 不得取决于本机有没有 .env）', () => {
+    const viteCfg = readFileSync(join(WF_DIR, '..', '..', 'vite.config.js'), 'utf8')
+    const at = viteCfg.indexOf('env: {')
+    expect(at, 'vite.config.js 的 test 段没有 env 钉定 ⇒ IS_CLOUD 会随本机有无 .env 漂移（一手：61c7f05 的 gates step 20 红三条）').toBeGreaterThan(-1)
+    const seg = viteCfg.slice(at, at + 240)
+    for (const key of ['VITE_CB_API_BASE', 'VITE_CB_PUBLIC_API_BASE']) {
+      const q = seg.indexOf(key + ": '")
+      expect(q, 'test.env 缺键 ' + key).toBeGreaterThan(-1)
+      // ": '" 是三个字符（冒号 + 空格 + 开引号），偏移必须是 +3；写成 +4 会跳掉值的
+      // 第一位，把空串 '' 读成 ', ' 而误判非空 —— 变异验真（把 sentinel 改成空串）实测
+      // 抓到过这个 off-by-one，本行注释就是那次留下的。
+      const rest = seg.slice(q + key.length + 3)
+      const val = rest.slice(0, rest.indexOf("'"))
+      expect(val.length, key + ' 必须是非空 sentinel（钉在「有后端」一侧，理由见 vite.config.js 注释）').toBeGreaterThan(0)
+    }
+  })
+
   it('Build step 必须烘焙线上端点（坑 27 防线，两处 Build 都要）', () => {
     const blocks = ci.split('\n').join('\n')
     const builds = [...blocks.matchAll(/-\s*name:\s*Build[\s\S]*?\n(?=\s{6}-\s*name:|\s{4}\S)/g)]

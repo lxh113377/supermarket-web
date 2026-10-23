@@ -1,5 +1,45 @@
 ## [未发布]
 
+### 2026-10-24 钉死 vitest 判定环境：IS_CLOUD 不得取决于本机有没有一个私有 .env
+
+- 这笔修的是我上一笔（61c7f05）在 CI 造成的红，一手读数：gates job 120569619055 step 20
+  「Test (vitest, with v8 coverage)」判红三条 —— tests/DashboardAiCard.test.tsx 的
+  source=rule 徽章 / source=dify 徽章 / 接口失败降级文案，汇总 3 failed 对 2125 passed。
+- 根因既不在判据也不在代码，在**环境**：vite 默认 envDir=项目根，vitest 因此会读根目录
+  .env（内有 VITE_CB_API_BASE 指向线上端点）⇒ src/cloudbase.ts 的 IS_CLOUD 是按
+  Boolean(API_BASE) 算的，在本地恒为 true；而 .env 是本机私有文件、不入库，CI 的检出里没有
+  它 ⇒ 同一份代码在 CI 上 IS_CLOUD=false。上一笔我给 DashboardTab 加的 demo 早退分支，
+  于是在 CI 上把 AI 建议卡的三条用例挡在请求发出之前 ⇒ 红。
+- **最该记的一条**：我上一笔推送前跑的是**完整** verify 链 44 步 rc=0，仍然没抓到 ——
+  因为本地链跑在 IS_CLOUD=true 下、CI 跑在 false 下，「全绿」这件事本身就是机器依赖的。
+  这比常见的「本地绿 CI 红」更隐蔽：本地绿不是因为判据漏跑，而是因为本地和 CI 判的根本不是
+  同一个环境。⇒ 判据链的可信度上限，等于它的判定环境被钉死的程度。
+- 修法：在 vite.config.js 的 test 段显式钉 env（两个端点键都给非空 sentinel），让本地与
+  CI 的 IS_CLOUD 恒为 true。为什么钉在「有后端」一侧而不是两边都钉成 demo：全仓 42 处
+  IS_CLOUD 里，管理端组件测试有 8 个文件（ordersTab / productsTab / DashboardAiCard /
+  inflightIntake / native-dialogs / piiExportAllowlist / smallUtils / stats）只 mock 了
+  adminCall、没 mock cloudbase ⇒ 若钉成空串，这 8 个文件的管理组件会集体走进 demo 分支
+  （正是 CI 现在这个红的放大版）。demo 分支本身由 tests/dashboardTab.test.tsx 用可变 ref
+  显式 mock IS_CLOUD 测到（三条，含变异验真）。
+- 决定性证据（不是推断）：把本机 .env 临时挪开模拟 CI 检出，重跑那四个管理组件测试文件
+  ⇒ 71 条全过（未钉 env 时这一批会像 CI 一样红）；跑完 .env 已还原原位。
+- 新立一条守门判据（tests/ciWorkflow.test.ts）：钉死判定环境这件事自己必须有判据 ——
+  否则下次谁删掉 test.env，IS_CLOUD 会重新漂回「取决于本机有没有私有文件」，而这批红是
+  本地全绿、CI 才现形，最费人。与既有的「Build step 必须烘焙线上端点」是同族防线。
+- **自己的判据自己先坏**：新腿第一版把取值偏移写成 +4（键名后是冒号、空格、开引号三个
+  字符，应为 +3），后果是跳掉值的第一位字符 —— 变异验真（把 sentinel 改成空串）时它
+  **没翻红**，因为空串被读成逗号加空格、长度算出来是 2 ⇒ 假绿。这正是变异验真的全部价值：
+  如果我只跑正常态确认「它绿了」，这条会哭狼的守门判据就会带着一个静默失效的断言进库。
+  修成 +3 后重验：删 env 行 ⇒ 红并点名「IS_CLOUD 会随本机有无 .env 漂移」；sentinel 改空串
+  ⇒ 红并点名「必须是非空 sentinel」；两次还原均逐字比对 RESTORED:true。off-by-one 已写进注释。
+- 又一次自己踩的转义坑（本会话第 N 次，当场修）：往测试里塞这段新腿时用双引号串包了含
+  双引号的中文句子 ⇒ SyntaxError；正解是先 read 再用定点编辑工具，不靠字符串拼接。
+  dashboardTab.test.tsx 里那两句解释 IS_CLOUD 来源的注释也同步改掉 —— 它们写的「vitest 读
+  根目录 .env」在钉 env 之后不再是现行事实，留着会变成下一条假归因。
+- 验证：oxlint 0 警告 / tsc 零错 / ciWorkflow + DashboardAiCard + dashboardTab 共 59 条全过 /
+  挪开 .env 模拟 CI 的复现验证 71 条全过 / 新腿两处变异均 RED + RESTORED:true /
+  unit 145 文件 2131 条全过 / e2e 25 过 / stub 5 过 / npm run verify 完整链 44 步 rc=0
+  （链内 C9 绕过对账、D1 备份 liveness 为报告型读数不阻断）。
 ### 2026-10-24 看板在本地演示模式下的「加载失败」改回设计边界，并给错误态补出路
 
 - 一手现象（截图管理后台看板 tab）：demo 构建里看板区整块只剩一行红字「⚠️ 看板数据加载失败」，
