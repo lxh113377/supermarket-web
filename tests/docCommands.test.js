@@ -475,8 +475,11 @@ describe('E2 台账漂移挪到提交那一刻（钩子必须拦）', () => {
   it('接线半边：钩子里真有那条腿、在 set -e 之后、且不以注释形态出现', () => {
     const { hook, legs } = hookLeg()
     expect(legs, `钩子里该腿出现 ${legs.length} 次，必须恰好 1 次`).toHaveLength(1)
-    expect(legs[0].trim()).toBe('node scripts/check-doc-commands.mjs --check')
+    expect(legs[0].trim()).toBe('node scripts/check-doc-commands.mjs --staged --check')
     expect(legs[0], '腿必须带 --check 档：默认档按设计只报不拦，接了等于没接').toContain('--check')
+    // --staged 也是必需项（2026-10-23）：本判据读工作树时，多会话同仓会让"别人未提交的
+    // 文档主张"把"我的这笔提交"顶红（两天内各中一次）。少了这个开关，连坐就回来了。
+    expect(legs[0], '腿必须带 --staged：提交门禁要判暂存面，不是工作树').toContain('--staged')
     expect(hook.indexOf('set -e')).toBeLessThan(hook.indexOf('check-doc-commands.mjs'))
     // 反向半边：把那条腿换成 no-op，断言必须翻红（证明上面那几条不是在读空气）。
     const tampered = hook.replace(/check-doc-commands\.mjs/g, 'echo-ok.mjs')
@@ -504,6 +507,16 @@ describe('E2 台账漂移挪到提交那一刻（钩子必须拦）', () => {
       //   ② 钩子那一行本来就没有 shell 语法（`node <脚本> --check`），绕开 shell 少一层不确定性。
       const argv = legs[0].trim().split(/\s+/)
       expect(argv[0], '钩子那条腿的 runner 必须能换成 process.execPath（本仓用 node）').toBe('node')
+      // 钩子那条腿现在是 --staged（判 index），而 git archive 的检出树**没有 index** ⇒
+      // 必须补一步 init + add，把"提交那一刻的状态"造出来。判据在无 index 时按设计
+      // fail-closed 退 rc=2（不是退 0），所以漏了这一步会立刻红，不会被读成通过。
+      const init = spawnSync('git', ['init', '-q'], { cwd: dir, encoding: 'utf8', timeout: 60_000 })
+      expect(init.status, init.stderr).toBe(0)
+      const addAll = () => {
+        const a = spawnSync('git', ['add', '-A'], { cwd: dir, encoding: 'utf8', timeout: 120_000, maxBuffer: 64 * 1024 * 1024 })
+        expect(a.status, a.stderr).toBe(0)
+      }
+      addAll()
       const runLeg = () => spawnSync(process.execPath, argv.slice(1), { cwd: dir, encoding: 'utf8', timeout: 120_000 })
       const control = runLeg()
       expect(control.error, `那条腿没跑起来，结论不作数：${control.error && control.error.message}`).toBeUndefined()
@@ -515,13 +528,22 @@ describe('E2 台账漂移挪到提交那一刻（钩子必须拦）', () => {
       const before = reg.counts.claim
       reg.counts.claim = 42
       writeFileSync(regPath, JSON.stringify(reg, null, 2) + '\n', 'utf8')
+      // 隔离半边（--staged 存在的理由）：**只改工作树、不进 index ⇒ 本腿必须仍然绿**。
+      // 这一条就是"别人未提交的改动不该把我的提交顶红"的可证形式；如果哪天判据退回读
+      // 工作树，这里会立刻红。（对照：不带 --staged 的 --check 在同一状态下会红。）
+      const isolated = runLeg()
+      expect(isolated.status,
+        `只改工作树（未 git add）就把判定顶红 ⇒ 本腿又回到读工作树了，连坐会复发：${`${isolated.stdout || ''}${isolated.stderr || ''}`.slice(-400)}`
+      ).toBe(0)
+      addAll()
       const red = runLeg()
       expect(red.error, `反例那腿没跑起来，结论不作数：${red.error && red.error.message}`).toBeUndefined()
-      expect(red.status, '把册改旧后，钩子那条腿必须拦').toBe(1)
+      expect(red.status, '把册改旧并进入暂存面后，钩子那条腿必须拦').toBe(1)
       expect(`${red.stdout || ''}${red.stderr || ''}`).toContain(`claim 册上 42`)
       // 复原：不留半成品，也顺带证明"绿/红"不是检出树被搞坏导致的假象。
       reg.counts.claim = before
       writeFileSync(regPath, JSON.stringify(reg, null, 2) + '\n', 'utf8')
+      addAll()
       expect(runLeg().status, '复原后必须重新变绿').toBe(0)
     } finally {
       rmSync(dir, { recursive: true, force: true })

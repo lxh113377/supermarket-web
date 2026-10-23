@@ -135,9 +135,18 @@ describe('活体腿：采集层必须把真仓里的真文件读对一次（正�
     //   const t = m.scanBrackets(s).parens.map(([a,b]) => s.slice(a,b+1));
     //   console.log((s.match(/spawnSync\(/g)||[]).length, t.filter(x=>x.includes('process.execPath')&&x.includes('SCRIPT')).length)"
     // 数值仍然写死而不改成 ≥：这条腿的全部价值就是"形状变了必须有人来看一眼"。
-    expect((src.match(/spawnSync\(/g) || []).length).toBe(10)
+    // 2026-10-23 有人来看过了并改数：10 → 14、5 → 7。
+    //   +2 来自本轮给 docCommands 加的「--staged 暂存面」用例组（cliStaged 用
+    //   spawnSync(process.execPath, [SCRIPT, ...]) ⇒ 两数各 +1；gitOut 用
+    //   spawnSync('git', ...) ⇒ 只进总数）；
+    //   再 +2 来自同轮改 E2 牙齿半边时补的 git init / git add（--staged 判 index，
+    //   而 git archive 的检出树没有 index ⇒ 必须造出来）。
+    // ⇒ 一个值得记的自指现象：我为了修这条腿而改测试，改完它又红一次（12→14）。
+    //   这不是腿太脆，恰恰是它在工作 —— 它的设计意图就是"形状变了必须有人来看一眼"，
+    //   而我这两次都真的来看了并给出归因。写死数字 + 强制归因，比改成 >= 更有价值。
+    expect((src.match(/spawnSync\(/g) || []).length).toBe(14)
     const texts = scanBrackets(src).parens.map(([a, b]) => src.slice(a, b + 1))
-    expect(texts.filter((t) => t.includes('process.execPath') && t.includes('SCRIPT')).length).toBe(5)
+    expect(texts.filter((t) => t.includes('process.execPath') && t.includes('SCRIPT')).length).toBe(7)
     expect(texts.some((t) => t.includes('--check')), '新腿的 CLI 调用必须也在采集面里（否则采集又漏了一次）').toBe(true)
   })
 
