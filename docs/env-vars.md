@@ -9,7 +9,7 @@
 |---|---|---|---|---|
 
 | `ADMIN_KEY` | secret | Pages → Settings → Variables and Secrets；本地 `.dev.vars` | **fail-closed**：`resolveRole` 返回 null，非公开 action 一律「认证失败」（错误回显不泄露部署态） | 管理端主密钥 |
-| `ADMIN_READONLY_KEY` | secret | 同上 | 只读角色不存在：该密钥登录被拒，主密钥与管理写操作不受影响 | 只读查看密钥（禁止一切 `ADMIN_WRITE_ACTIONS`） |
+| `ADMIN_READONLY_KEY` | secret | 同上 | 只读角色不存在：该密钥登录被拒，主密钥与管理写操作不受影响 | 只读查看密钥。**授权面是白名单而非黑名单**：`backend.js` 判 `role === 'readonly' && !ADMIN_READ_ACTIONS.has(action)` ⇒ 默认拒绝，只有登记为可读的 17 个 action（login/verifyKey/各 get*、getSubmissions、getSubmissionImages、getDashboardStats、getEventLog、aiAdvice 等）放行。`ADMIN_WRITE_ACTIONS` 那个集合自第十五轮起**不再承担授权判定**（它只剩契约真相源 + 审计口径两个身份，由 verify:authz 的 B8 对账），所以「禁止一切写操作」这句话只是白名单的**推论**，不是机制本身 —— 拿它当定义会漏掉「新加的读 action 默认对只读不可见」这一半 ｜
 | `ALLOWED_ORIGINS` | plain | Pages Variables（逗号分隔） | 回退内置默认源（`supermarket-web.pages.dev` + `lxh113377.github.io`）并额外放行 localhost/127.0.0.1 本地开发 | CORS 精确放行白名单追加项 |
 | `DB` | 绑定 | Pages → Functions → D1 bindings | 响亮失败：`handleAdmin`/`handlePublic` 直接返回「未配置 D1 数据库绑定」，不静默返回空数据 | D1 数据库绑定 |
 | `RATE_KV` | 绑定 | Pages → Functions → KV namespace bindings | 限流自动回退 D1 计数（`checkRate` 检测 KV 形态失败即走 `checkRateDB`），限流不失效、只是慢一点 | Workers KV 限流计数（快路径） |
