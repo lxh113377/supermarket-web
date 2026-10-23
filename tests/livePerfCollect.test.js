@@ -5,6 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync 
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { npmRcCache } from '../scripts/collect-live-perf.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const REPO = resolve(HERE, '..')
@@ -110,6 +111,23 @@ describe('现网性能取数器：预飞取状态码、批次防覆写、缺件�
       { CHROME_PATH: s.browser, LIGHTHOUSE_CLI: join(s.d, 'node_modules', 'not-lighthouse', 'cli', 'index.js') })
     expect(r.status, r.stdout).toBe(2)
     expect(r.stdout).toContain('没解析到 lighthouse CLI')
+  })
+})
+
+describe('npmRcCache（第七十八轮：resolveLighthouse 基数补 ~/.npmrc 的 cache= 读数）', () => {
+  it('正例：行首 cache= 命中；反例双向：缺文件/无该键/非行首形态 ⇒ null（不抛、不猜默认、夹具不读本机答案）', () => {
+    const d = mkdtempSync(join(tmpdir(), 'npmrc-'))
+    tmpDirs.push(d)
+    try {
+      expect(npmRcCache(join(d, 'no-home'))).toBe(null)                       // home 不存在 ⇒ null
+      expect(npmRcCache(d)).toBe(null)                                        // 有目录无 .npmrc ⇒ null
+      writeFileSync(join(d, '.npmrc'), 'registry=https://x\n', 'utf8')
+      expect(npmRcCache(d)).toBe(null)                                        // 无 cache= ⇒ null
+      writeFileSync(join(d, '.npmrc'), '# c\ncache=D:\\somewhere\nother=1\n', 'utf8')
+      expect(npmRcCache(d)).toBe('D:\\somewhere')                            // 行首命中
+      writeFileSync(join(d, '.npmrc'), 'userconfig.cache=X\n', 'utf8')
+      expect(npmRcCache(d)).toBe(null)                                        // 非行首不得命中
+    } finally { rmSync(d, { recursive: true, force: true }) }
   })
 })
 

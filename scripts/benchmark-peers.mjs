@@ -15,8 +15,10 @@
 // ② 整体 rc=2 表示存在不可观测面 ⇒ 报告里只能写 UNVERIFIED，不得写"全绿/已核对"；
 // ③ 我方与对方走同一函数、同一窗口、同一时区（UTC），否则「230 vs 2」这种对比不成立。
 //
-// 用法：node scripts/benchmark-peers.mjs                     人读表（逐 peer 一行 + 不可得面点名）
-//       node scripts/benchmark-peers.mjs --json <path>       同时落 JSON 台账
+// 用法：node scripts/benchmark-peers.mjs                     人读表 + **当面打印台账龄期**，不落盘（第七十八轮）
+//       npm run report:peers                                 刷新台账（= 上面 + --json docs/benchmark-peers.last.json）
+//       node scripts/benchmark-peers.mjs --json [path]       落台账；path 缺省 = docs/benchmark-peers.last.json
+//       node scripts/benchmark-peers.mjs --no-json           连龄期提示也不打印（演练/比对用）
 //       node scripts/benchmark-peers.mjs --offline           不触网，只验名册形状（CI 无网时的降级腿）
 //       node scripts/benchmark-peers.mjs --selftest          跑内置正反例（含"404 不得折成 0"这条反例）
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -29,8 +31,38 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
 export const ROSTER = 'docs/benchmark-peers.json'
 
-/** 单条 API 调用的墙上时钟上限；超时按"这一面取不到"处理，不重试成"这一面是 0"。 */
-const PER_CALL_MS = 20000
+/** 台账默认落点（第七十八轮）：裸跑（live）就写这里，载体承诺「跑一条命令即可重取全部对方侧事实」。 */
+/** 台账默认落点（第七十八轮）：显式 `--json` 缺参数时的目标；npm 别名 report:peers 已把这条参数写死。 */
+export const LEDGER_DEFAULT = 'docs/benchmark-peers.last.json'
+
+/**
+ * 台账落点决议（纯函数，供自证与夹具断言）。第七十八轮立它的实测：
+ * 名册 `_why` 承诺「下一轮不带记忆的人跑一条命令即可重取全部对方侧事实」，但改前
+ * **裸跑不落盘、表格印在新 stdout 上、台账停在 docs 里**（实测 measuredAt 停在 6 天前）
+ * —— 下一轮读到的仍是那张旧表，却以为"量过了"。这是转引病的**生成器**。
+ * 两个方向都要防：让裸跑静默写受版本控制的台账 ⇒ 探针面（judge-side-effects 在 git archive
+ * 快照里跑默认 args）会把"默认即写盘"判成未声明生成器，且任何人随手一跑就覆写取证件；
+ * 而"跑不写"又养出上面那个陷阱。所以取第三条：**裸跑不落盘，但把台账龄期当面喊出来**，
+ * 刷新只走显式意图（`--json [path]`，或包好参数的 `npm run report:peers`）。
+ * 规则：--no-json ⇒ 决议 null 且连龄期都不问（演练/比对用）；--json ⇒ 非离线时落 path（缺省 LEDGER_DEFAULT）；
+ * --offline ⇒ 一律不落盘（零落盘是 @probe-safe 声明的一部分，全 null 记录不得覆写有值的 live 台账）。
+ */
+export function resolveLedgerPath(argv = [], offline = false) {
+  if (argv.includes('--no-json')) return null
+  const jsonAt = argv.indexOf('--json')
+  if (jsonAt >= 0) return offline ? null : (argv[jsonAt + 1] || LEDGER_DEFAULT)
+  return null
+}
+
+/** 台账龄期（天，向下取整；读不到/畸形 ⇒ null=未知）。裸跑时当面打印，禁"表新台账旧"。 */
+export function ledgerAgeDays(rawLedger, now = Date.now()) {
+  try {
+    const m = JSON.parse(rawLedger).measuredAt
+    const t = Date.parse(m)
+    if (!Number.isFinite(t)) return null
+    return { days: Math.floor((now - t) / 86400000), measuredAt: m }
+  } catch { return null }
+}
 
 function gh(path, { headers = false } = {}) {
   const args = ['api', path]
@@ -190,6 +222,19 @@ export function selftest() {
   add('正例：窗口起点 = 当日 UTC 减 30 天（不带毫秒）',
     since === '2026-09-01T12:00:00Z', since)
 
+  add('正例：台账决议（第七十八轮）——裸跑不落盘但当面喊龄期；--json 缺参落默认台账；--offline/--no-json 一律不落盘',
+    resolveLedgerPath([]) === null
+    && resolveLedgerPath(['--offline'], true) === null
+    && resolveLedgerPath([], true) === null
+    && resolveLedgerPath(['--no-json']) === null
+    && resolveLedgerPath(['--json']) === LEDGER_DEFAULT
+    && resolveLedgerPath(['--json', 'tmp/x.json']) === 'tmp/x.json'
+    && resolveLedgerPath(['--json', 'tmp/x.json'], true) === null
+    && ledgerAgeDays(JSON.stringify({ measuredAt: '2026-10-17T00:00:00Z' }), Date.parse('2026-10-24T00:00:00Z')).days === 7
+    && ledgerAgeDays('{bad json') === null
+    && ledgerAgeDays(JSON.stringify({ measuredAt: 'not-a-date' })) === null,
+    `bare=null json缺省=${resolveLedgerPath(['--json'])} 龄期=7d/坏件=null`)
+
   const bad = measureOne('x/y', { sinceIso: 's', call: () => ({ json: { stargazers_count: 'lots' } }) })
   add('反例：字段类型不对（"lots"）⇒ 记为不可得，不做 Number() 强转成 NaN/0',
     bad.stars === null && bad.unavailable.includes('stars'),
@@ -223,21 +268,30 @@ async function main() {
 
   const since = sinceIso(Date.now(), roster.windowDays)
   const offline = argv.includes('--offline')
-  const call = offline ? () => ({ err: 'offline-mode' }) : gh
+  const dry = argv.includes('--no-json')   // 第七十八轮：演练面零触网（判探针可子进程跑这条），且不打印龄期
+  const call = (offline || dry) ? () => ({ err: offline ? 'offline-mode' : 'no-json-dry' }) : gh
   const records = targets.map((t) => measureOne(t.repo, { windowDays: roster.windowDays, sinceIso: since, call }))
 
   console.log(renderRows(records, { self: roster.self, since }))
   const blind = records.filter((r) => r.status !== 'OK')
-  const jsonAt = argv.indexOf('--json')
-  if (jsonAt >= 0 && argv[jsonAt + 1]) {
-    writeFileSync(join(root, argv[jsonAt + 1]), JSON.stringify({
+  const ledgerPath = resolveLedgerPath(argv, offline)
+  if (argv.includes('--json') && offline) console.log('[benchmark-peers] --offline 下不写台账（全 null 记录不得覆写有值的 live 台账）')
+  if (ledgerPath) {
+    writeFileSync(join(root, ledgerPath), JSON.stringify({
       measuredAt: new Date().toISOString(), windowDays: roster.windowDays, since: since,
       mode: offline ? 'offline' : 'live', self: roster.self,
       kinds: Object.fromEntries(targets.map((t) => [t.repo, t.kind])), records,
     }, null, 2) + '\n', 'utf8')
-    console.log(`台账已落 ${argv[jsonAt + 1]}`)
+    console.log(`台账已落 ${ledgerPath}`)
+  } else if (!offline && !argv.includes('--no-json')) {
+    // 裸跑：把台账龄期当面喊出来（第七十八轮立的防呆——"量过了"必须与"上次何时量"同时可见）
+    let ageNote
+    try { ageNote = ledgerAgeDays(readFileSync(join(root, LEDGER_DEFAULT), 'utf8')) } catch { ageNote = null }
+    console.log('[benchmark-peers] 本次未落盘。' + (ageNote
+      ? `现行台账 measuredAt=${ageNote.measuredAt}（${ageNote.days} 天前${ageNote.days > roster.windowDays ? ' ⇒ 已超过取数窗口，报告不得当新数据用' : ''}）。刷新 = \`npm run report:peers\`（等价 --json ${LEDGER_DEFAULT}）`
+      : `现行台账读不到/畸形（${LEDGER_DEFAULT}）⇒ 刷新 = \`npm run report:peers\``))
   }
-  console.log(`GATE-${blind.length ? 'UNVERIFIED' : 'PASS'} benchmark-peers :: 名册 ${records.length} 仓（含本项目）｜全面可得 ${records.length - blind.length}｜存在不可得面 ${blind.length}${blind.length ? `（${blind.map((r) => r.repo).join('、')}）` : ''}｜${offline ? 'offline 模式，全部按不可得计' : ''}`)
+  console.log(`GATE-${blind.length ? 'UNVERIFIED' : 'PASS'} benchmark-peers :: 名册 ${records.length} 仓（含本项目）｜全面可得 ${records.length - blind.length}｜存在不可得面 ${blind.length}${blind.length ? `（${blind.map((r) => r.repo).join('、')}）` : ''}｜${offline ? 'offline 模式，全部按不可得计' : (dry ? '--no-json 演练面，零触网、不落盘、不打印龄期' : '')}`)
   process.exit(blind.length ? 2 : 0)
 }
 

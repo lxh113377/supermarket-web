@@ -69,7 +69,7 @@
     "verify:errors": "node scripts/check-error-semantics.mjs",
     "verify:logs": "node scripts/check-logging.mjs",
     "verify:event-sink": "node scripts/verify-event-sink-d1.mjs",
-    "report:peers": "node scripts/benchmark-peers.mjs",
+    "report:peers": "node scripts/benchmark-peers.mjs --json docs/benchmark-peers.last.json",
     "verify:pii": "node scripts/check-pii-inventory.mjs",
     "verify:entrypoints": "node scripts/check-cli-entrypoints.mjs",
     "migrate": "node scripts/migrate.mjs",

@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { assertCliRan } from './helpers/cliLeg.js'
-import { lastPageFromLink, sinceIso, measureOne } from '../scripts/benchmark-peers.mjs'
+import { lastPageFromLink, sinceIso, measureOne, resolveLedgerPath, ledgerAgeDays, LEDGER_DEFAULT } from '../scripts/benchmark-peers.mjs'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SCRIPT = join(REPO, 'scripts', 'benchmark-peers.mjs')
@@ -46,11 +46,13 @@ describe('benchmark-peers：Link 头与窗口', () => {
 })
 
 describe('benchmark-peers：入口必须被子进程真跑过', () => {
-  it('--selftest ⇒ rc=0 且印出自证 token', () => {
+  it('--selftest ⇒ rc=0 且印出自证 token（条数随腿数走，不钉死数字；第七十八轮起钉 ≥9 防退腿）', () => {
     const r = run(['--selftest'])
     expect(r.status, r.stdout + r.stderr).toBe(0)
     expect(r.stdout).toContain('[GATE:peers-selftest-pass]')
-    expect(r.stdout).toContain('8/8')
+    const m = r.stdout.match(/selftest: (\d+)\/\1 通过/)
+    expect(m, '自证行形态未变').toBeTruthy()
+    expect(Number(m[1]), 'selftest 腿数').toBeGreaterThanOrEqual(9)
   })
 
   it('缺名册 ⇒ 在第一次 gh 调用之前就 fail-closed 退出（rc=2，且点名不可解析的输入面）', () => {
@@ -70,5 +72,21 @@ describe('benchmark-peers：入口必须被子进程真跑过', () => {
     expect(r.stdout).toContain('GATE-UNVERIFIED')
     expect(r.stdout).toContain('全面可得 0')
     expect(r.stdout).not.toMatch(/star=0\s/)
+  })
+
+  it('--no-json（第七十八轮演练面）⇒ 零触网、不落盘、不打印龄期提示（裸跑的"当面喊龄期"只属于真量过的面）', () => {
+    const r = run(['--no-json'])
+    expect(r.status).toBe(2)
+    expect(r.stdout).toContain('演练面')
+    expect(r.stdout).not.toContain('本次未落盘')
+    expect(r.stdout).not.toContain('台账已落')
+  })
+
+  it('裸跑（live）不落盘但必须当面报台账龄期（第七十八轮：转引病生成器的闸）——子进程真跑一次不现实（触网），此腿断纯函数', () => {
+    // resolveLedgerPath([])===null：裸跑不写；ledgerAgeDays 对坏件/畸形一律 null 不折算 0
+    expect(resolveLedgerPath([])).toBe(null)
+    expect(resolveLedgerPath(['--json'])).toBe(LEDGER_DEFAULT)
+    expect(ledgerAgeDays('{oops')).toBe(null)
+    expect(ledgerAgeDays(JSON.stringify({ measuredAt: '2026-10-17T00:00:00Z' }), Date.parse('2026-10-24T12:00:00Z')).days).toBe(7)
   })
 })

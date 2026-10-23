@@ -14,7 +14,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { copyGateScripts } from './helpers/copyGateScripts.mjs'
 import { assertCliRan } from './helpers/cliLeg.js'
-import { evaluate, classify, V3_MIN_HEADROOM, outerFaceReport, readShellMax, SHELL_MAX_DEFAULT } from '../scripts/check-memory-volume.mjs'
+import { evaluate, classify, V3_MIN_HEADROOM, outerFaceReport, readShellMax, SHELL_MAX_DEFAULT, BORN_BASELINE } from '../scripts/check-memory-volume.mjs'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SELF = join(REPO, 'scripts', 'check-memory-volume.mjs')
@@ -452,3 +452,39 @@ describe('外层面（M-60-4 · 第六十四轮）：内层那把尺一字不动
   })
 })
 
+describe('V4b（第七十八轮）：出生即贴线普查——存量基线棘轮 + 历史不可达不折算干净', () => {
+  const baseFiles = [{ name: '07-next-steps.md', size: 1000 }]
+  const ev = (born) => evaluate({ files: baseFiles, max: 4096, all: true, added: new Set(), born })
+  it('基线在册违例 ⇒ V4b PASS（存量豁免是措辞的明账，不是静默）', () => {
+    const born = { events: 300, viol: BORN_BASELINE.slice(0, 3).map((name, i) => ({ name, bytes: 3800 + i })), presentNames: new Set(BORN_BASELINE.slice(0, 3)) }
+    const r = ev(born).rows.find((x) => x.id === 'V4b')
+    expect(r.pass).toBe(true)
+    expect(r.status).not.toBe('UNVERIFIED')
+    expect(r.detail).toMatch(/基线外新增违例 0/)
+  })
+  it('基线外新违例 ⇒ FAIL 且点名卷号与余量（棘轮只减不增）', () => {
+    const born = { events: 5, viol: [{ name: '07-next-steps.part999.md', bytes: 3500 }], presentNames: new Set(['07-next-steps.part999.md']) }
+    const r = ev(born).rows.find((x) => x.id === 'V4b')
+    expect(r.pass).toBe(false)
+    expect(r.detail).toContain('part999')
+    expect(r.detail).toMatch(/基线外新增违例\*\* 1/)
+    expect(r.pass).toBe(false)
+  })
+  it('反例：出生不可达（浅克隆/rc≠0）⇒ UNVERIFIED，绝不印"存量干净"', () => {
+    const r = ev({ unreachable: 'git log rc=128（浅克隆）' }).rows.find((x) => x.id === 'V4b')
+    expect(r.pass).toBe(true)
+    expect(r.status).toBe('UNVERIFIED')
+    expect(r.detail).toContain('不判')
+  })
+  it('反例：基线里的卷被拆薄后 ⇒ 点名"可摘名"（棘轮有减的出口，不锁死历史）', () => {
+    const still = BORN_BASELINE.slice(1)
+    const born = { events: 9, viol: still.map((name) => ({ name, bytes: 3900 })), presentNames: new Set(still) }
+    const r = ev(born).rows.find((x) => x.id === 'V4b')
+    expect(r.pass).toBe(true)
+    expect(r.detail).toContain('可摘名')
+  })
+  it('born=null（不带 --born 的常规面）⇒ 没有 V4b 行（不误报"已普查"）', () => {
+    const res = ev(null)
+    expect(res.rows.some((x) => x.id === 'V4b')).toBe(false)
+  })
+})
