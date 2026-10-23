@@ -4,6 +4,27 @@
 
 ## [未发布]
 
+### 2026-10-23 打印入口别再写死地址：分类页改走解析器（顾客少点一次，运营开关也不再是摆设）
+
+- **一手现象**：分类页的「打印」卡写的是 `window.location.assign('/print/')`。搬进来的校园打印
+  应用里 `/print/` 落在它自己的**首页**（「文件准备好，打印送到寝室」），下单表单在它的
+  `#print` 视图 —— 实测两端浏览器里：不带 `#print` 时页面只有「上传文件去打印」按钮，
+  带 `#print` 才直接出现「文件与打印设置」+「确认并创建订单」。顾客因此**多点一次**，
+  而这正是老大那句「我要打开就是打印的页面」没做到的部分。
+- **更要紧的是口径分裂**：本仓早就有 `src/pages/print/printApp.ts` 的 `resolveCampusPrintUrl()`,
+  它读 `VITE_CAMPUS_PRINT_URL`（`docs/env-vars.md` 把它登记为 build 型开关，未配置回落
+  `/print/#print`）并拒绝任何跨域/可执行协议。跳板页 `PrintPage.tsx` 用了它，分类页**绕过了它**
+  ⇒ 运营在 CI 里配这个开关对顾客主路径完全无效（同一件事两处口径，文档只描述了一处，
+  属于「承诺写了、判据没接」那一族的复发）。
+- **改法**：分类页也走 `resolveCampusPrintUrl()`，删掉字面量。跨域防护不重复实现——解析器
+  本身已把 `https://…` / `//host` / `javascript:` 判非法并回落同源默认值。
+- **补的判据（为什么单测不够）**：`tests/printApp.test.ts` 原来只证明解析器**算得对**,
+  证明不了**有人用它**；`print-entry.spec.ts` 的 `waitForURL(/\/print\/(#print)?$/)` 把 `#print`
+  写成可选 ⇒ 写死 `/print/` 一样绿。现在两处都收紧：新增按**源码面**的对账（入口文件必须
+  出现 `resolveCampusPrintUrl()` 且不得出现 `location.assign('/print`，写死即红）；分类页那条
+  e2e 单独要求终态 URL 以 `#print` 结尾（只判 URL 不判渲染 —— CI 没有打印后端，判渲染会红得
+  没有意义；实测 github.io 上 `/api` 全 404 时 hash 与三个静态导航标记仍然稳定存在）。
+- 验证：`vitest tests/printApp.test.ts` 10/10、`playwright print-entry` 4 passed、`tsc --noEmit` rc=0。
 ### 2026-10-23 表单错误与字段的关联：ServiceFormPage 补齐 aria-invalid，并纠正一条我自己记错的教训
 
 - **先纠正上一轮记错的教训**：第十轮我把「CI 红」归因成「漏跑 verify 全链」，本轮被证伪 ——

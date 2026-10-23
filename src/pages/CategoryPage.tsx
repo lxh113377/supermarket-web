@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { getCategoryById, getServicesByCategory } from '../data/services'
 import { isBusinessHours, getClosedMessage } from '../utils/businessHours'
+import { resolveCampusPrintUrl } from './print/printApp'
 import type { Service } from '../types'
 
 export default function CategoryPage() {
@@ -16,7 +17,14 @@ export default function CategoryPage() {
     } else if (service.type === 'print') {
       // 打印 = 本站的校园打印应用本体（public/print/index.html）。直接整页进它，
       // 不走 hash 路由 #/print 那块零内容跳板：少一次渲染、少一帧空白。
-      window.location.assign('/print/')
+      // 地址必须过 resolveCampusPrintUrl()，**不许写死字面量**（2026-10-23 一手）：
+      // 从前这里硬写 '/print/'，于是 ① 运营在 CI 里配的 VITE_CAMPUS_PRINT_URL 对本页
+      // 完全失效（同一件事两处口径，文档只说了其中一处），② 少带 `#print` ⇒ 顾客落在
+      // 应用**首页**（「文件准备好，打印送到寝室」）而不是下单表单，还得再点一次
+      // 「上传文件去打印」。默认值 '/print/#print' 本身就是直达下单视图（实测：带 #print
+      // 页面里直接出现「文件与打印设置」+「确认并创建订单」）。跨域兜底已由该解析器
+      // 判非法并回落同源路径（见 printApp.ts 的头注），所以这里不需要再防一次。
+      window.location.assign(resolveCampusPrintUrl())
     } else {
       navigate(`/service/${service.id}`)
     }

@@ -58,6 +58,10 @@ test('B 真实路径：分类页点「打印」服务 ⇒ 同样直接进应用'
   const card = page.getByRole('button', { name: /打印/ }).first()
   await expect(card, '学习分类下应有「打印」服务卡').toBeVisible({ timeout: 25_000 })
   await card.click()
+  // 必须直达**下单视图**（`#print`），不是只落到应用首页：2026-10-23 一手，这里从前写死
+  // '/print/' ⇒ 顾客看到「文件准备好，打印送到寝室」的首页，还得再点一次才见到上传框。
+  // 只判 URL，不判渲染（判渲染要等后端，CI 里没有打印后端 ⇒ 会红得没有意义）。
+  await page.waitForURL(/\/print\/#print$/, { timeout: 25_000 })
   await expectAppInPlace(page)
 })
 
