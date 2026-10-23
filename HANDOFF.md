@@ -422,6 +422,30 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN`（repo �
     同形状还适用于 HANDOFF.md / README.md 的数字行（`check-doc-consistency` 会把 142/143 这类
     「真相源实测值」与文档对账，所以被回退了门禁会红，不会静默 —— 只有 CHANGELOG 没有对账）。
 
+16. **「两个人的后台都能收到数据」——用仓里已有的只读密钥实现，附一次「secret 不重部就不生效」实拍**（2026-10-23）：
+    · 老大第 4 条要求两个人（他 + 朋友）都能看到顾客下的单。**没有新增任何权限代码**：
+      `functions/lib/security.js` 的 `resolveRole` 本来就认两个键（`ADMIN_KEY`=全权 /
+      `ADMIN_READONLY_KEY`=只读），`backend.js:91` 判 `role === 'readonly' && !ADMIN_READ_ACTIONS.has(action)`
+      ⇒ 只读档**默认拒绝**，白名单里的 17 个读 action 才放行（含 `getSubmissions` /
+      `getSubmissionImages`，正是后台「服务提交」那两下取数）。所以朋友拿只读键登录，
+      能看到顾客提交（含打印文件本体），但改不了商品/订单。
+    · 所以真正的交付动作是**配一个 secret**，不是写代码：值生成 32 位 base64url（短语型不行，要发给朋友），
+      写进本地 `.dev.vars` 的 `ADMIN_READONLY_KEY` + Pages secret。**值不进任何文档/日志/提交**
+      （AGENTS.md 红线）；要发给朋友就当面/私聊发，别贴进仓库。轮换 = 换 `.dev.vars` 值 +
+      `wrangler pages secret put ADMIN_READONLY_KEY --project-name=supermarket-web` **并重新部署一次**。
+    · ⚠️ **实拍一次「secret 上传成功但线上不认」**：`wrangler pages secret list` 已经能列出
+      `ADMIN_READONLY_KEY: Value Encrypted`，但用那个键调 `/web verifyKey` 仍 `认证失败`。这不是键写错，
+      是 Pages 的 secret 在**部署时注入**进 runtime：不重部，线上跑的还是旧配置。这与本仓 AGENTS.md
+      那条「改 secret 后必须重部，否则线上仍用旧值」是同一条规律，本轮亲手复现了一遍 —— 所以
+      「secret list 里有」不能当作「线上生效」的证据，唯一可信判据是拿它真调一次 `verifyKey`。
+    · 另一条实测细节：用 PowerShell 的 `Get-Content -Raw | wrangler ... secret put` 管道传值时，
+      值可能带上看不见的编码痕迹（本轮第一次上传后线上一直认证失败）；改成 node `spawnSync` 传
+      `input` 字节串重传才是干净的（32 字节、无 CR/LF）。**保密值绝不走命令行参数**（会进进程列表与
+      历史），走 stdin。
+    · 边界（别把它说成不存在的功能）：只读键解决的是「**同一套后台、两个人都能看**」；它**不会**
+      把 github.io 的打印单送进朋友的校园打印后台 —— 那两套单据活在两个库里，跨库同步需要
+      上游改造（第 8 条：那台机器得能跑 Node）。老大要的「都能收到」在超市后台这一侧已成立。
+
 ## 十、历史存档（CloudBase 时代，2026-08-08 前，仅归档参考）
 
 > 以下记录为 2026-08-08 及之前的 CloudBase 架构历史，**已迁移至 Cloudflare Pages + D1，仅供参考勿照做部署**。
