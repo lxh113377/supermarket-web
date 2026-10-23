@@ -221,7 +221,7 @@ img {
 
   /* 卡片基础样式 */
   .card-base {
-    @apply bg-white rounded-2xl border border-gray-100/80 shadow-card transition-all duration-300;
+    @apply bg-white rounded-2xl border border-gray-100/80 shadow-card transition duration-300;
   }
   /* 编辑感分割线：区块之间用「一条短线 + 大留白」代替整幅灰线（留白优先原则） */
   .rule-short {
@@ -235,17 +235,17 @@ img {
   /* 主按钮：柿底 + 墨字（9.12:1，AAA 级）。
      旧写法是白字压 #eab308 = 1.92:1，连 AA 大字 3:1 都不过 —— 全站 24 处主控件同根。 */
   .btn-primary {
-    @apply bg-brand-500 text-ink font-semibold rounded-xl transition-all duration-200
+    @apply bg-brand-500 text-ink font-semibold rounded-xl transition duration-200
            hover:bg-brand-400 hover:shadow-brand active:scale-[0.97]
            disabled:opacity-50 disabled:pointer-events-none;
   }
   .btn-secondary {
-    @apply bg-white text-ink-soft font-medium rounded-xl border border-gray-200 transition-all duration-200
+    @apply bg-white text-ink-soft font-medium rounded-xl border border-gray-200 transition duration-200
            hover:border-gray-300 hover:bg-gray-50 active:scale-[0.97];
   }
   /* 深底主按钮：需要「白字 + 实底」时的唯一合法形态（墨底 17.49:1） */
   .btn-ink {
-    @apply bg-ink text-white font-semibold rounded-xl transition-all duration-200
+    @apply bg-ink text-white font-semibold rounded-xl transition duration-200
            hover:bg-ink-soft active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none;
   }
 
@@ -275,14 +275,14 @@ img {
   /* 输入框 */
   .input-base {
     @apply w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-ink
-           placeholder:text-stone-500 transition-all duration-200
+           placeholder:text-stone-500 transition duration-200
            focus:border-brand-600;
   }
 
   /* 标签药丸。按压反馈放在基类上（pill-active / pill-inactive 都 @apply pill），
      一处定义覆盖全站 11 个药丸；尺度沿用 .btn-primary 的 0.98（大控件档）。 */
   .pill {
-    @apply px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 active:scale-[0.98];
+    @apply px-3 py-1.5 rounded-full text-xs font-medium transition duration-200 active:scale-[0.98];
   }
   .pill-active {
     @apply pill bg-brand-500 text-ink font-semibold shadow-soft;
@@ -348,7 +348,7 @@ img {
      这种"只差一点点"最容易漏：按纯白底手算 gray-500 是 4.83 会以为合格，
      而它实际落在 .seg-bar 的 gray-100 灰底上。渲染像素判据量的就是这件事。 */
   .seg {
-    @apply px-3 py-1.5 rounded-lg text-xs font-medium text-stone-600 transition-all duration-200 cursor-pointer active:scale-[0.98];
+    @apply px-3 py-1.5 rounded-lg text-xs font-medium text-stone-600 transition duration-200 cursor-pointer active:scale-[0.98];
   }
   /* 分段器选中态：白字压在渐变起点 #facc15 上仅 1.77:1 ⇒ 墨字 + 柿底，
      品牌渐变条退到下方 2px 作「选中」的色相提示，不再当文字底板。 */

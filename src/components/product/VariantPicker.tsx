@@ -50,7 +50,7 @@ function AxisRow({ axis, group, selection, onChange }: {
               disabled={dead}
               aria-pressed={selected}
               title={dead ? `${opt.label}（暂无可售组合）` : opt.label}
-              className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition-all duration-200
+              className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition duration-200
                 focus-visible:outline-2 focus-visible:outline-brand-700 active:scale-[0.97]
                 ${selected
                   ? 'border-brand-500 bg-brand-50 text-brand-800 font-semibold shadow-soft'

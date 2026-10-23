@@ -29,7 +29,7 @@ function ProductRow({
   return (
     <div>
       <div
-        className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${
+        className={`flex items-center gap-3 p-3 rounded-xl border transition ${
           isEditing
             ? 'border-brand-300 bg-brand-50/50 rounded-b-none'
             : selected

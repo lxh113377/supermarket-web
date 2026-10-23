@@ -93,7 +93,7 @@ export default function AssistantPage() {
         <button
           onClick={() => navigate(-1)}
           aria-label="返回"
-          className="w-8 h-8 rounded-full flex items-center justify-center text-stone-500 hover:text-stone-700 hover:bg-gray-100 transition-all duration-200 active:scale-90"
+          className="w-8 h-8 rounded-full flex items-center justify-center text-stone-500 hover:text-stone-700 hover:bg-gray-100 transition duration-200 active:scale-90"
         >
           ←
         </button>
@@ -149,7 +149,7 @@ export default function AssistantPage() {
               <button
                 key={q}
                 onClick={() => void send(q)}
-                className="px-3 py-1.5 rounded-full bg-white border border-gray-200 text-xs text-stone-600 hover:border-brand-500 hover:text-brand-700 transition-all duration-150 active:scale-[0.98]"
+                className="px-3 py-1.5 rounded-full bg-white border border-gray-200 text-xs text-stone-600 hover:border-brand-500 hover:text-brand-700 transition duration-150 active:scale-[0.98]"
               >
                 {q}
               </button>
@@ -192,7 +192,7 @@ export default function AssistantPage() {
           type="submit"
           disabled={pending || !input.trim()}
           aria-label="发送"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-500 text-ink shadow-brand transition-all duration-200 hover:bg-brand-400 active:scale-[0.94] disabled:pointer-events-none disabled:opacity-40"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-500 text-ink shadow-brand transition duration-200 hover:bg-brand-400 active:scale-[0.94] disabled:pointer-events-none disabled:opacity-40"
         >
           <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2"
                strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

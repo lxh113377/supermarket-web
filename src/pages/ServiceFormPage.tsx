@@ -251,7 +251,7 @@ export default function ServiceFormPage() {
           <button
             onClick={() => navigate(`/category/${service.categoryId}`)}
             aria-label="返回"
-            className="w-9 h-9 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center text-white/90 hover:bg-white/25 transition-all duration-200 active:scale-90 mb-5"
+            className="w-9 h-9 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center text-white/90 hover:bg-white/25 transition duration-200 active:scale-90 mb-5"
           >
             ←
           </button>
@@ -344,7 +344,7 @@ export default function ServiceFormPage() {
                          读屏不会念隐藏元素，给它加 aria-invalid 等于没加。 */
                       aria-invalid={errorField === field.key || undefined}
                       aria-describedby={[field.hint ? `sf-hint-${field.key}` : '', errorField === field.key ? 'sf-error' : ''].filter(Boolean).join(' ') || undefined}
-                      className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-8 text-center text-stone-500 text-sm hover:border-brand-500 hover:text-brand-700 hover:bg-brand-50/30 transition-all duration-300 active:scale-[0.98]"
+                      className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-8 text-center text-stone-500 text-sm hover:border-brand-500 hover:text-brand-700 hover:bg-brand-50/30 transition duration-300 active:scale-[0.98]"
                     >
                       <span className="block text-2xl mb-2" aria-hidden="true">📷</span>
                       <span className="font-medium">点击上传截图</span>

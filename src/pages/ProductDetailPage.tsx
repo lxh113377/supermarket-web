@@ -310,7 +310,7 @@ export default function ProductDetailPage() {
         <button
           onClick={() => navigate(-1)}
           aria-label="返回"
-          className="w-9 h-9 rounded-full flex items-center justify-center text-stone-500 hover:text-stone-700 hover:bg-gray-100 transition-all duration-200 active:scale-90 mr-2"
+          className="w-9 h-9 rounded-full flex items-center justify-center text-stone-500 hover:text-stone-700 hover:bg-gray-100 transition duration-200 active:scale-90 mr-2"
         >
           ←
         </button>

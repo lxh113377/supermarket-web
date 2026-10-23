@@ -44,7 +44,7 @@ export default function OrderQueryPage() {
       <div className="px-5 py-4 bg-white/95 backdrop-blur-sm border-b border-gray-100 flex items-center justify-between">
         <button
           onClick={() => navigate(-1)}
-          className="w-9 h-9 rounded-full flex items-center justify-center text-stone-500 hover:text-stone-700 hover:bg-gray-100 transition-all duration-200 active:scale-90"
+          className="w-9 h-9 rounded-full flex items-center justify-center text-stone-500 hover:text-stone-700 hover:bg-gray-100 transition duration-200 active:scale-90"
           aria-label="返回"
         >
           ←
@@ -67,7 +67,7 @@ export default function OrderQueryPage() {
           <button
             onClick={() => void lookup(input)}
             disabled={loading}
-            className="px-4 py-2.5 bg-brand-500 text-ink rounded-xl text-sm font-medium disabled:opacity-50 active:scale-[0.98] transition-all"
+            className="px-4 py-2.5 bg-brand-500 text-ink rounded-xl text-sm font-medium disabled:opacity-50 active:scale-[0.98] transition"
           >
             {loading ? '查询中' : '查询'}
           </button>
@@ -110,7 +110,7 @@ export default function OrderQueryPage() {
               {status.status === 'pending' && (
                 <button
                   onClick={() => navigate('/payment', { state: { orderId: queried, totalAmount: 0 } })}
-                  className="mt-4 w-full py-3 bg-brand-500 text-ink rounded-xl text-sm font-medium active:scale-[0.98] transition-all"
+                  className="mt-4 w-full py-3 bg-brand-500 text-ink rounded-xl text-sm font-medium active:scale-[0.98] transition"
                 >
                   去支付
                 </button>

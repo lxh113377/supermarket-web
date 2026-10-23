@@ -1,5 +1,8 @@
 import { test, expect, type Page } from '@playwright/test'
+import { readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { watchErrors, type ErrorWatch } from '../e2e/helpers/watchErrors'
+import { stripComments } from '../../scripts/lib/a11y-rules.mjs'
 
 /**
  * 动效一致性闸（2026-10-23 新增，量的是「动效」维度里此前没人管的部分）。
@@ -19,11 +22,19 @@ import { watchErrors, type ErrorWatch } from '../e2e/helpers/watchErrors'
  *      「不许再随手新增一档」的锁：本轮实测时长之所以干净，正因为只有 4 个动画定义；
  *      一旦有人写 0.22s，网格就破了。
  *
- * **刻意不钉的一件事**（免得判据一上线就红成噪声源）：不钉 transition-property: all。
- * 实测全站 163 处过渡用 all（Tailwind 的 transition-all 默认展开就是它）。all 的代价是
- * 理论上多过渡一些属性、可能触发额外 layout，但它**不是可感知缺陷**，而判红它需要逐个
- * 改成显式属性列表 —— 那是 163 处的大改，属另一件事，本轮只登记不接闸。
- * 若要接，先量清「改成显式属性后视觉无差异」再立，别拿判据逼出一堆无验证的改动。
+ * ③ transition-property 不得是 all（2026-10-24 接闸，见文件末尾那条源码棘轮）。
+ *   上一轮（2026-10-23）这里写的是「刻意不钉」，理由是要先量清「改成显式属性后视觉无
+ *   差异」再立，别拿判据逼出一堆无验证的改动。本轮把那两个前提量完了才接：
+ *     · 真实鼠标 hover/focus 实测（不是 dispatchEvent —— 那种写法改不了 :hover 伪类，
+ *       我第一版就是这么拿到"零触发"的假读数）：全站实际过渡到的属性只有
+ *       background-color / color / box-shadow / transform 四类，**没有一个布局属性**；
+ *     · 而 transition-all 的代价是实测出来的：造元素改 width/height/padding-left，
+ *       改前 transitionrun 确实报出这三个布局属性在补间（⇒ 每次尺寸变化都走重排动画），
+ *       换成 Tailwind 的 transition 默认档后归零，而上面那四类 hover 反馈一条没丢。
+ *   ⇒ 所以替换是"去掉没人用的补间"，不是"改审美"，视觉无差异由这两组实测背书。
+ *   顺带记一处数字对账：上一轮注释写「全站 163 处」，本轮按 src 下 tsx/ts/css 全量实测
+ *   是 **49 处 / 20 文件**（含 index.css 的 7 个共享类）。163 在任何口径下都复现不出来，
+ *   留在此处以免下一个人拿它当分母。
  */
 
 const VIEWPORT = { width: 1280, height: 900 }
@@ -176,4 +187,49 @@ test('判据自证：注入裸 ease 与 0.22s 时长，两条腿都必须点名'
   // 同一次注入顺带验网格腿：0.22s = 220ms 不是 50 的倍数
   const hitDur = r.violations.find((v) => v.kind === '时长不在网格' && v.value === '0.22s')
   expect(hitDur, '注入 0.22s（非 50ms 网格）没被点名 ⇒ 本判据已失效（时长面）').toBeTruthy()
+})
+
+/**
+ * 源码棘轮：src 里不得出现 transition-all（2026-10-24 接闸，前提实测见文件头第 ③ 条）。
+ *
+ * 为什么用源码面而不是渲染面：渲染面量的是 computed transition-property，但一个类
+ * 只要写了 transition-all，它在**没被 hover 时**也是 all（computed 值一样），于是渲染
+ * 判据与源码判据在这里等价，而源码面更便宜、且能覆盖 ErrorBoundary 这类「正常路由
+ * 永不渲染」的取样盲区（第十七轮 warm-foreground 那条棘轮立的同一课）。
+ *
+ * 必须剥注释再扫：这是第十七轮 a11y 判据「不剥注释 ⇒ 把注释里的标签字面量报成违规」
+ * 的同一课。本文件头部与 index.css 的注释里都含 transition-all 这个字面量（正是在解释
+ * 为什么不用它），不剥就会自己判红自己，而人们接着会去改写注释而不是改代码。
+ * stripComments 是逐字符等长替换，行号不位移 ⇒ 报出来的行号仍然对得上原文。
+ */
+test('源码棘轮：src 里不得有 transition-all（过渡属性必须收窄）', () => {
+  const srcRoot = join(process.cwd(), 'src')
+  const files: string[] = []
+  const walk = (d: string) => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      if (e.name === 'node_modules' || e.name === 'dist') continue
+      const p2 = join(d, e.name)
+      if (e.isDirectory()) { walk(p2); continue }
+      if (!/\.(tsx|ts|css)$/.test(e.name)) continue
+      files.push(p2)
+    }
+  }
+  walk(srcRoot)
+  expect(files.length, '一个源码文件都没读到 ⇒ 取数面坏了（别把空集读成通过）').toBeGreaterThan(40)
+  const hits: string[] = []
+  for (const p of files) {
+    const rel = p.slice(srcRoot.length + 1).replace(/\\/g, '/')
+    const raw = readFileSync(p, 'utf8').replace(/\r\n/g, '\n')
+    const code = stripComments(raw)
+    code.split('\n').forEach((l, i) => {
+      if (/\btransition-all\b/.test(l)) hits.push(rel + ':' + (i + 1) + '  ' + l.trim().slice(0, 90))
+    })
+  }
+  const msg = [
+    'src 出现 transition-all。Tailwind 的 transition 默认档已覆盖全站实测真正过渡到的四类属性',
+    '（background-color / color / box-shadow / transform），而 all 会把 width / height /',
+    'padding 这类布局属性也纳入补间 —— 实测：改尺寸时 transitionrun 确实报出它们在补间，',
+    '即每次尺寸变化都走一遍重排动画。改用 transition：',
+  ].join(' ')
+  expect(hits, msg + '\n  ' + hits.join('\n  ')).toEqual([])
 })

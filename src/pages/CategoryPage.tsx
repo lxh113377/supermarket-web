@@ -52,7 +52,7 @@ export default function CategoryPage() {
           <button
             onClick={() => navigate('/')}
             aria-label="返回"
-            className="w-9 h-9 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center text-white/90 hover:bg-white/25 transition-all duration-200 active:scale-90"
+            className="w-9 h-9 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center text-white/90 hover:bg-white/25 transition duration-200 active:scale-90"
           >
             ←
           </button>

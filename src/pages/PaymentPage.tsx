@@ -55,7 +55,7 @@ export default function PaymentPage() {
       <div className="px-5 py-4 bg-white/95 backdrop-blur-sm border-b border-gray-100 flex items-center justify-between">
         <button
           onClick={() => navigate('/order-success', { state: { orderId } })}
-          className="w-9 h-9 rounded-full flex items-center justify-center text-stone-500 hover:text-stone-700 hover:bg-gray-100 transition-all duration-200 active:scale-90"
+          className="w-9 h-9 rounded-full flex items-center justify-center text-stone-500 hover:text-stone-700 hover:bg-gray-100 transition duration-200 active:scale-90"
           aria-label="返回"
         >
           ←
@@ -69,13 +69,13 @@ export default function PaymentPage() {
           <p className="text-sm text-stone-500 mb-2">请选择支付方式完成付款</p>
           <button
             onClick={() => setMethod('wechat')}
-            className="w-full max-w-sm bg-green-700 text-white py-4 rounded-2xl text-base font-medium shadow-elevated hover:bg-green-800 transition-all duration-200 active:scale-[0.98] animate-fade-in-up stagger-1"
+            className="w-full max-w-sm bg-green-700 text-white py-4 rounded-2xl text-base font-medium shadow-elevated hover:bg-green-800 transition duration-200 active:scale-[0.98] animate-fade-in-up stagger-1"
           >
             微信支付
           </button>
           <button
             onClick={() => { setMethod('alipay'); setShowTip(true) }}
-            className="w-full max-w-sm bg-blue-700 text-white py-4 rounded-2xl text-base font-medium shadow-elevated hover:bg-blue-800 transition-all duration-200 active:scale-[0.98] animate-fade-in-up stagger-2"
+            className="w-full max-w-sm bg-blue-700 text-white py-4 rounded-2xl text-base font-medium shadow-elevated hover:bg-blue-800 transition duration-200 active:scale-[0.98] animate-fade-in-up stagger-2"
           >
             支付宝付款
           </button>

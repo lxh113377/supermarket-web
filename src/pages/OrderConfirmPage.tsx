@@ -111,7 +111,7 @@ export default function OrderConfirmPage() {
       <div className="flex items-center justify-between px-5 py-4 bg-white/95 backdrop-blur-sm border-b border-gray-100">
         <button
           onClick={() => navigate(-1)}
-          className="w-9 h-9 rounded-full flex items-center justify-center text-stone-500 hover:text-stone-700 hover:bg-gray-100 transition-all duration-200 active:scale-90"
+          className="w-9 h-9 rounded-full flex items-center justify-center text-stone-500 hover:text-stone-700 hover:bg-gray-100 transition duration-200 active:scale-90"
           aria-label="返回"
         >
           ←
@@ -233,7 +233,7 @@ export default function OrderConfirmPage() {
                 <button
                   onClick={() => setScreenshot(null)}
                   aria-label="删除付款截图"
-                  className="absolute -top-2 -right-2 w-7 h-7 bg-red-700 text-white rounded-full text-xs flex items-center justify-center shadow-soft hover:bg-red-800 transition-all duration-200 active:scale-90"
+                  className="absolute -top-2 -right-2 w-7 h-7 bg-red-700 text-white rounded-full text-xs flex items-center justify-center shadow-soft hover:bg-red-800 transition duration-200 active:scale-90"
                 >
                   ×
                 </button>
@@ -241,7 +241,7 @@ export default function OrderConfirmPage() {
             ) : (
               <button
                 onClick={() => fileRef.current?.click()}
-                className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-8 text-sm text-stone-500 hover:border-brand-500 hover:text-brand-700 hover:bg-brand-50/30 transition-all duration-300 active:bg-brand-100"
+                className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-8 text-sm text-stone-500 hover:border-brand-500 hover:text-brand-700 hover:bg-brand-50/30 transition duration-300 active:bg-brand-100"
               >
                 <span className="block text-2xl mb-2">📷</span>
                 点击上传付款截图
@@ -267,7 +267,7 @@ export default function OrderConfirmPage() {
           <button
             onClick={handleConfirm}
             disabled={submitting}
-            className={`w-full py-4 rounded-2xl font-medium text-base transition-all duration-200 active:scale-[0.98] ${
+            className={`w-full py-4 rounded-2xl font-medium text-base transition duration-200 active:scale-[0.98] ${
               submitting
                 ? 'bg-gray-200 text-stone-600'
                 : open

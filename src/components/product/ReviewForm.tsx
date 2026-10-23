@@ -159,7 +159,7 @@ export default function ReviewForm({ productOrder, onPublished }: { productOrder
             </div>
           )}
           {images.length < MAX_REVIEW_IMAGES && (
-            <label className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-4 text-sm text-stone-500 hover:border-brand-500 hover:text-brand-700 hover:bg-brand-50/30 transition-all duration-300 flex flex-col items-center cursor-pointer">
+            <label className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-4 text-sm text-stone-500 hover:border-brand-500 hover:text-brand-700 hover:bg-brand-50/30 transition duration-300 flex flex-col items-center cursor-pointer">
               <span className="text-xl mb-1">📷</span>
               添加图片（选填，最多 {MAX_REVIEW_IMAGES} 张）
               <input type="file" accept="image/*" multiple aria-label="选择要上传的评价图片" className="hidden" onChange={handleImages} />

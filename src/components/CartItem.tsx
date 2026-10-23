@@ -15,7 +15,7 @@ function CartItem({ item, onAdd, onRemove, onDelete }: CartItemProps) {
     : item.name
 
   return (
-    <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-gray-100/80 shadow-card transition-all duration-200">
+    <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-gray-100/80 shadow-card transition duration-200">
       <div className="flex-1 min-w-0 pr-3">
         <h2 className="text-sm font-medium text-ink leading-tight truncate">{displayName}</h2>
         <p className="text-brand-700 font-bold mt-1.5">
@@ -28,7 +28,7 @@ function CartItem({ item, onAdd, onRemove, onDelete }: CartItemProps) {
           <button
             onClick={() => onRemove(item)}
             aria-label={`减少${displayName}`}
-            className="tap-44 w-8 h-8 rounded-full bg-gray-50 border border-gray-200 text-stone-500 flex items-center justify-center text-sm hover:bg-gray-100 transition-all duration-200 active:scale-90"
+            className="tap-44 w-8 h-8 rounded-full bg-gray-50 border border-gray-200 text-stone-500 flex items-center justify-center text-sm hover:bg-gray-100 transition duration-200 active:scale-90"
           >
             <span aria-hidden="true">-</span>
           </button>
@@ -36,7 +36,7 @@ function CartItem({ item, onAdd, onRemove, onDelete }: CartItemProps) {
           <button
             onClick={() => onAdd(item)}
             aria-label={`增加${displayName}`}
-            className="tap-44 w-8 h-8 rounded-full bg-brand-500 text-ink flex items-center justify-center text-sm shadow-soft hover:bg-brand-400 transition-all duration-200 active:scale-90"
+            className="tap-44 w-8 h-8 rounded-full bg-brand-500 text-ink flex items-center justify-center text-sm shadow-soft hover:bg-brand-400 transition duration-200 active:scale-90"
           >
             <span aria-hidden="true">+</span>
           </button>
@@ -44,7 +44,7 @@ function CartItem({ item, onAdd, onRemove, onDelete }: CartItemProps) {
         <button
           onClick={() => onDelete(item)}
           aria-label={`删除${displayName}`}
-          className="text-xs text-red-700 px-2.5 py-1.5 border border-red-100 rounded-lg hover:bg-red-50 hover:text-red-800 hover:border-red-200 transition-all duration-200"
+          className="text-xs text-red-700 px-2.5 py-1.5 border border-red-100 rounded-lg hover:bg-red-50 hover:text-red-800 hover:border-red-200 transition duration-200"
         >
           删除
         </button>

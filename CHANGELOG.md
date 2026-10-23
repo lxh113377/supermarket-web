@@ -1,5 +1,58 @@
 ## [未发布]
 
+### 2026-10-24 过渡属性收窄：src 里 49 处 transition-all 全部改为 transition，并接上守门判据
+
+- 这是第十七轮登记、上一轮（2026-10-23）在 motion-consistency 文件头**明确写了接闸前提**的那笔
+  欠账。原话是「若要接，先量清改成显式属性后视觉无差异再立，别拿判据逼出一堆无验证的改动」，
+  并且当时写的是「刻意不钉」。本轮把那两个前提量完，才动手 + 才接闸。
+- 前提一（全站到底在过渡什么）：真实鼠标 hover/focus 实测，全站实际过渡到的属性只有
+  background-color / color / box-shadow / transform 四类，**没有一个布局属性**。
+  这一条差点量错：第一版探针用 dispatchEvent 派发 mouseenter ⇒ 伪类 :hover 根本不会因此
+  生效，于是拿到「零触发、全站没任何属性在过渡」的假读数。改成 Playwright 的真 hover
+  （page.locator().hover() 会移动真实鼠标）才拿到上面那四类。
+  ⇒ 与本轮服务表单、分类页那两次同形：探针自己坏，读数看着像被测面的结论。
+- 前提二（transition-all 的代价是真的吗）：造元素改 width/height/padding-left 并监听
+  transitionrun —— 改前确实报出这三个**布局属性在补间**（⇒ 每次尺寸变化都走一遍重排动画），
+  换成 Tailwind 的 transition 默认档后归零，而上面那四类 hover 反馈一条没丢。
+  这一条也差点量错：第一版探针 append 完立刻改样式，元素从没拿到过已渲染的起始值 ⇒
+  transition 根本不启动，报出「布局属性不被过渡」的假阴性。补一句强制 reflow
+  （void el.offsetWidth）才看到真相。
+  ⇒ 两次假读数方向相反（一次假阴一次假阳），说明"探针跑通了"不等于"探针量对了"。
+- 为什么 Tailwind 的 transition 默认档够用：它展开是 color / background-color / border-color /
+  text-decoration-color / fill / stroke / opacity / box-shadow / transform / filter，
+  恰好覆盖实测那四类且天然排除布局属性 ⇒ 这次替换是「去掉没人用的补间」，不是改审美。
+- 替换前先排反例：扫「同一 class 串里既有 transition-all 又有 hover 改尺寸（w-/h-/max-h-/top-）
+  的」—— 零命中 ⇒ 没有任何一处是故意靠 all 去补间尺寸的，49 处全部可安全替换。
+- 替换后自查两件本仓反复批判的事：① 落在注释行的改动 0 处（字面量只出现在 @apply 与
+  className 里，没误伤解释性文字）；② 全 src 谈「过渡/动效」的注释 5 处，逐条读过来确认
+  没有一处描述 transition-all 的行为 ⇒ 不会出现代码改了、注释变假话。
+- 新立守门判据（motion-consistency 第 10 条源码棘轮）：src 里不得再出现 transition-all。
+  为什么必须补判据 —— 先量了一下"为什么这笔欠账能欠这么久"：tests/ 与 scripts/ 里提到
+  transition-all 的判据文件数 = **0**，也就是此前没有任何一条尺子在看着它。
+  为什么用源码面而不是渲染面：写了 transition-all 的类在没被 hover 时 computed 值也是 all，
+  两个面在这里等价，而源码面更便宜、且能覆盖 ErrorBoundary 这类正常路由永不渲染的取样盲区
+  （warm-foreground 那条棘轮立的同一课）。
+- **必须剥注释再扫**：这是第十七轮 a11y 判据「不剥注释 ⇒ 把注释里的标签字面量报成违规」
+  的同一课，而且本轮更尖锐 —— 本判据自己的文件头注释、以及 index.css 的注释里都含
+  transition-all 这个字面量（正是在解释为什么不用它），不剥就会自己判红自己，而人接着
+  会去改写注释而不是改代码。复用了第十七轮加的 stripComments（逐字符等长替换 ⇒ 行号不位移，
+  报出来的行号仍对得上原文）。这也是 Playwright spec 第一次 import scripts/lib 的 .mjs
+  （先写一次性探针实测能否解析，确认过了才用；探针跑完即删，不留在库里）。
+- 双向变异验真（新腿的牙，两个方向都要）：往 KpiCard 的 className 注入 transition-all ⇒
+  判据红并点名 components/KpiCard.tsx:92；只在文件顶部加一行**注释**提到该字面量 ⇒
+  判据仍绿。第二向证明 stripComments 那层不是装饰、判据不会自缚。两次还原均 RESTORED:true。
+- 一次自己写崩两次的经历（当场修，都记下来）：新腿先用模板字符串整段拼，里面的反斜杠 n
+  被当场展开 ⇒ 字符串劈成两行；改成交给定点编辑工具后又踩两个 —— ① 在块注释里写
+  src/**/*.{tsx,ts,css} 这个 glob，其中的星号斜杠**提前终止了块注释** ⇒ SyntaxError；
+  ② 把拼接用的变量名当字面量写进了字符串里，生成出一行坏代码。⇒ 教训：往代码里塞
+  含转义序列或 glob 的整段文本，不要用模板字符串套；写完必须立刻 lint/tsc，别等跑判据。
+- 顺带一处数字对账：上一轮注释写「全站 163 处 transition-all」，本轮按 src 下 tsx/ts/css
+  全量实测是 **49 处 / 20 文件**（含 index.css 的 7 个共享类）。163 在任何口径下都复现
+  不出来，已把这件事写进判据注释，以免下一个人拿它当分母。
+- 验证：oxlint 0 警告 / tsc 零错 / unit 145 文件 2138 条全过 / visual 191 条（189 过 +
+  1 合法 skip + 新腿 1 条，分两批 80/111 收齐）/ e2e 25 过 / stub 5 过 / motion-consistency
+  10 条全过 / 双向变异 RED+GREEN 各一次且 RESTORED:true / 渲染实测复核（hover 反馈保留、
+  布局属性不再补间）/ 注释零污染 / npm run verify 完整链见下条。
 ### 2026-10-24 钉死 vitest 判定环境：IS_CLOUD 不得取决于本机有没有一个私有 .env
 
 - 这笔修的是我上一笔（61c7f05）在 CI 造成的红，一手读数：gates job 120569619055 step 20

@@ -179,7 +179,7 @@ export default function ProductGallery({ product, gallery, items, index, onIndex
                 aria-label={thumbLabel(item, i)}
                 aria-current={i === galleryIdx}
                 title={item.label}
-                className={`shrink-0 w-16 h-16 lg:w-20 lg:h-20 rounded-xl overflow-hidden border-2 bg-gray-50 transition-all duration-200 focus-visible:outline-2 focus-visible:outline-brand-700 ${
+                className={`shrink-0 w-16 h-16 lg:w-20 lg:h-20 rounded-xl overflow-hidden border-2 bg-gray-50 transition duration-200 focus-visible:outline-2 focus-visible:outline-brand-700 ${
                   i === galleryIdx
                     ? 'border-brand-500 shadow-soft'
                     : 'border-gray-100 hover:border-brand-500'

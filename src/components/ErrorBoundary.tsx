@@ -47,14 +47,14 @@ export default class ErrorBoundary extends React.Component<{ children: React.Rea
                 window.location.reload()
               }}
               className="bg-brand-500 text-ink px-6 py-2 rounded-lg text-sm
-                         hover:bg-brand-400 transition-all duration-200 active:scale-[0.97]"
+                         hover:bg-brand-400 transition duration-200 active:scale-[0.97]"
             >
               重试
             </button>
             <a
               href="/"
               className="bg-gray-100 text-stone-700 px-6 py-2 rounded-lg text-sm font-medium
-                         hover:bg-gray-200 transition-all duration-200 active:scale-[0.97]"
+                         hover:bg-gray-200 transition duration-200 active:scale-[0.97]"
             >
               返回首页
             </a>

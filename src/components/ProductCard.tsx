@@ -48,7 +48,7 @@ function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
       role={disabled ? undefined : 'button'}
       tabIndex={disabled ? -1 : 0}
       aria-label={disabled ? undefined : `查看${product.name}${product.spec ? ` ${product.spec}` : ''}详情`}
-      className={`group relative flex flex-col overflow-hidden rounded-2xl text-left transition-all duration-300 ${
+      className={`group relative flex flex-col overflow-hidden rounded-2xl text-left transition duration-300 ${
         disabled
           ? 'bg-gray-50 opacity-50 grayscale border border-gray-100'
           : 'bg-white/60 border border-transparent hover:border-brand-300 hover:shadow-elevated cursor-pointer active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-brand-700'
@@ -110,7 +110,7 @@ function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
                   onRemove(product)
                 }}
                 aria-label={`减少${product.name}`}
-                className="tap-44 w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm border border-gray-200 text-stone-600 flex items-center justify-center text-base leading-none shadow-soft hover:bg-white hover:border-brand-500 transition-all duration-200 active:scale-90"
+                className="tap-44 w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm border border-gray-200 text-stone-600 flex items-center justify-center text-base leading-none shadow-soft hover:bg-white hover:border-brand-500 transition duration-200 active:scale-90"
               >
                 <span aria-hidden="true">-</span>
               </button>
@@ -121,7 +121,7 @@ function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
                 onAdd(product, e)
               }}
               aria-label={`添加${product.name}`}
-              className="tap-44 w-9 h-9 rounded-full bg-brand-500 text-ink flex items-center justify-center text-lg font-semibold leading-none shadow-brand hover:bg-brand-400 hover:scale-105 transition-all duration-200 active:scale-90"
+              className="tap-44 w-9 h-9 rounded-full bg-brand-500 text-ink flex items-center justify-center text-lg font-semibold leading-none shadow-brand hover:bg-brand-400 hover:scale-105 transition duration-200 active:scale-90"
             >
               <span aria-hidden="true">+</span>
             </button>
