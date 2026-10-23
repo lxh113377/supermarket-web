@@ -214,10 +214,14 @@ export function evaluate({ files, max, all = true, added = null, partNumbers, de
     } else {
       const bornMax = Math.floor(max * (1 - NEW_VOLUME_MIN_HEADROOM))
       const out = born.viol.filter((v) => v.bytes > bornMax && !BORN_BASELINE.includes(v.name))
-      const stale = BORN_BASELINE.filter((n) => !born.presentNames.has(n))
+      const violNames = new Set(born.viol.map((v) => v.name))
+      // 基线内却不在违例面 ⇒ 摘名信号；成因分两种：拆薄（现字节回线内，slimmed 点名）/ 件消失或改名（presentNames 没有）
+      const slim = (born.slimmed || []).filter((s) => BORN_BASELINE.includes(s.name))
+      const stale = BORN_BASELINE.filter((n) => !violNames.has(n) && !slim.some((s) => s.name === n))
+      const removable = [...slim.map((s) => `${s.name}(拆薄后 ${s.now}B)`), ...stale]
       rows.push({
         id: 'V4b', pass: out.length === 0,
-        detail: `普查 ${born.events} 个出生事件：作用面出生即 >${bornMax}B 共 ${born.viol.length} 本（基线在册 ${BORN_BASELINE.length}，棘轮只减不增${stale.length ? `；基线中 ${stale.length} 本已不在违例面（${stale.join(' , ')}）可摘名` : ''}）`
+        detail: `普查 ${born.events} 个出生事件：作用面出生即 >${bornMax}B 共 ${born.viol.length} 本（基线在册 ${BORN_BASELINE.length}，棘轮只减不增${removable.length ? `；**可摘名 ${removable.length} 本**（从 BORN_BASELINE 删该行即生效）：${removable.slice(0, 6).join(' , ')}${removable.length > 6 ? ' …' : ''}` : ''}）`
           + (out.length ? ` ⇒ **基线外新增违例** ${out.length} 本：${out.map((v) => `${v.name} ${v.bytes}B(余 ${max - v.bytes}B)`).join(' , ')} ⇒ 拆成两卷（V4 出生口径），别压措辞`
             : `；基线外新增违例 0 ⇒ 从立线那一次起，新贴线卷会被 V4/V4b 双闸拦下`),
       })
@@ -346,6 +350,7 @@ export function bornCensus({ dir = root, max, headroom = NEW_VOLUME_MIN_HEADROOM
   if (check.status !== 0) return { unreachable: `cat-file --batch-check rc=${check.status}` }
   const names = [...birth.keys()]
   const viol = []
+  const slimmed = []
   const presentNames = new Set()
   String(check.stdout || '').split('\n').forEach((line, i) => {
     const f = names[i]
@@ -356,9 +361,18 @@ export function bornCensus({ dir = root, max, headroom = NEW_VOLUME_MIN_HEADROOM
     const name = f.replace(/^memory\//, '')
     presentNames.add(name)
     const c = classify(name)
-    if (c.inScope && bytes > max * (1 - headroom)) viol.push({ name, bytes })
+    if (!c.inScope || bytes <= max * (1 - headroom)) return
+    // 第七十八轮交付后自查出的自指缺陷：违例面若只看**出生字节**（git 历史常量），拆薄永远摘不了名
+    // ⇒ 棘轮"只准减"的出口不可达。现口径：**出生贴线 ∧ 当前仍贴线**才算违例；
+    //   拆薄后（现字节回线内）该卷退出违例面 ⇒ stale 提示摘名（事实已保全在续卷，不是删内容）。
+    const curSize = (() => { try { return statSync(join(dir, 'memory', name)).size } catch { return null } })()
+    if (curSize !== null && curSize <= max * (1 - headroom)) {
+      slimmed.push({ name, born: bytes, now: curSize })
+      return
+    }
+    viol.push({ name, bytes })
   })
-  return { events: names.length, viol, presentNames }
+  return { events: names.length, viol, slimmed, presentNames }
 }
 
 export function main({ dir = root, all = false, outerMemDir = OUTER_MEM_DEFAULT, born = false } = {}) {

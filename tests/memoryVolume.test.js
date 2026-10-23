@@ -476,6 +476,15 @@ describe('V4b（第七十八轮）：出生即贴线普查——存量基线棘�
     expect(r.status).toBe('UNVERIFIED')
     expect(r.detail).toContain('不判')
   })
+  it('拆薄后的基线卷 ⇒ 从违例面退出并印"可摘名(拆薄后 …B)"（棘轮有减的真出口，v78 自指修复）', () => {
+    const still = BORN_BASELINE.slice(1)
+    const slim = [{ name: BORN_BASELINE[0], born: 4081, now: 2100 }]
+    const born = { events: 9, viol: still.map((name) => ({ name, bytes: 3900 })), slimmed: slim, presentNames: new Set([BORN_BASELINE[0], ...still]) }
+    const r = ev(born).rows.find((x) => x.id === 'V4b')
+    expect(r.pass).toBe(true)
+    expect(r.detail).toContain('可摘名')
+    expect(r.detail).toContain('拆薄后 2100B')
+  })
   it('反例：基线里的卷被拆薄后 ⇒ 点名"可摘名"（棘轮有减的出口，不锁死历史）', () => {
     const still = BORN_BASELINE.slice(1)
     const born = { events: 9, viol: still.map((name) => ({ name, bytes: 3900 })), presentNames: new Set(still) }
