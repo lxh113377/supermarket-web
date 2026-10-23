@@ -131,22 +131,38 @@ describe('pruneDest：保留期只动自己的命名', () => {
 })
 
 describe('CLI 入口真跑（登记册 G2 要求每个入口都被子进程跑过，不接受只 import 纯函数）', () => {
-  it('没有 CAMPUSPRINT_HOME 也没有 --upstream ⇒ rc=2 且点名缺什么', () => {
-    const r = runCli([], { CAMPUSPRINT_HOME: '', BACKUP_PASSPHRASE: TEST_PASS })
-    expect(r.rc).toBe(2)
-    expect(r.out).toMatch(/CAMPUSPRINT_HOME|--upstream/)
+  // 三条都**必须**自带 --upstream 与 --dest：脚本现在有常规位置兜底（实测本机上游就在
+  // `..\..\CampusPrint-V1`），漏传就会在跑测试的过程中对**真库**做一次真快照、写进生产备份目录。
+  it('显式 --upstream 指到不存在的路径 ⇒ rc=2，且不许兜底去别处', () => {
+    const dest = tmp()
+    const r = runCli(['--upstream', join(tmp(), 'nope'), '--dest', dest], { CAMPUSPRINT_HOME: '', BACKUP_PASSPHRASE: TEST_PASS })
+    expect(r.rc, '操作者明确给了路径就不许换：兜底会写出谁都没要的那一份').toBe(2)
+    expect(r.out).toMatch(/nope/)
+    expect(readdirSync(dest), '失败的一轮不许留半成品').toEqual([])
   })
   it('--keep 0 ⇒ rc=2 拒绝（把历史全删光的参数不该被接受）', () => {
     const { home } = makeUpstream()
-    const r = runCli(['--upstream', home, '--dest', tmp(), '--keep', '0'], { BACKUP_PASSPHRASE: TEST_PASS })
+    const dest = tmp()
+    const r = runCli(['--upstream', home, '--dest', dest, '--keep', '0'], { BACKUP_PASSPHRASE: TEST_PASS })
     expect(r.rc).toBe(2)
+    expect(readdirSync(dest)).toEqual([])
   })
-  it('缺口令 ⇒ rc=2、点名缺哪个变量，且失败那轮不在目标目录留半成品', () => {
+  it('两处口令都没有 ⇒ rc=2、点名缺哪个变量、目标目录留空', () => {
     const { home } = makeUpstream()
     const dest = tmp()
-    const r = runCli(['--upstream', home, '--dest', dest], { BACKUP_PASSPHRASE: '' })
+    // BACKUP_PASSPHRASE_FILE 指到不存在的路径 ⇒ 关掉 .dev.vars 兜底，才能验「两处都无」那一档
+    const r = runCli(['--upstream', home, '--dest', dest], { BACKUP_PASSPHRASE: '', BACKUP_PASSPHRASE_FILE: join(tmp(), 'no-dev-vars') })
     expect(r.rc).toBe(2)
     expect(r.out).toMatch(/BACKUP_PASSPHRASE/)
     expect(readdirSync(dest), '绝不退回明文落盘，也不留半套').toEqual([])
+  })
+  it('.dev.vars 兜底能补上口令（零人工步骤：不必每次手 set 24 位口令）', () => {
+    const { home } = makeUpstream()
+    const src = tmp()
+    writeFileSync(join(src, '.dev.vars'), '# 注释\n' + 'BACKUP_PASSPHRASE=' + TEST_PASS + '\n')
+    const dest = tmp()
+    const r = runCli(['--upstream', home, '--dest', dest], { BACKUP_PASSPHRASE: '', BACKUP_PASSPHRASE_FILE: join(src, '.dev.vars') })
+    expect(r.rc, r.out).toBe(0)
+    expect(readdirSync(dest).filter((d) => /^print-\d{8}-\d{6}$/.test(d)).length).toBe(1)
   })
 })

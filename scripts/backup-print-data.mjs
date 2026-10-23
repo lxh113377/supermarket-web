@@ -60,15 +60,43 @@ function arg(argv, name) {
   return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : null
 }
 
+/**
+ * 口令取数：进程环境优先，其次读本仓 `.dev.vars`（实测它是 ADMIN_KEY 的本地权威、
+ * `.gitignore:32` 忽略、git 不跟踪）。加这一层的理由不是省事，是**零人工步骤**：
+ * 快照的价值取决于它真被跑过，而每次都要人手 set 一个 24 位口令 ⇒ 现实结果就是没人跑
+ * （实测 2026-10-22 那份手写快照之后再没有第二份）。取不到两处才算「未配置」⇒ rc=2。
+ * `BACKUP_PASSPHRASE_FILE` 只给测试用（指到一个不存在的路径 ⇒ 磁盘兜底失效，才能验「两处都无」
+ * 那一档）；正常运维不需要设它。
+ */
+export function readDevVar(path, name) {
+  if (!existsSync(path)) return ''
+  const txt = readFileSync(path, 'utf8').replace(/\r\n/g, '\n')
+  const re = new RegExp('^' + name + '=(.*)$', 'm')
+  const m = re.exec(txt)
+  return m ? m[1].trim().replace(/^"(.*)"$/, '$1').replace(/^'(.*)'$/, '$1') : ''
+}
+
 export async function evaluate({ argv = [], env = process.env, log = console.log } = {}) {
-  const upstreamHome = arg(argv, '--upstream') || env.CAMPUSPRINT_HOME || null
-  if (!upstreamHome || !existsSync(join(upstreamHome, 'backend', 'server.js'))) {
-    bail('backup-print-data', '找不到打印后端所在仓库。给 --upstream <路径> 或设 CAMPUSPRINT_HOME（需含 backend/server.js）')
+  // 上游仓根：显式参数 > CAMPUSPRINT_HOME > 常规并列位置。后两档是为了「零人工步骤」——
+  // 实测本机它就住在 `..\..\CampusPrint-V1`；每次都要人先 set 一个路径，等于不给备。
+  // 但**显式给了就只用那一个**（不存在即失败）：兜底不许把操作者明确表达的意图悄悄换成别处
+  // （本仓「改了却不生效」那一类事故的共同根因就是两个克隆混用）。
+  const explicit = arg(argv, '--upstream')
+  const cands = explicit
+    ? [explicit]
+    : [env.CAMPUSPRINT_HOME || '',
+      join(ROOT, '..', '..', 'CampusPrint-V1'),
+      join(ROOT, '..', 'CampusPrint-V1'),
+    ].filter(Boolean)
+  const upstreamHome = cands.find((d) => existsSync(join(d, 'backend', 'server.js'))) || null
+  if (!upstreamHome) {
+    bail('backup-print-data', '找不到打印后端所在仓库（需含 backend/server.js）。试过的候选：' + cands.join(' | ') + ' ⇒ 给 --upstream <路径> 或设 CAMPUSPRINT_HOME')
   }
   const dataDir = resolveDataDir(upstreamHome)
   const dbPath = join(dataDir, 'db', 'campus-print.sqlite')
   if (!existsSync(dbPath)) bail('backup-print-data', '数据库文件不存在：' + dbPath)
-  const passphrase = (env[PASSPHRASE_ENV] || '').trim()
+  const devVars = env.BACKUP_PASSPHRASE_FILE || join(ROOT, '.dev.vars')
+  const passphrase = (env[PASSPHRASE_ENV] || '').trim() || readDevVar(devVars, PASSPHRASE_ENV)
   if (!passphrase) {
     bail('backup-print-data', '未设 ' + PASSPHRASE_ENV + ' ⇒ 拒绝落盘。这里不退回明文：库里有顾客房间号与手机号，收款码也在同一个目录')
   }

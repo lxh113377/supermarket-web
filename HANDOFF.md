@@ -351,8 +351,13 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN`（repo �
     实测一轮：快照 737280B/44 表 `integrity=ok`、逐表数与现网相等、收款码回解逐字节相等。
     ⚠️ 两点别当成品质：① 默认落 `D:\campus-print-backups`，但实测 C: 与 D: 是**同一块物理盘**
     （Get-Partition：两分区 DiskNumber 都是 0，一块 954GB NVMe）⇒ 只防误删，**不防盘坏**，
-    真要异地得接对象存储；② 它只有手动触发、没有计划任务 ⇒ 快照新不新取决于人记不记得跑。
-    `tests/backupPrintData.test.js`（9 例）只保证「这条链是对的」，保证不了「它今天跑过」——
+    真要异地得接对象存储；② 它仍是**手动触发**、没有计划任务 ⇒ 快照新不新取决于人记不记得跑。
+    但至少把「人得先设两个变量」这道门槛拆了（零人工步骤）：口令走 env，缺席时兜底读本仓
+    `.dev.vars`（`BACKUP_PASSPHRASE_FILE` 可覆盖，只给测试用）；上游仓根走 `--upstream` >
+    `CAMPUSPRINT_HOME` > 常规并列位置（实测本机就在 `..\..\CampusPrint-V1`）⇒ 实测空环境
+    一条 `npm run backup:print-data` 就能出快照。**显式给了 `--upstream` 就只用那一个**，
+    兜底不许把操作者明确表达的意图换成别处（本仓「改了却不生效」那类事故的共同根因）。
+    `tests/backupPrintData.test.js`（10 例）只保证「这条链是对的」，保证不了「它今天跑过」——
     把这句写在这里，是因为把前者的绿读成后者是本仓最常见的一类自欺。
     顺手清的历史债：2026-10-22 那份手写快照是**明文**的（未加密 SQLite + 两张收款码原图）。
     本轮转成加密容器（转前逐字节校验、校验过了才删明文），并删掉同日那份带 `-shm`/`-wal`
