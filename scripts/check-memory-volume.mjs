@@ -74,11 +74,8 @@ export const NEW_VOLUME_MIN_HEADROOM = 0.25
  *  摘名 = 把该卷拆薄到出生口径以内后从名单删除（拆卷是正解，压措辞不是）。
  *  复算普查：本件 `--born`（= `git log --diff-filter=A` + `git cat-file --batch-check` 两次批量调用）。 */
 export const BORN_BASELINE = [
-  '07-next-steps.part46.md',
-  '07-next-steps.part45.md',
   '07-next-steps.part42.md',
   '07-next-steps.part36.md',
-  '07-next-steps.part35.md',
   '05-feature-status.part1.md',
   '05-feature-status.part2.md',
   '07-next-steps.part1.md',
