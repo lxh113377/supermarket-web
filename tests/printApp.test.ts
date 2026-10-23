@@ -11,8 +11,11 @@ import { describe, it, expect } from 'vitest'
 import { DROPPED_HEADERS, forwardHeaders } from '../functions/lib/print-proxy.js'
 import {
   CAMPUS_PRINT_PATH,
+  CAMPUS_PRINT_FORM_PATH,
   CAMPUS_PRINT_BUILD,
+  isStaticCustomerHost,
   normalizeCampusPrintPath,
+  pickCampusPrintPath,
   resolveCampusPrintUrl,
 } from '../src/pages/print/printApp'
 
@@ -49,6 +52,34 @@ describe('resolveCampusPrintUrl', () => {
     expect(resolveCampusPrintUrl('https://evil.example.com/')).toBe(CAMPUS_PRINT_PATH)
     expect(resolveCampusPrintUrl('javascript:alert(1)')).toBe(CAMPUS_PRINT_PATH)
     expect(resolveCampusPrintUrl(undefined)).toBe(CAMPUS_PRINT_PATH)
+  })
+
+  it('按宿主二选一（2026-10-23）：github.io 走本站表单，其余走应用页静态面', () => {
+    // 这条钉的是「分叉挪到运行时」这件事本身。动因是硬事实：我先前把开关做成构建期参数
+    // （github.io 的 deploy.yml 配 VITE_CAMPUS_PRINT_URL），于是同一份源码在两个域名上
+    // 产出不同的入口 bundle 名，release-parity 判「两端不同批」而红 —— 判据没错，红的是
+    // 我让两端真的不再是同一批产物。改成运行时按宿主选路后，一份构建两域通用。
+    expect(pickCampusPrintPath('lxh113377.github.io', undefined)).toBe(CAMPUS_PRINT_FORM_PATH)
+    expect(pickCampusPrintPath('supermarket-web.pages.dev', undefined)).toBe(CAMPUS_PRINT_PATH)
+    expect(pickCampusPrintPath('localhost', undefined)).toBe(CAMPUS_PRINT_PATH)
+    // 显式配置仍然优先（运营留的后门没被宿主判定吃掉），且非法值照样回落到该宿主的默认
+    expect(pickCampusPrintPath('lxh113377.github.io', '/custom/#x')).toBe('/custom/#x')
+    expect(pickCampusPrintPath('lxh113377.github.io', 'https://evil.example.com/')).toBe(CAMPUS_PRINT_FORM_PATH)
+  })
+
+  it('宿主判定只认 github.io 这一族，且绝不拼出跨域地址（两个候选都是同源路径）', () => {
+    expect(isStaticCustomerHost('lxh113377.github.io')).toBe(true)
+    expect(isStaticCustomerHost('anyone.github.io')).toBe(true)
+    expect(isStaticCustomerHost('github.io')).toBe(true)
+    // 反向腿：后缀像但不是宿主（防「字符串包含」式误判把 pages.dev 指到表单）
+    expect(isStaticCustomerHost('supermarket-web.pages.dev')).toBe(false)
+    expect(isStaticCustomerHost('mygithub.io.evil.com')).toBe(false)
+    expect(isStaticCustomerHost('')).toBe(false)
+    expect(isStaticCustomerHost('localhost:4173')).toBe(false)
+    for (const pick of [CAMPUS_PRINT_PATH, CAMPUS_PRINT_FORM_PATH]) {
+      expect(pick.startsWith('/'), `候选必须是同源路径：${pick}`).toBe(true)
+      expect(pick.startsWith('//'), `协议相对等于跨域：${pick}`).toBe(false)
+    }
   })
 
   it('默认入口是同源静态面且直达打印下单视图（两端部署都落同一个站内路径）', () => {
