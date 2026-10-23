@@ -360,8 +360,14 @@ test('桌面 1440 /shop：左侧分类栏与商品画廊真正并排，刊头在
 test('手机 390 /shop：双列大图、只一个分类导航实例、无横向溢出', async ({ page }) => {
   await openShop(page, '/shop/food/snacks', MOBILE)
   await expect(page.getByRole('navigation', { name: '商品分类导航' })).toHaveCount(1)
-  // 窄屏不渲染桌面刊头（两套布局是条件渲染，不是 CSS 隐藏）
-  await expect(page.getByRole('heading', { level: 1 })).toHaveCount(0)
+  // 窄屏有自己的 h1，但不是桌面刊头那一档（两套布局是条件渲染，不是 CSS 隐藏）。
+  // 从前这里断言 getByRole('heading',{level:1}) 数量为 0 —— 那是把**缺陷**写成了预期：
+  // 窄屏分支当时把分类名渲染成 <span>，手机上整页零标题，读屏用户拿不到「我在哪个分类」。
+  // 2026-10-23 修成 <h1> 后本断言变红，红的是断言。现在按原意图重述：判"不是桌面刊头档"
+  // （text-3xl），而不是判"没有标题"。与 tests/customerPage.test.tsx 同口径。
+  const h1 = page.getByRole('heading', { level: 1 })
+  await expect(h1, '窄屏也必须有一个 h1（顶部横条里的分类名）').toHaveCount(1)
+  await expect(h1, '窄屏的 h1 不该是桌面刊头那一档（text-3xl）').not.toHaveClass(/text-3xl/)
   const cols = await page.evaluate(() => {
     const grid = document.querySelector('.grid-cols-2')
     if (!grid) return null

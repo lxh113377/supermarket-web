@@ -124,7 +124,7 @@ export default function OrderConfirmPage() {
           {/* 营业时间提示 */}
           {!open && (
             <div className="bg-red-50/80 border border-red-200/60 rounded-2xl p-4 animate-slide-down">
-              <p className="text-red-700 text-sm font-medium">{getClosedMessage()}</p>
+              <p className="text-red-700 text-sm font-medium leading-relaxed">{getClosedMessage()}</p>
               <p className="text-red-700 text-xs mt-1.5">当前非营业时间，下单后可能无法及时处理</p>
             </div>
           )}

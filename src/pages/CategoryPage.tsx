@@ -89,7 +89,7 @@ export default function CategoryPage() {
                 <span className="text-2xl w-11 h-11 flex items-center justify-center bg-gray-50 rounded-xl">{service.icon}</span>
                 <div className="min-w-0 w-full">
                   <p className="font-semibold text-ink-soft text-sm truncate">{service.name}</p>
-                  <p className="text-xs text-stone-500 mt-1 leading-snug line-clamp-2">{service.description}</p>
+                  <p className="text-xs text-stone-500 mt-1 leading-relaxed line-clamp-2">{service.description}</p>
                 </div>
               </button>
             ))}

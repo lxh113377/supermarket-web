@@ -194,9 +194,9 @@
     {
       "id": "service-form-page",
       "pattern": "ServiceFormPage-*.js",
-      "budget": 4100,
-      "measuredAtBuild": "3716B gz（2026-10-23 07:20 本机 npx vite build，HEAD 61acefe）",
-      "note": "管理后台服务登记表单页（唯一进名册的业务页路由块，其余 <3,500B）"
+      "budget": 5000,
+      "measuredAtBuild": "4482B gz（2026-10-23 14:40 本机 npx vite build --outDir dist，HEAD 5106dac，gzipSync 实测）",
+      "note": "顾客端服务登记表单页（/#/service/delivery，微信里顾客提交报修/帮拿用的那页；旧 note 误写成「管理后台」，本轮顺手纠正）。预算 4100→5000：5106dac 给这页加了「file」字段上传 UI（+115 行，源文件 15096→20756B），实测 3716→4482B 超旧预算 382B。按本文件 match 字段既有的机械规则（实测 ×1.10 向上取整到 100B）现算 4482×1.10=4930.2 ⇒ 5000，**规则一个字没改**；用同一规则复算旧值 3716×1.10=4087.6 ⇒ 4100 与在册完全吻合，证明口径没被动过。"
     },
     {
       "id": "echarts-datazoom-inside",

@@ -25,8 +25,8 @@
       "source": ".github/workflows/ci.yml 的 jobs: 段（本机实跑该段 6 个 job 键）"
     },
     "limitRosterRows": {
-      "value": 93,
-      "source": "docs/limit-provenance.md 表格行（2026-10-22 起送门槛新增两行：functions/lib/shared.js 与 src/data/deliveryLimits.ts 的 MIN_DELIVERY_AMOUNT=6 ⇒ 91→93）"
+      "value": 94,
+      "source": "docs/limit-provenance.md 表格行（2026-10-22 起送门槛新增两行：functions/lib/shared.js 与 src/data/deliveryLimits.ts 的 MIN_DELIVERY_AMOUNT=6 ⇒ 91→93；2026-10-23 5106dac 新增 src/pages/ServiceFormPage.tsx 的 MAX_PRINT_FILES 一行 ⇒ 93→94，该笔未同步本册 —— 与上一条 gateScripts 同形：commit 了源文件没跟登记册。CI 的 gates job 不含 npm run verify，故只有本地聚合链会暴露）"
     },
     "itemBudgets": {
       "registered": 30,

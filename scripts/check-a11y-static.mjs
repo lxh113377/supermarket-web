@@ -39,6 +39,14 @@ function selftest() {
     ['4 input with only placeholder => finding (placeholder is not an accessible name)', { 'a.tsx': '<input type="text" placeholder="note" />' }, (r) => r.length === 1 && r[0].rule === 'input-name'],
     ['5 input named via id + htmlFor => no finding', { 'a.tsx': '<label htmlFor="q">qty</label><input id="q" type="number" />' }, (r) => r.length === 0],
     ['6 input type=hidden is not a visible control => no finding', { 'a.tsx': '<input type="hidden" name="x" />' }, (r) => r.length === 0],
+    // 9-11: comments must never trigger a rule (2026-10-23). A WIP comment that quotes
+    // '<input>' used to be reported as 'visible input has no accessible name' at the comment
+    // line - a wolf-cry that would have gotten this gate muted. Line / block / JSX-braced all
+    // three shapes are pinned, plus the reverse leg: markup in real code must still be caught.
+    ['9 line comment quoting <input> => no finding', { 'a.tsx': 'const x = 1\n// 两个 <input> 会抢同一个 ref\nconst y = 2' }, (r) => r.length === 0],
+    ['10 block + JSX comment quoting <img>/<input> => no finding', { 'a.tsx': '/* <img src=x> */\n{/* <input type=text /> */}\nconst y = 2' }, (r) => r.length === 0],
+    ['11 reverse leg: same markup outside a comment => still a finding', { 'a.tsx': '// <input type="text" placeholder="q" />\n<input type="text" placeholder="q" />' }, (r) => r.length === 1 && r[0].rule === 'input-name' && r[0].line === 2],
+    ['12 URL string must not be read as a line comment', { 'a.tsx': 'const u = "http://x/a"\n<input type="text" placeholder="q" />' }, (r) => r.length === 1 && r[0].line === 2],
     ['7 div onClick without role/tabIndex/onKeyDown => finding (unreachable by keyboard)', { 'a.tsx': '<div onClick={() => go()}>buy</div>' }, (r) => r.length === 1 && r[0].rule === 'clickable-semantics'],
     ['8 same div with role+tabIndex+onKeyDown => no finding', { 'a.tsx': '<div role="button" tabIndex={0} onKeyDown={k} onClick={() => go()}>buy</div>' }, (r) => r.length === 0],
   ]

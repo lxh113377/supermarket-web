@@ -1,6 +1,6 @@
 #!/bin/sh
 # 本地提交门禁：① 暂存区语法闸（判的是 index 里的 blob，不是工作树）；② 扫描 git 暂存区，发现疑似密钥即阻断提交；
-# ③ 记忆卷 4KB 上限（只判本次要提交的记忆文件）；④ 文档命令台账不许漂（只判不写）；⑤ 轮次指针三面对账（只判不写）。
+# ③ 记忆卷 4KB 上限（只判本次要提交的记忆文件）；④ 文档命令台账不许漂（只判不写，判暂存面）；⑤ 轮次指针三面对账（只判不写）。
 # 由 `git config core.hooksPath .githooks` 启用（仓库级，无需全局配置）。
 # 误报时先复核"为什么会命中"并把结论记进 docs/，不要用跳过钩子的开关提交——绕过去的那一次不留痕迹。
 # 记忆卷超限的完整普查在 CI 里跑 `npm run verify:volume`（--all 全量面），本地这条只拦新增。
@@ -11,6 +11,15 @@
 #   `docs/doc-commands.json` 的 mentions/claim 计的是 CHANGELOG 与 docs/ 正文里的命令提及，
 #   所以"先跑 verify/--update，之后再写 CHANGELOG 或文档"必然让册子当场过期，而红要等下一次 CI 才现形。
 #   本腿只读不写（--check）：漂了就地给出重生命令，不在钩子里替人改文件（钩子改文件 = 提交了没被审过的内容）。
+#   2026-10-23 补上 --staged（判**暂存面**）：本判据原先只读工作树，于是多会话同仓时被连坐两次
+#   ——「别人未提交的文档主张」会让「我的这笔提交」判红（一手：他人 HANDOFF 里一条 npm run 把我
+#   这边顶成 mentions 376→377；反向一手：我未提交的 CHANGELOG 把并行会话那笔顶红）。而本钩子
+#   其余四条腿本来就判 index（staged-syntax 判 blob、scan-secrets --staged、memory-volume 仅暂存面、
+#   pointer-sync），verify:eol 也刻意读 :<path> —— 只有这条量错了对象。--staged 与 --update 互斥
+#   （只读语义不许顺手写），且取数走 -c core.quotePath=false：不加它，5 份中文命名的规范文档会被
+#   git 转义成八进制串而**静默漏判**（实测 37→32）。双向验真见 tests/docCommands.test.js 的
+#   「--staged 暂存面」6 条腿：坏主张进 index ⇒ 判红并点名；坏主张只在工作树 ⇒ 本腿免疫
+#   （对照：不带 --staged 的 --check 会红，即旧行为的连坐）。
 #   误报不是本腿的已知形态——判据取数面零输入判红、真面非空已由 tests/docCommands.test.js 的 E1 腿钉住。
 # ⑤是第七十轮加上的，理由与④同族：**约定没有判据 = 约定会在某一轮无声失效**。
 #   外层工作区台账（`超市/memory/07-next-steps.md`）有"每轮追加一条工作区级指针"的约定，
@@ -24,5 +33,5 @@ set -e
 node scripts/check-staged-syntax.mjs
 node scripts/scan-secrets.mjs --staged
 node scripts/check-memory-volume.mjs
-node scripts/check-doc-commands.mjs --check
+node scripts/check-doc-commands.mjs --staged --check
 node scripts/check-memory-pointer-sync.mjs

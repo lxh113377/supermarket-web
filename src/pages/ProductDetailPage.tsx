@@ -462,7 +462,7 @@ export default function ProductDetailPage() {
                 )}
               </div>
 
-              <p className="text-2xs text-stone-500 mt-3 leading-relaxed">
+              <p className="text-xs text-stone-500 mt-3 leading-relaxed">
                 「立即购买」只展示演示订单摘要，不创建真实订单、不发起支付；实际下单请通过购物袋结算。
               </p>
               {/* 加购结果就地播报（窄屏时吸底栏遮挡本区块，故同时写进 aria-live 供读屏） */}

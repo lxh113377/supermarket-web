@@ -79,7 +79,7 @@ export default function VariantPicker({ group, selection, onChange, autoAdjustNo
         </p>
       )}
       {group.disclosure && (
-        <p className="text-2xs leading-relaxed text-stone-500 border-t border-gray-100 pt-3">
+        <p className="text-xs leading-relaxed text-stone-500 border-t border-gray-100 pt-3">
           <span className="font-semibold text-stone-500">数据说明：</span>
           {group.disclosure}
         </p>

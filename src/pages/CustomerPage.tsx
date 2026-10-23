@@ -343,9 +343,13 @@ export default function CustomerPage() {
         >
           ←
         </button>
-        <span className="ml-2 text-sm font-semibold text-ink-soft">
+        {/* 窄屏也必须有自己的 h1（2026-10-23 一手）：桌面分支这里是 <h1>，而手机分支从前写成
+            <span> ⇒ 微信里（本站主战场）这一页的文档大纲是空的，读屏用户拿不到"我在哪个分类"。
+            实测：1280 下 h1=「饮品」，390 下 h1 数量 0。Tailwind preflight 已把 h1 的
+            margin/font-size/font-weight 重置为 inherit ⇒ 换标签但保留同一串 class，视觉零变化。 */}
+        <h1 className="ml-2 text-sm font-semibold text-ink-soft">
           {category?.name || '全部商品'}
-        </span>
+        </h1>
       </div>
       {nav}
 

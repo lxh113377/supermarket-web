@@ -370,7 +370,7 @@ export default function ServiceFormPage() {
                               onClick={() => removeFile(i)}
                               aria-label={`删除文件 ${fileMeta[i]?.name || i + 1}`}
                               style={{ '--tap-x': '10px', '--tap-y': '10px' } as CSSProperties}
-                              className="tap-44 shrink-0 w-7 h-7 rounded-lg bg-gray-100 text-gray-600 flex items-center justify-center"
+                              className="tap-44 shrink-0 w-7 h-7 rounded-lg bg-gray-100 text-stone-600 flex items-center justify-center"
                             >
                               <span aria-hidden="true">×</span>
                             </button>

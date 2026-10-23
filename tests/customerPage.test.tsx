@@ -273,11 +273,18 @@ describe('CustomerPage 窄屏布局（手机/平板）', () => {
     vi.unstubAllGlobals()
   })
 
-  it('窄屏走顶部横条那套：不渲染桌面刊头 h1', async () => {
+  it('窄屏走顶部横条那套：有横条自己的 h1，且不是桌面刊头那档', async () => {
     stubNarrow(true)
     renderShop('/shop/food/snacks')
     await screen.findByText(/薯片/)
-    expect(screen.queryByRole('heading', { level: 1 })).toBeNull()
+    // 本用例从前断言 queryByRole('heading',{level:1}) 为 null —— 那是把**缺陷**写成了预期：
+    // 窄屏分支当时把分类名渲染成 <span>，于是手机上整页零标题，读屏用户拿不到
+    // 「我在哪个分类」。2026-10-23 修成 <h1> 后这条断言变红，红的是断言不是代码。
+    // 现在按原意图重述：窄屏要有自己的 h1，但它**不是**桌面刊头那一档（text-3xl），
+    // 而是顶部横条的小字号档（text-sm）—— 用字号档区分两套布局，比"有没有 h1"更准。
+    const h1 = screen.getByRole('heading', { level: 1, name: /零食|食品|全部商品/ })
+    expect(h1.className.includes('text-sm'), '窄屏 h1 应是顶部横条的小字号档，实际 class：' + h1.className).toBe(true)
+    expect(h1.className.includes('text-3xl'), '窄屏不该渲染桌面刊头那一档（text-3xl）').toBe(false)
     // 只存在一个分类导航实例（两套布局是条件渲染，不是 CSS 隐藏）
     expect(screen.getAllByRole('navigation', { name: '商品分类导航' })).toHaveLength(1)
   })

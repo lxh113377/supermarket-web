@@ -12,7 +12,7 @@ import { join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { copyGateScripts } from './helpers/copyGateScripts.mjs'
 import { assertCliRan } from './helpers/cliLeg.js'
-import { evaluate, extractCommands, collectDocs, readAliases, renderGateTable, syncGateTable, registryBody, normalizeEol } from '../scripts/check-doc-commands.mjs'
+import { evaluate, extractCommands, collectDocs, readAliases, renderGateTable, syncGateTable, registryBody, normalizeEol, collectDocsStaged, stagedDocPaths, stagedFace, gitShowStaged } from '../scripts/check-doc-commands.mjs'
 
 const ROOT = resolve(fileURLToPath(import.meta.url), '../..')
 const SCRIPT = join('scripts', 'check-doc-commands.mjs')
@@ -199,6 +199,7 @@ describe('registry 的 counts 是快照不是现值（R49-H2）', () => {
     const six = (reg) => run(docsA, { registry: reg }).rows.filter((r) => /^D[1-6]$/.test(r.id)).map((r) => `${r.id}|${r.ok}|${r.detail}`).sort()
     const junkCounts = { docs: 0, aliases: 0, mentions: 99999, claim: -1, template: 'x', archive: null, broken: 42 }
     expect(six(regWith({ counts: junkCounts }))).toEqual(six(regWith({})))
+
     const clean = run(docsA, { registry: regWith({}) }).rows.find((r) => r.id === 'D7')
     const dirty = run(docsA, { registry: regWith({ counts: junkCounts }) }).rows.find((r) => r.id === 'D7')
     expect(dirty.ok, '登记册漂了不许把 D7 判红（零消费者的生成件不拦路；要拦请用 --check）').toBe(clean.ok)
@@ -605,5 +606,72 @@ describe('--update 一趟到位：新增别名后单次重生即自洽（生成�
       expect(c.status, '摘掉重取那步后 --check 仍是绿 ⇒ 这条腿测的不是被删的那一行').toBe(1)
       expect(`${c.stdout}${c.stderr}`).toContain('册上')
     } finally { rmSync(dir, { recursive: true, force: true }) }
+  })
+
+})
+
+/**
+ * --staged：pre-commit 用的**暂存面**（2026-10-23）。
+ * 立它的直接起因：本判据原先只有工作树面，于是两天内被连坐两次 —— 别人未提交的文档主张
+ * 会让"我的提交"判红（一手：他人 HANDOFF 的一条 npm run 把我这边 --check 顶成 376→377；
+ * 另一手：他人 WIP 的 npm run admin:init 把并行会话的提交顶红）。而 pre-commit 其余四条腿
+ * 本来就判暂存面（staged-syntax / scan-secrets --staged / memory-volume 仅暂存面 / pointer-sync），
+ * verify:eol 也刻意读 index —— 只有这条读工作树，是**尺量错了对象**，不是谁的代码错。
+ * 这几条腿钉三件事：面取对了、中文文档没被 core.quotePath 吞掉、--staged 与 --update 互斥。
+ */
+describe('--staged 暂存面（pre-commit 用）', () => {
+  const cliStaged = (args) => {
+    const r = spawnSync(process.execPath, [SCRIPT, ...args], { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+    return { rc: r.status, out: `${r.stdout || ''}${r.stderr || ''}` }
+  }
+  const gitOut = (args) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }).stdout
+
+  it('取数面非空，且文档集与工作树面一致（中文文件名不许被 quotePath 吞掉）', () => {
+    const docs = collectDocsStaged()
+    expect(docs.length, '暂存面一份文档都没有 ⇒ 取数面坏了（别把空集读成通过）').toBeGreaterThan(20)
+    const paths = docs.map((d) => d.path)
+    const wt = collectDocs(ROOT).map((d) => d.path).sort()
+    const st = paths.slice().sort()
+    expect(wt.filter((f) => !st.includes(f)),
+      '暂存面漏掉工作树在册的文档 ⇒ 多半是忘了 -c core.quotePath=false（实测会静默少 5 份中文命名的规范文档）').toEqual([])
+    expect(st.filter((f) => !wt.includes(f)), '暂存面多出工作树没有的文档').toEqual([])
+    expect(paths.filter((f) => /[\u4E00-\u9FFF]/.test(f)).length, '暂存面里没有中文文档 ⇒ 上面那条差集断言会空转').toBeGreaterThan(0)
+  })
+
+  it('stagedDocPaths 与 collectDocsStaged 口径一致（少一份就等于静默漏判）', () => {
+    // 两个函数一个给路径、一个给内容；若某条路径 git show 失败被静默跳过，
+    // collectDocsStaged 就会比 stagedDocPaths 少件 —— 判据看起来在跑，实际面残缺。
+    const paths = stagedDocPaths()
+    const docs = collectDocsStaged()
+    expect(docs.length, '取到 ' + docs.length + ' 份内容 < ' + paths.length + ' 条路径 ⇒ 有文档被静默跳过').toBe(paths.length)
+    expect(docs.map((d) => d.path).sort()).toEqual(paths.slice().sort())
+    docs.forEach((d) => expect(typeof d.src, d.path + ' 内容不是字符串').toBe('string'))
+  })
+
+  it('stagedFace 三面齐备，且 fileExists 判的是 index 而不是磁盘', () => {
+    const face = stagedFace()
+    expect(face, '暂存面取不到 ⇒ 环境问题，不该被读成"没有可判对象所以通过"').toBeTruthy()
+    expect(face.docs.length).toBeGreaterThan(20)
+    expect(face.aliases.length).toBeGreaterThan(30)
+    expect(face.fileExists('package.json'), 'index 里明明有 package.json').toBe(true)
+    expect(face.fileExists('scripts/zz-definitely-not-real.mjs'), '对不存在的路径返回 true ⇒ 暂存面判据没牙').toBe(false)
+  })
+
+  it('gitShowStaged 取的是 index 内容（不是工作树内容）', () => {
+    const src = gitShowStaged('CHANGELOG.md')
+    expect(src, '取不到 index 里的 CHANGELOG').not.toBeNull()
+    expect(src).toBe(gitOut(['-c', 'core.quotePath=false', 'show', ':CHANGELOG.md']).replace(/\r\n/g, '\n'))
+  })
+
+  it('--staged 与 --update 互斥（只读语义不许顺手写）', () => {
+    const r = cliStaged(['--staged', '--update'])
+    expect(r.rc, '两个互斥开关同时给必须 rc=2 并拒绝: ' + r.out.slice(-300)).toBe(2)
+    expect(r.out).toContain('互斥')
+  })
+
+  it('--staged 对真面可跑通：唯独不许 rc=2（把面读空当成没有可判对象）', () => {
+    const r = cliStaged(['--staged'])
+    expect(r.rc, r.out.slice(-500)).not.toBe(2)
+    expect(r.out, '必须报出 D1 的取数面计数').toContain('D1')
   })
 })

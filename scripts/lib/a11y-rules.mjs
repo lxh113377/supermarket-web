@@ -21,6 +21,63 @@ export const ALLOWED = [
   },
 ];
 
+/**
+ * Strip comments out of a source text **without moving any line number**: every comment
+ * character becomes a space, newlines are preserved. Static rules below must not fire on
+ * markup that only exists inside a comment.
+ *
+ * Why this exists (2026-10-23, measured): the parallel session's WIP comment
+ *   // 'image' 字段又有 'file' 字段，两个 <input> 会抢同一个 ref
+ * made check-a11y-static report `ServiceFormPage.tsx:39 visible input has no accessible name`
+ * - a violation pointing at a comment line. A gate that cries wolf on prose gets muted next
+ * round (this file's own stated principle), so the blind spot had to be closed rather than
+ * the comment reworded. Reproduced: 3 of 5 probe cases (line / block / JSX-braced comments)
+ * reported a violation before this function existed; all three are clean now.
+ *
+ * Deliberate limits (kept narrow on purpose - see the wolf rule above):
+ *   - string literals are NOT stripped: JSX attribute values are strings, and the rules need
+ *     to read them. A literal containing "<input>" would still false-positive; none exists
+ *     in src/ today (checked), and fixing it would require JSX-vs-JS context tracking.
+ *   - regex literals containing an unescaped // would be mistaken for a line comment.
+ *     Guarded by the selftest leg below (a real regex line must still be scanned).
+ */
+export function stripComments(src) {
+  const s = String(src);
+  const out = new Array(s.length);
+  // state: 0 code, 1 line-comment, 2 block-comment, 3 single-quote, 4 double-quote, 5 template
+  let st = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    const n = s[i + 1];
+    if (st === 0) {
+      if (c === '/' && n === '/') { st = 1; out[i] = ' '; continue }
+      if (c === '/' && n === '*') { st = 2; out[i] = ' '; continue }
+      if (c === "'") st = 3;
+      else if (c === '"') st = 4;
+      else if (c === '`') st = 5;
+      out[i] = c;
+      continue;
+    }
+    if (st === 1) {                       // to end of line
+      if (c === '\n') { st = 0; out[i] = c; continue }
+      out[i] = ' ';
+      continue;
+    }
+    if (st === 2) {                       // block comment until */
+      if (c === '*' && n === '/') { st = 0; out[i] = ' '; out[i + 1] = ' '; i++; continue }
+      out[i] = c === '\n' ? c : ' ';
+      continue;
+    }
+    // inside a string/template: pass through, but honour escapes so \' does not close early
+    out[i] = c;
+    if (c === '\\') { if (i + 1 < s.length) { out[i + 1] = s[i + 1]; i++ } continue }
+    if (st === 3 && c === "'") st = 0;
+    else if (st === 4 && c === '"') st = 0;
+    else if (st === 5 && c === '`') st = 0;
+  }
+  return out.join('');
+}
+
 const VISIBLE_INPUT = /<input\b(?![^>]*\btype\s*=\s*['"]hidden['"])/g;
 
 /**
@@ -122,9 +179,11 @@ export function checkClickableSemantics(source) {
 export function auditSources(sources) {
   const out = [];
   for (const [file, src] of Object.entries(sources || {})) {
-    for (const p of checkImgAlt(src)) out.push({ file, ...p });
-    for (const p of checkInputName(src)) out.push({ file, ...p });
-    for (const p of checkClickableSemantics(src)) out.push({ file, ...p });
+    // 注释先剥掉再判：见 stripComments 的头注（一行注释里的 <input> 曾被报成违规）。
+    const code = stripComments(src);
+    for (const p of checkImgAlt(code)) out.push({ file, ...p });
+    for (const p of checkInputName(code)) out.push({ file, ...p });
+    for (const p of checkClickableSemantics(code)) out.push({ file, ...p });
   }
   return out;
 }

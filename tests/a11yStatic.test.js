@@ -13,13 +13,21 @@ const SELF = join(REPO, 'scripts', 'check-a11y-static.mjs')
 const cli = (args) => assertCliRan(spawnSync(process.execPath, [SELF, ...args], { cwd: REPO, encoding: 'utf8', timeout: 60_000 }), { label: 'a11y-static ' + args.join(' ') })
 
 describe('a11y 静态规则：img/alt、input 可访问名字、可点击元素语义', () => {
-  it('判据自证 8/8', () => {
+  it('判据自证：全过且条数不倒退（条数动态解析，不写死）', () => {
     const r = cli(['--selftest'])
     expect(r.status, r.stdout + r.stderr).toBe(0)
-    expect(r.stdout).toContain('[a11y-static] selftest 8/8')
+    // 从前这里写死 toContain('selftest 8/8') —— 于是给判据加一条腿就必须同时来改这个数，
+    // 而"改测试才能过"会让加腿的成本看起来比不加还高（本轮实测：我扩到 12 条它当场红）。
+    // 现在解析 N/M：M 是条数（下界锁倒退，加腿不必再动这里），N 必须等于 M（不许有失败腿）。
+    const m = /\[a11y-static\] selftest (\d+)\/(\d+)/.exec(r.stdout)
+    expect(m, '没打印 selftest 计数行 ⇒ --selftest 可能压根没跑（别把 rc=0 当它跑了）').toBeTruthy()
+    const passed = Number(m[1])
+    const total = Number(m[2])
+    expect(passed, 'selftest 有失败腿').toBe(total)
+    expect(total, 'selftest 条数倒退（当前在册 12 条：8 条原腿 + 4 条注释免疫腿）').toBeGreaterThanOrEqual(12)
   })
 
-  it('真面：src 下 50 个 tsx 零违规（这条会随新增页面一起变严）', () => {
+  it('真面：src 下全部 tsx 零违规（条数由 CLI 自报，这条会随新增页面一起变严）', () => {
     const r = cli([])
     expect(r.status, r.stdout + r.stderr).toBe(0)
     expect(r.stdout).toContain('GATE-PASS');
@@ -86,5 +94,34 @@ describe('a11y 静态规则：img/alt、input 可访问名字、可点击元素�
     const loose = (src) => checkImgAlt(src).filter((p) => !p.detail.includes('img'));
     expect(loose('<img src={a} />').length, '放宽后仍然报 ⇒ 这条腿没在判 alt').toBe(0)
     expect(auditSources({ 'x.tsx': '<img src={a} />' }).length).toBe(1)
+  })
+
+  // 2026-10-23：注释里的 JSX 不得触发任何规则。一手起因是并行会话的 WIP 注释
+  // 「两个 <input> 会抢同一个 ref」被报成 ServiceFormPage.tsx:39 缺可访问名 ——
+  // 指向注释行的违规就是哭狼，下一轮会被静音（本文件头注写明的原则）。
+  describe('auditSources 对注释免疫（stripComments）', () => {
+    it('行注释 / 块注释 / JSX 注释三种形态都不报', () => {
+      const cases = {
+        line: 'const x = 1\n// 两个 <input> 会抢同一个 ref\nconst y = 2',
+        block: 'const x = 1\n/* 说明：<input> 需要名字 */\nconst y = 2',
+        jsx: 'const x = 1\n{/* 这里曾有 <input type="text" placeholder="q" /> */}\nconst y = 2',
+      }
+      for (const [k, src] of Object.entries(cases)) {
+        expect(auditSources({ 'a.tsx': src }), k + ' 注释里的 markup 被误判').toEqual([])
+      }
+    })
+    it('反向腿：注释与真实代码各有一个无名 input 时，只报真实那一个（行号不位移）', () => {
+      const src = '// <input type="text" placeholder="q" />\n<input type="text" placeholder="q" />'
+      const r = auditSources({ 'a.tsx': src })
+      expect(r.length, '剥注释把真违规一起吞掉了').toBe(1)
+      expect(r[0].rule).toBe('input-name')
+      expect(r[0].line, '剥注释改变了行号（必须逐字符等长替换）').toBe(2)
+    })
+    it('URL 字符串里的 // 不被当行注释（否则其后整行代码全部失明）', () => {
+      const src = 'const u = "http://x/a"\n<input type="text" placeholder="q" />'
+      const r = auditSources({ 'a.tsx': src })
+      expect(r.length, '"http://" 被误判成注释，导致第 2 行的真缺陷漏判').toBe(1)
+      expect(r[0].line).toBe(2)
+    })
   })
 })

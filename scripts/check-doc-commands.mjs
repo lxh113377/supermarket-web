@@ -22,7 +22,9 @@
 //       node scripts/check-doc-commands.mjs --check    只判不写：两个生成物必须等于生成器输出（R50-H3 的读侧）
 //       node scripts/check-doc-commands.mjs --fixture F [--aliases A]  喂合成面（夹具/演练，不读真仓）
 //       node scripts/check-doc-commands.mjs --inject-red   演习：注入假主张，必须当场判红
+//       node scripts/check-doc-commands.mjs --staged       只判**暂存面**（pre-commit 用；见 stagedFace 头注）
 import { readFileSync, writeFileSync, readdirSync, existsSync, statSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
 import { dirname, join, resolve, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { reasonDefects } from './lib/registry-reason.mjs'
@@ -69,6 +71,83 @@ export function collectDocs(readRoot = ROOT) {
   }
   walk(join(readRoot, 'docs'))
   return out.sort((a, b) => a.path.localeCompare(b.path))
+}
+
+/**
+ * 取**暂存面**（index）而不是工作树：pre-commit 的判据必须判"将要提交的那个面"。
+ *
+ * 一手（2026-10-23，连着两天都被它咬）：本判据原先只有工作树面，于是多会话同仓时
+ *   ① 我的 CHANGELOG 未提交 → 并行会话跑 pre-commit 第④腿被我连坐判红；
+ *   ② 他人未提交的 HANDOFF 主张 → 我这边的 --check 报 mentions 376→377 判红。
+ * 两次都不是任何人的代码错，而是**尺量错了对象**：pre-commit 五条腿里四条本来就判暂存面
+ * （staged-syntax / scan-secrets --staged / memory-volume 仅暂存面 / pointer-sync），
+ * 只有这条读工作树。verify:eol 同理（它取 :<path> 而非 HEAD:<path>，注释里写明是为了
+ * 让"正在修这个问题的这笔能判绿"）。
+ *
+ * 口径：文件清单 = git ls-files -c（暂存区）里落在 durable 面上的 .md；内容 = git show :<path>；
+ * 别名面与登记册同样取暂存区版本。--staged 只读不写（写工作树会立刻破坏"判暂存面"的语义，
+ * 所以与 --update 互斥）。
+ */
+export function gitShowStaged(path) {
+  try {
+    return execFileSync('git', ['-c', 'core.quotePath=false', 'show', ':' + path],
+      { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+  } catch {
+    return null
+  }
+}
+
+export function stagedDocPaths() {
+  // -c core.quotePath=false 是**必需项**，不是美化：git 默认把非 ASCII 路径转义成
+  // "docs/governance/\344\275\223\351\207\217….md" 这种带引号的八进制形式，于是
+  //   ① 下面 endsWith('.md') 判不中（结尾是 ".md" 但整串带引号，且 startsWith('docs/') 后
+  //      的中文段匹配不到真实文件），实测 37 份 durable 文档只收到 32 份 —— 少的正是 5 份
+  //      **中文命名**的规范文档（体量治理规范 / 分步推进计划 / 契约全生命周期规范 /
+  //      数据互通与联动分析 / 机制诊断与升级说明）；
+  //   ② 就算匹配上了，git show :"<转义串>" 也会失败。
+  // 本仓 durable 文档一半是中文名 ⇒ 不加这个参数，--staged 会**静默少判**这 5 份，
+  // 比不实现还糟（看起来在判，实际面是残缺的）。实测对照：默认 0 条含中文，加参数后 4+ 条。
+  const out = execFileSync('git', ['-c', 'core.quotePath=false', 'ls-files', '-c'],
+    { cwd: ROOT, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 })
+    .replace(/\r/g, '').split('\n').map(s => s.trim()).filter(Boolean)
+  return out.filter(f =>
+    ['README.md', 'SECURITY.md', 'CONTRIBUTING.md', 'HANDOFF.md', 'CHANGELOG.md'].includes(f)
+    || (f.startsWith('docs/') && f.endsWith('.md')))
+}
+
+export function collectDocsStaged() {
+  const out = []
+  for (const f of stagedDocPaths()) {
+    const src = gitShowStaged(f)
+    if (src !== null) out.push({ path: f, src: normalizeEol(src) })
+  }
+  return out.sort((a, b) => a.path.localeCompare(b.path))
+}
+
+export function readAliasesStaged() {
+  const src = gitShowStaged('package.json')
+  if (src === null) return []
+  const pkg = JSON.parse(src)
+  return Object.entries(pkg.scripts || {}).map(([name, cmd]) => ({ name, cmd: String(cmd) }))
+}
+
+/** 暂存面里某路径是否存在（D2 的"文件在盘"要按将要提交的面判，不是按本地磁盘）。 */
+export function stagedFileExists(relPath) {
+  try {
+    execFileSync('git', ['-c', 'core.quotePath=false', 'cat-file', '-e', ':' + relPath], { cwd: ROOT, stdio: 'ignore' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** 暂存面整体取数；读不到面（非 git 仓 / index 为空）返回 null，由调用方判 BLOCKED 而不是判绿。 */
+export function stagedFace() {
+  const docs = collectDocsStaged()
+  const aliases = readAliasesStaged()
+  const regSrc = gitShowStaged(REGISTRY)
+  if (!docs.length || !aliases.length || regSrc === null) return null
+  return { docs, aliases, registry: JSON.parse(regSrc), fileExists: stagedFileExists }
 }
 
 /** 抽出一份文档里的全部命令主张，带行号（红因要能指到人眼下那一行）。 */
@@ -304,6 +383,11 @@ function main() {
     process.exit(2)
   }
   const inj = argv.includes('--inject-red')
+  const staged = argv.includes('--staged')
+  if (staged && update) {
+    console.error('[doc-commands] BLOCKED --staged 与 --update 互斥（--staged 只读将要提交的面；要重生生成物请用不带 --staged 的 --update）')
+    process.exit(2)
+  }
   const fxIdx = argv.indexOf('--fixture')
   const alIdx = argv.indexOf('--aliases')
   let docs, aliases, registry, fileExists
@@ -312,6 +396,16 @@ function main() {
     aliases = alIdx !== -1 ? JSON.parse(readFileSync(argv[alIdx + 1], 'utf8')) : []
     registry = { archive_faces: [], observed_utc: new Date().toISOString() }
     fileExists = () => true
+  } else if (staged) {
+    const face = stagedFace()
+    if (!face) {
+      console.error('[doc-commands] BLOCKED 暂存面取不到（非 git 仓 / index 里没有 durable 文档）⇒ 没有对象就无法判通过，fail-closed 退出')
+      process.exit(2)
+    }
+    docs = face.docs
+    aliases = face.aliases
+    fileExists = face.fileExists
+    registry = face.registry
   } else {
     docs = collectDocs()
     aliases = readAliases()

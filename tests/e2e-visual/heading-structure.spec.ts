@@ -31,6 +31,18 @@ import { watchErrors, type ErrorWatch } from '../e2e/helpers/watchErrors'
 
 const VIEWPORT = { width: 1280, height: 900 }
 
+/**
+ * 视口必须测两档（2026-10-23 一手补上的维度缺口）。
+ * 本判据从前只有 1280×900，而本站不少页面按 useIsNarrow 渲染**两棵不同的树** ——
+ * 实测 /#/shop：1280 下有 h1「饮品」，390 下 h1 数量 0、整页零标题（窄屏分支把分类名
+ * 渲染成了 <span>）。也就是说桌面合规完全不能推出移动合规，而微信内（390 这一档）
+ * 恰恰是本站主战场。⇒ 只测宽屏的标题判据，对一半的真实使用场景是瞎的。
+ */
+const VIEWPORTS: Array<[string, { width: number; height: number }]> = [
+  ['桌面 1280', { width: 1280, height: 900 }],
+  ['手机 390', { width: 390, height: 844 }],
+]
+
 const ROUTES: Array<[string, string]> = [
   ['home', '/#/'],
   ['shop', '/#/shop'],
@@ -110,8 +122,9 @@ async function login(page: Page) {
 }
 
 for (const [name, route] of ROUTES) {
-  test(name + '：标题层级合规（恰好一个 h1、不跳级）', async ({ page }) => {
-    await page.setViewportSize(VIEWPORT)
+  for (const [vpName, vp] of VIEWPORTS) {
+  test(name + '：' + vpName + ' 标题层级合规（恰好一个 h1、不跳级）', async ({ page }) => {
+    await page.setViewportSize(vp)
     if (name === 'payment') {
       await seedPayment(page)
     } else {
@@ -120,11 +133,12 @@ for (const [name, route] of ROUTES) {
     }
     await login(page)
     const s = await readStructure(page)
-    expect(s.total, name + ' 一个标题都没扫到 ⇒ 页面没渲染（别把空集读成"结构没问题"）').toBeGreaterThan(0)
-    expect(s.h1, name + ' 的 h1 数量是 ' + s.h1 + '（应恰好 1 个 = 该页主标题）；当前标题：\n  ' +
+    expect(s.total, name + ' @' + vpName + ' 一个标题都没扫到 ⇒ 页面没渲染（别把空集读成"结构没问题"）').toBeGreaterThan(0)
+    expect(s.h1, name + ' @' + vpName + ' 的 h1 数量是 ' + s.h1 + '（应恰好 1 个 = 该页主标题）；当前标题：\n  ' +
       s.sizes.map((x) => x.tag + ' ' + x.size + 'px 「' + x.text + '」').join('\n  ')).toBe(1)
     expect(s.jumps, name + ' 有跳级（父标题直接跳到子子级，中间层缺失）：\n  ' + s.jumps.join('\n  ')).toEqual([])
   })
+  }
 }
 
 /**

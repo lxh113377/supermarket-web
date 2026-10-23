@@ -114,7 +114,7 @@ export default function ProductInfoSections({ product, categories, combo }: Prop
       </Section>
 
       <Section id="after-sale-heading" title="售后说明" badge>
-        <p className="text-2xs text-stone-500 -mt-1 mb-3 leading-relaxed">
+        <p className="text-xs text-stone-500 -mt-1 mb-3 leading-relaxed">
           商家未提供售后条款，以下三条为界面演示文案，不构成任何真实承诺。
         </p>
         <ul className="text-sm text-stone-600 space-y-2 leading-relaxed list-disc pl-4 m-0">
