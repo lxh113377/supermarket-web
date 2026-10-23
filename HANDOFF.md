@@ -387,6 +387,32 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN`（repo �
        `401 AUTH_REQUIRED`（看着像 CSRF 失败，其实是会话被顶掉）。正解：用登录响应头
        `X-CSRF-Token`（上游 `routes/auth.js:17` 就在响应里回吐它），别再取一次 /auth/csrf。
 
+14. **顾客端（github.io）的打印改走本站提交表单；本轮实拍一次隧道 outage** —
+    本轮把「一个前端顾客使用打印、一个后台接收数据」真正打通了（老大第 4 条要求两人都能收到）：
+    · 打印服务加了 `type:'file'` 字段的表单（`src/pages/ServiceFormPage.tsx` + `src/data/services.ts`），
+      文件走**早就在册、但一直是孤儿代码**的 `uploadPrintFile()`（`/upload` 直传 R2，端点不可用则
+      ≤512KB 内联）+ `/pub createSubmission` ⇒ 这两条都有跨域 CORS（`security.js` 的
+      `DEFAULT_ALLOWED_ORIGINS` 精确含 github.io，实测 OPTIONS 200 且 POST 带
+      `access-control-allow-origin` 回显），提交实测 `200 /pub code=0`，后台「服务」页能看到该条，
+      且用 `getSubmissionImages` 取回的是**文件本体**（解 base64 得 2081B、头部 `%PDF-1.4`）。
+    · 入口分叉靠**已有的** `VITE_CAMPUS_PRINT_URL`（本就登记在 `docs/env-vars.md`、只接受同源路径）：
+      pages.dev 不设 ⇒ 继续走搬进来的应用页；github.io 的 deploy.yml 设成 `/#/service/print`。
+      不做跨域跳转 ⇒ 撞不到微信那条拦截页，老大「不要跳转不要提示」仍然成立。
+    · 顺序**必须**是先推代码、后改 deploy.yml：那个 workflow 构建时拉 `main`，先翻开关会让线上
+      指向一个还没有 `file` 字段的表单 ⇒ 顾客看到一张传不了文件的表单，比死页更坏。
+    ⚠️ 一件我**拒绝**做的事（不是没能力）：把这类表单单镜像进上游打印后台。上游
+    `backend/orders/service.js:196` 硬要求 `confirmedPreview === true`（「请确认已检查生产预览与费用」）,
+    还有 `quoteId`/`quoteFingerprint` 与 multipart 上传链 ⇒ 服务端签名代客提交等于**伪造顾客没做过
+    的预览确认**，是虚假业务记录，不做。真要两人共用一套单，得让朋友的打印应用成为唯一入口
+    （那就需要一台能跑 Node 的服务器，见第 8 条）。
+    · **2026-10-23 14:30 实拍一次 outage**（本轮浏览器调试时发现）：cloudflared 进程 0、本地 4328 无监听、
+      `.env` 里那个 `semester-keith-packets-sales.trycloudflare.com` 已无法解析 ⇒ 线上 `/api` 全 530
+      （Cloudflare 返回 HTML，浏览器里表现为 `Unexpected token '<' … is not valid JSON`）。
+      处置：`npm run print:tunnel` 一条命令自愈（新址 `checked-networks-thereafter-cleaners`，
+      实测本地 200 / 隧道 200 / 线上 200）。**这条恰恰证明上面那个新路径的价值**：断的整个过程里，
+      github.io 的打印表单照样提交成功（`/pub` + `/upload` 是 D1/Workers 侧，不依赖这台笔记本）。
+      遗留账：快速隧道域名随重启而变 ⇒ 笔记本一睡/网一断线上打印就 530，根治仍需服务器（第 8 条）。
+
 ## 十、历史存档（CloudBase 时代，2026-08-08 前，仅归档参考）
 
 > 以下记录为 2026-08-08 及之前的 CloudBase 架构历史，**已迁移至 Cloudflare Pages + D1，仅供参考勿照做部署**。
