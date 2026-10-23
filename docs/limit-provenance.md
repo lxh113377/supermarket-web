@@ -104,6 +104,7 @@
 | src/pages/CustomerPage.tsx | 截断型 | 5 | product | 搜索建议下拉最多 5 条：再长就超出下拉可视区，且顾客本可以直接回车进结果页 |
 | src/pages/OrderConfirmPage.tsx | 体积型 | 5 | product | 付款截图原图 ≤5MB 才进压缩：下单必附凭证的场景实拍常见 2~4MB，5MB 是"明显误传大文件"的分界 |
 | src/pages/ServiceFormPage.tsx | 常量上限 | MAX_SUBMISSION_FILES | product | 服务提交图片总数上限：产品决定。**第三十五轮起服务端 createSubmission 同值拒绝（too_many_images）**，这一行不再是全链唯一 cap ⇒ 两侧同值的契约已成立。**2026-10-07 随服务端由 5 抬到 9**（打印服务驱动，前端常量收口在 `src/data/submissionLimits.ts`） |
+| src/pages/ServiceFormPage.tsx | 常量上限 | MAX_PRINT_FILES | product | 打印表单的文件个数上限（2026-10-23 新增 'file' 字段型时接的）：取 `src/pages/print/print.config.ts` 的 MAX_PRINT_FILES=9，与同文件上一行的 MAX_SUBMISSION_FILES 同值同族（9 = 后台商品图册一屏 3×3 的可视上界），**不另立第三个数**；张数与扩展名两端同值由 tests/printCapParity.test.ts 钉住 |
 | src/data/submissionLimits.ts | 常量 | MAX_SUBMISSION_FILES=9 | product | 条数上限的**前端定义处**（服务端定义见 `functions/lib/shared.js` 同名常量）。两条构建链不能共享模块 ⇒ 必然双写，同值由 tests/printCapParity.test.ts 钉住；取值 9 的动因与同族对照见 shared.js 那行 |
 | functions/upload.js | 截断型 | 7 | schema | 上传文件 key 的月份段取 ISO 串前 7 位（YYYY-MM）：与看板日期标签那两条同形同因，是**命名粒度**不是容量上限 —— 登记它只是为了让普查面不留洞 |
 | src/pages/print/print.config.ts | 常量 | MAX_PRINT_FILES=9 | product | 打印页自己的张数上限：与 `src/data/submissionLimits.ts` 的 MAX_SUBMISSION_FILES 同源（本文件 re-export 它），不另立一个数；两处同值由 tests/printCapParity.test.ts 钉住 |

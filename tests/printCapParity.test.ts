@@ -9,7 +9,8 @@
 
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { MAX_PRINT_FILES, PRINT_ALLOWED_EXT } from '../src/pages/print/print.config'
+import { MAX_PRINT_FILES, PRINT_ALLOWED_EXT, PRINT_INLINE_ALLOWED_EXT } from '../src/pages/print/print.config'
+import { validateSubmissionFiles } from '../functions/lib/security.js'
 
 const read = (p: string) => readFileSync(p, 'utf8').replace(/\r\n/g, '\n')
 
@@ -59,6 +60,44 @@ describe('扩展名白名单两端逐项同值', () => {
   it('正面：需求点名的文档类型都在册（pdf/docx/pptx）', () => {
     for (const need of ['pdf', 'docx', 'pptx', 'doc', 'ppt']) {
       expect(srvExt, `.${need} 必须在册`).toContain(need)
+    }
+  })
+  it('内联窄名单必须是宽名单的子集（R2 开通后同一批文件仍要能直传）', () => {
+    for (const ext of PRINT_INLINE_ALLOWED_EXT) {
+      expect(srvExt, `.${ext} 在窄名单里却不在服务端 /upload 的宽名单里 ⇒ R2 一开通这类文件反而传不上`).toContain(ext)
+    }
+  })
+})
+
+// 表单实际用的准入是**窄名单**（内联那条路），而它的真伪不由我们说了算：
+// 服务端 `isSafePrintFileRef` 只认 image/(jpeg|png|webp|gif)、application/pdf、
+// application/msword 与 officedocument.*。所以这一条**不读那份正则、直接调那个真函数**，
+// 拿浏览器会给该扩展名挂的 MIME 逐个喂进去 —— 宽名单里的 ppt/xls/heic/txt 在内联形态
+// 下会被服务端拒（实测），把它们放进窄名单就是让顾客按屏上提示选了再被拒。
+describe('内联窄名单 ⇄ 服务端真准入函数（2026-10-23）', () => {
+  const MIME: Record<string, string> = {
+    pdf: 'application/pdf',
+    doc: 'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ppt: 'application/vnd.ms-powerpoint',
+    xls: 'application/vnd.ms-excel',
+    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif',
+    heic: 'image/heic', txt: 'text/plain',
+  }
+  const accepts = (ext: string) =>
+    validateSubmissionFiles([`data:${MIME[ext]};base64,aGVsbG8=`]) !== null
+  it('窄名单里每一项服务端都真收（不是我们以为它收）', () => {
+    for (const ext of PRINT_INLINE_ALLOWED_EXT) {
+      expect(MIME[ext], `测试自己缺 ${ext} 的 MIME 映射 ⇒ 这条会假绿`).toBeTruthy()
+      expect(accepts(ext), `.${ext} 在窄名单里，但服务端 isSafePrintFileRef 不收这种 data: URL`).toBe(true)
+    }
+  })
+  it('宽名单里被排除的那几项确实服务端不收（钉住"为什么窄"）', () => {
+    for (const ext of ['ppt', 'xls', 'heic', 'txt']) {
+      expect(PRINT_INLINE_ALLOWED_EXT as readonly string[], `.${ext} 现在服务端收了 ⇒ 该放回窄名单，顾客不必再转格式`).not.toContain(ext)
+      expect(accepts(ext), `.${ext} 其实服务端能收 ⇒ 窄名单把它踢错了`).toBe(false)
     }
   })
 })

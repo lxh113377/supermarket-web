@@ -125,7 +125,12 @@ export interface ServiceCategory {
 export interface ServiceField {
   key: string
   label: string
-  type?: 'text' | 'tel' | 'image'
+  /**
+   * 'file' = 文档+图片混合上传（打印服务专用），走 `src/utils/printUpload` 那条
+   * 「直传 /upload，端点不可用则 ≤512KB 内联」的路；准入看**扩展名白名单**。
+   * 与 'image' 不是一回事：'image' 只收 image/* 并压缩成 dataUrl，喂不进 PDF/Word。
+   */
+  type?: 'text' | 'tel' | 'image' | 'file'
   required?: boolean
   placeholder?: string
   hint?: string
@@ -138,7 +143,7 @@ export interface Service {
   name: string
   icon: string
   description: string
-  /** 'print' = 走独立沉浸式页面（/print），不复用通用表单页 */
+  /** 'print' = 打印分流：能跑同源 /api 的宿主走独立应用页（/print），纯静态宿主回表单页 */
   type?: 'supermarket' | 'form' | 'print'
   popup?: string
   hint?: string

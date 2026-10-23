@@ -196,13 +196,32 @@ export const SERVICES: Service[] = [
     // 打印：2026-10-21 起 /print 这一页整体换成「校园打印」应用（仓库 CampusPrint-V1）。
     // 2026-10-22 起它不再是外站：前端 32 件已逐文件搬进 public/{shared,user,admin}（由
     // scripts/print-parity.mjs 对账），入口 = public/print/index.html，同源就地提供、无跳转。
-    // 仍保留 form-free 的 type:'print'：CategoryPage 与路由表按它分流，字段不再落在本仓。
+    // ⚠️ 但顾客端**不能只有那条路**：lxh113377.github.io 是 GitHub Pages 纯静态托管，
+    // 跑不了 Pages Functions ⇒ 那个域名上同源 `/api` 必 404（2026-10-23 浏览器实测：应用
+    // 起来了，但 /api/public/config 与 /api/auth/me 全 404，页面显示「无法读取服务配置」，
+    // 传不了文件；三条跨域自救路子都堵 —— 前端写死相对 /api、/api 反代无 CORS、
+    // 上游会话是 SameSite=Lax Cookie，详见 HANDOFF 第 8 条）。
+    // 所以本条**同时带表单字段**：静态托管那侧由 resolveCampusPrintUrl() 把入口指到
+    // /#/service/print，走本站自己的提交链（/upload 直传 + /pub createSubmission）——
+    // 那条链实测跨域 200 且能在后台「服务提交」里看到（2026-10-23 实测）。
     id: 'print',
     categoryId: 'study',
     name: '打印',
     icon: '🖨️',
     description: '文档照片上传，送到宿舍门口',
     type: 'print',
+    fields: [
+      { key: 'wechat', label: '微信号', type: 'text', required: true, placeholder: '请输入你的微信号' },
+      { key: 'building', label: '送达楼栋/房间', type: 'text', required: true, placeholder: '例如：36栋 1520' },
+      {
+        key: 'files',
+        label: '要打印的文件',
+        type: 'file',
+        required: true,
+        hint: 'PDF / Word / PPT / Excel / 图片，单个最大 20MB，最多 9 个；A4 黑白单面 0.5 元/张',
+      },
+      { key: 'remark', label: '备注', type: 'text', required: false, placeholder: '选填：彩色、双面、装订等特殊要求' },
+    ],
   },
   // ===== 其他 =====
   {

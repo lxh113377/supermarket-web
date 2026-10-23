@@ -8,6 +8,8 @@ import ServicePopup from '../components/service/ServicePopup'
 import type { ServiceCategory } from '../types'
 import { compressImageFile } from '../utils/imageCompress'
 import { MAX_SUBMISSION_FILES } from '../data/submissionLimits'
+import { uploadPrintFile } from '../utils/printUpload'
+import { PRINT_INLINE_ACCEPT, PRINT_INLINE_ALLOWED_EXT, MAX_PRINT_FILES } from '../pages/print/print.config'
 
 export default function ServiceFormPage() {
   const { serviceId } = useParams()
@@ -19,6 +21,10 @@ export default function ServiceFormPage() {
   const [showPopup, setShowPopup] = useState(false)
   const [formData, setFormData] = useState<Record<string, string>>({})
   const [images, setImages] = useState<string[]>([])
+  // 'file' 字段专用元数据，与 images **同下标**（上传后拿到的名字与是否走了内联降级）。
+  // 为什么单独一份：`images` 里存的是 `r2:<key>` 或 data: URL，读不出文件名；后台要看的
+  // 是「顾客传了哪个文件」，光看缩略图/字节串没有意义。
+  const [fileMeta, setFileMeta] = useState<{ name: string; inline: boolean }[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState('')
@@ -29,11 +35,20 @@ export default function ServiceFormPage() {
   // 不变，label 一改就静默失效）—— 这里字段是数据驱动的，key 是唯一稳定身份。
   const [errorField, setErrorField] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // 文档上传用**另一个 ref**：只留一个 fileInputRef 时，同一张表单里 'image' 字段与
+  // 'file' 字段会抢它 —— 「点击上传」于是会打开错的那个选择器。现在只有打印用到
+  // 'file'，但这是加一个字段就会踩的雷，提前分轨。（顺带：这里不能写出那个标签字面量，
+  // a11y 静态判据扫的是 tsx 原文且不剥注释，写了会被当成一个没有名字的控件而判红。）
+  const docInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (service?.popup) {
       setShowPopup(true)
     }
+    // 换服务时清空附件两态：images 与 fileMeta 是**同下标**的一对，只清一个就会让
+    // 后台看到「A 服务的文件配着 B 服务的文件名」。切路由时表单本就该从零开始。
+    setImages([])
+    setFileMeta([])
   }, [service])
 
   if (!service) {
@@ -91,10 +106,58 @@ export default function ServiceFormPage() {
     setImages(prev => prev.filter((_, i) => i !== index))
   }
 
+  /** 文档上传：一条路 = /upload 直传，端点不可用则 ≤512KB 内联（见 utils/printUpload）。 */
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = Array.from(e.target.files || [])
+    if (picked.length === 0) return
+    if (images.length + picked.length > MAX_PRINT_FILES) {
+      setError(`最多上传${MAX_PRINT_FILES}个文件`)
+      e.target.value = ''
+      return
+    }
+    // 准入只看扩展名，且必须是**内联那条窄名单**：宽名单里的 ppt/xls/heic/txt 服务端
+    // 在内联形态下会判「文件格式无效」，让顾客按提示选了再被拒是本文件反复防的那类错。
+    const bad = picked.find((f) => {
+      const ext = String(f.name).split('.').pop()?.toLowerCase() || ''
+      return !(PRINT_INLINE_ALLOWED_EXT as readonly string[]).includes(ext)
+    })
+    if (bad) {
+      setError(`「${bad.name}」的类型暂不支持，请改成 PDF / Word / PPTX / XLSX 或图片`)
+      setErrorField('files')
+      e.target.value = ''
+      return
+    }
+    setError('')
+    setErrorField('')
+    setSubmitting(true)
+    try {
+      const uploaded: Awaited<ReturnType<typeof uploadPrintFile>>[] = []
+      for (const f of picked) uploaded.push(await uploadPrintFile(f))
+      setImages((prev) => [...prev, ...uploaded.map((u) => u.ref)])
+      setFileMeta((prev) => [...prev, ...uploaded.map((u) => ({ name: u.name, inline: u.inline }))])
+      if (uploaded.some((u) => u.inline)) {
+        setError('文件已按内联方式提交；超过 512KB 的大文件请先转小或改用微信发送')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '文件上传失败，请重试')
+      setErrorField('files')
+    } finally {
+      setSubmitting(false)
+      e.target.value = ''
+    }
+  }
+
+  const removeFile = (index: number) => {
+    setImages((prev) => prev.filter((_, i) => i !== index))
+    setFileMeta((prev) => prev.filter((_, i) => i !== index))
+  }
+
   const validate = (): boolean => {
     for (const field of (service.fields || [])) {
       if (field.required) {
-        if (field.type === 'image') {
+        // 'image' 与 'file' 共用 images 这一个数组（提交体里都落在 images 字段），
+        // 差别只在准入与压缩：前者只收 image/*、后者按窄名单原样上传。
+        if (field.type === 'image' || field.type === 'file') {
           if (images.length < (field.minCount || 1)) {
             setError(`请上传${field.label}`)
             setErrorField(field.key)
@@ -283,6 +346,57 @@ export default function ServiceFormPage() {
                       multiple
                       aria-label={`上传${field.label}`}
                       onChange={handleImageSelect}
+                      className="hidden"
+                    />
+                  </div>
+                ) : field.type === 'file' ? (
+                  <div>
+                    {field.hint && (
+                      <p className="text-xs text-stone-500 mb-3 leading-relaxed" id={`sf-hint-${field.key}`}>{field.hint}</p>
+                    )}
+                    {images.length > 0 && (
+                      <ul className="mb-3 space-y-2">
+                        {images.map((_, i) => (
+                          <li key={i} className="flex items-center gap-2.5 rounded-xl border border-gray-200 px-3 py-2.5 bg-white">
+                            <span className="text-base shrink-0" aria-hidden="true">📄</span>
+                            {/* 名字来自上传结果，不是 img：img 里存的是 r2:<key> 或 data: URL，读不出文件名 */}
+                            <span className="min-w-0 flex-1 text-xs text-ink-soft truncate">
+                              {fileMeta[i]?.name || `文件 ${i + 1}`}
+                              {fileMeta[i]?.inline && (
+                                <span className="block text-stone-500 mt-0.5">以内联方式提交（未走云存储）</span>
+                              )}
+                            </span>
+                            <button
+                              onClick={() => removeFile(i)}
+                              aria-label={`删除文件 ${fileMeta[i]?.name || i + 1}`}
+                              style={{ '--tap-x': '10px', '--tap-y': '10px' } as CSSProperties}
+                              className="tap-44 shrink-0 w-7 h-7 rounded-lg bg-gray-100 text-gray-600 flex items-center justify-center"
+                            >
+                              <span aria-hidden="true">×</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <button
+                      onClick={() => docInputRef.current?.click()}
+                      /* 与图片分支同规：关联落在**可见按钮**上（隐藏的 input 读屏不念） */
+                      aria-invalid={errorField === field.key || undefined}
+                      aria-describedby={[field.hint ? `sf-hint-${field.key}` : '', errorField === field.key ? 'sf-error' : ''].filter(Boolean).join(' ') || undefined}
+                      className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-8 text-center text-stone-500"
+                    >
+                      <span className="block text-2xl mb-2" aria-hidden="true">🖨️</span>
+                      <span className="font-medium">点击选择要打印的文件</span>
+                      <span className="block text-xs text-stone-500 mt-1">至少1个，最多{MAX_PRINT_FILES}个</span>
+                    </button>
+                    <input
+                      ref={docInputRef}
+                      id={`sf-${field.key}`}
+                      type="file"
+                      accept={PRINT_INLINE_ACCEPT}
+                      multiple
+                      aria-label={`上传${field.label}`}
+                      onChange={handleFileSelect}
                       className="hidden"
                     />
                   </div>
