@@ -8,6 +8,7 @@
 // 本文件既测 hook 也测真实组件，两层都要，因为 bug 恰好只在"组件 + 真实时钟推进"时才现形。
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, act, renderHook } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 
 const mocks = vi.hoisted(() => ({ hours: vi.fn(() => false) }))
 vi.mock('../src/utils/businessHours', () => ({
@@ -20,6 +21,10 @@ vi.mock('react-router-dom', async (ip) => {
   // CategoryPage 用 useParams 取 categoryId：喂一个真实在册的分类（'life'），
   // 否则它渲染「分类不存在」，闭店提示根本不在页面上 —— 那样的腿会以"没找到提示"
   // 的方式假绿（我第一版就是这么错的：断言拿到 null 却写成了 truthy 检查）。
+  // 2026-10-23 补：HomePage 的服务索引已从 button 改成 <Link>（编辑式目录，保留原生链接
+  // 语义），而 Link 需要 Router 上下文 —— 只 mock 掉 useNavigate/useParams 会抛
+  // 「Cannot destructure property 'basename' of useContext(...) as it is null」。
+  // 所以这里保留真实 Router 组件，只替换那两个 hook（比整包 mock 更接近真实渲染）。
   return { ...a, useNavigate: () => vi.fn(), useParams: () => ({ categoryId: 'life' }) }
 })
 
@@ -71,7 +76,7 @@ describe('真实组件：首页封面的营业状态不许冻结', () => {
   afterEach(() => { vi.useRealTimers(); vi.clearAllMocks() })
 
   it('挂载时打烊，时间跨过起点后界面翻成「营业中」', () => {
-    render(<HomePage />)
+    render(<MemoryRouter><HomePage /></MemoryRouter>)
     expect(screen.getByText('已打烊')).toBeTruthy()
     mocks.hours.mockReturnValue(true)
     act(() => { vi.advanceTimersByTime(65_000) })
@@ -80,7 +85,7 @@ describe('真实组件：首页封面的营业状态不许冻结', () => {
   })
 
   it('分类页同样不许冻结（它连定时器都没有，是更严重的一处）', () => {
-    const { container } = render(<CategoryPage />)
+    const { container } = render(<MemoryRouter><CategoryPage /></MemoryRouter>)
     // 打烊态：闭店提示在页面上（用容器整体文本判，避免依赖某个具体节点的 aria 结构）
     expect(container.textContent, '挂载时应有闭店提示').toContain('当前非营业时间')
     mocks.hours.mockReturnValue(true)

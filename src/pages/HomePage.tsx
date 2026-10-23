@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { CATEGORIES } from '../data/categories'
 import { MIN_DELIVERY_AMOUNT } from '../data/deliveryLimits'
 import { formatYuan } from '../utils/format'
@@ -154,59 +154,69 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* ── 分类索引：编号 + 名称 + 描述，桌面错位排布打破四等分节奏 ── */}
+      {/* ── 服务索引：编辑式目录列表（一行一条），替代原先四个白卡方块（2026-10-23 老大指「四个大方块好丑」）──
+          旧版是四张 bg-white + shadow 的卡片压在暖白页底上 —— 白卡与 #fafaf9 底几乎无对比、
+          显得廉价；桌面端靠 margin 交错（lg:-mt-6）想打破四等分，结果看着像没排齐；底部
+          「一条灰线 + 进入」是模板站的标准 affordance；emoji 还带一个方形灰托（icon-plate）。
+          换成杂志目录那种一行一条：大号序号 + 图标 + 名称/描述 + 弹性引导线 + 进入箭头。
+          信息密度更高（四行读完 vs 四张卡各占一大块），扫读路径是一条竖线，也更贴本站
+          「纸 + 墨 + 柿」的编辑气质。分隔用 border 不用卡片阴影 —— 留白本身就是分隔。
+          用 <Link> 而非 button+onClick：保留原生链接语义（键盘 Tab、右键新标签、读屏链接
+          列表），与 RelatedProducts 同口径。
+          刻意不加「每类 N 条」：那要把 services.ts（约 10KB）重新拉回首页，破坏 categories.ts
+          拆包的本意（见 data/categories.ts 头注）。
+          配色口径：序号/描述都用 stone 系（本轮暖化方向），且**必须过对比度**——序号是
+          aria-hidden 的装饰，但视力正常用户要看，所以默认用 stone-600（对暖白 7.3:1）而不是
+          更浅的 stone-400（只有 2.41:1）；hover 底用 brand-50/70（极淡柿），实测 stone-500 压
+          brand-50 有 4.64:1，比压在 gray-100 上（4.36 不足）更安全。── */}
       <main id="main-content" tabIndex={-1} className="mx-auto max-w-5xl px-5 pb-28 sm:px-10">
         <div className={`mt-10 flex items-baseline justify-between gap-4 ${open ? '' : 'mt-6'}`}>
           <h2 className="text-display-md text-ink">服务索引</h2>
           <p className="text-xs text-stone-500">四大板块 · 点击进店</p>
         </div>
 
-        <nav aria-label="服务分类" className="mt-5 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <nav aria-label="服务分类" className="enter-stagger mt-4 border-t border-stone-200">
           {CATEGORIES.map((cat, i) => (
-            <button
+            <Link
               key={cat.id}
-              onClick={() => navigate(`/category/${cat.id}`)}
+              to={`/category/${cat.id}`}
               onMouseEnter={() => prefetchRoute('category')}
               onFocus={() => prefetchRoute('category')}
-              aria-label={`查看${cat.name}`}
-              // 桌面下逐列错位（0/-mt-3/0/-mt-5…）：四张卡不再是一条水平线
-              className={
-                // 交错入场 + 桌面逐列错位。错位用 **margin**（lg:mt-0 / lg:-mt-6）而不是 translate —
-                // card-interactive 的 hover 会写 -translate-y-0.5，同用 transform 会让错位瞬间消失（跳一下）。
-                `card-interactive group flex flex-col items-start gap-3 p-5 text-left animate-fade-in-up sm:p-6 ${
-                  i % 2 === 1 ? 'lg:mt-0' : 'lg:-mt-6'
-                } stagger-${i + 1}`
-              }
+              className="group -mx-2 flex items-center gap-3 rounded-xl px-2 py-4 outline-none transition-colors duration-200 hover:bg-brand-50/70 active:bg-brand-100/80 focus-visible:bg-brand-50 sm:-mx-4 sm:gap-5 sm:px-4"
             >
-              <span className="flex w-full items-start justify-between gap-2">
-                <span
-                  className="icon-plate flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-2xl shadow-inner-soft"
-                  aria-hidden="true"
-                >
-                  {cat.icon}
-                </span>
-                {/* 序号肉眼可见（对视力正常用户是"这是第几类"的线索），所以必须过对比度：
-                    gray-300 压白卡只有 1.47:1（大字档也要 3:1）⇒ gray-500 = 4.83:1。
-                    aria-hidden 保留（读屏不该念"零一"），但它不再是免检理由。 */}
-                <span className="index-num text-xl font-bold text-stone-500 transition-colors duration-200 group-hover:text-brand-700" aria-hidden="true">
-                  {String(i + 1).padStart(2, '0')}
-                </span>
+              {/* 序号：编辑式目录的骨架。用 .index-num（Bricolage + tabular-nums），默认 stone-600
+                  保证过对比度，hover 转柿色 —— 它是这一行"被指向"的主信号 */}
+              <span
+                aria-hidden="true"
+                className="index-num w-7 shrink-0 text-lg font-bold text-stone-600 transition-colors duration-200 group-hover:text-brand-700 sm:w-9 sm:text-2xl"
+              >
+                {String(i + 1).padStart(2, '0')}
               </span>
 
-              <span className="mt-1 block text-base font-bold tracking-tight text-ink">{cat.name}</span>
-              <span className="block text-xs leading-relaxed text-stone-500">{cat.description}</span>
+              {/* 图标：裸 emoji，去掉旧版那个方形灰托（icon-plate）—— 托是"卡片时代"的残留，
+                  在列表里只显脏 */}
+              <span aria-hidden="true" className="shrink-0 text-xl sm:text-2xl">{cat.icon}</span>
 
-              {/* 底栏：进入指示。hover 时短线伸展，把"可以进去"说成动作而不是图标 */}
-              <span className="mt-auto flex w-full items-center gap-2 pt-3">
-                <span className="h-px flex-1 bg-gray-200 transition-colors duration-300 group-hover:bg-brand-400" aria-hidden="true" />
-                <span className="text-2xs font-semibold tracking-widest text-stone-600 transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-brand-700">
-                  进入
+              <span className="flex min-w-0 flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-3">
+                <span className="text-base font-bold tracking-tight text-ink transition-colors duration-200 group-hover:text-brand-800 sm:text-lg">
+                  {cat.name}
                 </span>
+                <span className="truncate text-xs leading-relaxed text-stone-500">{cat.description}</span>
               </span>
-            </button>
+
+              {/* 引导线（dotted leader）：杂志目录把条目连到页码的那根线。桌面才显（移动端
+                  宽度不够，硬塞会挤压文字）；hover 由灰转柿，把"可以进去"说成动作 */}
+              <span
+                aria-hidden="true"
+                className="mx-1 hidden flex-1 self-center border-t border-dotted border-stone-300 transition-colors duration-300 group-hover:border-brand-500 sm:block"
+              />
+              <span className="flex shrink-0 items-center gap-1.5 text-2xs font-semibold tracking-widest text-stone-600 transition-colors duration-200 group-hover:text-brand-700">
+                进入
+                <span aria-hidden="true" className="transition-transform duration-200 group-hover:translate-x-1">›</span>
+              </span>
+            </Link>
           ))}
         </nav>
-
         {/* 页脚：一条短线 + 极小字，收住首屏不留悬空 */}
         <footer className="mt-16 flex flex-col items-center gap-3">
           <span className="brand-bar h-0.5 w-16 rounded-full opacity-70" aria-hidden="true" />

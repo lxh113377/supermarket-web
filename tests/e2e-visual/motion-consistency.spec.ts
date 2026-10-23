@@ -39,12 +39,28 @@ const ROUTES: Array<[string, string]> = [
   ['admin', '/#/admin'],
 ]
 
-/** 在册曲线：三条贝塞尔 + linear（匀速循环用） */
+/** 在册曲线：四条贝塞尔 + linear（匀速循环用） */
 const ALLOWED_EASING = new Set([
   'cubic-bezier(0.4, 0, 0.2, 1)',    // Tailwind 默认 ease（material standard）：过渡用
   'cubic-bezier(0.16, 1, 0.3, 1)',   // 入场动画专用：快出缓收，有「落位」感
   'cubic-bezier(0, 0, 0.2, 1)',      // ease-out 强调曲线：路由进度条
   'linear',                           // 跑马灯 / 骨架屏：循环位移必须匀速
+  /**
+   * ease-in-out（= CSS 关键字 ease-in-out，也是 Tailwind 内置 animate-pulse / animate-ping
+   * 的 timing function）。2026-10-23 补，触发原因是一次「判据看不见的真缺口」：
+   *   HomePage 的营业状态点用 animate-pulse（呼吸灯 = 正在营业，语义正确），而 Tailwind
+   *   内置 pulse 的曲线就是 cubic-bezier(0.4, 0, 0.6, 1)。该状态点**只在营业中渲染**
+   *   ⇒ 判据此前从未扫到它；直到本轮修好「营业状态冻结」bug，状态真的会翻成营业中，
+   *   这个元素才第一次出现在取样面上并被判为离群。
+   * 为什么补白名单而不是改代码：① 呼吸灯用 pulse 是正确的语义选择，为迁就判据换曲线是
+   *   本末倒置；② 白名单原缺的是**基础曲线族** —— config 里 shimmer 用 ease-in-out 关键字、
+   *   浏览器 computed 值同样归一成这条 cubic-bezier，证明缺的不是某个特例；③ 判据口径是
+   *   「离群」而非「少」：standard / decelerate / ease-in-out 这三条本来就是 Tailwind 设计
+   *   系统的一部分，排除它们会让判据对内置动效系统性误报。
+   * 边界：只放行 ease-in-out 本身，**不放行任意自造 cubic-bezier** —— 新曲线仍须进白名单
+   *   并写明可证伪理由（本文件既有口径不变）。
+   */
+  'cubic-bezier(0.4, 0, 0.6, 1)',
 ])
 
 const DUR_STEP_MS = 50

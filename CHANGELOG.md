@@ -1,5 +1,52 @@
 ## [未发布]
 
+### 2026-10-23 服务索引改版：四个白卡方块 → 编辑式目录列表（老大点名「好丑」）
+
+- 诊断（截图实测，两档视口）：旧版四张 bg-white + shadow 的卡片压在暖白页底（#fafaf9）上，
+  白卡与底色几乎无对比 ⇒ 显得廉价；桌面端靠 margin 交错（lg:-mt-6）想打破四等分，结果
+  看着像没排齐；底部「一条灰线 + 进入」是模板站的标准 affordance；emoji 还带一个方形灰托
+  （icon-plate）；每卡信息密度极低（四张卡才装四个词）。
+- 换成编辑式目录列表（杂志目录那种一行一条）：大号序号（.index-num，Bricolage +
+  tabular-nums）+ 裸 emoji 图标 + 名称/描述 + 点状引导线（leader）+ 进入箭头。
+  信息密度从"四张卡"压成"四行"，扫读路径是一条竖线，也更贴本站「纸 + 墨 + 柿」的编辑气质。
+  分隔改用 border 不用卡片阴影 —— 留白本身就是分隔。
+- 三个关键取舍都有依据：
+  ① 用 Link 而非 button+onClick —— 保留原生链接语义（键盘 Tab、右键新标签、读屏链接列表），
+     与 RelatedProducts 同口径（该文件头注写明了这个理由）。改完立刻抓到一个连带问题：
+     单测里 mock 掉 react-router-dom 后 Link 拿不到 Router 上下文，抛
+     「Cannot destructure property basename of useContext(...) as it is null」⇒
+     测试改用 MemoryRouter 包裹、只替换 useNavigate/useParams（比整包 mock 更接近真实渲染）。
+  ② **刻意不加「每类 N 条」**：那要把 services.ts（约 10KB 服务/表单定义）重新拉回首页，
+     破坏 data/categories.ts 拆包的本意（该文件头注明写「HomePage 只需这 4 条分类数据」）。
+     真想加就得先把条数做成独立轻量模块，属另一件事。
+  ③ 序号色必须过对比度：序号是 aria-hidden 装饰，但视力正常用户要看 ⇒ 默认 stone-600
+     （对暖白 7.3:1）而不是更浅的 stone-400（只有 2.41:1）；hover 底用 brand-50/70
+     （stone-500 压 brand-50 实测 4.64:1，比压 gray-100 的 4.36 不足更安全）。
+- 一次自己引入又当场修掉的布局缺陷：第一版把文字容器和引导线**都**设成 flex-1（平分剩余
+  空间）⇒ 文字短就留下一大段死白、线孤零零飘在右半区中间，看着像断开的表单下划线。
+  改成文字容器取自然宽、引导线独占剩余空间，并把实线换成 border-dotted（leader 的本来
+  形态）。截图复核确认线从描述末尾一路连到「进入」。
+
+### 2026-10-23 动效判据的白名单缺了 ease-in-out（判据看不见的真缺口）
+
+- 触发链值得记：本轮修好「营业状态冻结」bug 之后，HomePage 的营业状态点
+  （animate-pulse 呼吸灯，只在营业中渲染）**第一次出现在动效判据的取样面上**，
+  当场被判为离群：缓动 cubic-bezier(0.4, 0, 0.6, 1) 不在册。
+- 根因不是代码，是白名单：Tailwind 内置 animate-pulse / animate-ping 的 timing function
+  就是 ease-in-out（computed 值归一成上述 cubic-bezier），而白名单原先只有
+  standard / decelerate / linear 三条。config 里的 shimmer 一直在用 ease-in-out 关键字，
+  说明缺的是**基础曲线族**而非某个特例。
+- 处置：补白名单而不是改代码。① 呼吸灯用 pulse 是正确的语义选择，为迁就判据换曲线是本末
+  倒置；② 判据口径是「离群」而非「少」，把 Tailwind 设计系统自带的曲线排除在外会让判据
+  对内置动效系统性误报 —— 一个会哭狼的判据下一轮就会被静音（该文件头注写明的原则）。
+  边界写进注释：只放行 ease-in-out 本身，**不放行任意自造 cubic-bezier**，新曲线仍须进
+  白名单并写可证伪理由。
+- 变异验真：往首页注入一个自造曲线 cubic-bezier(0.9, 0.9, 0.9, 0.9) ⇒ 判据当场红并点名
+  「缓动不在册」；还原逐字比对 RESTORED:true。⇒ 证明补白名单没有把判据变成万能放行。
+
+- 验证：oxlint 0 警告 / tsc 零错 / check-doc-consistency rc=0（单测文件 145 未变）/
+  report:item-budgets GREEN（最大三件 HomePage 2.4KB 等，均远低于预算）/ motion-consistency
+  9 条全过 / businessHoursHook 6 条全过 / 变异验真 RED + RESTORED:true。
 ### 2026-10-23 营业状态冻结 bug：走钟每秒跳、「营业中/已打烊」却只在挂载时算一次
 
 - 一手现象（老大报「营业时间显示已打烊」）：五个消费点都写成 const open = isBusinessHours()
