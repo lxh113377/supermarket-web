@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+// @probe-safe: 骨架实测 rc=2 / 0s（缺 .dev.vars 的 BACKUP_PASSPHRASE 即在首次 wrangler 调用前 bail，fail-closed 不产明文）；
+//   d1 export --remote 与 backup-crypto 四步全在其后。真跑回执：rc=0 / 2,333,946B → 2,333,995B 往返逐字节相等。
 /** d1-local-backup —— 本机 D1 备份链（round-4 立，#37 判据 2 的产物）
  *
  *  为什么有它：CI 侧 `CF_D1_BACKUP_TOKEN` secret 是**真外部凭据**（需 Cloudflare 控制台创建），
