@@ -75,7 +75,7 @@ export default function OrderSuccessPage() {
         {/* 五项全空时整张卡不渲染：实测深链直达留下的就是一张 42px 高的空白框，
             它不报错、只是让页面看起来坏了。 */}
         {hasCardInfo && (
-        <div className="bg-white rounded-2xl p-5 mb-6 shadow-card border border-gray-100/80 animate-fade-in-up stagger-2">
+        <div className="bg-panel rounded-2xl p-5 mb-6 shadow-card border border-gray-100/80 animate-fade-in-up stagger-2">
           {building && (
             <>
               <p className="text-xs text-stone-500 mb-1.5">楼栋号</p>
@@ -89,7 +89,7 @@ export default function OrderSuccessPage() {
             </>
           )}
           {totalAmount > 0 && (
-            <p className={`price-num text-lg font-bold text-brand-700 ${building || room ? 'mt-2' : ''}`}>{formatYuan(totalAmount)}</p>
+            <p className={`price-num text-lg font-bold text-brand-300 ${building || room ? 'mt-2' : ''}`}>{formatYuan(totalAmount)}</p>
           )}
           {discountAmount > 0 && (
             <p className="text-xs text-green-700 mt-1" role="status">满减已优惠 {formatYuan(discountAmount)}</p>

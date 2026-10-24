@@ -96,7 +96,7 @@ export default function AssistantPage() {
   return (
     <div role="main" id="main-content" tabIndex={-1} className="flex flex-col h-full min-h-screen bg-surface">
       {/* 返回栏 */}
-      <div className="flex items-center px-4 py-2.5 bg-white/95 backdrop-blur-sm border-b border-gray-100">
+      <div className="flex items-center px-4 py-2.5 bg-panel/95 backdrop-blur-sm border-b border-gray-100">
         <button
           onClick={() => navigate(-1)}
           aria-label="返回"
@@ -105,7 +105,7 @@ export default function AssistantPage() {
           ←
         </button>
         <h1 className="ml-2 flex items-center gap-1.5 text-sm font-semibold text-ink-soft">
-          <IconRobot className="w-4 h-4 text-brand-700" />
+          <IconRobot className="w-4 h-4 text-brand-300" />
           AI 导购助手
         </h1>
       </div>
@@ -146,10 +146,10 @@ export default function AssistantPage() {
             <div
               className={`max-w-[78%] px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-line rounded-2xl animate-slide-down ${
                 m.role === 'user'
-                  ? 'bg-ink text-white rounded-br-md'
+                  ? 'bg-espresso text-cream rounded-br-md'
                   : m.isError
                     ? 'bg-red-50 text-red-700 border border-red-100 rounded-bl-md'
-                    : 'bg-white border border-gray-100/80 shadow-card text-stone-700 rounded-bl-md'
+                    : 'bg-panel border border-gray-100/80 shadow-card text-stone-700 rounded-bl-md'
               }`}
             >
               {m.text}
@@ -157,7 +157,7 @@ export default function AssistantPage() {
                 <button
                   onClick={() => void send(lastRetryRef.current)}
                   disabled={pending}
-                  className="mt-2 text-xs font-semibold text-brand-700 underline underline-offset-2 disabled:opacity-50"
+                  className="mt-2 text-xs font-semibold text-brand-300 underline underline-offset-2 disabled:opacity-50"
                 >
                   重试
                 </button>
@@ -173,7 +173,7 @@ export default function AssistantPage() {
               <button
                 key={q}
                 onClick={() => void send(q)}
-                className="px-3 py-1.5 rounded-full bg-white border border-gray-200 text-xs text-stone-600 hover:border-brand-500 hover:text-brand-700 transition duration-150 active:scale-[0.98]"
+                className="px-3 py-1.5 rounded-full bg-panel border border-gray-200 text-xs text-stone-600 hover:border-brand-500 hover:text-brand-300 transition duration-150 active:scale-[0.98]"
               >
                 {q}
               </button>
@@ -187,7 +187,7 @@ export default function AssistantPage() {
             <div className="bg-brand-500 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-ink">
               <IconRobot className="w-4 h-4" />
             </div>
-            <div className="bg-white border border-gray-100/80 shadow-card rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-1">
+            <div className="bg-panel border border-gray-100/80 shadow-card rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-1">
               <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0ms' }} />
               <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '150ms' }} />
               <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '300ms' }} />
@@ -200,7 +200,7 @@ export default function AssistantPage() {
       {/* 输入区 */}
       <form
         onSubmit={onSubmit}
-        className="border-t border-gray-100 bg-white/95 backdrop-blur-sm px-4 py-3 safe-bottom"
+        className="border-t border-gray-100 bg-panel/95 backdrop-blur-sm px-4 py-3 safe-bottom"
       >
         <div className="flex items-center gap-2 w-full max-w-3xl mx-auto">
         <input
@@ -217,7 +217,7 @@ export default function AssistantPage() {
           type="submit"
           disabled={pending || !input.trim()}
           aria-label="发送"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-500 text-ink shadow-brand transition duration-200 hover:bg-brand-400 active:scale-[0.94] disabled:pointer-events-none disabled:opacity-40"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-500 text-espresso shadow-brand transition duration-200 hover:bg-brass active:scale-[0.94] disabled:pointer-events-none disabled:opacity-40"
         >
           <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2"
                strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

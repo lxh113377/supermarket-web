@@ -41,7 +41,7 @@ export default function OrderQueryPage() {
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-surface animate-fade-in">
-      <div className="px-5 py-4 bg-white/95 backdrop-blur-sm border-b border-gray-100 flex items-center justify-between">
+      <div className="px-5 py-4 bg-panel/95 backdrop-blur-sm border-b border-gray-100 flex items-center justify-between">
         <button
           onClick={() => navigate(-1)}
           className="w-9 h-9 rounded-full flex items-center justify-center text-stone-500 hover:text-stone-700 hover:bg-gray-100 transition duration-200 active:scale-90"
@@ -62,12 +62,12 @@ export default function OrderQueryPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') void lookup(input) }}
-            className="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:border-brand-600"
+            className="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-panel focus:border-brand-600"
           />
           <button
             onClick={() => void lookup(input)}
             disabled={loading}
-            className="px-4 py-2.5 bg-brand-500 text-ink rounded-xl text-sm font-medium disabled:opacity-50 active:scale-[0.98] transition"
+            className="px-4 py-2.5 bg-brand-500 text-espresso rounded-xl text-sm font-medium disabled:opacity-50 active:scale-[0.98] transition"
           >
             {loading ? '查询中' : '查询'}
           </button>
@@ -76,7 +76,7 @@ export default function OrderQueryPage() {
           {notice && <p className="mt-3 text-sm text-amber-800 bg-amber-50 border border-amber-200/80 rounded-xl px-3 py-2">{notice}</p>}
 
           {status && (
-            <div className="mt-4 bg-white rounded-2xl p-5 shadow-card border border-gray-100/80">
+            <div className="mt-4 bg-panel rounded-2xl p-5 shadow-card border border-gray-100/80">
               <p className="text-xs text-stone-500 mb-1">订单号</p>
               <p className="text-sm font-mono text-stone-700 break-all mb-4">{queried}</p>
               {status.status === 'cancelled' ? (
@@ -91,7 +91,7 @@ export default function OrderQueryPage() {
                         <span
                           aria-hidden="true"
                           className={`w-5 h-5 rounded-full flex items-center justify-center text-3xs shrink-0 ${
-                            done ? 'bg-green-700 text-white' : current ? 'bg-brand-500 text-ink ring-4 ring-brand-300' : 'bg-gray-100 text-stone-600'
+                            done ? 'bg-green-700 text-cream' : current ? 'bg-brand-500 text-espresso ring-4 ring-brand-300' : 'bg-gray-100 text-stone-600'
                           }`}
                         >
                           {done ? '✓' : i + 1}
@@ -110,7 +110,7 @@ export default function OrderQueryPage() {
               {status.status === 'pending' && (
                 <button
                   onClick={() => navigate('/payment', { state: { orderId: queried, totalAmount: 0 } })}
-                  className="mt-4 w-full py-3 bg-brand-500 text-ink rounded-xl text-sm font-medium active:scale-[0.98] transition"
+                  className="mt-4 w-full py-3 bg-brand-500 text-espresso rounded-xl text-sm font-medium active:scale-[0.98] transition"
                 >
                   去支付
                 </button>

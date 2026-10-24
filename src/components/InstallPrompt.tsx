@@ -84,7 +84,7 @@ export default function InstallPrompt() {
        页面吸底/浮条 z-20~30 < 安装引导 z-[70] < 模态遮罩 z-[80]（Overlay） < 路由加载 z-[100]
        原为 z-[90]，会盖在模态遮罩之上 —— 弹窗打开时「立即添加」按钮可被误点。 */
     <div className="fixed bottom-0 inset-x-0 z-[70] px-4 pb-4 pointer-events-none">
-      <div className="max-w-lg mx-auto bg-white rounded-2xl border border-gray-100/80 shadow-elevated p-4 flex items-center gap-3 pointer-events-auto animate-slide-up safe-bottom">
+      <div className="max-w-lg mx-auto bg-panel rounded-2xl border border-gray-100/80 shadow-elevated p-4 flex items-center gap-3 pointer-events-auto animate-slide-up safe-bottom">
         <div className="bg-brand-500 h-10 w-10 shrink-0 rounded-xl" aria-hidden="true" />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-ink">添加到主屏幕</p>
@@ -98,7 +98,7 @@ export default function InstallPrompt() {
         {deferred && (
           <button
             onClick={install}
-            className="px-3.5 py-2 bg-brand-500 text-ink rounded-xl text-xs font-medium hover:bg-brand-400 active:scale-95 transition shrink-0"
+            className="px-3.5 py-2 bg-brand-500 text-espresso rounded-xl text-xs font-medium hover:bg-brass active:scale-95 transition shrink-0"
           >
             立即添加
           </button>

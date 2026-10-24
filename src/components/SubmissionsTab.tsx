@@ -166,7 +166,7 @@ export default function SubmissionsTab() {
         <button
           onClick={() => setFilter('all')}
           aria-pressed={filter === 'all'}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition active:scale-[0.98] ${filter === 'all' ? 'bg-brand-500 text-ink' : 'bg-gray-100 text-stone-600'}`}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition active:scale-[0.98] ${filter === 'all' ? 'bg-brand-500 text-espresso' : 'bg-gray-100 text-stone-600'}`}
         >
           全部 ({submissions.length})
         </button>
@@ -175,7 +175,7 @@ export default function SubmissionsTab() {
             key={c.id}
             onClick={() => setFilter(c.id)}
             aria-pressed={filter === c.id}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition active:scale-[0.98] ${filter === c.id ? 'bg-brand-500 text-ink' : 'bg-gray-100 text-stone-600'}`}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition active:scale-[0.98] ${filter === c.id ? 'bg-brand-500 text-espresso' : 'bg-gray-100 text-stone-600'}`}
           >
             {c.name} ({countsByCategory[c.id] || 0})
           </button>
@@ -191,7 +191,7 @@ export default function SubmissionsTab() {
       ) : (
         <div className="space-y-3">
           {filtered.map(s => (
-            <div key={s._id} className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+            <div key={s._id} className="bg-panel border border-gray-100 rounded-xl p-4 shadow-sm">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
@@ -295,7 +295,7 @@ export default function SubmissionsTab() {
                   aria-label={deleteArmed(s._id) ? '确认删除该提交（不可撤销）' : '删除该提交'}
                   className={
                     'tap-44 px-3 py-2 rounded-lg text-xs font-medium transition-colors duration-200 ' +
-                    (deleteArmed(s._id) ? 'bg-red-700 text-white' : 'bg-red-50 text-red-700 hover:bg-red-100')
+                    (deleteArmed(s._id) ? 'bg-red-700 text-cream' : 'bg-red-50 text-red-700 hover:bg-red-100')
                   }
                 >
                   {deleteArmed(s._id) ? '确认删除' : '删除'}
@@ -323,7 +323,7 @@ export default function SubmissionsTab() {
         <button
           onClick={() => setPreview(null)}
           data-autofocus
-          className="mt-3 mx-auto block px-5 py-2.5 bg-white/90 text-stone-700 rounded-xl text-sm font-medium"
+          className="mt-3 mx-auto block px-5 py-2.5 bg-panel/90 text-stone-700 rounded-xl text-sm font-medium"
         >
           关闭
         </button>

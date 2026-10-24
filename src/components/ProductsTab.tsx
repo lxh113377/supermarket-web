@@ -228,7 +228,7 @@ export default function ProductsTab({ products, categories, onDataChange }: {
           />
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500 text-sm" aria-hidden="true">🔍</span>
         </div>
-        <button onClick={() => setEditingId('new')} className="shrink-0 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-medium text-ink transition hover:bg-brand-400 active:scale-[0.98]">+ 新增</button>
+        <button onClick={() => setEditingId('new')} className="shrink-0 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-medium text-ink transition hover:bg-brass active:scale-[0.98]">+ 新增</button>
       </div>
 
       {/* 新增表单（内联在列表顶部，非弹窗） */}
@@ -253,7 +253,7 @@ export default function ProductsTab({ products, categories, onDataChange }: {
             key={f.id}
             onClick={() => setFilterCat(f.id)}
             aria-pressed={filterCat === f.id}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition active:scale-[0.98] ${filterCat === f.id ? 'bg-brand-500 text-ink' : 'bg-gray-100 text-stone-600 hover:bg-gray-200'}`}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition active:scale-[0.98] ${filterCat === f.id ? 'bg-brand-500 text-espresso' : 'bg-gray-100 text-stone-600 hover:bg-gray-200'}`}
           >
             {f.label}
           </button>
@@ -300,13 +300,13 @@ export default function ProductsTab({ products, categories, onDataChange }: {
 
       {/* 批量操作栏 */}
       {selectedIds.size > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3 z-30 shadow-lg safe-bottom">
+        <div className="fixed bottom-0 left-0 right-0 bg-panel border-t border-gray-200 px-4 py-3 z-30 shadow-lg safe-bottom">
           <div className="max-w-lg mx-auto space-y-2">
             <div className="flex items-center gap-2">
               <span className="text-xs text-stone-500 shrink-0" aria-live="polite">已选 {selectedIds.size} 项</span>
               <div className="flex-1 flex gap-1.5">
-                <button onClick={() => batchAction('enable')} className="flex-1 py-2 bg-green-700 text-white rounded-lg text-xs font-medium">上架</button>
-                <button onClick={() => batchAction('disable')} className="flex-1 py-2 bg-ink text-white rounded-lg text-xs font-medium">下架</button>
+                <button onClick={() => batchAction('enable')} className="flex-1 py-2 bg-green-700 text-cream rounded-lg text-xs font-medium">上架</button>
+                <button onClick={() => batchAction('disable')} className="flex-1 py-2 bg-espresso text-cream rounded-lg text-xs font-medium">下架</button>
                 {/* 两步确认：batchAction 内部判断第一下只点亮。上架/下架可逆，不套两步确认。
                     ⚠️ armed 文案刻意只用「确认」两字，不写「确认删除 63 个」—— 实测后者在
                     68px 的 flex-1 按钮里会折成两行（文字高 32px），而这一排是 flex 容器、
@@ -318,7 +318,7 @@ export default function ProductsTab({ products, categories, onDataChange }: {
                   onClick={() => batchAction('delete')}
                   onBlur={disarmConfirm}
                   aria-label={isConfirmArmed('batch:delete') ? `确认删除选中的 ${selectedIds.size} 个商品（不可撤销）` : '批量删除选中商品'}
-                  className="flex-1 whitespace-nowrap py-2 bg-red-700 text-white rounded-lg text-xs font-medium transition-colors duration-200"
+                  className="flex-1 whitespace-nowrap py-2 bg-red-700 text-cream rounded-lg text-xs font-medium transition-colors duration-200"
                 >
                   {isConfirmArmed('batch:delete') ? '确认' : '删除'}
                 </button>
@@ -359,7 +359,7 @@ export default function ProductsTab({ products, categories, onDataChange }: {
                   : `应用批量改价：${priceTarget || '请先输入价格'}`}
                 className={
                   'shrink-0 min-w-14 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium transition-colors duration-200 ' +
-                  (isConfirmArmed('batch:price') ? 'bg-red-700 text-white' : 'bg-brand-500 text-ink')
+                  (isConfirmArmed('batch:price') ? 'bg-red-700 text-cream' : 'bg-brand-500 text-espresso')
                 }
               >
                 {isConfirmArmed('batch:price') ? '确认改价' : '应用改价'}

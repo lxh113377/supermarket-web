@@ -2,39 +2,52 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ═══════════════════════════════════════════════════════════
+   江科一站通 · 设计令牌（2026-10-25 v2 · 深褐黑 / 森林绿 / 黄铜金）
+   三色来自老大钦定的色卡：
+     深褐黑 #2A221D —— 沉静、厚实、原始感 → 全站之底
+     森林绿 #1F4A39 —— 自然、稳固、生命力 → 结构/状态
+     黄铜金 #B18739 —— 坚韧、权威、岁月感 → 唯一强调
+   前景铁律（WCAG 实算见 docs/redesign-awwwards-v2.md）：
+     金底配褐字 4.75:1；褐/绿底配米白 13.64 / 8.75:1；
+     弱化正文 #A99C88（≥4.5:1），禁止低 alpha 小字。
+   ═══════════════════════════════════════════════════════════ */
 :root {
-  /* 品牌渐变条（柿子黄 → 橙 → 深绿），品牌视觉链路唯一真相源 */
-  --brand-bar: linear-gradient(90deg, #facc15, #f97316, #14532d);
-  /* 品牌主色唯一真相源（JS 内联样式也从此读取，如加购飞行动画圆点） */
-  --brand-500: #eab308;
-  /* 墨与纸：全站「深底」和「最重前景」的唯一落点（暖黑，与暖白页底同色温，不用纯黑） */
-  --ink: #1c1917;
-  --paper: #fafaf9;
-  /* 柿色底上永远配墨字（9.12:1 AAA）；这条规则的存在理由见 index.css 顶部注释 */
-  --on-persimmon: #1c1917;
-  /* 焦点环用主色，但落在深底时切换成高亮描边（见 :focus-visible 的 :where 分支） */
-  --focus-ring: #a16207;
-  /* 看板图表色板（唯一真相源，ECharts 主题从此读取，消除硬编码色值）。
-     2026-10-22 数据墨色重整：图表里的线/条/扇区是**图形对象**，WCAG 1.4.11 要求 ≥3:1，
-     旧值 b1 #facc15 压白卡只有 1.53:1（营收线几乎看不见）、b3 #f97316 只有 2.8:1，
-     轴文字 #9ca3af 2.54:1（9–11px 小字，需 4.5:1）。
-     注意：这里的"柿黄下沉为琥珀墨"与 UI 层的通则不冲突 —— UI 上柿子黄是**底色**
-     （配墨字 9.12:1），而图表里它是**画在白纸上的线**，没有可配的底色，只能自己够深。
-     b4 是饼图第三分类专用：三色的亮度必须两两拉开（Δlum ≥0.07），否则红绿色盲下
-     三个扇区糊成一片。实测 amber/dark-green/teal 三档 Δlum = 0.094 / 0.165 / 0.071。 */
-  --chart-b1: #b45309;
-  --chart-b2: #14532d;
-  --chart-b3: #7c2d12;
-  --chart-b4: #0d9488;
-  --chart-grid: #f3f4f6;
-  --chart-text: #57534e;
+  --brass: #b18739;
+  --brass-bright: #d9b166;
+  --brass-deep: #7a5c20;
+  --espresso: #2a221d;
+  --espresso-deep: #241e19;
+  --espresso-950: #1c1714;
+  --panel: #332a24;
+  --panel-deep: #3e332b;
+  --forest: #1f4a39;
+  --forest-mid: #2c5f4b;
+  --cream: #f4efe7;
+  --cream-deep: #ede6da;
+  --mute: #a99c88;
+  --line: rgba(217, 177, 102, 0.16);
+  --line-strong: rgba(217, 177, 102, 0.3);
+  /* 品牌渐变条：黄铜 → 亮金 → 森林绿（金色链路收进绿，像黄铜嵌入木纹） */
+  --brand-bar: linear-gradient(90deg, #7a5c20, #b18739 30%, #d9b166 55%, #1f4a39 100%);
+  --brand-500: #b18739;
+  --ink: #f4efe7;
+  --paper: #2a221d;
+  --on-brass: #2a221d;
+  --focus-ring: #d9b166;
+  /* 看板图表色板（唯一真相源）。暗底上的线/条是图形对象，WCAG 1.4.11 ≥3:1：
+     亮金 6.97 / 林绿柔 3.66+（配亮金文字）/ 黄铜 4.27 / 雾青 6.6 —— 两两亮度差 ≥0.07。 */
+  --chart-b1: #d9b166;
+  --chart-b2: #4f8f6d;
+  --chart-b3: #b18739;
+  --chart-b4: #8fb3c4;
+  --chart-grid: rgba(217, 177, 102, 0.1);
+  --chart-text: #a99c88;
 }
 
 /* 无障碍：用户偏好减少动效时，全局禁用动画/过渡（含 JS 动画兜底，如 count-up） */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
@@ -47,15 +60,28 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-/* 视口高度：先用 100%，再用 dvh 覆盖。
-   dvh = 动态视口高度，解决移动端地址栏收缩 / 键盘弹出时 100% 导致的
-   「页面高度跳变、吸底元素被顶出屏幕」问题（不支持 dvh 的旧 WebView 自动留在 100%）。 */
-/* === 排版双声部（2026-10-22 设计升级）===
-   display = Bricolage Grotesque，**自托管** public/fonts/（SIL OFL 1.1，许可证随包），
-   只取 latin 子集 40KB、可变字重 200–800。为什么只 latin：中文没有廉价自托管方案，
-   且本站的拉丁/数字恰恰是最需要识别度的部分（价格、KPI、时间戳、404）。
-   unicode-range 限定后，汉字自动落到下面的中文正文栈，不会出「豆腐块」。
-   CSP：font-src 'self' 已允许同源 woff2，不新增任何放行面。 */
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  font-feature-settings: 'tnum' 0;
+  letter-spacing: -0.011em;
+  color: var(--cream);
+  background: var(--espresso);
+  -webkit-overflow-scrolling: touch;
+  touch-action: manipulation;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+@supports (height: 100dvh) {
+  html, body, #root { height: 100dvh; }
+}
+
+#root { display: flex; flex-direction: column; }
+
+/* 自托管展示体（latin 子集，价格/KPI/时间戳）—— unicode-range 外自动落中文栈 */
 @font-face {
   font-family: 'Bricolage Grotesque';
   font-style: normal;
@@ -66,60 +92,19 @@
     U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF;
 }
 
-html, body, #root {
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-  font-feature-settings: 'tnum' 0;
-  letter-spacing: -0.011em;
-  color: var(--ink);
-  background: var(--paper);
-  -webkit-overflow-scrolling: touch;
-  touch-action: manipulation;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-}
+input, button { font-family: inherit; }
+button { cursor: pointer; color: inherit; }
+a { color: inherit; }
 
-@supports (height: 100dvh) {
-  html, body, #root {
-    height: 100dvh;
-  }
-}
-
-#root {
-  display: flex;
-  flex-direction: column;
-}
-
-input, button {
-  font-family: inherit;
-}
-
-button {
-  cursor: pointer;
-}
-
-/* === 全局键盘焦点环（无障碍）===
-   此前全站只有 2 处 Tailwind focus-visible 类，键盘用户 Tab 到大部分按钮
-   完全看不出焦点在哪。这里给所有可交互元素兜一个统一的可见焦点环。
-   用 :focus-visible 而非 :focus —— 鼠标点击不会出现焦点环，不干扰视觉。 */
 :focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 3px;
 }
+[class*='focus-visible:outline']:focus-visible { outline: none; }
 
-/* 跳到主要内容（见 components/SkipLink.tsx）：未聚焦时**移出视口**。
-   为什么不用常见的「收成 1px + clip-path」写法（本仓实测两轮才走对）：
-     · 只写 width:1px 无效 —— a 是 inline，width/height 压根不生效，实测撑成 32×19；
-     · 补 display:block 仍无效 —— box-sizing:border-box 下 border-box 不会小于
-       padding，16px×2 又把 1px 顶回 32px；
-     · 连 padding 一起归零后盒子确实 1×1 了，但它**仍然占在视口左上角**，
-       被触控目标判据按 WCAG 2.5.8 的「以中心画 24×24 方框」算进重叠
-       （实测与返回按钮压 9px）—— 而那条判据是对的，一个占在屏幕上的东西就该被量。
-   正解是承认它的本质：这是**纯键盘**的跳转入口，不是拇指可点的目标，
-   所以它不该待在视口里。fixed 元素移出视口不会产生滚动条，也不参与任何
-   视口内的几何判据 ⇒ 判据一行未改。 */
+::selection { background: var(--brass); color: var(--espresso-950); }
+
+/* 跳到主要内容：纯键盘入口，未聚焦时移出视口（原因见 git 历史，勿改回 1px 方案） */
 .skip-link {
   position: fixed;
   top: -9999px;
@@ -127,144 +112,83 @@ button {
   z-index: 200;
   padding: 0.6rem 1rem;
   border-radius: 0.75rem;
-  background: var(--ink);
-  color: #fff;
+  background: var(--brass);
+  color: var(--espresso-950);
   font-size: 0.875rem;
   font-weight: 600;
   text-decoration: none;
   white-space: nowrap;
 }
-.skip-link:focus-visible {
-  top: 0.75rem;
-  left: 0.75rem;
-}
+.skip-link:focus-visible { top: 0.75rem; left: 0.75rem; }
 
-/* 已有自绘焦点样式的元素（Tailwind focus-visible:outline-*）不重复描边 */
-[class*='focus-visible:outline']:focus-visible {
-  outline: none;
-}
+.safe-offset-bottom { bottom: calc(env(safe-area-inset-bottom) + 1.25rem); }
+.safe-bottom { padding-bottom: calc(env(safe-area-inset-bottom) + 1rem); }
 
-/* === 全局文字选区（原创性 × 可读性）===
-   此前全站没有任何 ::selection 规则，实测选中首页标题时选区底色是操作系统默认蓝
-   #315ea8（截图主色分布里占 54%+）—— 与暖色品牌（柿黄 + 暖白 + 墨黑）完全脱节，
-   是"一眼没设计过"的典型痕迹。
-
-   为什么选 var(--focus-ring)（#a16207）而不是品牌主色柿黄：选区必须与**页面底色**拉开，
-   柿黄系做不到 —— 实测 brand-200 #fde047 压白底只有 1.32:1、压暖白页底 1.26:1、
-   压封面柿色 1.45:1，全部"隐身"（看不出哪里被选中）。而 brand-700 在八种实测底色上
-   与底差分别 4.92 / 4.71 / 4.52 / 4.47 / 2.57 / 1.68 / 3.55 / 1.85:1，全部明显。
-
-   文字统一白色：选区背景固定成中等深度后，无论元素原本配墨字还是白字，
-   换成 brand-700 底 + 白字都是 4.92:1（过 AA），于是一条规则覆盖全站，
-   不需要按底色分支（分支就得给每类元素写选择器，必然漏）。
-
-   与 --focus-ring 同值是刻意的：焦点环和选区表达的是同一件事 ——「你正在操作这块内容」，
-   共用一个令牌意味着将来改"操作指示色"时两处一起变，不会漂出一个来。 */
-::selection {
-  background-color: var(--focus-ring);
-  color: #fff;
-}
-
-/* === 固定悬浮层的安全区定位 ===
-   iPhone 底部小黑条会盖住 fixed bottom 的浮层（如购物车结算条）。 */
-.safe-offset-bottom {
-  bottom: calc(env(safe-area-inset-bottom) + 1.25rem);
-}
-
-/* === 路由切换顶部进度条（原实现是 App.tsx 内联 <style>，每次渲染注入一次）=== */
 @keyframes routeProgress {
   0% { width: 0; opacity: 1; }
   70% { width: 85%; opacity: 1; }
   100% { width: 100%; opacity: 0; }
 }
-.route-progress {
-  animation: routeProgress 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-}
+.route-progress { animation: routeProgress 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
 
-img {
-  max-width: 100%;
-  display: block;
-  -webkit-touch-callout: none;
-}
+img { max-width: 100%; display: block; -webkit-touch-callout: none; }
 
-/* iOS/微信内置浏览器：输入聚焦不缩放（≥16px），底部安全区留白 */
 @media (max-width: 640px) {
-  input, select, textarea {
-    font-size: 16px !important;
-  }
+  input, select, textarea { font-size: 16px !important; }
 }
 
-/* iPhone 底部小黑条安全区：挂到所有 fixed bottom 栏 */
-.safe-bottom {
-  padding-bottom: calc(env(safe-area-inset-bottom) + 1rem);
-}
-
-/* === 设计系统：全局组件类 === */
 @layer components {
-  /* === 触控目标扩展（无障碍/可用性）===
-     若干圆形按钮视觉尺寸仅 32px，低于 Apple HIG 44px / Android 48px 建议。
-     用伪元素向外扩命中区，视觉尺寸与布局完全不变。
-     --tap-x / --tap-y 可按需覆盖（默认 6px：32px 按钮 → 44px）。
-     ⚠️ 使用处需保证相邻控件的水平间距 ≥ (2 × --tap-x)，否则命中区会重叠导致误触。
-     ⚠️ 必须留在 @layer components 内，不能挪到裸 CSS：裸 CSS 优先级高于所有 layer，
-        它的 `position: relative` 会盖掉 Tailwind utilities 层的 `absolute`，
-        于是 `tap-44 absolute` 的角标按钮全部退化成流式排布（实测曾把轮播箭头挤到图片下方，
-        评价晒图与服务表单的删除角标同受影响）。 */
-  .tap-44 {
-    position: relative;
-  }
+  /* 触控目标扩展：视觉不变，命中区外扩到 44px（必须留在 components 层，勿挪裸 CSS） */
+  .tap-44 { position: relative; }
   .tap-44::after {
     content: '';
     position: absolute;
     inset: calc(-1 * var(--tap-y, 6px)) calc(-1 * var(--tap-x, 6px));
   }
 
-  /* 卡片基础样式 */
+  /* 卡片：暗底上的「面板」= 比页面底亮一档的褐板 + 金发丝描边，不靠阴影分层 */
   .card-base {
-    @apply bg-white rounded-2xl border border-gray-100/80 shadow-card transition duration-300;
+    @apply bg-panel rounded-2xl border transition duration-300;
+    border-color: var(--line);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.4), 0 8px 24px -10px rgba(0,0,0,0.45);
   }
-  /* 编辑感分割线：区块之间用「一条短线 + 大留白」代替整幅灰线（留白优先原则） */
-  .rule-short {
-    @apply h-px w-10 bg-gray-200 rounded-full;
-  }
+  .rule-short { @apply h-px w-10 rounded-full; background: var(--line-strong); }
   .card-interactive {
-    @apply card-base hover:shadow-elevated hover:-translate-y-0.5 active:scale-[0.98] active:shadow-soft cursor-pointer;
+    @apply card-base hover:-translate-y-0.5 active:scale-[0.98] cursor-pointer;
   }
+  .card-interactive:hover { border-color: rgba(217,177,102,0.4); box-shadow: 0 0 0 1px rgba(177,135,57,0.25), 0 12px 40px -8px rgba(0,0,0,0.55); }
 
-  /* 按钮基础 */
-  /* 主按钮：柿底 + 墨字（9.12:1，AAA 级）。
-     旧写法是白字压 #eab308 = 1.92:1，连 AA 大字 3:1 都不过 —— 全站 24 处主控件同根。 */
+  /* 主按钮：黄铜金底 + 深褐黑字（4.75:1，AA；粗体大字过 AAA 边缘） */
   .btn-primary {
-    @apply bg-brand-500 text-ink font-semibold rounded-xl transition duration-200
-           hover:bg-brand-400 hover:shadow-brand active:scale-[0.97]
+    @apply font-semibold rounded-xl transition duration-200
+           hover:shadow-brand active:scale-[0.97]
            disabled:opacity-50 disabled:pointer-events-none;
+    background: var(--brass);
+    color: var(--on-brass);
   }
+  .btn-primary:hover { background: #c99c4a; }
   .btn-secondary {
-    @apply bg-white text-ink-soft font-medium rounded-xl border border-gray-200 transition duration-200
-           hover:border-gray-300 hover:bg-gray-50 active:scale-[0.97];
+    @apply font-medium rounded-xl border transition duration-200 active:scale-[0.97];
+    background: transparent;
+    color: var(--cream);
+    border-color: var(--line-strong);
   }
-  /* 深底主按钮：需要「白字 + 实底」时的唯一合法形态（墨底 17.49:1） */
+  .btn-secondary:hover { border-color: var(--brass-bright); background: rgba(177,135,57,0.08); }
+  /* 深底主按钮：森林绿实底 + 米白（8.75:1） */
   .btn-ink {
-    @apply bg-ink text-white font-semibold rounded-xl transition duration-200
-           hover:bg-ink-soft active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none;
+    @apply font-semibold rounded-xl transition duration-200 active:scale-[0.97]
+           disabled:opacity-50 disabled:pointer-events-none;
+    background: var(--forest);
+    color: var(--cream);
   }
+  .btn-ink:hover { background: var(--forest-mid); }
 
-  /* 页面容器 */
-  .page-container {
-    @apply min-h-screen bg-surface;
-  }
+  .page-container { @apply min-h-screen; background: var(--espresso); }
 
-  /* 区块标题 */
-  .section-title {
-    @apply text-sm font-semibold text-ink tracking-wide;
-  }
-  /* 眉题（eyebrow）：编辑排版的层级起点 —— 小字、大字距、非粗，压在标题上方 */
-  .eyebrow {
-    @apply text-eyebrow uppercase text-stone-500;
-  }
-  /* 价格/数字专用：展示体 + 等宽（件数与金额变化时不抖动）。
-     命名避开 .font-display —— Tailwind 已由 theme 生成同名工具类，两个 .font-display
-     分处 components/utilities 两层会留下"谁赢看运气"的歧义。 */
+  .section-title { @apply text-sm font-semibold tracking-wide; color: var(--cream); }
+  .eyebrow { @apply text-eyebrow uppercase; color: var(--mute); }
+
+  /* 价格/数字：展示体 + 等宽。金额是本站第一信息，落在黄铜金上。 */
   .price-num {
     font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, 'PingFang SC', 'Microsoft YaHei', sans-serif;
     font-variant-numeric: tabular-nums;
@@ -272,105 +196,58 @@ img {
     letter-spacing: -0.02em;
   }
 
-  /* 输入框 */
   .input-base {
-    @apply w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-ink
-           placeholder:text-stone-500 transition duration-200
-           focus:border-brand-600;
+    @apply w-full px-4 py-3 rounded-xl text-sm transition duration-200;
+    background: var(--espresso-deep);
+    border: 1px solid var(--line);
+    color: var(--cream);
   }
+  .input-base::placeholder { color: var(--mute); }
+  .input-base:focus { border-color: var(--brass); outline: none; box-shadow: 0 0 0 3px rgba(177,135,57,0.18); }
 
-  /* 标签药丸。按压反馈放在基类上（pill-active / pill-inactive 都 @apply pill），
-     一处定义覆盖全站 11 个药丸；尺度沿用 .btn-primary 的 0.98（大控件档）。 */
-  .pill {
-    @apply px-3 py-1.5 rounded-full text-xs font-medium transition duration-200 active:scale-[0.98];
-  }
-  .pill-active {
-    @apply pill bg-brand-500 text-ink font-semibold shadow-soft;
-  }
-  .pill-inactive {
-    @apply pill bg-white text-stone-600 border border-gray-200 hover:border-brand-400 hover:text-brand-700;
-  }
+  .pill { @apply px-3 py-1.5 rounded-full text-xs font-medium transition duration-200 active:scale-[0.98]; }
+  .pill-active { @apply pill font-semibold; background: var(--brass); color: var(--on-brass); }
+  .pill-inactive { @apply pill border; background: transparent; border-color: var(--line-strong); color: var(--mute); }
+  .pill-inactive:hover { border-color: var(--brass); color: var(--brass-bright); }
 
-  /* 图注式画廊的图区底板（阶段二）。
-     上架素材底色不一：有白底抠图，也有深色/场景底实拍。四列并排时深色图会形成
-     硬边黑方块，与浅色图交错成"没对齐"的观感。这里不裁切包装信息（object-contain
-     保留），改用两件事统一色调：
-       ① 一块中性暖灰底板 + 顶部高光、底部内阴影，让每张图都"摆在同一块台面上"；
-       ② 图片本身 mix-blend-multiply —— 白底素材的白色部分与底板相乘后等于底板色，
-          白边直接消失，抠图与场景图被拉到同一明度基调上。
-     代价：极暗素材会略微更沉，但换来整排卡片的一致性，值得。 */
+  /* 商品图台：暗色版式里商品图是「灯箱里的货品」——
+     一块比页面亮的暖板 + multiply 让白底抠图融进板色，深色场景图也不炸眼。 */
   .gallery-figure {
-    background-color: #f6f5f2;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.85),
-      inset 0 -18px 26px -20px rgba(17, 24, 39, 0.22);
+    background-color: #ddd4c2;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.5), inset 0 -18px 26px -20px rgba(0,0,0,0.35);
   }
-  .gallery-figure > img {
-    mix-blend-mode: multiply;
-  }
-  /* 用户偏好减少动效时，缩放过渡已由全局规则压到 0.01ms，这里只需保证混合模式不影响可读性 */
+  .gallery-figure > img { mix-blend-mode: multiply; }
 
-  /* 骨架屏闪光 */
   .skeleton-shimmer {
-    @apply bg-gradient-to-r from-gray-100 via-gray-200 to-gray-100 rounded-lg;
+    @apply rounded-lg;
+    background: linear-gradient(90deg, #2e2620 25%, #3b322a 50%, #2e2620 75%);
     background-size: 200% 100%;
     animation: shimmer 1.5s ease-in-out infinite;
   }
 
-  /* 品牌渐变条（柿子黄 → 橙 → 深绿）。
-     用途限定（2026-10-23）：**只用在宽条上** —— 顶栏色带、路由进度条、页脚短线，
-     这些宽度足够让三段色读成"一条带子"。
-     不要往小圆片/小方块上贴（28–44px 的头像、发送按钮、图标块）：
-     那个尺度下三段渐变挤成一团，看着像发浑的色块而不是有意的设计，
-     而且渐变中段（#f97316）会把前景对比度拉到 3:1 以下。
-     小尺寸品牌块一律用 bg-brand-500 实底 + 墨色前景（9.12:1），
-     与商品卡加购按钮同一套。 */
-  .brand-bar {
-    background: var(--brand-bar);
-  }
-  /* 品牌条上的前景一律墨色（黄段 9:1 / 绿段是装饰带，文字避开中段） */
-  .brand-bar-ink { color: var(--ink); }
+  /* 品牌渐变条：只用在宽条上（顶栏色带/进度条/页脚短线） */
+  .brand-bar { background: var(--brand-bar); }
+  .brand-bar-ink { color: var(--espresso); }
 
-  /* KPI 首卡强调：顶部品牌渐变细条 + 暖黄底色，拉开主次层级 */
+  /* KPI 首卡强调：金色顶线 + 微暖底 */
   .card-accent {
     position: relative;
     overflow: hidden;
-    background: linear-gradient(180deg, #fffbeb, #ffffff);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 6px 24px -12px rgba(202, 138, 4, 0.45);
+    background: linear-gradient(180deg, #382e22, #332a24);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 6px 24px -12px rgba(177, 135, 57, 0.4);
   }
-  /* 时间范围分段切换（看板 7/30/90/365） */
-  .seg-bar {
-    @apply inline-flex items-center gap-1 bg-gray-100 p-1 rounded-xl;
-  }
-  /* 未选中段：当年 gray-500 压 gray-100 实测 4.39:1（差 0.11 不过正文 4.5）⇒ 下沉 gray-600
-     （6.87:1）。本行后来换成同序号暖灰 stone-600（压 gray-100 实测 6.93:1，见下方色温说明），
-     亮度 L* 只差 0.3 所以视觉不变，只是不再偏蓝。
-     这种"只差一点点"最容易漏：按纯白底手算 gray-500 是 4.83 会以为合格，
-     而它实际落在 .seg-bar 的 gray-100 灰底上。渲染像素判据量的就是这件事。 */
-  .seg {
-    @apply px-3 py-1.5 rounded-lg text-xs font-medium text-stone-600 transition duration-200 cursor-pointer active:scale-[0.98];
-  }
-  /* 分段器选中态：白字压在渐变起点 #facc15 上仅 1.77:1 ⇒ 墨字 + 柿底，
-     品牌渐变条退到下方 2px 作「选中」的色相提示，不再当文字底板。 */
-  .seg.active {
-    background: var(--brand-500);
-    color: var(--on-persimmon);
-    font-weight: 600;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.10), inset 0 -2px 0 rgba(20, 83, 45, 0.55);
-  }
+  .seg-bar { @apply inline-flex items-center gap-1 p-1 rounded-xl; background: var(--espresso-deep); border: 1px solid var(--line); }
+  .seg { @apply px-3 py-1.5 rounded-lg text-xs font-medium transition duration-200 cursor-pointer active:scale-[0.98]; color: var(--mute); }
+  .seg:hover { color: var(--cream); }
+  .seg.active { background: var(--brass); color: var(--on-brass); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.35); }
 
-  /* KPI 环比徽章 */
-  .delta-badge {
-    @apply inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-semibold;
-  }
-  .delta-up { @apply bg-green-50 text-green-700; }
-  .delta-down { @apply bg-red-50 text-red-700; }
-  .delta-flat { @apply bg-gray-50 text-stone-600; }
+  .delta-badge { @apply inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-semibold; }
+  .delta-up { @apply text-green-700; background: #1b3327; }
+  .delta-down { @apply text-red-700; background: #3a2320; }
+  .delta-flat { @apply text-stone-500; background: #241e19; }
 }
 
-/* === 交错入场动画工具类 === */
-/* 注意：不能放进 @layer utilities——Tailwind 的候选索引会吞掉部分自定义规则（如 .stagger-7+），
-   裸 CSS 规则可完整通过且无层优先级高于 utilities 层，能正确覆盖 animate-* 的动画简写 */
+/* ═══ 入场动效工具（不入 @layer utilities：Tailwind 候选索引会吞自定义规则）═══ */
 .stagger-1 { animation-delay: 0.05s; }
 .stagger-2 { animation-delay: 0.1s; }
 .stagger-3 { animation-delay: 0.15s; }
@@ -380,19 +257,11 @@ img {
 .stagger-7 { animation-delay: 0.35s; }
 .stagger-8 { animation-delay: 0.4s; }
 
-/* === 列表入场动画（容器级，零 DOM 改动）===
-   给滚动容器内的列表加 .enter-stagger，其直接子元素按序淡入上浮（与逐项写
-   animate-fade-in-up + stagger-N 等价，但无需为每一项再包一层 div，列表项 key 复用
-   时 React 不会重触发动画，只有筛选后新出现的项会播放）。
-   动画曲线/时长与 tailwind.config 的 fade-in-up 保持一致，视觉上与 CartPage/
-   CategoryPage/HomePage 的逐项入场同款。 */
 @keyframes enter-stagger-in {
   0% { opacity: 0; transform: translateY(12px); }
   100% { opacity: 1; transform: translateY(0); }
 }
-.enter-stagger > * {
-  animation: enter-stagger-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
+.enter-stagger > * { animation: enter-stagger-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
 .enter-stagger > *:nth-child(1) { animation-delay: 0.03s; }
 .enter-stagger > *:nth-child(2) { animation-delay: 0.06s; }
 .enter-stagger > *:nth-child(3) { animation-delay: 0.09s; }
@@ -404,127 +273,56 @@ img {
 .enter-stagger > *:nth-child(9) { animation-delay: 0.27s; }
 .enter-stagger > *:nth-child(10) { animation-delay: 0.3s; }
 
-/* === 滚动条美化 === */
-::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(0,0,0,0.12);
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(0,0,0,0.2);
-}
+/* 滚动条：金棕细线，暗底可见而不刺眼 */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(217, 177, 102, 0.22); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(217, 177, 102, 0.4); }
 
-/* 隐藏滚动条但保留滚动能力（TopNav 横向分类区等；纯 Tailwind 无此类，须自定义） */
-.scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
-}
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-hide::-webkit-scrollbar { display: none; }
 
-
-/* === 首页：编辑排版的落点（2026-10-22 设计升级）=== */
-
-/* 刊名跑马灯：一条重复两遍的轨道位移 -50%，接缝处无跳变。
-   只在 prefers-reduced-motion 未开启时滚动（全局规则会把时长压到 0.01ms，
-   位移终态就是循环轨道的"零缝"位置，视觉上等于静止的干净轨道）。 */
+/* ═══ 首页编辑排版落点 ═══ */
 @keyframes marquee-track {
   from { transform: translateX(0); }
   to   { transform: translateX(-50%); }
 }
 .marquee {
   overflow: hidden;
-  /* 两端淡出：让"可横向滚动"这件事不说教，靠渐隐表达 */
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
   mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
 }
-.marquee-track {
-  display: flex;
-  width: max-content;
-  animation: marquee-track 26s linear infinite;
-}
+.marquee-track { display: flex; width: max-content; animation: marquee-track 26s linear infinite; }
 .marquee:hover .marquee-track { animation-play-state: paused; }
 
-  /* 减少动效时跑马灯必须换成静态排布（2026-10-23，修我自己上一轮引入的内容丢失）。
-     .marquee-track 是 width:max-content + 父级 overflow:hidden，内容靠 animation 的
-     translateX 位移轮流露出 —— 上面的全局规则把 animation-duration 压到 0.01ms 且
-     iteration-count:1，于是它瞬间播完、回到 transform:none 停在起点：实测 390px 宽下
-     5 条公告只有 2 条可见，「微信内即可下单」等 3 条**永久看不见**。
-     动效不适的用户不该为此丢信息，所以这里把「滚动」这个呈现手段换成「换行铺开」：
-     全部关键词一次性可见，且去掉为无缝循环准备的第二份复制（:last-child）与两端
-     淡出遮罩（静态下会吃掉首尾文字）。 */
-  @media (prefers-reduced-motion: reduce) {
-    .marquee {
-      overflow: visible;
-      -webkit-mask-image: none;
-      mask-image: none;
-    }
-    /* 换行必须落在**词条层**：.marquee-track 的直接子元素是两个大 span
-       （每份复制一个），只给 track 加 wrap 的话换行只发生在「两份复制之间」，
-       块内 5 个词条仍连成一行溢出（实测「零食饮料」被推到 left=-111，看不见）。
-       所以 track 与它的每个子 span 都要 wrap。 */
-    .marquee-track,
-    .marquee-track > span {
-      width: auto;
-      max-width: 100%;
-      flex-wrap: wrap;
-      justify-content: center;
-      row-gap: 2px;
-    }
-    /* 第二份复制只为衔接循环起点，静态排布下它是重复内容 */
-    .marquee-track > span:last-child {
-      display: none;
-    }
-  }
+@media (prefers-reduced-motion: reduce) {
+  .marquee { overflow: visible; -webkit-mask-image: none; mask-image: none; }
+  .marquee-track, .marquee-track > span { width: auto; max-width: 100%; flex-wrap: wrap; justify-content: center; row-gap: 2px; }
+  .marquee-track > span:last-child { display: none; }
+}
 
-/* 纸纹：极淡的双向网点，让大面积暖白不是"纯色块"而是有材质的纸。
-   刻意压在 3% 不透明度以下 —— 看得见质感、看不见规则本身。 */
+/* 纸纹：暗底上的「金粉颗粒」，3% 以下——看得见材质、看不见规则本身 */
 .paper-grain {
   background-image:
-    radial-gradient(rgba(28, 25, 23, 0.05) 0.5px, transparent 0.5px),
-    radial-gradient(rgba(28, 25, 23, 0.035) 0.5px, transparent 0.5px);
+    radial-gradient(rgba(217, 177, 102, 0.05) 0.5px, transparent 0.5px),
+    radial-gradient(rgba(217, 177, 102, 0.035) 0.5px, transparent 0.5px);
   background-size: 22px 22px, 22px 22px;
   background-position: 0 0, 11px 11px;
 }
 
-/* 发丝分割线：获奖级版面的分隔靠"一条短线 + 大留白"，不靠整幅灰线 */
-.hairline {
-  height: 1px;
-  background: linear-gradient(90deg, rgba(28, 25, 23, 0.14), rgba(28, 25, 23, 0));
-}
-
-/* 柿色封面块的右下切角：一个非对称的"破格"，把居中圆装饰那套 AI 默认版式换掉 */
-.cover-clip {
-  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 2.25rem), calc(100% - 2.25rem) 100%, 0 100%);
-}
-
-/* 索引数字（01/02…）：编辑排版的层级起点，展示体 + 负字距 */
+.hairline { height: 1px; background: linear-gradient(90deg, rgba(217,177,102,0.35), rgba(217,177,102,0)); }
+.cover-clip { clip-path: polygon(0 0, 100% 0, 100% calc(100% - 2.25rem), calc(100% - 2.25rem) 100%, 0 100%); }
 .index-num {
   font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.04em;
 }
-
-/* 卡片内的图标托：让 emoji 落在同一块浅色台面上，四张卡才像同一套系统 */
 .icon-plate {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(248, 247, 244, 0.9)),
+    linear-gradient(180deg, rgba(58, 47, 34, 0.9), rgba(51, 42, 36, 0.9)),
     var(--brand-bar);
   background-size: 100% 100%, 100% 2px;
   background-position: 0 0, 0 100%;
   background-repeat: no-repeat;
 }
-
-/* 首屏标题的字重与断行控制：中文标题不许在词中间换行 */
-.cover-title {
-  word-break: keep-all;
-  overflow-wrap: anywhere;
-  text-wrap: balance;
-}
+.cover-title { word-break: keep-all; overflow-wrap: anywhere; text-wrap: balance; }

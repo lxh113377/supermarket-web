@@ -79,14 +79,14 @@ export default function KpiCard({ label, value, prefix = '', suffix = '', sub, a
   const animated = useCountUp(value)
   const cardCls = accent
     ? 'card-accent animate-fade-in-up'
-    : 'bg-white shadow-card animate-fade-in-up'
+    : 'bg-panel shadow-card animate-fade-in-up'
   const deltaValue = delta ? (deltaMetric === 'revenue' ? delta.revenueDelta : delta.ordersDelta) : null
 
   return (
     <div className={`p-4 rounded-2xl border border-gray-100/80 text-center ${cardCls} ${staggerCls}`.trim()}>
       {/* .price-num 带 tabular-nums：count-up 每帧都在换数字，
           不等宽字体的话"1,234 → 1,235"会让整串数字左右抖一下。 */}
-      <p className={`price-num text-xl font-bold ${accent ? 'text-brand-700' : 'text-ink'}`}>
+      <p className={`price-num text-xl font-bold ${accent ? 'text-brand-300' : 'text-ink'}`}>
         {prefix}{animated.toLocaleString()}{suffix}
       </p>
       <p className="text-3xs text-stone-500 mt-1">{label}</p>

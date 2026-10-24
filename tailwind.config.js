@@ -1,4 +1,16 @@
-/** @type {import('tailwindcss').Config} */
+/** @type {import('tailwindcss').Config}
+ *  色彩令牌（2026-10-25 重构 v2 · 老大钦定三色，色值一个色相都不下移）
+ *  ─────────────────────────────────────────────
+ *  深褐黑 #2A221D（沉静、厚实、原始感）—— 全站底色与结构面
+ *  森林绿 #1F4A39（自然、稳固、生命力）—— 第二结构色：导航/区块/状态
+ *  黄铜金 #B18739（坚韧、权威、岁月感）—— 唯一强调色：价格/选中/焦点/按钮
+ *
+ *  前景规则（WCAG 实算，比值见 docs/redesign-awwwards-v2.md）：
+ *    黄铜金底 ⇒ 配深褐黑字（4.75:1）；米白压金只有 2.87:1，禁止
+ *    深褐黑底 ⇒ 米白 #F4EFE7（13.64:1）；弱化正文用 #A99C88（5.8:1）
+ *    森林绿底 ⇒ 米白（8.75:1）；金字用高亮金 #D9B166（4.97:1）
+ *    价格/强调金字 #B18739 落在面板 #332A24 = 4.27:1（粗体大字，过 AA 大字 3:1）
+ */
 export default {
   content: [
     "./index.html",
@@ -7,104 +19,103 @@ export default {
   theme: {
     extend: {
       colors: {
-        // 品牌柿色 —— 保留「柿子黄」这一唯一品牌资产，不下沉色相。
-        // 2026-10-22 对比度重整的结论：问题从来不是黄太亮，而是**黄上放了白字**（1.92:1）。
-        // 铁律（index.css 里由 .btn-primary/.pill-active 落地）：
-        //   柿色底 ⇒ 配墨字 ink（#1c1917 on #eab308 = 9.12:1，AAA）
-        //   要白字 ⇒ 走深绿 dark-600（9.11:1）或墨底 ink（17.49:1）
+        // 黄铜金：品牌主强调。500 = 老大给定的 #B18739。
         brand: {
-          50:  '#fefce8',
-          100: '#fef9c3',
-          200: '#fef08a',
-          300: '#fde047',
-          400: '#facc15',
-          500: '#eab308',  // 主色 柿子黄（承载**墨字**）
-          600: '#ca8a04',  // hover
-          700: '#a16207',
-          800: '#854d0e',
-          900: '#713f12',
+          50:  '#3a2f22',
+          100: '#4a3c26',
+          200: '#6b552c',
+          300: '#d9b166',  // 高亮金（深底文字/图标 7.76:1）
+          400: '#c99c4a',
+          500: '#b18739',  // 主色（承载深褐黑字 4.75:1）
+          600: '#98712e',
+          700: '#7a5c20',
+          800: '#5f481b',
+          900: '#463514',
         },
-        dark: {
-          500: '#1a2e05',  // 深绿 accent
-          600: '#14532d',
-          700: '#052e16',
+        brass: {
+          DEFAULT: '#b18739',
+          deep: '#7a5c20',
+          bright: '#d9b166',
         },
-        surface: {
-          DEFAULT: '#fafaf9',
-          warm: '#f8f7f4',
-          card: '#ffffff',
+        // 深褐黑家族：全站之底
+        espresso: {
+          DEFAULT: '#2a221d',
+          950: '#1c1714',
+          900: '#241e19',
+          850: '#2a221d',
+          800: '#332a24',
+          700: '#3e332b',
+          600: '#4a3d33',
+          500: '#5a4b3f',
         },
-        // 墨：全站唯一「深底」与「正文最重」的落点（暖黑，不用纯黑，与暖白页底同色温）
+        // 森林绿家族：第二结构色
+        forest: {
+          DEFAULT: '#1f4a39',
+          deep: '#16382b',
+          mid: '#2c5f4b',
+          soft: '#3e7a61',
+        },
+        // 旧 ink 令牌并入褐黑（保住既有 66 处 text-ink 的语义：浅底深字 → 深底浅字改由 cream 承载）
         ink: {
-          DEFAULT: '#1c1917',
-          soft: '#292524',
-          mute: '#57534e',
+          DEFAULT: '#f4efe7',
+          soft: '#e6dfd2',
+          mute: '#a99c88',
         },
+        // 浅面令牌
+        cream: { DEFAULT: '#f4efe7', deep: '#ede6da' },
+        panel: { DEFAULT: '#332a24', deep: '#3e332b' },
+        mute: { DEFAULT: '#a99c88', dim: '#8c7f6d' },
+        // 表面令牌（bg-surface 等旧类名继续可用，值已换褐黑体系）
+        surface: { DEFAULT: '#2a221d', warm: '#241e19', card: '#332a24' },
+        // 旧 dark-500/600/700 并入森林绿
+        dark: { 500: '#2c5f4b', 600: '#1f4a39', 700: '#16382b' },
+        // 状态语义：文字/底两两按「压深底 ≥4.5:1」校准
+        green: { 50: '#1b3327', 100: '#24402f', 400: '#7fc48f', 500: '#5aa96c', 700: '#7fc48f', 800: '#3f7d4e', 900: '#2d5c39' },
+        red: { 50: '#3a2320', 100: '#4a2b25', 200: '#6b3730', 500: '#e07a5f', 700: '#e88a72', 800: '#c96a52' },
+        amber: { 50: '#3a2f1e', 100: '#4a3c26', 200: '#6b552c', 300: '#d9b166', 500: '#b18739', 600: '#c99c4a', 800: '#e0bd76', 900: '#8a6828' },
+        emerald: { 50: '#1b3327', 100: '#24402f', 200: '#2f5439', 700: '#7fc48f', 800: '#3f7d4e' },
+        gray: { 50: '#241e19', 100: '#332a24', 200: '#3e332b', 300: '#4a3d33', 400: '#5a4b3f', 600: '#a99c88', 700: '#c8bda9' },
+        stone: { 50: '#332a24', 100: '#3e332b', 200: '#4a3d33', 300: '#5a4b3f', 400: '#a99c88', 500: '#a99c88', 600: '#b8ab97', 700: '#c8bda9', 800: '#e6dfd2' },
+        orange: { 50: '#3a2f1e', 800: '#8a6828', 900: '#5f481b' },
+        yellow: { 100: '#4a3c26', 700: '#b18739', 900: '#5f481b' },
+        teal: { 700: '#1f4a39' },
+        cyan: { 800: '#16382b' },
+        blue: { 50: '#1e2c33', 700: '#8fb3c4', 800: '#5a7d8c' },
+        purple: { 400: '#8c7f6d' },
       },
       boxShadow: {
-        'soft': '0 2px 8px -2px rgba(0,0,0,0.06), 0 4px 16px -4px rgba(0,0,0,0.04)',
-        // 品牌投影：落影带柿色相而非中性灰（卡片浮起时影子里有颜色）
-        'brand': '0 2px 6px -1px rgba(202,138,4,0.30), 0 10px 28px -10px rgba(180,83,9,0.34)',
-        'card': '0 1px 3px rgba(0,0,0,0.04), 0 6px 24px -6px rgba(0,0,0,0.06)',
-        'elevated': '0 4px 12px -2px rgba(0,0,0,0.08), 0 12px 40px -8px rgba(0,0,0,0.1)',
-        'float': '0 8px 30px -4px rgba(0,0,0,0.12), 0 20px 60px -12px rgba(0,0,0,0.08)',
-        'inner-soft': 'inset 0 2px 6px rgba(0,0,0,0.04)',
+        'soft': '0 2px 8px -2px rgba(0,0,0,0.45), 0 4px 16px -4px rgba(0,0,0,0.3)',
+        'brand': '0 2px 6px -1px rgba(177,135,57,0.35), 0 10px 28px -10px rgba(138,104,40,0.5)',
+        'card': '0 1px 2px rgba(0,0,0,0.4), 0 8px 24px -10px rgba(0,0,0,0.45)',
+        'elevated': '0 4px 12px -2px rgba(0,0,0,0.5), 0 12px 40px -8px rgba(0,0,0,0.45)',
+        'float': '0 8px 30px -4px rgba(0,0,0,0.55), 0 20px 60px -12px rgba(0,0,0,0.45)',
+        'inner-soft': 'inset 0 2px 6px rgba(0,0,0,0.35)',
+        'brass-glow': '0 0 0 1px rgba(177,135,57,0.35), 0 6px 24px -8px rgba(177,135,57,0.28)',
       },
       fontFamily: {
-        // 排版双声部：display = Bricolage Grotesque（自托管 woff2，CSP font-src 'self' 合规）
-        // 正文 = 系统中文字体栈（中文无廉价自托管方案，混排时 display 只管数字与拉丁）
         display: ['"Bricolage Grotesque"', 'ui-sans-serif', 'system-ui', '"PingFang SC"', '"Microsoft YaHei"', 'sans-serif'],
         sans: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', '"PingFang SC"', '"Hiragino Sans GB"', '"Microsoft YaHei"', 'sans-serif'],
       },
       fontSize: {
-        // 字阶系统（1.2 三度 modular scale，四舍五入到 2px 网格）
         'display-xl': ['3.25rem', { lineHeight: '1.05', letterSpacing: '-0.03em' }],
         'display-lg': ['2.25rem', { lineHeight: '1.1', letterSpacing: '-0.025em' }],
         'display-md': ['1.5rem', { lineHeight: '1.2', letterSpacing: '-0.02em' }],
         'eyebrow':  ['0.6875rem', { lineHeight: '1.4', letterSpacing: '0.16em' }],
-        // 微字阶（2026-10-23 收编）：全站原本散落 41 处 text-[10px]/text-[11px] 任意值，
-        // 两者只差 1px ⇒ 不是设计选择而是随手写。登记成具名档后"标签级"只有这两档，
-        // 且 3xs 是**下限**（实测再小中文就不可读：本轮消灭了两处 9px）。
-        '2xs':      ['0.6875rem', { lineHeight: '1rem' }],      // 11px 密集标签/角标
-        '3xs':      ['0.625rem', { lineHeight: '0.875rem' }],   // 10px 下限：极紧凑徽章
-        // 价格三档：卡片 / 页面汇总 / 详情主价。金额是本站第一信息，
-        // 尺寸必须成体系（旧写法是 22/32/40px 三个 arbitrary 值各写一次）。
+        '2xs':      ['0.6875rem', { lineHeight: '1rem' }],
+        '3xs':      ['0.625rem', { lineHeight: '0.875rem' }],
         'price-sm': ['1.375rem', { lineHeight: '1.5rem', letterSpacing: '-0.02em' }],
         'price-md': ['2rem',     { lineHeight: '2.25rem', letterSpacing: '-0.025em' }],
         'price-lg': ['2.5rem',   { lineHeight: '2.75rem', letterSpacing: '-0.03em' }],
-        // 卡片商品名：比 sm(14) 重一档、比 base(16) 轻一档，全站唯一用途
         'card-title': ['0.9375rem', { lineHeight: '1.35rem' }],
       },
-      borderRadius: {
-        '2xl': '1rem',
-        '3xl': '1.5rem',
-        '4xl': '2rem',
-      },
+      borderRadius: { '2xl': '1rem', '3xl': '1.5rem', '4xl': '2rem' },
       keyframes: {
-        'fade-in-up': {
-          '0%': { opacity: '0', transform: 'translateY(12px)' },
-          '100%': { opacity: '1', transform: 'translateY(0)' },
-        },
-        'fade-in': {
-          '0%': { opacity: '0' },
-          '100%': { opacity: '1' },
-        },
-        'scale-in': {
-          '0%': { opacity: '0', transform: 'scale(0.95)' },
-          '100%': { opacity: '1', transform: 'scale(1)' },
-        },
-        'slide-up': {
-          '0%': { transform: 'translateY(100%)' },
-          '100%': { transform: 'translateY(0)' },
-        },
-        'slide-down': {
-          '0%': { opacity: '0', transform: 'translateY(-8px)' },
-          '100%': { opacity: '1', transform: 'translateY(0)' },
-        },
-        'shimmer': {
-          '0%': { backgroundPosition: '-200% 0' },
-          '100%': { backgroundPosition: '200% 0' },
-        },
+        'fade-in-up': { '0%': { opacity: '0', transform: 'translateY(12px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
+        'fade-in': { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
+        'scale-in': { '0%': { opacity: '0', transform: 'scale(0.95)' }, '100%': { opacity: '1', transform: 'scale(1)' } },
+        'slide-up': { '0%': { transform: 'translateY(100%)' }, '100%': { transform: 'translateY(0)' } },
+        'slide-down': { '0%': { opacity: '0', transform: 'translateY(-8px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
+        'shimmer': { '0%': { backgroundPosition: '-200% 0' }, '100%': { backgroundPosition: '200% 0' } },
       },
       animation: {
         'fade-in-up': 'fade-in-up 0.4s cubic-bezier(0.16,1,0.3,1) both',

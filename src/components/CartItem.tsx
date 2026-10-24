@@ -15,11 +15,11 @@ function CartItem({ item, onAdd, onRemove, onDelete }: CartItemProps) {
     : item.name
 
   return (
-    <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-gray-100/80 shadow-card transition duration-200">
+    <div className="flex items-center justify-between bg-panel p-4 rounded-2xl border border-gray-100/80 shadow-card transition duration-200">
       <div className="flex-1 min-w-0 pr-3">
         <h2 className="text-sm font-medium text-ink leading-tight truncate">{displayName}</h2>
-        <p className="text-brand-700 font-bold mt-1.5">
-          <span className="price-num text-sm font-bold text-brand-700"><span className="text-[0.7em] opacity-70">¥</span>{formatPrice(item.price)}</span>
+        <p className="text-brand-300 font-bold mt-1.5">
+          <span className="price-num text-sm font-bold text-brand-300"><span className="text-[0.7em] opacity-70">¥</span>{formatPrice(item.price)}</span>
         </p>
       </div>
       <div className="flex items-center gap-3">
@@ -36,7 +36,7 @@ function CartItem({ item, onAdd, onRemove, onDelete }: CartItemProps) {
           <button
             onClick={() => onAdd(item)}
             aria-label={`增加${displayName}`}
-            className="tap-44 w-8 h-8 rounded-full bg-brand-500 text-ink flex items-center justify-center text-sm shadow-soft hover:bg-brand-400 transition duration-200 active:scale-90"
+            className="tap-44 w-8 h-8 rounded-full bg-brand-500 text-espresso flex items-center justify-center text-sm shadow-soft hover:bg-brass transition duration-200 active:scale-90"
           >
             <span aria-hidden="true">+</span>
           </button>

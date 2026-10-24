@@ -62,7 +62,7 @@ export default function ServiceFormPage() {
         <div className="text-center animate-fade-in-up">
           <span className="text-4xl block mb-3">🔍</span>
           <p className="text-stone-500 text-sm">服务不存在</p>
-          <button onClick={() => navigate('/')} className="mt-4 text-brand-700 text-sm font-medium">
+          <button onClick={() => navigate('/')} className="mt-4 text-brand-300 text-sm font-medium">
             返回首页
           </button>
         </div>
@@ -247,7 +247,7 @@ export default function ServiceFormPage() {
   if (submitted) {
     return (
       <div className="page-container flex items-center justify-center px-5">
-        <div className="bg-white rounded-3xl p-8 shadow-card border border-gray-100/80 text-center max-w-sm w-full animate-scale-in">
+        <div className="bg-panel rounded-3xl p-8 shadow-card border border-gray-100/80 text-center max-w-sm w-full animate-scale-in">
           <div className="w-20 h-20 mx-auto mb-5 rounded-full bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center">
             <span className="text-4xl">✅</span>
           </div>
@@ -267,7 +267,7 @@ export default function ServiceFormPage() {
   return (
     <div role="main" id="main-content" tabIndex={-1} className="page-container">
       {/* Header */}
-      <div className={`relative overflow-hidden bg-gradient-to-br ${category?.color || 'from-gray-600 to-gray-700'} text-white px-5 pt-10 pb-14`}>
+      <div className={`relative overflow-hidden bg-gradient-to-br ${category?.color || 'from-gray-600 to-gray-700'} text-cream px-5 pt-10 pb-14`}>
         {/* 装饰元素 */}
         {/* 装饰圆 → 品牌色带（与首页/分类页同一套形状语言） */}
         <span aria-hidden="true" className="brand-bar absolute inset-x-0 top-0 h-1" />
@@ -277,19 +277,19 @@ export default function ServiceFormPage() {
           <button
             onClick={() => navigate(`/category/${service.categoryId}`)}
             aria-label="返回"
-            className="w-9 h-9 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center text-white/90 hover:bg-white/25 transition duration-200 active:scale-90 mb-5"
+            className="w-9 h-9 rounded-full bg-panel/15 backdrop-blur-sm flex items-center justify-center text-cream/90 hover:bg-panel/25 transition duration-200 active:scale-90 mb-5"
           >
             ←
           </button>
 
           {/* 服务图标+名称 */}
           <div className="flex items-center gap-4 animate-fade-in-up">
-            <div className="w-14 h-14 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center text-3xl shadow-soft">
+            <div className="w-14 h-14 rounded-2xl bg-panel/15 backdrop-blur-sm flex items-center justify-center text-3xl shadow-soft">
               {service.icon}
             </div>
             <div>
               <h1 className="text-xl font-bold">{service.name}</h1>
-              <p className="text-white/70 text-xs mt-1">{service.description}</p>
+              <p className="text-cream/70 text-xs mt-1">{service.description}</p>
             </div>
           </div>
         </div>
@@ -314,7 +314,7 @@ export default function ServiceFormPage() {
         <ServiceHintCard hint={service.hint} />
 
         {/* 表单卡片 */}
-        <div className="bg-white rounded-3xl p-6 shadow-card border border-gray-100/80 animate-fade-in-up stagger-2">
+        <div className="bg-panel rounded-3xl p-6 shadow-card border border-gray-100/80 animate-fade-in-up stagger-2">
           <div className="flex items-center gap-2 mb-5">
             {/* 标题跟着事实走：无字段时说「填写信息」是撒谎（框里一个字段都没有）。
                 实测这条曾被顾客走到 —— 屏上是「填写信息」+ 一个「提交信息」按钮，
@@ -361,7 +361,7 @@ export default function ServiceFormPage() {
                               aria-label={`删除截图 ${i + 1}`}
                               // P0-14：触屏/键盘可用（原 opacity-0 仅 hover 可见，移动端无法删除）
                               style={{ '--tap-x': '10px', '--tap-y': '10px' } as CSSProperties}
-                              className="tap-44 absolute top-1 right-1 w-6 h-6 bg-black/50 backdrop-blur-sm text-white rounded-full text-xs flex items-center justify-center opacity-70 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+                              className="tap-44 absolute top-1 right-1 w-6 h-6 bg-black/50 backdrop-blur-sm text-cream rounded-full text-xs flex items-center justify-center opacity-70 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
                             >
                               <span aria-hidden="true">×</span>
                             </button>
@@ -375,7 +375,7 @@ export default function ServiceFormPage() {
                          读屏不会念隐藏元素，给它加 aria-invalid 等于没加。 */
                       aria-invalid={errorField === field.key || undefined}
                       aria-describedby={[field.hint ? `sf-hint-${field.key}` : '', errorField === field.key ? 'sf-error' : ''].filter(Boolean).join(' ') || undefined}
-                      className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-8 text-center text-stone-500 text-sm hover:border-brand-500 hover:text-brand-700 hover:bg-brand-50/30 transition duration-300 active:scale-[0.98]"
+                      className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-8 text-center text-stone-500 text-sm hover:border-brand-500 hover:text-brand-300 hover:bg-brand-50/30 transition duration-300 active:scale-[0.98]"
                     >
                       <span className="block text-2xl mb-2" aria-hidden="true">📷</span>
                       <span className="font-medium">点击上传截图</span>
@@ -400,7 +400,7 @@ export default function ServiceFormPage() {
                     {images.length > 0 && (
                       <ul className="mb-3 space-y-2">
                         {images.map((_, i) => (
-                          <li key={i} className="flex items-center gap-2.5 rounded-xl border border-gray-200 px-3 py-2.5 bg-white">
+                          <li key={i} className="flex items-center gap-2.5 rounded-xl border border-gray-200 px-3 py-2.5 bg-panel">
                             <span className="text-base shrink-0" aria-hidden="true">📄</span>
                             {/* 名字来自上传结果，不是 img：img 里存的是 r2:<key> 或 data: URL，读不出文件名 */}
                             <span className="min-w-0 flex-1 text-xs text-ink-soft truncate">
@@ -509,13 +509,13 @@ export default function ServiceFormPage() {
               ) : (
                 <>
                   <span>提交信息</span>
-                  <span className="text-white/70">→</span>
+                  <span className="text-cream/70">→</span>
                 </>
               )
             ) : (
               <>
                 <span>{exit.label}</span>
-                <span className="text-white/70">→</span>
+                <span className="text-cream/70">→</span>
               </>
             )}
           </button>

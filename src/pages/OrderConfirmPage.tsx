@@ -108,7 +108,7 @@ export default function OrderConfirmPage() {
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-surface animate-fade-in">
       {/* 顶栏 */}
-      <div className="flex items-center justify-between px-5 py-4 bg-white/95 backdrop-blur-sm border-b border-gray-100">
+      <div className="flex items-center justify-between px-5 py-4 bg-panel/95 backdrop-blur-sm border-b border-gray-100">
         <button
           onClick={() => navigate(-1)}
           className="w-9 h-9 rounded-full flex items-center justify-center text-stone-500 hover:text-stone-700 hover:bg-gray-100 transition duration-200 active:scale-90"
@@ -144,7 +144,7 @@ export default function OrderConfirmPage() {
           )}
 
           {/* 已选商品 */}
-          <div className="bg-white rounded-2xl p-5 shadow-card border border-gray-100/80 animate-fade-in-up">
+          <div className="bg-panel rounded-2xl p-5 shadow-card border border-gray-100/80 animate-fade-in-up">
             <h2 className="section-title mb-3">已选商品</h2>
             <div className="space-y-2">
               {cart.items.map(item => (
@@ -154,7 +154,7 @@ export default function OrderConfirmPage() {
             </div>
             <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-100">
               <span className="text-sm font-semibold text-stone-700">合计</span>
-              <span className="price-num text-xl font-bold text-brand-700">{formatYuan(totalAmount)}</span>
+              <span className="price-num text-xl font-bold text-brand-300">{formatYuan(totalAmount)}</span>
             </div>
           </div>
 
@@ -233,7 +233,7 @@ export default function OrderConfirmPage() {
                 <button
                   onClick={() => setScreenshot(null)}
                   aria-label="删除付款截图"
-                  className="absolute -top-2 -right-2 w-7 h-7 bg-red-700 text-white rounded-full text-xs flex items-center justify-center shadow-soft hover:bg-red-800 transition duration-200 active:scale-90"
+                  className="absolute -top-2 -right-2 w-7 h-7 bg-red-700 text-cream rounded-full text-xs flex items-center justify-center shadow-soft hover:bg-red-800 transition duration-200 active:scale-90"
                 >
                   ×
                 </button>
@@ -241,7 +241,7 @@ export default function OrderConfirmPage() {
             ) : (
               <button
                 onClick={() => fileRef.current?.click()}
-                className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-8 text-sm text-stone-500 hover:border-brand-500 hover:text-brand-700 hover:bg-brand-50/30 transition duration-300 active:bg-brand-100"
+                className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-8 text-sm text-stone-500 hover:border-brand-500 hover:text-brand-300 hover:bg-brand-50/30 transition duration-300 active:bg-brand-100"
               >
                 <span className="block text-2xl mb-2">📷</span>
                 点击上传付款截图

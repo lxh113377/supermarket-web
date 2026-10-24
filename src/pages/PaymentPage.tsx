@@ -66,7 +66,7 @@ export default function PaymentPage() {
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-surface animate-fade-in">
       {/* 顶栏 */}
-      <div className="px-5 py-4 bg-white/95 backdrop-blur-sm border-b border-gray-100 flex items-center justify-between">
+      <div className="px-5 py-4 bg-panel/95 backdrop-blur-sm border-b border-gray-100 flex items-center justify-between">
         <button
           onClick={() => navigate('/order-success', { state: { orderId } })}
           className="w-9 h-9 rounded-full flex items-center justify-center text-stone-500 hover:text-stone-700 hover:bg-gray-100 transition duration-200 active:scale-90"
@@ -88,13 +88,13 @@ export default function PaymentPage() {
           <p className="text-sm text-stone-500">请选择支付方式完成付款</p>
           <button
             onClick={() => setMethod('wechat')}
-            className="w-full max-w-sm bg-green-700 text-white py-4 rounded-2xl text-base font-medium shadow-elevated hover:bg-green-800 transition duration-200 active:scale-[0.98] animate-fade-in-up stagger-1"
+            className="w-full max-w-sm bg-green-700 text-cream py-4 rounded-2xl text-base font-medium shadow-elevated hover:bg-green-800 transition duration-200 active:scale-[0.98] animate-fade-in-up stagger-1"
           >
             微信支付
           </button>
           <button
             onClick={() => { setMethod('alipay'); setShowTip(true) }}
-            className="w-full max-w-sm bg-blue-700 text-white py-4 rounded-2xl text-base font-medium shadow-elevated hover:bg-blue-800 transition duration-200 active:scale-[0.98] animate-fade-in-up stagger-2"
+            className="w-full max-w-sm bg-blue-700 text-cream py-4 rounded-2xl text-base font-medium shadow-elevated hover:bg-blue-800 transition duration-200 active:scale-[0.98] animate-fade-in-up stagger-2"
           >
             支付宝付款
           </button>
@@ -128,7 +128,7 @@ export default function PaymentPage() {
                   <span aria-hidden="true">⚠️</span> 请截图扫码付款，付款后联系商家进行配送
                 </p>
               </div>
-              <div className="bg-white p-2 rounded-2xl shadow-card border border-gray-100/80 inline-block mb-3">
+              <div className="bg-panel p-2 rounded-2xl shadow-card border border-gray-100/80 inline-block mb-3">
                 <img
                   src={qrSrc}
                   alt={method === 'wechat' ? '微信支付二维码' : '支付宝二维码'}

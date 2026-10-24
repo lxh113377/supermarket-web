@@ -130,7 +130,7 @@ export default function ReviewsTab() {
           </button>
           <button
             onClick={() => setShowForm(true)}
-            className="rounded-lg bg-brand-500 px-3 py-1.5 text-xs text-ink transition hover:bg-brand-400 active:scale-[0.98]"
+            className="rounded-lg bg-brand-500 px-3 py-1.5 text-xs text-ink transition hover:bg-brass active:scale-[0.98]"
           >
             + 新增评价
           </button>
@@ -139,7 +139,7 @@ export default function ReviewsTab() {
 
       {/* 新增表单弹出 */}
       {showForm && (
-        <div className="bg-white rounded-xl shadow-sm border border-brand-200 p-4 space-y-3">
+        <div className="bg-panel rounded-xl shadow-sm border border-brand-200 p-4 space-y-3">
           <h2 className="text-sm font-bold text-ink">新增评价</h2>
           {/* 选择商品 */}
           <select
@@ -198,7 +198,7 @@ export default function ReviewsTab() {
             <button
               onClick={doAdd}
               disabled={submitting}
-              className="flex-1 bg-brand-500 text-ink py-2 rounded-lg text-sm disabled:opacity-50"
+              className="flex-1 bg-brand-500 text-espresso py-2 rounded-lg text-sm disabled:opacity-50"
             >
               {submitting ? '提交中...' : '发布'}
             </button>
@@ -220,7 +220,7 @@ export default function ReviewsTab() {
 
       {/* 评价列表 */}
       {reviews.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+        <div className="bg-panel rounded-xl shadow-sm border border-gray-200">
           <EmptyState
             icon={<IconEmpty className="w-6 h-6" />}
             title="暂无云端评价"
@@ -228,7 +228,7 @@ export default function ReviewsTab() {
           />
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="bg-panel rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           {reviews.map((rev) => (
             <div key={rev._id} className="flex items-start gap-3 px-4 py-3 border-b border-gray-50 last:border-0">
               <div className="flex-1 min-w-0">
@@ -239,7 +239,7 @@ export default function ReviewsTab() {
                 </div>
                 <Stars rating={rev.rating} />
                 <p className="text-sm text-stone-700 mt-1">{rev.text}</p>
-                <p className="text-xs text-brand-700 mt-1">{getProductName(rev.productOrder)}</p>
+                <p className="text-xs text-brand-300 mt-1">{getProductName(rev.productOrder)}</p>
               </div>
               {/* 两步确认（替代原生 confirm()）：第一下点亮成红底「确认删除」，再一下才真删；
                   取消三条路：点别处（blur）/ Esc / 6s 超时。补 aria-label 让可访问名不随
@@ -252,7 +252,7 @@ export default function ReviewsTab() {
                 className={
                   'text-xs py-1 px-2 rounded disabled:opacity-50 flex-shrink-0 transition-colors duration-200 ' +
                   (deleteArmed(rev._id || '')
-                    ? 'bg-red-700 text-white font-medium'
+                    ? 'bg-red-700 text-cream font-medium'
                     : 'text-red-700 hover:text-red-800')
                 }
               >

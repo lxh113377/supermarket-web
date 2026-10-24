@@ -266,17 +266,17 @@ export default function ProductDetailPage() {
     // 加载态与列表页统一为骨架屏（原先是转圈 spinner，与 CustomerPage 的 SkeletonList 两种语言）
     return (
       <div className="flex flex-col h-full bg-surface" role="status" aria-live="polite" aria-label="内容加载中">
-        <div className="flex items-center px-4 py-3.5 bg-white/95 border-b border-gray-100">
+        <div className="flex items-center px-4 py-3.5 bg-panel/95 border-b border-gray-100">
           <Skeleton className="w-9 h-9 rounded-full" />
           <Skeleton className="h-4 w-32 rounded-md ml-3" />
         </div>
         <div className="flex-1 overflow-hidden">
           <Skeleton className="w-full aspect-square rounded-none" />
-          <div className="bg-white mt-2.5 p-5 space-y-3">
+          <div className="bg-panel mt-2.5 p-5 space-y-3">
             <Skeleton className="h-5 w-2/3 rounded-md" />
             <Skeleton className="h-4 w-1/4 rounded-md" />
           </div>
-          <div className="bg-white mt-2.5 p-5 space-y-2.5">
+          <div className="bg-panel mt-2.5 p-5 space-y-2.5">
             <Skeleton className="h-4 w-1/3 rounded-md" />
             <Skeleton className="h-3.5 w-full rounded-md" />
             <Skeleton className="h-3.5 w-5/6 rounded-md" />
@@ -306,7 +306,7 @@ export default function ProductDetailPage() {
   return (
     <div className="flex flex-col h-full bg-surface">
       {/* 顶栏 */}
-      <div className="flex items-center px-4 py-3.5 bg-white/95 backdrop-blur-sm border-b border-gray-100 sticky top-0 z-10">
+      <div className="flex items-center px-4 py-3.5 bg-panel/95 backdrop-blur-sm border-b border-gray-100 sticky top-0 z-10">
         <button
           onClick={() => navigate(-1)}
           aria-label="返回"
@@ -321,12 +321,12 @@ export default function ProductDetailPage() {
         {/* 面包屑：首页 › 大类 › 子类 › 当前商品，两级分类均可点回商城对应视图 */}
         <nav aria-label="面包屑" className="max-w-6xl mx-auto px-4 lg:px-6 pt-3">
           <ol className="flex items-center gap-1.5 text-xs text-stone-500 list-none m-0 p-0 flex-wrap">
-            <li><Link to="/" className="hover:text-brand-700 text-stone-500">首页</Link></li>
+            <li><Link to="/" className="hover:text-brand-300 text-stone-500">首页</Link></li>
             {crumb.cat && (
               <>
                 <li aria-hidden="true">›</li>
                 <li>
-                  <Link to={`/shop/${crumb.cat._id}`} className="hover:text-brand-700 text-stone-500">
+                  <Link to={`/shop/${crumb.cat._id}`} className="hover:text-brand-300 text-stone-500">
                     {crumb.cat.name}
                   </Link>
                 </li>
@@ -336,7 +336,7 @@ export default function ProductDetailPage() {
               <>
                 <li aria-hidden="true">›</li>
                 <li>
-                  <Link to={`/shop/${crumb.cat!._id}/${crumb.sub.id}`} className="hover:text-brand-700 text-stone-500">
+                  <Link to={`/shop/${crumb.cat!._id}/${crumb.sub.id}`} className="hover:text-brand-300 text-stone-500">
                     {crumb.sub.name}
                   </Link>
                 </li>
@@ -365,7 +365,7 @@ export default function ProductDetailPage() {
 
           <div className="px-4 lg:px-0">
             {/* 标题 / 价格 / 口味 */}
-            <div className="bg-white lg:bg-transparent mt-2.5 lg:mt-0 p-5 lg:p-0 animate-fade-in-up stagger-1">
+            <div className="bg-panel lg:bg-transparent mt-2.5 lg:mt-0 p-5 lg:p-0 animate-fade-in-up stagger-1">
               <h1 className="text-xl lg:text-2xl font-bold text-ink min-w-0 leading-snug">{effName}</h1>
               {/* 整行保持为直接文本节点（不套 span）：拆成子元素会让按文本定位的用例读不到整串 */}
               {effSpec && (
@@ -377,10 +377,10 @@ export default function ProductDetailPage() {
                   <span className="text-xs text-stone-500">{avgRating} 分 · {productReviews.length} 条评价</span>
                 </div>
               )}
-              <p className="price-num mt-4 text-price-lg font-extrabold leading-none text-brand-700">{formatYuan(effPrice)}</p>
+              <p className="price-num mt-4 text-price-lg font-extrabold leading-none text-brand-300">{formatYuan(effPrice)}</p>
               {/* 已选口味回显：口味轴两条来源（后台 specOptions / 跨记录聚合组）共用同一 axis id */}
               {group && combo && selection[SPEC_AXIS_ID] && (
-                <p className="text-xs font-semibold text-brand-700 mt-1.5">已选口味：{selection[SPEC_AXIS_ID]}</p>
+                <p className="text-xs font-semibold text-brand-300 mt-1.5">已选口味：{selection[SPEC_AXIS_ID]}</p>
               )}
               {combo && Number(effOrder) !== Number(product.order) && (
                 <p className="text-xs text-stone-500 mt-1">
@@ -391,7 +391,7 @@ export default function ProductDetailPage() {
 
             {/* 口味选择 */}
             {group && (
-              <div className="bg-white lg:bg-transparent mt-2.5 lg:mt-6 p-5 lg:p-0 lg:border-t lg:border-gray-100 lg:pt-5 animate-fade-in-up stagger-2">
+              <div className="bg-panel lg:bg-transparent mt-2.5 lg:mt-6 p-5 lg:p-0 lg:border-t lg:border-gray-100 lg:pt-5 animate-fade-in-up stagger-2">
                 <VariantPicker
                   group={group}
                   selection={selection}
@@ -403,7 +403,7 @@ export default function ProductDetailPage() {
 
             {/* 商品介绍 */}
             {product.description && (
-              <div className="bg-white lg:bg-transparent mt-2.5 lg:mt-6 p-5 lg:p-0 lg:border-t lg:border-gray-100 lg:pt-5 animate-fade-in-up stagger-2">
+              <div className="bg-panel lg:bg-transparent mt-2.5 lg:mt-6 p-5 lg:p-0 lg:border-t lg:border-gray-100 lg:pt-5 animate-fade-in-up stagger-2">
                 <h2 className="section-title mb-3">商品介绍</h2>
                 <p className="text-sm text-stone-600 leading-relaxed whitespace-pre-line">{product.description}</p>
               </div>
@@ -411,7 +411,7 @@ export default function ProductDetailPage() {
 
             {/* 购买入口：宽屏在此处给按钮，窄屏交给吸底栏 —— 二选一，
                 任何视口下 DOM 里都只有一个「加入购物车」，辅助技术不会读到两个同名主操作 */}
-            <div className="bg-white lg:bg-transparent mt-2.5 lg:mt-6 p-5 lg:p-0 lg:border-t lg:border-gray-100 lg:pt-5 animate-fade-in-up stagger-3">
+            <div className="bg-panel lg:bg-transparent mt-2.5 lg:mt-6 p-5 lg:p-0 lg:border-t lg:border-gray-100 lg:pt-5 animate-fade-in-up stagger-3">
               <div className="flex items-center gap-3 flex-wrap">
                 <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-xl px-1">
                   <button
@@ -469,13 +469,13 @@ export default function ProductDetailPage() {
               <p className="text-xs text-green-700 mt-2 min-h-[1rem]" role="status" aria-live="polite">{addedNote}</p>
               {inBag > 0 && (
                 <p className="text-xs text-stone-500 mt-1">
-                  <span>购物车已有 {inBag} 件</span> · <Link to="/cart" className="text-brand-700 font-medium">去购物袋结算</Link>
+                  <span>购物车已有 {inBag} 件</span> · <Link to="/cart" className="text-brand-300 font-medium">去购物袋结算</Link>
                 </p>
               )}
             </div>
 
             {/* 配送说明（右栏摘要；完整口径见下方「配送说明」区块） */}
-            <div className="bg-white lg:bg-transparent mt-2.5 lg:mt-6 p-5 lg:p-0 lg:border-t lg:border-gray-100 lg:pt-5 animate-fade-in-up stagger-4">
+            <div className="bg-panel lg:bg-transparent mt-2.5 lg:mt-6 p-5 lg:p-0 lg:border-t lg:border-gray-100 lg:pt-5 animate-fade-in-up stagger-4">
               <h2 className="section-title mb-2">配送说明</h2>
               <ul className="text-xs text-stone-500 space-y-1.5 leading-relaxed list-disc pl-4 m-0">
                 <li>宿舍楼栋配送，下单时填写楼栋号。</li>
@@ -508,9 +508,9 @@ export default function ProductDetailPage() {
 
       {/* 底部吸底栏：仅窄屏渲染，且是该视口下唯一的加购入口 */}
       {narrow && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-gray-100 px-4 py-3 z-20 safe-bottom">
+        <div className="fixed bottom-0 left-0 right-0 bg-panel/95 backdrop-blur-sm border-t border-gray-100 px-4 py-3 z-20 safe-bottom">
           <div className="flex items-center gap-3 w-full max-w-3xl mx-auto">
-            <span className="price-num shrink-0 text-xl font-bold text-brand-700">{formatYuan(effPrice)}</span>
+            <span className="price-num shrink-0 text-xl font-bold text-brand-300">{formatYuan(effPrice)}</span>
             <button
               type="button"
               onClick={() => setSummaryOpen(true)}

@@ -23,7 +23,7 @@ export default function NotFoundPage() {
       <div
         aria-hidden="true"
         className="cover-clip relative mb-8 flex h-20 w-20 items-center justify-center"
-        style={{ background: 'linear-gradient(155deg, #fde047, #eab308 70%, #ca8a04)' }}
+        style={{ background: 'linear-gradient(155deg, #d9b166, #b18739 62%, #7a5c20)' }}
       >
         <IconEmpty className="h-9 w-9 text-ink" />
       </div>

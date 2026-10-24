@@ -165,7 +165,7 @@ export default function AdminPage() {
       )}
       {IS_CLOUD && products.length === 0 && (
         <div className="mb-5 bg-brand-50/80 border border-brand-200/60 rounded-2xl p-4 space-y-3 animate-slide-down">
-          <p className="text-brand-700 text-xs">云端模式已启用，但暂无商品数据</p>
+          <p className="text-brand-300 text-xs">云端模式已启用，但暂无商品数据</p>
           <button
             onClick={() => (seedArmed('seed') ? doSeed() : armSeed('seed'))}
             onBlur={disarmSeed}
@@ -173,12 +173,12 @@ export default function AdminPage() {
             aria-label={seedArmed('seed') ? '确认导入种子数据（仅首次需要）' : '导入种子数据'}
             className={
               'w-full py-2.5 text-sm rounded-xl font-semibold transition-colors duration-200 disabled:opacity-50 ' +
-              (seedArmed('seed') ? 'bg-red-700 text-white' : 'btn-primary')
+              (seedArmed('seed') ? 'bg-red-700 text-cream' : 'btn-primary')
             }
           >
             {seeding ? '初始化中...' : seedArmed('seed') ? '确认导入种子数据' : '导入种子数据'}
           </button>
-          {seedMsg && <p className="text-brand-700 text-xs">{seedMsg}</p>}
+          {seedMsg && <p className="text-brand-300 text-xs">{seedMsg}</p>}
         </div>
       )}
       <div className="workspace-panel" role="tabpanel" id={`admin-panel-${tab}`} aria-labelledby={`admin-tab-${tab}`}>

@@ -195,14 +195,14 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
 
   if (statsError) {
     return (
-      <div className="bg-white p-5 rounded-2xl border border-gray-100/80 shadow-card">
+      <div className="bg-panel p-5 rounded-2xl border border-gray-100/80 shadow-card">
         <p className="text-sm leading-relaxed text-red-700">⚠️ {statsError}</p>
         {/* 出路：原语只有"⚠️ 加载失败"一行字，运营除了刷新整页没有别的可做。
             重试只重发本视图的请求（reloadTick 自增触发 effect），比刷整页更轻、
             也不会丢掉其它 tab 的在编辑状态。 */}
         <button
           onClick={() => setReloadTick((n) => n + 1)}
-          className="mt-3 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-stone-600 transition hover:border-brand-400 hover:text-brand-700 active:scale-[0.98]"
+          className="mt-3 rounded-lg border border-gray-200 bg-panel px-3 py-1.5 text-xs text-stone-600 transition hover:border-brand-400 hover:text-brand-300 active:scale-[0.98]"
         >
           重试
         </button>
@@ -276,12 +276,12 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
       </div>
 
       {/* 趋势图（近 N 天 营收/订单 双轴） */}
-      <div className="bg-white p-5 rounded-2xl border border-gray-100/80 shadow-card animate-fade-in-up stagger-3">
+      <div className="bg-panel p-5 rounded-2xl border border-gray-100/80 shadow-card animate-fade-in-up stagger-3">
         <div className="flex items-center justify-between mb-3">
           <h2 className="section-title">近 {rangeDays} 天营收 / 订单趋势</h2>
           <button
             onClick={() => downloadCsv(buildCsv(rangeData), dateStr)}
-            className="rounded-lg bg-brand-50 px-3 py-1.5 text-xs font-medium text-brand-700 transition hover:bg-brand-100 active:scale-[0.98]"
+            className="rounded-lg bg-brand-50 px-3 py-1.5 text-xs font-medium text-brand-300 transition hover:bg-brand-100 active:scale-[0.98]"
           >
             导出 CSV
           </button>
@@ -290,7 +290,7 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
       </div>
 
       {/* 近 14 天评价趋势 */}
-      <div className="bg-white p-5 rounded-2xl border border-gray-100/80 shadow-card animate-fade-in-up stagger-4">
+      <div className="bg-panel p-5 rounded-2xl border border-gray-100/80 shadow-card animate-fade-in-up stagger-4">
         <h2 className="section-title mb-3">近 14 天评价趋势</h2>
         {hasReviews ? (
           <div ref={reviewRef} className="h-44 w-full" aria-label="近14天评价趋势图" />
@@ -303,7 +303,7 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
       </div>
 
       {/* 毛利率：饮品/食品/日用 */}
-      <div className="bg-white p-5 rounded-2xl border border-gray-100/80 shadow-card animate-fade-in-up stagger-5">
+      <div className="bg-panel p-5 rounded-2xl border border-gray-100/80 shadow-card animate-fade-in-up stagger-5">
         <h2 className="section-title mb-4">饮品/食品/日用毛利率</h2>
         {margin.withCostItems === 0 ? (
           <div className="text-center py-6">
@@ -335,7 +335,7 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
       </div>
 
       {/* 分类销量占比（环形） */}
-      <div className="bg-white p-5 rounded-2xl border border-gray-100/80 shadow-card animate-fade-in-up stagger-6">
+      <div className="bg-panel p-5 rounded-2xl border border-gray-100/80 shadow-card animate-fade-in-up stagger-6">
         <h2 className="section-title mb-2">分类销量占比</h2>
         <div className="relative h-56 w-full">
           <div ref={pieRef} className="h-56 w-full" aria-label="饮品、食品与日用销量占比图" />
@@ -348,7 +348,7 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
       </div>
 
       {/* 销量排行 TOP10（按营收） */}
-      <div className="bg-white p-5 rounded-2xl border border-gray-100/80 shadow-card animate-fade-in-up stagger-7">
+      <div className="bg-panel p-5 rounded-2xl border border-gray-100/80 shadow-card animate-fade-in-up stagger-7">
         <h2 className="section-title mb-2">商品营收 TOP10</h2>
         {topRevenue.length === 0 ? (
           <div className="text-center py-6">
@@ -361,7 +361,7 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
       </div>
 
       {/* AI 经营建议 */}
-      <div className="bg-white p-5 rounded-2xl border border-gray-100/80 shadow-card animate-fade-in-up stagger-8">
+      <div className="bg-panel p-5 rounded-2xl border border-gray-100/80 shadow-card animate-fade-in-up stagger-8">
         <div className="flex items-center justify-between mb-3">
           <h2 className="section-title flex items-center gap-2">AI 经营建议</h2>
           {aiStatus === 'loaded' && (
@@ -392,7 +392,7 @@ export default function DashboardTab({ initialRangeDays = 7 }: { initialRangeDay
           <button
             onClick={() => loadAdvice(true)}
             disabled={aiLoading}
-            className="mt-3 rounded-lg bg-brand-50 px-3 py-1.5 text-xs font-medium text-brand-700 transition hover:bg-brand-100 active:scale-[0.98] disabled:opacity-50"
+            className="mt-3 rounded-lg bg-brand-50 px-3 py-1.5 text-xs font-medium text-brand-300 transition hover:bg-brand-100 active:scale-[0.98] disabled:opacity-50"
           >
             刷新
           </button>

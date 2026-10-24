@@ -256,7 +256,7 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
           <option value="all">全部</option>
           {Object.entries(ORDER_STATUS_LABELS).map(([v, label]) => <option key={v} value={v}>{label}</option>)}
         </select>
-        <button onClick={exportCSV} className="px-2.5 py-2 bg-white border border-gray-200 rounded-lg text-xs text-stone-600">CSV</button>
+        <button onClick={exportCSV} className="px-2.5 py-2 bg-panel border border-gray-200 rounded-lg text-xs text-stone-600">CSV</button>
       </div>
       {notice && (
         <p role="status" aria-live="polite" className="text-xs text-stone-600 bg-brand-50 border border-brand-100 rounded-lg px-3 py-2">{notice}</p>
@@ -282,7 +282,7 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
                 <p className="text-2xs text-emerald-700">暂无满减档位（后端未配置或迁移未执行）</p>
               )}
               {promos.map((p) => (
-                <div key={p._id} className="flex items-center justify-between gap-2 bg-white/70 rounded px-2 py-1.5">
+                <div key={p._id} className="flex items-center justify-between gap-2 bg-panel/70 rounded px-2 py-1.5">
                   <span className="text-xs text-stone-700 truncate min-w-0">
                     满{formatYuan(p.threshold)}减{formatYuan(p.discount)}{p.name ? ` · ${p.name}` : ''}
                   </span>
@@ -324,7 +324,7 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
                 </p>
               )}
               {stale.orders.map((o) => (
-                <div key={o.id} className="flex items-center justify-between gap-2 bg-white/70 rounded px-2 py-1.5">
+                <div key={o.id} className="flex items-center justify-between gap-2 bg-panel/70 rounded px-2 py-1.5">
                   <span className="text-xs text-stone-700 truncate min-w-0">
                     {o.roomNumber} · {formatYuan(o.totalAmount ?? 0)} · {o.ageMinutes} 分钟前
                     {o.hasPaymentProof && <span className="ml-1 text-3xs text-green-700 bg-green-100 px-1 py-0.5 rounded">已传付款截图</span>}
@@ -339,11 +339,11 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
         </div>
       )}
       {visible.map(order => (
-        <div key={order._id} className="bg-white p-3 rounded-lg border border-gray-100">
+        <div key={order._id} className="bg-panel p-3 rounded-lg border border-gray-100">
           <div className="flex justify-between items-start gap-2 mb-2">
             <span className="text-sm font-bold min-w-0 truncate">房间号：{order.roomNumber}</span>
             <div className="flex items-center gap-2 shrink-0">
-              <button onClick={() => copyOrder(order)} className="text-xs text-brand-700 bg-brand-50 px-2 py-0.5 rounded">复制</button>
+              <button onClick={() => copyOrder(order)} className="text-xs text-brand-300 bg-brand-50 px-2 py-0.5 rounded">复制</button>
               <span className="text-xs text-stone-500">{new Date(order.createdAt).toLocaleString()}</span>
             </div>
           </div>
@@ -356,7 +356,7 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
                   {/* 口味只在顾客真选过的时候显示：2026-09-26 之前的单口味被静态 spec 覆盖，
                       替老单标"未记录"会把"没这个功能"渲染成"顾客没选"，是假信息 */}
                   {flavor && (
-                    <span className="ml-1 mr-0.5 text-3xs font-medium text-brand-700 bg-brand-100 rounded px-1 py-px">
+                    <span className="ml-1 mr-0.5 text-3xs font-medium text-brand-300 bg-brand-100 rounded px-1 py-px">
                       口味 {flavor}
                     </span>
                   )}
@@ -367,7 +367,7 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
           </div>
           {/* 管理端行内布局：手机端纵向堆叠，sm 以上左右分列（原实现挤在一行、金额与操作互相挤压） */}
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-            <span className="price-num text-brand-700 font-bold">{formatYuan(order.totalAmount ?? 0)}
+            <span className="price-num text-brand-300 font-bold">{formatYuan(order.totalAmount ?? 0)}
               {(order.discountAmount ?? 0) > 0 && (
                 <span className="ml-1.5 text-2xs font-medium text-green-700 bg-green-50 rounded px-1 py-px">已优惠 {formatYuan(order.discountAmount ?? 0)}</span>
               )}
@@ -387,7 +387,7 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
                 onClick={() => void toggleTimeline(order._id)}
                 aria-expanded={Boolean(tlOpen[order._id])}
                 aria-label={`订单 ${order.roomNumber} 的事件时间线`}
-                className="text-xs text-stone-600 bg-white border border-gray-200 rounded px-2 py-1"
+                className="text-xs text-stone-600 bg-panel border border-gray-200 rounded px-2 py-1"
               >
                 {tlOpen[order._id] ? '收起时间线' : '时间线'}
               </button>
@@ -402,7 +402,7 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
                 className={
                   'tap-44 text-xs px-2 py-1 rounded transition-colors duration-200 disabled:opacity-50 ' +
                   (deleteArmed(order._id)
-                    ? 'bg-red-700 text-white font-medium'
+                    ? 'bg-red-700 text-cream font-medium'
                     : 'text-red-700 hover:text-red-800')
                 }
               >
@@ -436,7 +436,7 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
               {!tlLoading[order._id] && !tlError[order._id] && (tlEvents[order._id] ?? []).length > 0 && (
                 <ol className="space-y-1.5">
                   {(tlEvents[order._id] ?? []).map((ev, i) => (
-                    <li key={`${ev.at}-${ev.type}-${i}`} className="flex items-center justify-between gap-2 bg-white/70 rounded px-2 py-1.5">
+                    <li key={`${ev.at}-${ev.type}-${i}`} className="flex items-center justify-between gap-2 bg-panel/70 rounded px-2 py-1.5">
                       <span className="text-xs text-stone-700 truncate min-w-0">
                         {ev.type} · {orderStatusLabel(ev.status) || ev.status}
                       </span>
@@ -458,12 +458,12 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
             <button
               onClick={() => setPage((p) => pageOf(p - 1))}
               disabled={page <= 1}
-              className="px-2.5 py-1 bg-white border border-gray-200 rounded-lg text-xs text-stone-600 disabled:opacity-40"
+              className="px-2.5 py-1 bg-panel border border-gray-200 rounded-lg text-xs text-stone-600 disabled:opacity-40"
             >上一页</button>
             <button
               onClick={() => setPage((p) => pageOf(p + 1))}
               disabled={page >= totalPages}
-              className="px-2.5 py-1 bg-white border border-gray-200 rounded-lg text-xs text-stone-600 disabled:opacity-40"
+              className="px-2.5 py-1 bg-panel border border-gray-200 rounded-lg text-xs text-stone-600 disabled:opacity-40"
             >下一页</button>
           </div>
         </div>

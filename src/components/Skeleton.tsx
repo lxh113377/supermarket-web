@@ -14,7 +14,7 @@ export function Skeleton({ className = '' }: SkeletonProps) {
 /** 列表行骨架：左两行文本 + 右侧圆形按钮位（商品列表 / 订单列表通用） */
 export function SkeletonRow({ className = '' }: SkeletonProps) {
   return (
-    <div className={`flex items-center justify-between p-4 rounded-2xl bg-white border border-gray-100/80 ${className}`}>
+    <div className={`flex items-center justify-between p-4 rounded-2xl bg-panel border border-gray-100/80 ${className}`}>
       <div className="flex-1 pr-3 space-y-2.5">
         <Skeleton className="h-4 w-3/4 rounded-md" />
         <Skeleton className="h-3.5 w-1/4 rounded-md" />

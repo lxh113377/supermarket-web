@@ -54,7 +54,7 @@ function AxisRow({ axis, group, selection, onChange }: {
                 focus-visible:outline-2 focus-visible:outline-brand-700 active:scale-[0.97]
                 ${selected
                   ? 'border-brand-500 bg-brand-50 text-brand-800 font-semibold shadow-soft'
-                  : 'border-gray-200 bg-white text-stone-700 hover:border-brand-500 hover:text-brand-700'}
+                  : 'border-gray-200 bg-panel text-stone-700 hover:border-brand-500 hover:text-brand-300'}
                 ${dead ? 'opacity-40 line-through cursor-not-allowed' : ''}`}
             >
               <span>{opt.label}</span>

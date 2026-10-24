@@ -55,12 +55,12 @@ export default function AdminGuard({ children }: AdminGuardProps) {
       <div
         aria-hidden="true"
         className="cover-clip absolute -left-12 -top-12 h-40 w-40 opacity-80"
-        style={{ background: 'linear-gradient(155deg, #fde047, #eab308 70%, #ca8a04)' }}
+        style={{ background: 'linear-gradient(155deg, #d9b166, #b18739 62%, #7a5c20)' }}
       />
       <div
         aria-hidden="true"
         className="absolute -bottom-20 -right-16 h-56 w-56 rounded-full"
-        style={{ background: 'radial-gradient(circle at 35% 35%, rgba(20,83,45,0.16), transparent 62%)' }}
+        style={{ background: 'radial-gradient(circle at 35% 35%, rgba(31,74,57,0.5), transparent 62%)' }}
       />
 
       <div className="relative w-full max-w-sm animate-fade-in-up">

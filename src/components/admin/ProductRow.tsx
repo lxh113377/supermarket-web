@@ -41,7 +41,7 @@ function ProductRow({
             ? 'border-brand-300 bg-brand-50/50 rounded-b-none'
             : selected
               ? 'border-brand-300 bg-brand-50/50'
-              : 'border-gray-100 bg-white hover:border-gray-200'
+              : 'border-gray-100 bg-panel hover:border-gray-200'
         }`}
       >
         <input
@@ -94,10 +94,10 @@ function ProductRow({
                            行盒没有 min-w-0 时 flex 子项按 min-width:auto 不收缩 ⇒ 溢出；
                            加 wrap 让窄屏下徽章换到下一行，390px 以上有余量不会换行。 */}
           <div className="flex min-w-0 flex-wrap items-center gap-2 mt-0.5">
-            <span className="price-num text-brand-700 font-bold text-sm">¥{formatPrice(product.price)}</span>
+            <span className="price-num text-brand-300 font-bold text-sm">¥{formatPrice(product.price)}</span>
             {catLabel && <span className="text-3xs text-stone-600 bg-gray-50 px-1.5 py-0.5 rounded truncate">{catLabel}</span>}
             {typeof product.stock === 'number' && product.stock === 0 && (
-              <span className="text-3xs text-white bg-red-500 px-1.5 py-0.5 rounded" role="status">缺货</span>
+              <span className="text-3xs text-cream bg-red-500 px-1.5 py-0.5 rounded" role="status">缺货</span>
             )}
             {typeof product.stock === 'number' && product.stock > 0 && product.stock <= 3 && (
               <span className="text-3xs text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded" role="status">低库存 {product.stock}</span>
@@ -128,7 +128,7 @@ function ProductRow({
               className={`flex w-9 h-5 items-center rounded-full p-0.5 transition-colors ${enabled ? 'bg-green-400' : 'bg-gray-300'}`}
             >
               <span
-                className={`h-4 w-4 shrink-0 rounded-full bg-white shadow transition-transform ${enabled ? 'translate-x-4' : 'translate-x-0'}`}
+                className={`h-4 w-4 shrink-0 rounded-full bg-panel shadow transition-transform ${enabled ? 'translate-x-4' : 'translate-x-0'}`}
               />
             </span>
           </button>
@@ -140,7 +140,7 @@ function ProductRow({
             className={`tap-44 w-9 h-9 rounded-lg border flex items-center justify-center text-xs transition active:scale-90 ${
               isEditing
                 ? 'bg-brand-500 border-brand-500 text-ink'
-                : 'bg-gray-50 border-gray-200 text-stone-500 hover:bg-brand-50 hover:border-brand-300 hover:text-brand-700'
+                : 'bg-gray-50 border-gray-200 text-stone-500 hover:bg-brand-50 hover:border-brand-300 hover:text-brand-300'
             }`}
           >
             <span aria-hidden="true">✎</span>
@@ -162,7 +162,7 @@ function ProductRow({
             className={
               'tap-44 w-9 h-9 rounded-lg border flex items-center justify-center text-xs transition active:scale-90 ' +
               (deleteArmed
-                ? 'bg-red-700 border-red-700 text-white font-semibold'
+                ? 'bg-red-700 border-red-700 text-cream font-semibold'
                 : 'bg-gray-50 border-gray-200 text-stone-500 hover:bg-red-50 hover:border-red-200 hover:text-red-700')
             }
           >

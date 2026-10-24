@@ -46,8 +46,8 @@ export default class ErrorBoundary extends React.Component<{ children: React.Rea
                 this.setState({ hasError: false, error: null })
                 window.location.reload()
               }}
-              className="bg-brand-500 text-ink px-6 py-2 rounded-lg text-sm
-                         hover:bg-brand-400 transition duration-200 active:scale-[0.97]"
+              className="bg-brand-500 text-espresso px-6 py-2 rounded-lg text-sm
+                         hover:bg-brass transition duration-200 active:scale-[0.97]"
             >
               重试
             </button>

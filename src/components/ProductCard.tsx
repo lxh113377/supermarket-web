@@ -51,7 +51,7 @@ function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
       className={`group relative flex flex-col overflow-hidden rounded-2xl text-left transition duration-300 ${
         disabled
           ? 'bg-gray-50 opacity-50 grayscale border border-gray-100'
-          : 'bg-white/60 border border-transparent hover:border-brand-300 hover:shadow-elevated cursor-pointer active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-brand-700'
+          : 'bg-panel/60 border border-transparent hover:border-brand-300 hover:shadow-elevated cursor-pointer active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-brand-700'
       }`}
       onClick={goDetail}
       onMouseEnter={() => {
@@ -95,7 +95,7 @@ function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
         {/* 已加购件数：角标压在图左上，取代旧版挤在按钮中间的数字 */}
         {quantity > 0 && !disabled && (
           <span
-            className="absolute top-2 left-2 min-w-[1.5rem] h-6 px-1.5 rounded-full bg-brand-500 text-ink text-xs font-bold flex items-center justify-center tabular-nums shadow-brand"
+            className="absolute top-2 left-2 min-w-[1.5rem] h-6 px-1.5 rounded-full bg-brand-500 text-espresso text-xs font-bold flex items-center justify-center tabular-nums shadow-brand"
             aria-hidden="true"
           >{quantity}</span>
         )}
@@ -110,7 +110,7 @@ function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
                   onRemove(product)
                 }}
                 aria-label={`减少${product.name}`}
-                className="tap-44 w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm border border-gray-200 text-stone-600 flex items-center justify-center text-base leading-none shadow-soft hover:bg-white hover:border-brand-500 transition duration-200 active:scale-90"
+                className="tap-44 w-8 h-8 rounded-full bg-panel/90 backdrop-blur-sm border border-gray-200 text-stone-600 flex items-center justify-center text-base leading-none shadow-soft hover:bg-panel hover:border-brand-500 transition duration-200 active:scale-90"
               >
                 <span aria-hidden="true">-</span>
               </button>
@@ -121,7 +121,7 @@ function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
                 onAdd(product, e)
               }}
               aria-label={`添加${product.name}`}
-              className="tap-44 w-9 h-9 rounded-full bg-brand-500 text-ink flex items-center justify-center text-lg font-semibold leading-none shadow-brand hover:bg-brand-400 hover:scale-105 transition duration-200 active:scale-90"
+              className="tap-44 w-9 h-9 rounded-full bg-brand-500 text-espresso flex items-center justify-center text-lg font-semibold leading-none shadow-brand hover:bg-brass hover:scale-105 transition duration-200 active:scale-90"
             >
               <span aria-hidden="true">+</span>
             </button>
@@ -152,14 +152,14 @@ function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
             已下架
           </span>
         )}
-        <p className={`price-num mt-1.5 text-price-sm font-bold ${disabled ? 'text-stone-500' : 'text-brand-700'}`}>
+        <p className={`price-num mt-1.5 text-price-sm font-bold ${disabled ? 'text-stone-500' : 'text-brand-300'}`}>
           <span className="mr-px text-sm font-semibold opacity-70">¥</span>{formatPrice(product.price)}
           {/* 规格与价格之间留一条发丝线：让"这是什么/多少钱"两段各自成组 */}
           {/* 卡面只标这一条记录自己的真实价格，不用「¥x 起」——
               那样点进详情默认选中的是这一条本身，价格会对不上。
               变体数量另用角标提示，进详情页由选择器承载。 */}
           {variantCount > 1 && (
-            <span className="ml-1.5 align-middle text-2xs font-semibold text-brand-700 bg-brand-100 border border-brand-200 rounded-md px-1.5 py-px">
+            <span className="ml-1.5 align-middle text-2xs font-semibold text-brand-300 bg-brand-100 border border-brand-200 rounded-md px-1.5 py-px">
               可选 {variantCount} 种口味
             </span>
           )}

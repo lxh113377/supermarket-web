@@ -14,7 +14,7 @@ export default function ServiceHintCard({ hint }: { hint?: string }) {
   const hintSections = parseHintSections(hint)
   if (hintSections.length === 0) return null
   return (
-    <div className="bg-white rounded-3xl p-5 mb-4 shadow-card border border-gray-100/80 animate-fade-in-up stagger-1">
+    <div className="bg-panel rounded-3xl p-5 mb-4 shadow-card border border-gray-100/80 animate-fade-in-up stagger-1">
       <div className="flex items-center gap-2 mb-3.5">
         <span className="w-6 h-6 rounded-lg bg-brand-100 flex items-center justify-center text-xs">📋</span>
         <h2 className="text-sm font-semibold text-ink-soft">服务说明</h2>
@@ -29,8 +29,8 @@ export default function ServiceHintCard({ hint }: { hint?: string }) {
                 const isTitle = line.startsWith('(') || line.startsWith('（')
                 if (isTitle) {
                   return (
-                    <p key={lIdx} className="text-xs font-semibold text-brand-700 mt-2 flex items-center gap-1.5">
-                      <span className="w-1 h-3 rounded-full bg-brand-400 inline-block" />
+                    <p key={lIdx} className="text-xs font-semibold text-brand-300 mt-2 flex items-center gap-1.5">
+                      <span className="w-1 h-3 rounded-full bg-brass inline-block" />
                       {line.replace(/[()（）]/g, '')}
                     </p>
                   )
@@ -39,7 +39,7 @@ export default function ServiceHintCard({ hint }: { hint?: string }) {
                 const hasPrice = /\d+元/.test(line) || /\d+\.\d+元/.test(line)
                 return (
                   <p key={lIdx} className={`text-xs leading-relaxed flex items-start gap-2 ${hasPrice ? 'text-ink-soft font-medium' : 'text-stone-500'}`}>
-                    <span className={`mt-1 w-1 h-1 rounded-full flex-shrink-0 ${hasPrice ? 'bg-brand-400' : 'bg-gray-300'}`} />
+                    <span className={`mt-1 w-1 h-1 rounded-full flex-shrink-0 ${hasPrice ? 'bg-brass' : 'bg-gray-300'}`} />
                     {line}
                   </p>
                 )

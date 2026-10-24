@@ -29,8 +29,8 @@ function Placeholder({ name, spec }: { name: string; spec?: string }) {
     <div className="w-full h-full min-h-60 flex items-center justify-center bg-gradient-to-br from-brand-50 via-surface-warm to-brand-100/50">
       <div className="text-center animate-scale-in">
         <div className="text-6xl mb-3" aria-hidden="true">🛒</div>
-        <p className="text-brand-700 font-bold text-lg">{name}</p>
-        {spec && <p className="text-brand-700 text-sm mt-1">{spec}</p>}
+        <p className="text-brand-300 font-bold text-lg">{name}</p>
+        {spec && <p className="text-brand-300 text-sm mt-1">{spec}</p>}
         {/* 如实标注：这是占位示意，不是商品实拍 */}
         <p className="text-stone-600 text-2xs mt-2">示意图 · 非商品实拍</p>
       </div>
@@ -99,7 +99,7 @@ export default function ProductGallery({ product, gallery, items, index, onIndex
 
   // 切换商品时重置轮播态（由父 key={product._id} 驱动卸载重挂）
   return (
-    <div className="bg-white animate-fade-in">
+    <div className="bg-panel animate-fade-in">
       <div className="flex flex-col lg:flex-row lg:items-start lg:gap-4 lg:p-4">
         {/* 主图区 —— DOM 顺序在前 */}
         <div className="flex-1 min-w-0" data-main-image="">
@@ -133,14 +133,14 @@ export default function ProductGallery({ product, gallery, items, index, onIndex
               <button
                 onClick={prev}
                 aria-label="上一张图片"
-                className="tap-44 absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/85 backdrop-blur-sm shadow-soft flex items-center justify-center text-stone-500 hover:bg-white transition"
+                className="tap-44 absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-panel/85 backdrop-blur-sm shadow-soft flex items-center justify-center text-stone-500 hover:bg-panel transition"
               >
                 <span aria-hidden="true">‹</span>
               </button>
               <button
                 onClick={next}
                 aria-label="下一张图片"
-                className="tap-44 absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/85 backdrop-blur-sm shadow-soft flex items-center justify-center text-stone-500 hover:bg-white transition"
+                className="tap-44 absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-panel/85 backdrop-blur-sm shadow-soft flex items-center justify-center text-stone-500 hover:bg-panel transition"
               >
                 <span aria-hidden="true">›</span>
               </button>

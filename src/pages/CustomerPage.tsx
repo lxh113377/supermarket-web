@@ -159,7 +159,7 @@ export default function CustomerPage() {
         autoFocus
       />
       {suggestions.length > 0 && (
-        <div className="mt-2 bg-white border border-gray-100 rounded-xl shadow-elevated overflow-hidden animate-scale-in">
+        <div className="mt-2 bg-panel border border-gray-100 rounded-xl shadow-elevated overflow-hidden animate-scale-in">
           {suggestions.map(p => (
             <button
               key={p._id}
@@ -167,7 +167,7 @@ export default function CustomerPage() {
               className="w-full text-left px-4 py-3 text-sm hover:bg-brand-50/50 flex justify-between items-center transition-colors duration-150 border-b border-gray-50 last:border-0"
             >
               <span className="text-stone-700">{p.name}{p.spec ? ` (${p.spec})` : ''}</span>
-              <span className="price-num text-brand-700 text-xs font-semibold">{formatYuan(p.price)}</span>
+              <span className="price-num text-brand-300 text-xs font-semibold">{formatYuan(p.price)}</span>
             </button>
           ))}
         </div>
@@ -300,7 +300,7 @@ export default function CustomerPage() {
               onMouseEnter={() => prefetchRoute('cart')}
               onFocus={() => prefetchRoute('cart')}
               aria-label={`查看购物车，共 ${totalCount} 件，合计 ${formatYuan(totalAmount)}`}
-              className="w-full max-w-2xl mx-auto bg-ink hover:bg-ink-soft text-white py-4 rounded-2xl shadow-float flex items-center justify-center gap-3 transition duration-200 active:scale-[0.98]"
+              className="w-full max-w-2xl mx-auto bg-espresso hover:bg-espresso-soft text-cream py-4 rounded-2xl shadow-float flex items-center justify-center gap-3 transition duration-200 active:scale-[0.98]"
             >
               <span className="font-medium">购物车</span>
               <span className="bg-brand-500 px-2.5 py-0.5 rounded-full text-xs font-bold">
@@ -348,7 +348,7 @@ export default function CustomerPage() {
             onMouseEnter={() => prefetchRoute('cart')}
             onFocus={() => prefetchRoute('cart')}
             aria-label={`查看购物车，共 ${totalCount} 件，合计 ${formatYuan(totalAmount)}`}
-            className="w-full max-w-2xl mx-auto bg-ink hover:bg-ink-soft text-white py-4 rounded-2xl shadow-float flex items-center justify-center gap-3 transition duration-200 active:scale-[0.98]"
+            className="w-full max-w-2xl mx-auto bg-espresso hover:bg-espresso-soft text-cream py-4 rounded-2xl shadow-float flex items-center justify-center gap-3 transition duration-200 active:scale-[0.98]"
           >
             <span className="font-medium">购物车</span>
             <span className="bg-brand-500 px-2.5 py-0.5 rounded-full text-xs font-bold">
@@ -378,7 +378,7 @@ function toastLayer(toast: string) {
       aria-live="polite"
     >
       {toast && (
-        <div className="bg-ink/90 backdrop-blur-sm text-white text-sm px-5 py-2.5 rounded-full shadow-float animate-scale-in">
+        <div className="bg-espresso/90 backdrop-blur-sm text-cream text-sm px-5 py-2.5 rounded-full shadow-float animate-scale-in">
           {toast}
         </div>
       )}

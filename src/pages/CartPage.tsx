@@ -85,7 +85,7 @@ export default function CartPage() {
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-surface animate-fade-in">
       {/* 顶栏 */}
-      <div className="flex items-center justify-between px-5 py-4 bg-white/95 backdrop-blur-sm border-b border-gray-100">
+      <div className="flex items-center justify-between px-5 py-4 bg-panel/95 backdrop-blur-sm border-b border-gray-100">
         <button
           onClick={() => navigate(-1)}
           className="w-9 h-9 rounded-full flex items-center justify-center text-stone-500 hover:text-stone-700 hover:bg-gray-100 transition duration-200 active:scale-90"
@@ -112,7 +112,7 @@ export default function CartPage() {
               aria-label={clearArmed('clear') ? '确认清空购物车' : '清空购物车'}
               className={
                 'text-xs px-2.5 py-1.5 rounded-lg transition-colors duration-200 ' +
-                (clearArmed('clear') ? 'bg-red-700 text-white font-medium' : 'text-red-700 hover:bg-red-50')
+                (clearArmed('clear') ? 'bg-red-700 text-cream font-medium' : 'text-red-700 hover:bg-red-50')
               }
             >
               {clearArmed('clear') ? '确认清空' : '清空'}
@@ -172,13 +172,13 @@ export default function CartPage() {
 
       {/* safe-bottom 覆盖下内边距，为 iPhone 底部小黑条留白 */}
       {cart.items.length > 0 && (
-        <div className="border-t border-gray-100 px-5 pt-5 bg-white/95 backdrop-blur-sm safe-bottom">
+        <div className="border-t border-gray-100 px-5 pt-5 bg-panel/95 backdrop-blur-sm safe-bottom">
           <div className="w-full max-w-3xl lg:max-w-4xl mx-auto">
             <div className="flex justify-between items-center mb-4">
               <span className="text-sm text-stone-500">共 {totalCount} 件</span>
               <span className="text-xl font-bold text-ink">
                 <span className="text-xs font-medium text-stone-500 mr-1">合计</span>
-                <span className="price-num font-bold text-brand-700">{formatYuan(totalAmount)}</span>
+                <span className="price-num font-bold text-brand-300">{formatYuan(totalAmount)}</span>
               </span>
             </div>
             {/* 起送门槛（2026-10-22 老大立规「总价低于六元不配送」）：

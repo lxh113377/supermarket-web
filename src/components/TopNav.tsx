@@ -60,7 +60,7 @@ export default function TopNav({
       onClick={onSearchToggle}
       aria-label={showSearch ? '关闭搜索' : '搜索商品'}
       aria-pressed={showSearch}
-      className={`shrink-0 px-3.5 py-3.5 transition duration-200 active:scale-90 ${showSearch ? 'text-brand-700 scale-110' : 'text-stone-500 hover:text-stone-700'}`}
+      className={`shrink-0 px-3.5 py-3.5 transition duration-200 active:scale-90 ${showSearch ? 'text-brand-300 scale-110' : 'text-stone-500 hover:text-stone-700'}`}
     >
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
         <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -72,7 +72,7 @@ export default function TopNav({
   // 到达后重新挂载，选中态归零，用户看到「分类条闪一下又跳回第一个」。
   if (!currentCategory) {
     return (
-      <nav aria-label="商品分类导航" aria-busy="true" className="bg-white/95 backdrop-blur-sm border-b border-gray-100 sticky top-0 z-20 shadow-soft">
+      <nav aria-label="商品分类导航" aria-busy="true" className="bg-panel/95 backdrop-blur-sm border-b border-gray-100 sticky top-0 z-20 shadow-soft">
         <div className="flex items-center gap-2 px-3 py-3.5 max-w-5xl mx-auto">
           {[0, 1, 2].map(i => <Skeleton key={i} className="h-4 flex-1 rounded-md" />)}
         </div>
@@ -101,7 +101,7 @@ export default function TopNav({
                 aria-pressed={activeTop === cat._id}
                 className={`w-full text-left text-sm font-bold tracking-wide transition-colors duration-200 pb-1.5 border-b ${
                   activeTop === cat._id
-                    ? 'text-brand-700 border-brand-400'
+                    ? 'text-brand-300 border-brand-400'
                     : 'text-stone-500 border-transparent hover:text-stone-700'
                 }`}
               >
@@ -116,7 +116,7 @@ export default function TopNav({
                     aria-label="显示全部商品"
                     aria-pressed={activeSub === ''}
                     className={`text-left px-2 py-1.5 rounded-lg text-xs transition duration-200 ${
-                      activeSub === '' ? 'bg-brand-500 text-ink font-medium shadow-soft' : 'text-stone-500 hover:bg-brand-50 hover:text-brand-700'
+                      activeSub === '' ? 'bg-brand-500 text-espresso font-medium shadow-soft' : 'text-stone-500 hover:bg-brand-50 hover:text-brand-300'
                     }`}
                   >
                     全部
@@ -129,7 +129,7 @@ export default function TopNav({
                       aria-label={`切换到${sub.name}分类`}
                       aria-pressed={activeSub === sub.id}
                       className={`text-left px-2 py-1.5 rounded-lg text-xs transition duration-200 ${
-                        activeSub === sub.id ? 'bg-brand-500 text-ink font-medium shadow-soft' : 'text-stone-500 hover:bg-brand-50 hover:text-brand-700'
+                        activeSub === sub.id ? 'bg-brand-500 text-espresso font-medium shadow-soft' : 'text-stone-500 hover:bg-brand-50 hover:text-brand-300'
                       }`}
                     >
                       {sub.name}
@@ -146,7 +146,7 @@ export default function TopNav({
 
   /* ---------- 手机 / 平板：顶部横条 ---------- */
   return (
-    <nav aria-label="商品分类导航" className="bg-white/95 backdrop-blur-sm border-b border-gray-100 sticky top-0 z-20">
+    <nav aria-label="商品分类导航" className="bg-panel/95 backdrop-blur-sm border-b border-gray-100 sticky top-0 z-20">
       <div className="flex items-center max-w-5xl mx-auto border-b border-gray-100" role="group" aria-label="商品大类">
         {categories.map(cat => (
           <button
@@ -156,7 +156,7 @@ export default function TopNav({
             aria-pressed={activeTop === cat._id}
             className={`flex-1 min-w-0 px-1 py-3.5 text-center text-xs sm:text-sm font-medium transition duration-200 active:scale-[0.98] relative ${
               activeTop === cat._id
-                ? 'text-brand-700'
+                ? 'text-brand-300'
                 : 'text-stone-500 hover:text-stone-600'
             }`}
           >

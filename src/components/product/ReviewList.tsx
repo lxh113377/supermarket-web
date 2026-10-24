@@ -69,7 +69,7 @@ export default function ReviewList({ reviews, sort, onSortChange }: {
   onSortChange: (s: string) => void
 }) {
   return (
-    <div className="bg-white mt-2.5 p-5 animate-fade-in-up stagger-3">
+    <div className="bg-panel mt-2.5 p-5 animate-fade-in-up stagger-3">
       <div className="flex items-center justify-between mb-4">
         <h2 className="section-title">买家评价 ({reviews.length})</h2>
         <div className="flex gap-1.5">

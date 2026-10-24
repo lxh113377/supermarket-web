@@ -70,7 +70,7 @@ export default function DemoOrderSummary({
           )}
           <div className="flex items-center justify-between gap-4 pt-2 border-t border-gray-100">
             <dt className="text-ink font-semibold">合计</dt>
-            <dd className="price-num text-brand-700 font-bold text-lg">{formatYuan(total)}</dd>
+            <dd className="price-num text-brand-300 font-bold text-lg">{formatYuan(total)}</dd>
           </div>
         </dl>
 
