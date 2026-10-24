@@ -57,7 +57,11 @@
 - [ ] 无障碍：主题切换钮可补 aria-live 播报（当前仅 aria-pressed）。
 - [ ] 性能：宋体子集 215KB 可再按路由分包（当前首屏 preload 未加，font-display: swap 已兜底）。
 
-## 3. 验证门槛（本轮实测）
-- npm run lint / typecheck / build：0 错。
-- vitest：148 文件 2169 用例全绿（含承接修复的 4 个 v1 遗留红文件）。
-- playwright visual 闸（215 用例）：目标全绿；逐页截图 24 张×双主题，overflowX=0、console/pageerror=0。
+## 3. 验证门槛（本轮实测，2026-10-25 05:28 收口）
+- npm run lint：0 warnings 0 errors（400 文件）。
+- npm run typecheck：clean（前端 + backend 两套 tsconfig）。
+- npm run build：clean（vite 8 / rolldown）。
+- vitest：148 文件 / 2169 用例全绿（含承接修复的 4 个 v1 遗留红文件：adminPage Router 宿主、chartOptions 色板对账、customerPage 窄屏 h1、docCommands 台账）。
+- playwright visual 闸：215 用例 = 214 passed / 1 skipped（skip 为「多图画集商品」判据，目录当前无多图商品，判据自带显式 skip 理由）/ 0 failed。覆盖对比度（34 路由态）、hover 对比、暖色前景、标题层级、触控目标 2.5.8、按压反馈、动效一致性、内容可达、空态平衡、跳过链接、reduced-motion。
+- 冒烟：双主题 × 12 路由 × 2 视口 = 48 张截图，overflowX=0、pageerror/console error=0（_design-qa/final-day、final-night）。
+- EOL 纯度闸：GREEN（index 侧 blob 零 CRLF、末行换行齐备）。
