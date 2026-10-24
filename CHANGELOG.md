@@ -1,5 +1,29 @@
 ## [未发布]
 
+### 2026-10-24 新增商品：正大无花果 ¥0.5
+
+- **新增 1 件商品**：正大无花果，分类「零食」(snacks)，价格 0.5 元，`spec` 留空（供货图无净含量小字），已上架。
+  真相源 `src/data/products-seed.ts`（order 65），`db/seed.sql` 由 `node db/gen-seed.mjs` 同步生成（63→64 行商品）。
+- **生产库**：新增 `db/migrate-add-product-zhengda-wuhuaguo.sql`（仅 `INSERT OR IGNORE` 新行，不触碰既有列——
+  线上与 seed 存在系统性价格漂移，禁 seed 覆盖）+ 配对回滚件 `db/rollback-add-product-zhengda-wuhuaguo.sql`，
+  并把该回滚件登记进 `scripts/verify-migrate-replay.mjs` 的 `ROLLBACK_INSERT` 具名清单（行集轨，`tables: ['products']`）。
+- **图片**：用用户提供的实拍供货图（800×800）按既有流水线入库 `public/images/65.webp`（800w q80）与
+  `public/images/sm/65.webp`（400w q75），零代码改动 —— 商品 `image` 为空 ⇒ 四个调用点都走
+  `productImageUrl(order)` 派生 URL（`src/utils/images.ts:21`）。
+- **登记面**：`docs/governance/registry.json` 的 `facts.seedCatalog` 63→64 与 `bl-sku` 指标 evidence 同日复算；
+  `docs/doc-commands.json` 与 README 门禁块由 `node scripts/check-doc-commands.mjs --update` 重生（先写本条再重生，顺序不可倒）。
+- **本机实测**：`npm run verify:images` 主图 65/65 + 缩略图 65/65（rc=0）；`npm run verify:migrate-replay` rc=0
+  （前向迁移 7 件幂等重放 + 回滚往返覆盖 11 件）；`npm run lint` 0 警告；`npm run typecheck` rc=0；
+  `npm run verify:backend` 212 通过 / 0 失败；`npm test` 147 文件 2165 用例全过；
+  `verify:docs`/`eol`/`case`/`volume`（V5 声明 1–179 ⇄ 磁盘 179）/`pointers`/`gate-parity`/`contract`/`registry`/
+  `openapi`/`response`/`cli-legs`/`entrypoints`/`licenses`/`sbom`/`a11y`/`cache`/`csp`/`env`/`limits`/`errors`/
+  `logs`/`pii`/`event-sink`/`schema`/`changelog`/`restore-drill`/`functions` 与 `check-d1-roundtrips` 25/0 全 rc=0。
+- **两处与本轮无关的红如实记录**（不折算成本轮缺陷，也不静默绕）：① `verify:governance` 的 F2 在本机报
+  `d1Usage` 三项不符 —— 取数面 `docs/d1-remote-usage.json` 被**并行会话**在 22:06 重跑刷新（未提交），
+  而登记值跟着 HEAD 的旧读数；CI 检出读的是 HEAD 那份，不受本机脏件影响 ⇒ 本轮不动该登记值，
+  等那笔刷新自己入库时由 `receipt-refresh` 通道一起跟。② `check:delivery-claims` 新增 5 条全部落在
+  第七十八轮报告的 §3/§5，本轮未碰 `deliverables/`（外层 git 面 dirty 0 件）。
+
 ### 2026-10-24 后台评价与服务提交两个页签的有数据态：此前一行都没被扫过
 
 - 继续逐页用眼睛看（第五次）。这轮走查后台评价与服务提交 tab，发现它们**永远空**，

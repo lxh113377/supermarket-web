@@ -288,6 +288,7 @@ export function judge({ files, schemaSql, extraFiles = [] }) {
   const ROLLBACK_INSERT = {
     'rollback-daily-goods.sql': { forward: 'migrate-daily-goods.sql', tables: ['categories', 'products'] },
     'rollback-add-product-laoyuannuantang.sql': { forward: 'migrate-add-product-laoyuannuantang.sql', tables: ['products'] },
+    'rollback-add-product-zhengda-wuhuaguo.sql': { forward: 'migrate-add-product-zhengda-wuhuaguo.sql', tables: ['products'] },
   }
   const textOf = (name) => [...files, ...(extraFiles || [])].find((f) => f.file === name)?.text
   const seedSql = textOf('seed.sql') || ''

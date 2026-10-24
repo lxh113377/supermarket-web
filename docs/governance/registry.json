@@ -41,8 +41,8 @@
       "source": "scripts/check-memory-volume.mjs（CONTENT_MAX_DEFAULT/SHELL_MAX_DEFAULT 导入 + 当场 stat）；运行时字段一律现算，禁手抄"
     },
     "seedCatalog": {
-      "products": 63,
-      "enabled": 63,
+      "products": 64,
+      "enabled": 64,
       "orders": 0,
       "source": "node:sqlite 内存重放 db/schema.sql + db/seed.sql（本机实测）"
     },
@@ -347,8 +347,8 @@
           "path": "db/seed.sql",
           "field": "INSERT INTO products 行数",
           "measuredBy": "node:sqlite 内存重放 db/schema.sql + db/seed.sql",
-          "evidence": "本机 2026-10-18 实测 products=62 / enabled=62（seed 面）",
-          "measuredAt": "2026-10-18"
+          "evidence": "本机 2026-10-24 实测 products=64 / enabled=64（seed 面，新增「正大无花果」order 65 后复算）",
+          "measuredAt": "2026-10-24"
         },
         "cadence": "每次商品面变更",
         "thresholds": {

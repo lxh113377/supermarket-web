@@ -163,4 +163,7 @@ export const products: SeedProduct[] = [
 
   // 新增商品（2026-10-21，用户口头报新品；糖果类归零食，图上无净含量小字，spec 留空）
   { name: '老酸奶软糖', spec: '', price: 0.5, subcategories: ['snacks'], order: 64 },
+
+  // 新增商品（2026-10-24，用户提供实拍供货图；「正大」牌无花果干，归类零食，图上无净含量小字，spec 留空）
+  { name: '正大无花果', spec: '', price: 0.5, subcategories: ['snacks'], order: 65 },
 ]
