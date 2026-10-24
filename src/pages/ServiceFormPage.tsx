@@ -70,6 +70,32 @@ export default function ServiceFormPage() {
     )
   }
 
+  /**
+   * 这页有没有东西可填。一手缺陷（2026-10-24 实测）：snacks 服务 type=supermarket、
+   * **没有 fields**（它的正确入口是商城加购下单，CategoryPage 也确实把它导向 /shop），
+   * 但这页照旧渲染「填写信息」标题 + 「提交信息」按钮，而 validate() 遍历的是
+   * `service.fields || []` ⇒ 零字段时循环不执行、校验全过。实测点一次提交就往
+   * sm_submissions 写进 {serviceId:"snacks", formData:{}, status:"pending"} 一条**空工单**，
+   * 页面还回「提交成功，请耐心等待工作人员联系」⇒ 商家收到一条没有内容的工单、
+   * 顾客在等一个永远不来的回复。这不是样式问题，是数据完整性 + 承诺撒谎。
+   * ⇒ 无字段时不渲染这个承诺，改按 service.type 给真正的出口（见下方出口卡片）。
+   */
+  const fields = service.fields || []
+  const hasFields = fields.length > 0
+  /**
+   * 无字段服务的出口。刻意**按 type 派生、不写死 id**（写成 snacks 特例的话，
+   * 下一个无字段服务照样漏，而且那等于把数据问题藏进页面分支）。
+   * 非 supermarket 那支今天不可达（17 个服务里只有 snacks 无字段，它是 supermarket），
+   * 但它是给「下一个无字段服务」留的兜底 ⇒ 目标写 / 而不是空串：navigate 传空串的行为
+   * 我没验过，而 / 是本文件「服务不存在」守卫已经在用的落点（已知可用）。
+   * 出口的目标与 state 与 CategoryPage.openService 保持同一口径：supermarket 去 /shop
+   * 且带 fromCategory —— 那个 state 是 CustomerPage 的返回键用的（带它才 navigate(-1)
+   * 回本页，否则弹回首页），两处不一致会让"从哪来回哪去"失效。
+   */
+  const exit = service.type === 'supermarket'
+    ? { label: '去商城下单', desc: '这个服务是在商城里挑商品、加购下单，不需要填表单。', to: '/shop' as const, state: { fromCategory: true } }
+    : { label: '看看其他服务', desc: '这个服务暂未开放在线提交，请先联系商家，或返回首页看看其他服务。', to: '/' as const, state: null }
+
   // 服务说明已拆至 ServiceHintCard（hint 分段解析随迁），此处不再需要 hintSections
 
   const handleInputChange = (key: string, value: string) => {
@@ -290,8 +316,13 @@ export default function ServiceFormPage() {
         {/* 表单卡片 */}
         <div className="bg-white rounded-3xl p-6 shadow-card border border-gray-100/80 animate-fade-in-up stagger-2">
           <div className="flex items-center gap-2 mb-5">
-            <span className="w-6 h-6 rounded-lg bg-blue-50 flex items-center justify-center text-xs">📝</span>
-            <h2 className="text-sm font-semibold text-ink-soft">填写信息</h2>
+            {/* 标题跟着事实走：无字段时说「填写信息」是撒谎（框里一个字段都没有）。
+                实测这条曾被顾客走到 —— 屏上是「填写信息」+ 一个「提交信息」按钮，
+                中间零个输入框。 */}
+            <span className="w-6 h-6 rounded-lg bg-blue-50 flex items-center justify-center text-xs" aria-hidden="true">
+              {hasFields ? '📝' : '🛒'}
+            </span>
+            <h2 className="text-sm font-semibold text-ink-soft">{hasFields ? '填写信息' : '怎么下单'}</h2>
           </div>
 
           <div className="space-y-5">
@@ -458,30 +489,43 @@ export default function ServiceFormPage() {
             </div>
           )}
 
-          {/* 提交按钮 */}
+          {/* 提交按钮 / 出口按钮。无字段时**不给提交入口**：那条路径会写出空工单。
+              这里刻意不再加第二道 if (!hasFields) 兜底：本文件唯一的提交入口就是下面
+              这个按钮（无 form 标签、无 Enter 路径，实测过），它已被这个三元挡住 ⇒ 那道
+              闸结构上永不触发。我上一轮写了它还在注释里声称「有测试验它」—— 那正是本仓
+              反复批判的「写了但验不了」，已摘。真正要防的是日后有人新增提交路径时，
+              连带 validate() 对零字段恒真这件事一起改（见 hasFields 的定义处）。 */}
           <button
-            onClick={handleSubmit}
+            onClick={() => (hasFields ? handleSubmit() : navigate(exit.to, exit.state ? { state: exit.state } : undefined))}
             disabled={submitting}
             className="btn-primary w-full py-4 text-base mt-6 flex items-center justify-center gap-2"
           >
-            {submitting ? (
-              <>
-                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                提交中...
-              </>
+            {hasFields ? (
+              submitting ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  提交中...
+                </>
+              ) : (
+                <>
+                  <span>提交信息</span>
+                  <span className="text-white/70">→</span>
+                </>
+              )
             ) : (
               <>
-                <span>提交信息</span>
+                <span>{exit.label}</span>
                 <span className="text-white/70">→</span>
               </>
             )}
           </button>
         </div>
 
-        {/* 底部提示 */}
+        {/* 底部提示：两句对应两种事实。无字段时那句「提交后请等待联系」是在承诺一件
+            根本不会发生的事（这页没有可提交的东西）。 */}
         <p className="text-center text-xs text-stone-500 mt-6 flex items-center justify-center gap-1.5">
           <span className="w-1 h-1 rounded-full bg-gray-200" />
-          提交后请耐心等待工作人员联系
+          {hasFields ? '提交后请耐心等待工作人员联系' : exit.desc}
           <span className="w-1 h-1 rounded-full bg-gray-200" />
         </p>
       </div>
