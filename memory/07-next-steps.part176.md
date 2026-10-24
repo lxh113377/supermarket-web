@@ -3,6 +3,17 @@
 > 建卷理由：part171 追加本轮三段后 5509B > 4096B 触发 V2 ⇒ 按"整段迁卷"正解拆出本卷，不压措辞。
 > 原文逐字未改（slice 断言在场）。
 
+
+## round-4 追加：两轮 CI 红自修 + 逃生门台账（同日）
+
+- **红 1（run 40056442931@60a2eba）**：gates「Lint (oxlint)」报 `homedir` 死导入。本机为什么绿：本地扫的是**工作树**，
+  并行会话已删掉该行 ⇒ 又一次"本机绿 CI 红"（形态同 r77 记载的同类）。修复 = 收并行会话的干净版进提交（8fbf1c3）。
+- **红 2（run 40057470615@8fbf1c3）**：deep-gates「CLI entrypoint real-run gate」G2/G9/G11 三腿——
+  新脚本缺三道登记（缺口表 / 风险表 / `@probe-safe` 自述）。修复 = 两表补行 + 源码自述（bbfd917），
+  实测数据：classifyRisk=["wrangler"]、骨架 rc=2/0s（缺 .dev.vars 口令即 bail）。
+- **逃生门**：基线 failure 使 pre-push 锁死（契约明拒 failure 类恢复通道）⇒ 走 `CI_GREEN_SKIP` + 台账
+  `.ci/escape-hatch.jsonl`（base 60a2eba→head 8fbf1c3，6 必填字段），台账件由下一笔提交入库（契约要求）。
+- **教训**：新脚本进仓要过的是**三道登记**（缺口/风险/自述），不是只过 lint——本轮连红两次同族。
 ## round-4（2026-10-24，老大 #37 立规当轮）：三项回抛全部自行处置完毕
 
 1. **I-78-5 残留销账**：t0240 跨日批（预飞 admin 1046ms/customer 1748ms，与 t1903 的 4350/5000ms 反向）
