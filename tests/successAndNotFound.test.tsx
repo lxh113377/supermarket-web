@@ -66,14 +66,45 @@ describe('OrderSuccessPage', () => {
     expect(m.navigate).toHaveBeenCalledWith('/order-query', { state: { orderId: 'o_abc' } })
   })
 
-  it('无单号/无地址的裸 state（旧链接直达）→ 不渲染单号区与复制/查询按钮，也不写兜底键', () => {
+  /**
+   * 本条 2026-10-24 改过：它原来的第 3 行是
+   *   expect(screen.getByText('下单成功！')).toBeTruthy()
+   * 也就是把"无凭据也宣称下单成功"当成了期望。标题写着「旧链接直达」⇒ 作者知道这个
+   * 场景存在，只是照抄了当时的行为。这是"测试固化缺陷"的教科书案例：一条红测试改起来
+   * 显眼，一条绿测试里的错误期望没人会去复查。
+   * 真实缺陷（浏览器实测）：深链直达时卡片全空（42px 白框）、页面说「订单已提交，请完成
+   * 支付」、点「去支付」被 PaymentPage 的无 orderId 分支弹回首页。
+   */
+  it('无凭据直达 → 不说「下单成功」，不渲染空壳卡片，也不给会消失的支付按钮', () => {
     m.state = null
     render(<OrderSuccessPage />)
-    expect(screen.getByText('下单成功！')).toBeTruthy()
+    expect(screen.queryByText('下单成功！'), '一笔不存在的订单不能被断言为成功').toBeNull()
+    expect(screen.getByText('没有找到这张订单')).toBeTruthy()
+    expect(screen.getByText(/没留下订单号/)).toBeTruthy()
     expect(screen.queryByText(/订单号：/)).toBeNull()
     expect(screen.queryByRole('button', { name: '复制订单号' })).toBeNull()
     expect(screen.queryByRole('button', { name: '查询订单状态' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '去支付' }), '点了会被 payment 页弹回首页 ⇒ 不给').toBeNull()
     expect(sessionStorage.getItem('sm_query_order')).toBeNull()
+    // 「继续选购」必须留着：这是无凭据时唯一有意义的出路
+    expect(screen.getByRole('button', { name: '继续选购' })).toBeTruthy()
+  })
+
+  /**
+   * 兜底回读（2026-10-24 补）。这条是本页真正的不对称缺陷：下面那行 useEffect 一直在
+   * **写** sm_query_order，注释写明是给「微信内被刷掉 location.state」用的，而本页从
+   * 不**读**它 —— 写的人想到了这个场景、读的人没实现。OrderQueryPage 读了（它的 input
+   * 初值是 state?.orderId || sessionStorage.getItem(...)），所以两页口径不一致。
+   */
+  it('state 丢了但本机留过单号 → 回读兜底键恢复订单号（与查询页同口径）', () => {
+    m.state = null
+    sessionStorage.setItem('sm_query_order', 'o_fallback_777')
+    render(<OrderSuccessPage />)
+    expect(screen.getByText('下单成功！')).toBeTruthy()
+    expect(screen.getByText(/订单号：o_fallback_777/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: '去支付' })).toBeTruthy()
+    // 金额没兜底可恢复（本页刻意不回读金额）：按钮仍给，金额由支付页自己兜底
+    expect(screen.getByRole('button', { name: '查询订单状态' })).toBeTruthy()
   })
 })
 
