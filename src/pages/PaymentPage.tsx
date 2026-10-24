@@ -47,6 +47,20 @@ export default function PaymentPage() {
 
   const qrSrc = method === 'wechat' ? './wechat-pay.png' : './alipay.jpg'
 
+  /**
+   * 金额块。提成一个变量而不是在两个分支各写一遍：这两处显示的是同一笔钱，
+   * 满减口径哪天改了，两处各写迟早漂开。
+   */
+  const amountBlock = totalAmount > 0 ? (
+    <div className="text-center">
+      <p className="text-xs text-stone-500 mb-1">本次应付</p>
+      <p className="price-num text-price-md font-extrabold leading-none text-ink">{formatYuan(totalAmount)}</p>
+      {discountAmount > 0 && (
+        <p className="text-xs text-green-700 mt-1.5" role="status">满减已优惠 {formatYuan(discountAmount)}</p>
+      )}
+    </div>
+  ) : null
+
   if (!orderId) return null
 
   return (
@@ -66,7 +80,12 @@ export default function PaymentPage() {
 
       {!method ? (
         <div role="main" id="main-content" tabIndex={-1} className="flex-1 flex flex-col items-center justify-center gap-4 p-6 w-full max-w-lg mx-auto">
-          <p className="text-sm text-stone-500 mb-2">请选择支付方式完成付款</p>
+          {/* 金额必须在选方式之前就显示：这一屏是用户决定「要不要现在付」的地方，
+              不告诉他付多少钱就把他推到两个支付按钮面前，是交易页的信息架构缺陷。
+              2026-10-24 实测：改之前 chooser 态整屏只有「请选择支付方式完成付款」+ 两个
+              按钮，金额要等点完微信/支付宝才出现。 */}
+          {amountBlock}
+          <p className="text-sm text-stone-500">请选择支付方式完成付款</p>
           <button
             onClick={() => setMethod('wechat')}
             className="w-full max-w-sm bg-green-700 text-white py-4 rounded-2xl text-base font-medium shadow-elevated hover:bg-green-800 transition duration-200 active:scale-[0.98] animate-fade-in-up stagger-1"
@@ -102,12 +121,8 @@ export default function PaymentPage() {
             </div>
           ) : (
             <div className="text-center w-full max-w-sm animate-fade-in-up flex flex-col items-center">
-              {totalAmount > 0 && (
-                <p className="price-num mb-1 text-price-md font-extrabold leading-none text-ink">{formatYuan(totalAmount)}</p>
-              )}
-              {discountAmount > 0 && (
-                <p className="text-xs text-green-700 mb-1.5" role="status">满减已优惠 {formatYuan(discountAmount)}</p>
-              )}
+              {/* 与 chooser 态同一个 amountBlock（同一笔钱不在两处各写一遍） */}
+              {amountBlock}
               <div className="w-full bg-amber-50 border border-amber-200/80 rounded-xl px-3 py-2 mb-2">
                 <p className="text-amber-800 text-xs font-medium">
                   <span aria-hidden="true">⚠️</span> 请截图扫码付款，付款后联系商家进行配送

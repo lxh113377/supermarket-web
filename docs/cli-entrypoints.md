@@ -84,6 +84,7 @@
 | print-tunnel.mjs | 打印页后端的隧道重连器（人工发起）：默认档一次跑完 = ① 起 cloudflared ② 改上游 `.env` 的 `PUBLIC_ORIGIN` ③ 停 4328 的监听进程并重启后端 ④ 写 Pages secret ⑤ 构建 + `wrangler pages deploy` **真上线** ⑥ 真打线上 `/api` 收尾。探针 spawn 它 = 每跑一次 `npm test` 就重部一次生产并换一个隧道域名，结构上绝不能自动跑；它也没有「先停在门口」的档（`--check` 虽只读，但那三处 `/api` 探测已由日巡检 `uptime-check.mjs` 第 ④⑤ 条尺每天真跑并邮件告警，同一批端点）⇒ 观测面不为零，本行只记「没有自动夹具」 |
 | sync-print.mjs | 打印页同步执行器：`--apply` 会**写盘**（覆盖 public/{shared,user} 与登记册），`--fetch` 打网络浅克隆上游仓 —— 两者都绝不能进探针（探针里跑一次 = 测试自己改交付面）。dry-run 腿的取数面是权威源在场（CI 由 checkout step 保证、本机看有没有跑过 --fetch），在 `npm test` 时点上不确定 ⇒ 记本缺口；它的**结论**由同族判据 `print-parity.mjs` 当场对账（该件有 `tests/printParity.test.js` 真跑入口，G8 面内），方向写错当场红 ⇒ 不是无人看守的入口 |
 | check-d1-remote-usage.mjs | 真跑 = 打 Cloudflare GraphQL + 起 `wrangler d1 info` 子进程（本轮实测：无 flag 骨架 **rc=0 / 7.7s**，两通道各走一遍）⇒ 跑它测的是服务商可用性，不是代码；带 `--write` 还会改写受版本控制的 `docs/d1-remote-usage.json`。它**不是**门禁类别名（`report:d1-usage`）⇒ 不占 G8 的门禁面；纯判据由 `tests/d1RemoteUsage.test.js` 注入读数覆盖（U5 三向的四种出口各有断言），入口通道没有 fixture 注数面 ⇒ 记本缺口，CI 侧它是 advisory（`continue-on-error`，理由写在 ci.yml 该步注释里）|
+| d1-local-backup.mjs | 真跑 = `wrangler d1 export supermarket --remote`（打线上 D1 导出全库）+ 连起三次 `backup-crypto.mjs` 子进程**写盘**（`.sql` 与 `.smbk` 落 `_backup/`）⇒ 探针跑一次 = 真导一次库并弄脏工作树。本机条件下门口不 bail（`.dev.vars` 里 `BACKUP_PASSPHRASE` 在册、`node_modules/wrangler` 已装，第 27 行的缺口令分支进不去），且全文 44 行**没有 dry-run / selftest 路径**，所以本行**没有实测读数**、只有源码阅读依据（诚实标注：不擅自跑一条会真导线上库的命令）。入口由 `npm run backup:d1-local` 与 `.github/workflows/d1-local-backup.yml` 以真命令跑 |
 
 ## 不可子进程豁免
 
@@ -149,6 +150,7 @@ G11 认的是"已证明停在门口"这个整词，不是子串 —— 否则 �
 | check-d1-roundtrips.mjs | writes-artifacts | **这一行的标签是"跑出来的"，不是推出来的**（第四十三轮 `check-judge-side-effects` 一手）：`--update-write-quota` 实测 rc=0 且改写受版本控制的 `docs/d1-write-quota.json`，而静态推导对它推不出任何东西（目标常量 `WRITE_QUOTA_FILE` 是 `lib/d1-quota.mjs` import 进来的）⇒ 它此前挂"零风险"是漏登，不是它不危险。它同时是 PROBED 成员（`verify:roundtrips`），已在 CI 真跑，故不需要 `@probe-safe` 声明 |
 | check-doc-commands.mjs | writes-artifacts | ❌ 不声明停在门口：只有显式 `--update` 才改写 `docs/doc-commands.json` 与 README 的门禁块（两处都受版本控制）；默认 args 只读，本轮真面实测 rc=1 / 6 条判据 4 通过 2 失败（D5+D6 同点名 `check:judge-side-effects`）。它在文档面为空时由 **D1 判红**而不是 rc=2 ⇒ 探针的"缺输入即 bail"形状对它不成立 |
 | check-judge-side-effects.mjs | writes-artifacts | ❌ 不声明停在门口：只有 `--update` 重写 `docs/judge-side-effects.json`；无 flag 的真跑法把每个候选解进 `os.tmpdir()` 的一次性 `git archive` 快照里跑（本机第四十六轮实测：候选 9 件、**1m37s**（修前 6m49s，根因＝读数面把探针注入的 node_modules 也算进去）、工作树字节零改动）⇒ 慢且要 git+tar，不进 ②③ 自动面。本轮新增件在 HEAD 里还没有 ⇒ 它**对自己的探针**记 UNVERIFIED 并具名在册（`unprobeable`），入库后自动可探 |
+| d1-local-backup.mjs | wrangler | ⚠️ **未实测门口行为**（本机 `.dev.vars` 里 `BACKUP_PASSPHRASE` 在册、`node_modules/wrangler` 已装 ⇒ 第 27 行的缺口令 bail 进不去，跑一次就是真打 `d1 export --remote` 导线上库），故本行不声明"停在门口"、也不回到探针分母。标签来自源码第 32 行 `spawnSync(... wrangler.js, d1, export, supermarket, --remote ...)`；备份链本身的正确性由它连起的 `scripts/backup-crypto.mjs` 三档（`--encrypt` / `--inspect` / `--verify`）各自的夹具覆盖，本入口只做编排 |
 ## 为什么"CI 里真跑过"算减轻因素、但不抵消缺口
 
 被豁免/挂账的入口大多确实在 CI 或部署流程里以 `node scripts/X.mjs` 真跑过 —— 入口崩了 CI 就红，

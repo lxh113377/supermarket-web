@@ -86,6 +86,35 @@ test('下单防误：楼栋/房间未填时阻止提交并播报', async ({ page
   await expect(page.getByRole('alert')).toContainText(/楼栋|房间/)
 })
 
+/**
+ * 支付页 chooser 态必须当场显示金额（2026-10-24 补）。
+ *
+ * 一手缺陷：改之前 PaymentPage 只在**选完支付方式之后**才渲染金额 ——  chooser 那一屏
+ * 只有「请选择支付方式完成付款」+ 两个按钮。用户站在"要不要现在付"的决策点上不知道
+ * 自己付多少钱，这是交易页的信息架构缺陷。
+ * 为什么这条走真实下单链路而不是 sessionStorage 兜底：兜底路径测的是「页面读得到
+ * 存储」，测不到「金额从确认页一路传到支付页」这条真链（confirm → success → payment
+ * 三段 state 里任何一段丢了 totalAmount，兜底测试都发现不了）。
+ * 断言金额相等而不是只断"有金额"：只断存在性会放过"传丢了显示 ¥0.00"这一类。
+ */
+test('下单后进支付页：选方式之前就能看到应付金额', async ({ page }) => {
+  await placeDemoOrder(page)
+  // 确认页合计（3 件 × ¥2.66 = ¥7.98）—— 先拿它当基准，再核支付页显示同一个数
+  const expect798 = /7\.98/
+  await expect(page.getByText('去支付')).toBeVisible({ timeout: 15_000 })
+  await page.getByRole('button', { name: '去支付' }).click()
+  await expect(page.getByRole('heading', { name: '选择支付方式' })).toBeVisible({ timeout: 15_000 })
+  // chooser 态：金额必须在屏上（改之前这里必红）
+  const amount = page.locator('.price-num').first()
+  await expect(amount).toBeVisible({ timeout: 10_000 })
+  await expect(amount).toContainText(expect798)
+  // 两个支付按钮也在（金额不能把按钮挤出视口）
+  await expect(page.getByRole('button', { name: '微信支付' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '支付宝付款' })).toBeVisible()
+  // 点进微信后仍是同一个数（两态共用一个金额块，不许一边对一边错）
+  await page.getByRole('button', { name: '微信支付' }).click()
+  await expect(page.locator('.price-num').first()).toContainText(expect798, { timeout: 10_000 })
+})
 test('订单查询页：下单后凭 sessionStorage 单号自动查出「待支付」进度', async ({ page }) => {
   await placeDemoOrder(page)
   await page.goto('/#/order-query')

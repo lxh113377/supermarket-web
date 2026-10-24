@@ -203,8 +203,15 @@ async function walkToSuccess(page: import('@playwright/test').Page) {
 }
 
 /**
- * 支付页：走页面自己的 sessionStorage 兜底路径（PaymentPage 读
- * sm_payment_order / sm_payment_amount），稳定渲染金额与二维码区。
+ * 支付页 chooser 态（选哪种支付方式那一屏）。走页面自己的 sessionStorage 兜底路径
+ * （PaymentPage 读 sm_payment_order / sm_payment_amount）。
+ *
+ * ⚠️ 本注释第一版写着「稳定渲染金额与二维码区」—— 那是**没验证就写下的假声称**：
+ *   helper 停在 chooser 态（不点任何方式），二维码根本不渲染。2026-10-24 修支付页
+ *   金额时才发现，顺手把「金额」与「二维码」两件事拆开：chooser 态由本条扫，
+ *   二维码态由下面 seedPaymentQr 那条扫。
+ *   （讽刺的是「chooser 有金额」这半句在改之前也是假的 —— 当时金额只在选完之后才出。
+ *    一句话没量过就写进注释，迟早变成假的。）
  *
  * 两个时序坑（第一版就栽在这里，表现为 checked=0）：
  *   ① addInitScript 只对**之后**的导航生效 —— 路由循环已经 goto 过一次，
@@ -228,7 +235,25 @@ const seedPayment = async (page: import('@playwright/test').Page) => {
   await page.waitForTimeout(600)
 }
 
-/** 走查面：顾客端主要路由 + 需要交互才出内容的两个态（满车、搜索展开） */
+/**
+ * 支付页二维码态（选完方式之后那一屏）：金额 + 满减行 + 琥珀色「请截图扫码付款」
+ * 提示条 + 返回按钮。这屏文字此前从未被 contrast 扫过（chooser 那条不点进去）。
+ * 琥珀提示条是本站出过对比度缺陷的那一类底色（2026-10-23 首页打烊提示实测 4.44:1
+ * 差 0.06 不过 AA），必须扫到。
+ */
+const seedPaymentQr = async (page: import('@playwright/test').Page) => {
+  await seedPayment(page)
+  await page.getByRole('button', { name: '微信支付' }).click()
+  // 落点断言：二维码态特有的那句提示必须在，否则等于还在扫 chooser
+  await expect(page.getByText('请截图扫码付款')).toBeVisible({ timeout: 10_000 })
+  await page.waitForTimeout(600)
+}
+
+/**
+ * 走查面：顾客端主要路由，外加一批**必须交互才出现**的态（满车、搜索展开、购物车待确认、
+ * 管理端行内/批量待确认、支付二维码）。这类态不自己走一遍交互就永远扫不到，
+ * 规矩见 armCartClear 那条注释：判据得自己走过去。
+ */
 const ROUTES: RouteSpec[] = [
   { name: 'home', route: '/#/' },
   { name: 'shop', route: '/#/shop' },
@@ -385,7 +410,11 @@ const ROUTES: RouteSpec[] = [
   { name: 'order-confirm', route: '/#/order-confirm', prepare: seedCartThen('/#/order-confirm'), expectText: '确认订单' },
   // 「查询订单状态」只在成功页出现（确认页没有），且不受网络态改写标题影响
   { name: 'order-success', route: '/#/order-confirm', prepare: walkToSuccess, expectText: '查询订单状态' },
-  { name: 'payment', route: '/#/payment', prepare: seedPayment, expectText: '选择支付方式' },
+  // expectText 从「选择支付方式」改成「本次应付」—— 钉的是 2026-10-24 这次修复的
+  // 产品语义（选之前就得看见金额），不只是「页面活着」。
+  { name: 'payment', route: '/#/payment', prepare: seedPayment, expectText: '本次应付' },
+  // 二维码态单独一条：金额与琥珀提示条都在选完方式之后才渲染的那一屏上，此前从未被扫。
+  { name: 'payment-qr', route: '/#/payment', prepare: seedPaymentQr, expectText: '请截图扫码付款' },
 ]
 
 let errs: ErrorWatch
