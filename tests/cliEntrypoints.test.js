@@ -311,6 +311,26 @@ ${riskRows}
     expect(row.detail).toContain('缺实测依据')
   })
 
+  /*
+   * G9 反例（2026-10-24 一手事故）：同一个脚本在风险表里挂两行。
+   * 此前这条**没有腿拦**：riskRowOf 是 Map ⇒ 重复被当场吸收，missing/phantom/mismatch
+   * 四个集合差全为零就 PASS，只有 detail 里那句「派生 29 ⇄ 登记 30」把线索印了出来 ——
+   * 打印了数字却不判，等于等人肉眼发现（本轮就是肉眼发现的：并行会话与本会话各补了
+   * 一行 d1-local-backup.mjs，而且两份结论互相矛盾）。
+   * 两行都写 network-fetch ⇒ 标签不符/幽灵/依据薄三条旧腿都不该动，红的只能是新腿。
+   */
+  it('G9 反例：同一脚本在风险表里挂两行 ⇒ 判红并点名（矛盾登记的温床）', () => {
+    const res = dangerRepo(`${RISK_OK}\n| danger.mjs | network-fetch | 第二个会话也补了一行：上一行说未实测门口、这一行说实测停在门口 |`)
+    const row = res.rows.find((r) => r.id === 'G9')
+    expect(row.pass).toBe(false)
+    expect(row.detail).toContain('挂多行')
+    expect(row.detail).toContain('danger.mjs×2')
+    // 旧三条腿不该被这条变异误伤：证明新腿是独立生效的
+    expect(row.detail).not.toContain('标签不符')
+    expect(row.detail).not.toContain('幽灵')
+    expect(row.detail).not.toContain('缺实测依据')
+  })
+
   it('G9 边界：登记面指向不存在的脚本 ⇒ 单列红因，且这道闸**满足得了**（补文件/改别名即可，不是要人挂非法标签）', () => {    const withGhost = baseRepo({
       pkg: { 'verify:ghost': 'node scripts/ghost.mjs' },
       registry: `- **覆盖地板**：1

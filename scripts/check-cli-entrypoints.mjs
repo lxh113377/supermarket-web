@@ -374,6 +374,25 @@ export function evaluate({ registered, covered, declared, floorOk, hookTargets, 
   const declaredSet = new Set([...declared.gaps, ...declared.exemptions].map((g) => g.script))
   const doubleBooked = declared.gaps.filter((g) => declared.exemptions.some((e) => e.script === g.script))
   const uncoveredSet = new Set(uncovered.map((r) => r.script))
+  /**
+   * 同一张表里同一个脚本挂两行（一手事故：2026-10-24 并行会话与本会话各补了一行
+   * d1-local-backup.mjs，缺口表与风险表各出现两次）。此前**没有任何一条腿拦得住**：
+   * declaredSet / riskRowOf 都是 Set/Map ⇒ 重复被当场吸收，G2 与 G9 判的是集合差
+   * （missing / phantom / mismatch），四个都为零就 PASS。更糟的是 G9 的 detail 明明
+   * 印出「派生风险 29 条 ⇄ 登记 30 条」这个不一致，却因为没人断言它而静默放过 ——
+   * **打印了数字却不判**，等于把线索丢在日志里等人肉眼发现（本轮就是肉眼发现的）。
+   * ⇒ 重复行必须单独判红：它意味着同一脚本有**两份可能互相矛盾**的登记。实测一例：
+   *   一份写「未实测门口行为、不声明停在门口」，另一份写「骨架实测 rc=2 停在门口 ⇒
+   *   回到探针分母」—— 对同一个脚本结论相反，而判据两边都读得到、哪份赢不确定。
+   */
+  const dupIn = (list) => {
+    const seen = new Map()
+    for (const r of list) seen.set(r.script, (seen.get(r.script) || 0) + 1)
+    return [...seen.entries()].filter(([, n]) => n > 1).map(([s, n]) => `${s}×${n}`)
+  }
+  const gapsDup = dupIn(declared.gaps)
+  const exemptDup = dupIn(declared.exemptions)
+  const riskDup = dupIn(declared.risk)
 
   rows.push({
     id: 'G1',
@@ -385,8 +404,13 @@ export function evaluate({ registered, covered, declared, floorOk, hookTargets, 
   const undeclared = [...uncoveredSet].filter((s) => !declaredSet.has(s))
   rows.push({
     id: 'G2',
-    pass: phantom.length === 0 && undeclared.length === 0 && doubleBooked.length === 0,
+    pass: phantom.length === 0 && undeclared.length === 0 && doubleBooked.length === 0 &&
+      gapsDup.length === 0 && exemptDup.length === 0,
     detail: `缺口∪豁免 ⇄ 实测未覆盖 双向对账：登记 ${declaredSet.size} / 实测 ${uncoveredSet.size}` +
+      (gapsDup.length ? `；缺口表内同一脚本挂多行（矛盾登记的温床，删到只剩一份）: ${gapsDup.join(
+)}` : '') +
+      (exemptDup.length ? `；豁免表内同一脚本挂多行: ${exemptDup.join(
+)}` : '') +
       (phantom.length ? `；幽灵登记（已覆盖或不存在却还挂着）: ${phantom.join(', ')}` : '') +
       (undeclared.length ? `；未登记缺口: ${undeclared.join(', ')}` : '') +
       (doubleBooked.length ? `；一行挂两处（缺口∩豁免）: ${doubleBooked.map((g) => g.script).join(', ')}` : ''),
@@ -489,8 +513,14 @@ export function evaluate({ registered, covered, declared, floorOk, hookTargets, 
   }).map((r) => r.script)
   rows.push({
     id: 'G9',
-    pass: dangling.length === 0 && riskMissing.length === 0 && riskPhantom.length === 0 && riskMismatch.length === 0 && riskThin.length === 0,
+    pass: dangling.length === 0 && riskMissing.length === 0 && riskPhantom.length === 0 && riskMismatch.length === 0 && riskThin.length === 0 &&
+      riskDup.length === 0 && risky.length === declared.risk.length,
     detail: `派生风险 ${risky.length} 条 ⇄ 登记 ${declared.risk.length} 条` +
+      // 数量不等此前只是**印出来**没人判（本轮一手：登记 30 ⇄ 派生 29 照样 PASS，
+      // 差额正是那张表里的重复行）。这里补上断言，让"打印了线索"变成"判得住"。
+      (riskDup.length ? `；风险表内同一脚本挂多行: ${riskDup.join(
+)}` : '') +
+      (!riskDup.length && risky.length !== declared.risk.length ? `；条数不等（派生与登记有一侧多出行，逐行核对）` : '') +
       (dangling.length ? `；登记面引用了不存在的脚本（改别名或补文件，别挂风险行）: ${dangling.join(', ')}` : '') +
       (riskMissing.length ? `；漏登（源码里有危险特征却没进表）: ${riskMissing.join(', ')}` : '') +
       (riskPhantom.length ? `；幽灵（表里挂着但源码已无该特征/脚本不存在）: ${riskPhantom.join(', ')}` : '') +
