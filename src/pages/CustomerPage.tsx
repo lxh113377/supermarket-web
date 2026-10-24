@@ -14,6 +14,7 @@ import { formatYuan } from '../utils/format'
 import { meetsMinDelivery, minDeliveryGap } from '../data/deliveryLimits'
 import { specSearchText } from '../utils/spec-options'
 import { prefetchRoute } from '../prefetchBus'
+import CustomerHeader from '../components/brand/CustomerHeader'
 import type { Product } from '../types'
 
 interface FlyDotData {
@@ -201,7 +202,7 @@ export default function CustomerPage() {
 
   if (loading) {
     return (
-      <div className="flex flex-col h-full bg-surface">
+      <div className="market-shop flex flex-col h-full bg-surface">
         {nav}
         <div role="main" id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto p-4 pb-24">
           <SkeletonList rows={6} />
@@ -262,20 +263,11 @@ export default function CustomerPage() {
   /* ---------------- 桌面：刊头 + 左侧分类栏 + 右侧画廊 ---------------- */
   if (!narrow) {
     return (
-      <div className="flex flex-col h-full bg-surface">
-        <div className="flex items-center px-6 lg:px-10 py-4 bg-white/80 backdrop-blur-sm border-b border-gray-100">
-          <button
-            onClick={() => (location.state?.fromCategory ? navigate(-1) : navigate('/'))}
-            aria-label="返回"
-            className="w-9 h-9 rounded-full flex items-center justify-center text-stone-500 hover:text-stone-700 hover:bg-gray-100 transition duration-200 active:scale-90 -ml-2 mr-3"
-          >
-            ←
-          </button>
-          <span className="text-sm font-semibold tracking-[0.2em] text-stone-500">江科一站通</span>
-        </div>
+      <div className="market-shop flex flex-col h-full bg-surface">
+        <CustomerHeader minimal />
 
-        <div role="main" id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto px-6 lg:px-10 py-6 pb-28">
-          <div className="flex gap-8 items-start max-w-[80rem] mx-auto">
+        <div role="main" id="main-content" tabIndex={-1} className="market-shop-main flex-1 overflow-y-auto px-6 lg:px-10 py-6 pb-28">
+          <div className="market-shop-columns flex gap-8 items-start max-w-[90rem] mx-auto">
             {nav}
 
             <div className="flex-1 min-w-0">
@@ -334,26 +326,13 @@ export default function CustomerPage() {
 
   /* ---------------- 手机 / 平板：顶部横条 + 双列大图 ---------------- */
   return (
-    <div className="flex flex-col h-full bg-surface">
-      <div className="flex items-center px-4 py-2.5 bg-white/95 backdrop-blur-sm border-b border-gray-100">
-        <button
-          onClick={() => (location.state?.fromCategory ? navigate(-1) : navigate('/'))}
-          aria-label="返回"
-          className="w-8 h-8 rounded-full flex items-center justify-center text-stone-500 hover:text-stone-700 hover:bg-gray-100 transition duration-200 active:scale-90"
-        >
-          ←
-        </button>
-        {/* 窄屏也必须有自己的 h1（2026-10-23 一手）：桌面分支这里是 <h1>，而手机分支从前写成
-            <span> ⇒ 微信里（本站主战场）这一页的文档大纲是空的，读屏用户拿不到"我在哪个分类"。
-            实测：1280 下 h1=「饮品」，390 下 h1 数量 0。Tailwind preflight 已把 h1 的
-            margin/font-size/font-weight 重置为 inherit ⇒ 换标签但保留同一串 class，视觉零变化。 */}
-        <h1 className="ml-2 text-sm font-semibold text-ink-soft">
-          {category?.name || '全部商品'}
-        </h1>
-      </div>
+    <div className="market-shop flex flex-col h-full bg-surface">
+      <CustomerHeader minimal />
+      <button onClick={() => (location.state?.fromCategory ? navigate(-1) : navigate('/'))} aria-label="返回" className="market-back">← <span>返回</span></button>
+      <h1 className="sr-only">{category?.name || '全部商品'}</h1>
       {nav}
 
-      <div role="main" id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto px-4 pt-3 pb-32">
+      <div role="main" id="main-content" tabIndex={-1} className="market-shop-main flex-1 overflow-y-auto px-4 pt-3 pb-32">
         {searchPanel}
         <div className="flex items-center justify-between gap-3 flex-wrap pb-2">
           {sortRow}

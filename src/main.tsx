@@ -5,6 +5,7 @@ import App from './App'
 import InstallPrompt from './components/InstallPrompt'
 import { initSubmissionSync } from './db'
 import './index.css'
+import './redesign.css'
 
 // PWA service worker
 if ('serviceWorker' in navigator) {

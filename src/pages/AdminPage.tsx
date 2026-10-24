@@ -7,16 +7,24 @@ import OrdersTab from '../components/OrdersTab'
 import ReviewsTab from '../components/ReviewsTab'
 import SubmissionsTab from '../components/SubmissionsTab'
 import type { Category, Order, Product } from '../types'
-import { handleTablistKeyDown } from '../utils/rovingTabs'
+import WorkspaceShell, { type WorkspaceTab } from '../components/brand/WorkspaceShell'
 import { useInlineConfirm } from '../hooks/useInlineConfirm'
 
-const TABS = [
-  { key: 'dashboard', label: '看板', icon: '📊' },
-  { key: 'products', label: '商品', icon: '📦' },
-  { key: 'orders', label: '订单', icon: '🧾' },
-  { key: 'submissions', label: '服务', icon: '📋' },
-  { key: 'reviews', label: '评价', icon: '⭐' },
+const TABS: readonly WorkspaceTab[] = [
+  { key: 'dashboard', label: '看板', icon: 'chart' },
+  { key: 'products', label: '商品', icon: 'box' },
+  { key: 'orders', label: '订单', icon: 'receipt' },
+  { key: 'submissions', label: '服务', icon: 'service' },
+  { key: 'reviews', label: '评价', icon: 'star' },
 ]
+
+const TAB_COPY: Record<string, [string, string]> = {
+  dashboard: ['经营看板', '看见营收、订单与商品表现，找到今天值得关注的事。'],
+  products: ['商品管理', '价格、口味与上架状态，一处更新，顾客端同步。'],
+  orders: ['订单处理', '从下单到送达，每笔订单都有清楚的下一步。'],
+  submissions: ['服务工单', '集中处理顾客提交的生活与学习服务。'],
+  reviews: ['顾客评价', '听顾客怎么说，把每一次反馈变成下一次改进。'],
+}
 
 export default function AdminPage() {
   const [tab, setTab] = useState('products')
@@ -149,40 +157,15 @@ export default function AdminPage() {
   }
 
   return (
-    <div role="main" id="main-content" tabIndex={-1} className="min-h-full bg-surface p-5 pb-24 w-full max-w-5xl lg:max-w-6xl mx-auto">
-      {/* 标题区 */}
-      <div className="flex items-center justify-between mb-5">
-        <h1 className="text-xl font-bold text-ink">管理后台</h1>
-        <div className="flex items-center gap-2">
-          {/* 打印经营后台入口：本站 /print 页 = 上游校园打印应用（自带订单工作台/优惠券/售后），
-              数据在它自己的库里，与本后台的 D1 不通 ⇒ 只能给入口，不能塞进上面的页签。
-              真路径 /admin/（静态面）与 hash 路由 #/admin（本页）不冲突。新标签打开：
-              两套登录体系（这里是 ADMIN_KEY，那边是上游管理员账号），同标签互踢会丢工作。 */}
-          <a
-            href="/admin/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700 transition active:scale-[0.98]"
-          >
-            打印经营后台
-          </a>
-          <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${IS_CLOUD ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-800 border border-amber-200'}`}>
-            {IS_CLOUD ? '云端模式' : '本地演示'}
-          </span>
-        </div>
-      </div>
-
-      {/* 状态提示 */}
+    <WorkspaceShell tab={tab} tabs={TABS} onTabChange={setTab} title={TAB_COPY[tab][0]} description={TAB_COPY[tab][1]}>
       {!IS_CLOUD && (
-        <div className="mb-5 bg-amber-50/80 border border-amber-200/60 text-amber-800 text-xs rounded-2xl p-4 animate-slide-down">
-          当前为<strong>本地演示模式</strong>，数据仅保存在浏览器中
+        <div className="workspace-demo-note" role="status">
+          <span>本地演示模式</span><p>数据仅保存在当前浏览器，不会写入线上数据。</p>
         </div>
       )}
       {IS_CLOUD && products.length === 0 && (
         <div className="mb-5 bg-brand-50/80 border border-brand-200/60 rounded-2xl p-4 space-y-3 animate-slide-down">
           <p className="text-brand-700 text-xs">云端模式已启用，但暂无商品数据</p>
-          {/* 两步确认（替代原生 confirm()）：导入是一次性写库操作。第二下换成红底「确认导入」，
-              与「主按钮=柿色」的默认态拉开视觉差，避免用户在同一个柿色按钮上误连续点。 */}
           <button
             onClick={() => (seedArmed('seed') ? doSeed() : armSeed('seed'))}
             onBlur={disarmSeed}
@@ -198,78 +181,25 @@ export default function AdminPage() {
           {seedMsg && <p className="text-brand-700 text-xs">{seedMsg}</p>}
         </div>
       )}
-
-      {/* Tab 导航 - 更精致的分段控件 */}
-      {/* Tab 导航：补 tablist 语义（读屏能播报「第 N 个，共 5 个」），小屏字号收窄防挤压 */}
-      <div
-        role="tablist"
-        aria-label="管理功能"
-        className="flex gap-1.5 mb-5 bg-white p-1.5 rounded-2xl shadow-card border border-gray-100/80"
-        onKeyDown={(e) =>
-          handleTablistKeyDown(
-            e,
-            TABS.map((t) => t.key),
-            tab,
-            setTab,
-            (v) => document.getElementById(`admin-tab-${v}`)?.focus(),
-          )
-        }
-      >
-        {TABS.map(t => (
-          <button
-            key={t.key}
-            role="tab"
-            aria-selected={tab === t.key}
-            aria-controls={`admin-panel-${t.key}`}
-            id={`admin-tab-${t.key}`}
-            tabIndex={tab === t.key ? 0 : -1}
-            onClick={() => setTab(t.key)}
-            className={`flex-1 min-w-0 py-2.5 rounded-xl text-2xs sm:text-xs font-medium transition duration-200 flex flex-col items-center gap-1 active:scale-[0.98] ${
-              tab === t.key
-                ? 'bg-ink text-white shadow-soft'
-                : 'text-stone-500 hover:text-stone-700 hover:bg-gray-50'
-            }`}
-          >
-            <span className="text-sm" aria-hidden="true">{t.icon}</span>
-            <span className="truncate max-w-full">{t.label}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* Tab 内容 - 带入场动画（P0-6：去掉 key={tab}，避免整块 DOM 强制重挂载） */}
-      <div
-        className="animate-fade-in-up"
-        role="tabpanel"
-        id={`admin-panel-${tab}`}
-        aria-labelledby={`admin-tab-${tab}`}
-      >
+      <div className="workspace-panel" role="tabpanel" id={`admin-panel-${tab}`} aria-labelledby={`admin-tab-${tab}`}>
         {tab === 'dashboard' && <DashboardTab />}
         {tab === 'products' && (
           <>
-            {productsError && (
-              <div className="mb-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3" role="alert">
-                <span aria-hidden="true">⚠️</span> 商品数据加载失败：{productsError}
-              </div>
-            )}
+            {productsError && <div className="mb-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3" role="alert">商品数据加载失败：{productsError}</div>}
             <ProductsTab products={products} categories={categories} onDataChange={loadProducts} />
           </>
         )}
         {tab === 'orders' && (
-          <OrdersTab
-            orders={orders}
-            onOrdersChange={(list) => {
-              // 变更（状态/删除）后重建全量基线并重置游标：下次轮询回到全量，防止增量 Map 残留已删单/旧状态
-              ordersRef.current = new Map(list.map((o) => [o._id, o]))
-              cursorRef.current = null
-              firstSyncRef.current = false
-              setOrders(list)
-            }}
-            loading={ordersLoading}
-          />
+          <OrdersTab orders={orders} onOrdersChange={(list) => {
+            ordersRef.current = new Map(list.map((o) => [o._id, o]))
+            cursorRef.current = null
+            firstSyncRef.current = false
+            setOrders(list)
+          }} loading={ordersLoading} />
         )}
         {tab === 'submissions' && <SubmissionsTab />}
         {tab === 'reviews' && <ReviewsTab />}
       </div>
-    </div>
-  )
+    </WorkspaceShell>
+ )
 }
