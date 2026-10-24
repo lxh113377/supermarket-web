@@ -73,7 +73,7 @@
 .button-ink { background: #1f4a39; color: #f4efe7; }
 .button-ink:hover { background: #2c5f4b; }
 .button-light { background: transparent; color: rgb(var(--t-brand-300)); box-shadow: inset 0 0 0 1px rgb(var(--t-brand-500) / 0.45); }
-.button-light:hover { background: rgb(var(--t-brand-500) / 0.1); box-shadow: inset 0 0 0 1px rgb(var(--t-brand-500)); }
+.button-light:hover { box-shadow: inset 0 0 0 1px rgb(var(--t-brand-500)); }
 .button-large { min-height: 52px; padding: 16px 26px; font-size: 14px; }
 .text-link { display: inline-flex; align-items: center; gap: 12px; font-size: 13px; font-weight: 600; color: rgb(var(--t-ink)); border-bottom: 1px solid rgb(var(--line-strong)); padding-bottom: 6px; transition: color 250ms cubic-bezier(0.4, 0, 0.2, 1), border-color 250ms cubic-bezier(0.4, 0, 0.2, 1); }
 .text-link span { transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1); }
@@ -181,14 +181,14 @@
   display: flex; align-items: center; gap: 24px; min-height: 96px; border-bottom: 1px solid rgb(var(--line));
   transition: padding 300ms cubic-bezier(0.16, 1, 0.3, 1), background-color 300ms cubic-bezier(0.4, 0, 0.2, 1);
 }
-.service-directory-item:hover { padding: 0 14px; background: linear-gradient(90deg, rgb(var(--t-brand-500) / 0.12), transparent 70%); }
+.service-directory-item:hover { padding: 0 14px; background: rgb(var(--t-brand-50)); }
 .service-number { font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif; font-size: 11px; color: rgb(var(--t-brand-300)); font-weight: 600; letter-spacing: 0.06em; }
 .service-main { display: flex; align-items: baseline; gap: 18px; flex: 1; min-width: 0; }
 .service-main strong { font-size: 22px; letter-spacing: -0.01em; font-weight: 800; color: rgb(var(--t-ink)); transition: color 250ms cubic-bezier(0.4, 0, 0.2, 1); }
 .service-directory-item:hover .service-main strong { color: rgb(var(--t-brand-300)); }
 .service-main > span { font-size: 12px; line-height: 1.6; color: rgb(var(--t-mute)); }
 .service-action { display: flex; align-items: center; gap: 18px; font-size: 11px; color: rgb(var(--t-mute)); white-space: nowrap; }
-.service-action span { font-size: 19px; color: rgb(var(--t-brand-500)); transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1); }
+.service-action span { font-size: 19px; color: rgb(var(--t-brand-300)); transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1); }
 .service-directory-item:hover .service-action span { transform: translate(3px, -3px); }
 
 /* 第三带：森林绿门帘 */
@@ -307,7 +307,7 @@
 /* 恒定色带上的强调字（字面量）：昼面的语义 brand-300 是深金，压不住褐黑/森林绿带 */
 .market-hero .eyebrow, .home-promise .eyebrow { color: #d9b166; }
 .home-promise .button-light { color: #d9b166; box-shadow: inset 0 0 0 1px rgb(217 177 102 / 0.55); }
-.home-promise .button-light:hover { background: rgb(0 0 0 / 0.18); box-shadow: inset 0 0 0 1px #d9b166; }
+.home-promise .button-light:hover { box-shadow: inset 0 0 0 1px #d9b166; }
 
 /* 点亮态破坏性按钮（bg-red-700 + text-cream 组合）：昼=深红底白字、夜=浅红底深字 */
 .bg-red-700.text-cream { color: #ffffff; }
@@ -316,7 +316,7 @@
 /* 按压反馈兜底（press-feedback 闸）：触屏上「点到了没有」的唯一即时确认。
    组件级 active:scale 已覆盖大部分控件；这里给所有交互元素一条 :active 规则，
    保证锚点/role=button 这类没有 scale 档的控件也有可见按压反馈。 */
-a:active, button:active, [role="button"]:active, [role="radio"]:active { opacity: 0.88; }
+#root a:active, #root button:active, #root [role="button"]:active, #root [role="radio"]:active { opacity: 0.88; }
 
 /* ══ 恒定色块带上的字色（字面量，不随主题换）══ */
 .on-brass { color: #1c1714; }

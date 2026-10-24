@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom'
 import { CATEGORIES } from '../data/categories'
-import { getClosedMessage } from '../utils/businessHours'
 import { MIN_DELIVERY_AMOUNT } from '../data/deliveryLimits'
+import { formatYuan } from '../utils/format'
+import { getClosedMessage } from '../utils/businessHours'
 import { useBusinessHours } from '../hooks/useBusinessHours'
 import { prefetchRoute } from '../prefetchBus'
 import CustomerHeader from '../components/brand/CustomerHeader'
@@ -19,7 +20,6 @@ export default function HomePage() {
   return (
     <div className="home-page">
       <CustomerHeader />
-      <span className="sr-only">零食饮料满 {MIN_DELIVERY_AMOUNT} 元起送</span>
       <main id="main-content" tabIndex={-1}>
         <MarketHero open={open} />
         {!open && <aside className="home-closed-note" role="status">
@@ -36,7 +36,7 @@ export default function HomePage() {
           <nav className="service-directory" aria-label="服务分类">
             {CATEGORIES.map((cat, index) => {
               const note = categoryNotes[cat.id]
-              return <Link key={cat.id} to={`/category/${cat.id}`} onMouseEnter={() => prefetchRoute('category')} onFocus={() => prefetchRoute('category')} className="service-directory-item">
+              return <Link key={cat.id} to={`/category/${cat.id}`} onMouseEnter={() => prefetchRoute('category')} onFocus={() => prefetchRoute('category')} className="service-directory-item hover:bg-brand-50">
                 <span className="service-number" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
                 <span className="service-main"><strong>{cat.name}</strong><span>{note.subtitle}</span></span>
                 <span className="service-action">{note.action}<span aria-hidden="true">↗</span></span>
@@ -53,6 +53,8 @@ export default function HomePage() {
       </main>
       <footer className="home-footer">
         <span>超柿 <i>×</i> 江科一站通</span>
+        {/* 起送门槛在页脚以可见文案落一处（minDeliveryParity 闸要求本页引用常量而非硬编码数字） */}
+        <span>零食饮料满 {formatYuan(MIN_DELIVERY_AMOUNT)} 起送</span>
         <span>江西科技学院 · 校园日常服务站</span>
         <span>日常有味，事事省心。</span>
       </footer>

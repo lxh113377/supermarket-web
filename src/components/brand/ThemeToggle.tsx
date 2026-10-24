@@ -12,7 +12,7 @@ export default function ThemeToggle() {
     <button
       type="button"
       onClick={toggle}
-      className="theme-toggle"
+      className="theme-toggle hover:bg-brand-50"
       aria-label={toNight ? '切换到夜间主题' : '切换到日间主题'}
       aria-pressed={!toNight}
       title={toNight ? '夜间主题' : '日间主题'}
