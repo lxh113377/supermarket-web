@@ -86,6 +86,13 @@ export default function AssistantPage() {
     void send(input)
   }
 
+  /**
+   * 空态：只有开场白、且 AI 没在回复。
+   * 这个判断同时决定两件事 —— 快捷问题是否展示、消息区是否垂直居中，
+   * 所以提成一个变量而不是在两处各写一遍（两处各写迟早会漂成不同的条件）。
+   */
+  const isEmptyState = messages.length <= 1 && !pending
+
   return (
     <div role="main" id="main-content" tabIndex={-1} className="flex flex-col h-full min-h-screen bg-surface">
       {/* 返回栏 */}
@@ -105,13 +112,30 @@ export default function AssistantPage() {
 
       {/* 消息区：role="log" + aria-live 让读屏在 AI 回复到达时自动播报新消息
           （原实现是纯视觉流，读屏用户完全感知不到回复已到） */}
+      {/*
+       * 空态垂直居中（2026-10-24 修「首屏 59%~72% 是空洞」）。
+       * 实测三档视口的 chips 底 → 输入框顶：手机 497px / 桌面 614px / 平板 738px，
+       * 也就是首屏过半是空白 —— 而这条页是 AI 导购的入口，空态就是它的门面。
+       *
+       * 做法是把内容包一层内层容器，只在空态给它 min-h-full + justify-center：
+       *   ① 外层必须原样保留 flex-1 overflow-y-auto —— touch-targets / press-feedback /
+       *      warm-foreground 三条判据都按「overflow-y 是 auto|scroll 且内容超高」找滚动容器
+       *      （layout.spec.ts 也直接 querySelector('#root .overflow-y-auto')），改类名会打断它们；
+       *   ② 居中放在**内层**而不是给外层加 justify-center：外层是滚动容器，
+       *      直接 justify-center 在内容超过一屏时会把顶部裁成不可达（经典 flex 陷阱）；
+       *      内层用 min-h-full 则内容一长就撑高自己、自由空间归零，不会裁顶。
+       *   ③ 非空态不加居中（保持原有 space-y-3 正常流），因为聊天一旦有内容就该贴顶往下长。
+       */}
       <div
         ref={scrollRef}
         role="log"
         aria-live="polite"
         aria-label="对话记录"
-        className="flex-1 overflow-y-auto px-4 py-4 space-y-3 pb-4 w-full max-w-3xl mx-auto"
+        className="flex-1 overflow-y-auto w-full"
       >
+        {/* 间距用 gap-3 而不是 space-y-3：两态都是 flex 容器，gap 在居中态同样生效
+            （space-y 只在非居中分支会给，空态就会丢掉 greeting 与 chips 的间距）。 */}
+        <div className={'mx-auto flex w-full max-w-3xl flex-col gap-3 px-4 py-4 pb-4 ' + (isEmptyState ? 'min-h-full justify-center' : '')}>
         {messages.map((m) => (
           <div key={m.id} className={`flex gap-2 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             {m.role === 'assistant' && (
@@ -142,8 +166,8 @@ export default function AssistantPage() {
           </div>
         ))}
 
-        {/* 快捷问题 chips（仅开场展示） */}
-        {messages.length <= 1 && !pending && (
+        {/* 快捷问题 chips（仅开场展示，条件与居中同一个 isEmptyState） */}
+        {isEmptyState && (
           <div className="flex flex-wrap gap-2 pt-2">
             {SUGGESTED_QUESTIONS.map((q) => (
               <button
@@ -170,6 +194,7 @@ export default function AssistantPage() {
             </div>
           </div>
         )}
+        </div>
       </div>
 
       {/* 输入区 */}
