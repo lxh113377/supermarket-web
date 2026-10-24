@@ -54,6 +54,56 @@ const STATS = {
   revenueSum: 832.5,
 }
 
+/**
+ * 后台两个 tab 的假数据（2026-10-24 补）。
+ *
+ * 为什么必须有：admin-contrast.spec.ts 的头注自己写着「桩没有 getAllReviews /
+ * getSubmissions 两个 action」，并据此得出「本件只覆盖看板」。那个推理漏了一格：
+ * 它说「商品/订单列表的数据态在视觉套件有真种子数据」，可评价 tab 在 demo 模式下
+ * **也永远空** —— 一手核对 db/reviews.ts 的 getAllReviews 第一行是
+ * `if (!IS_CLOUD) return []`，非云模式直接返回空数组，所以视觉套件那五条 admin-*
+ * 路由扫到的都是空态。（对照：提交 tab 不是这样 —— getSubmissions 在非云模式会
+ * safeParse 本地 sm_submissions，理论上能有数据；但 demo 构建里没人往里写，实测
+ * 同样是空。）⇒ 两个 tab 的有数据态此前都没被任何判据扫过。
+ * 而它们恰好是状态徽章 + 小字元信息最密的地方（text-3xs 徽章压彩色底，是本站出过
+ * 缺陷的形态：首页打烊提示实测 4.44:1 差 0.06 不过 AA）。
+ *
+ * 形状对齐 src/types.ts 的 Review / Submission：评价带 productOrder（要能 join 到下面
+ * PRODUCTS 的商品名，否则测不到那层映射）、星级、日期；提交带两种 status（pending/done）
+ * 各一枚，因为状态徽章的配色是按 status 分支的，只造一种就等于没扫另一种。
+ * 刻意**不**给 images/imageCount：图片按需加载要另打一个 action，且它不是文字对比度面。
+ */
+const PRODUCTS = [
+  { _id: 'p_33', name: '乐事薯片', spec: '40g', price: 2.66, order: 33, enabled: true },
+  { _id: 'p_46', name: '白象方便面', spec: '桶装', price: 3.66, order: 46, enabled: true },
+  // 一条下架的：评价指向它时列表要显示「#order（已下架）」兜底，那也是一种文字态
+  { _id: 'p_99', name: '老冰棍', spec: '支', price: 1.5, order: 99, enabled: false },
+]
+
+const REVIEWS = [
+  { _id: 'rv_1', productOrder: 33, user: '小鱼', rating: 5, text: '第二天送到寝室楼下，很及时。', date: '2026-10-20' },
+  { _id: 'rv_2', productOrder: 46, user: '阿哲', rating: 4, text: '味道可以，就是桶有点压瘪。', createdAt: '2026-10-18T09:12:00.000Z' },
+  { _id: 'rv_3', productOrder: 99, user: '匿名用户', rating: 2, text: '冰都化了，建议注意保温。', createdAt: '2026-10-15T14:30:00.000Z' },
+  // 星级 1 的那条把空星数量拉到最多。核实过：ReviewsTab 的 Stars 是**单一**
+  // text-amber-600，空星 ☆ 只是字符不同、颜色相同 ⇒ 低分不会引入另一套灰度
+  // （我第一版这里写的是「空星是另一套灰度」，把「新增评价表单里的未选星」混成了
+  //  这个展示组件 —— 那是 2026-10-23 openReviewForm 那条路由的对象，不是这里）。
+  { _id: 'rv_4', productOrder: 33, user: 'K', rating: 1, text: '包装漏气，退款处理还行。', date: '2026-10-12' },
+]
+
+const SUBMISSIONS = [
+  {
+    _id: 'sub_1', serviceId: 'express', serviceName: '快递代拿', categoryId: 'life', categoryName: '生活',
+    formData: { '楼栋房号': '36栋-501', '取件码': '8-3-2210', '备注': '下午两点后都在宿舍' },
+    status: 'pending', createdAt: '2026-10-24T01:20:00.000Z',
+  },
+  {
+    _id: 'sub_2', serviceId: 'print', serviceName: '校园打印', categoryId: 'study', categoryName: '学习',
+    formData: { '联系电话': '13800000000', '份数': '3' },
+    status: 'done', createdAt: '2026-10-22T08:05:00.000Z',
+  },
+]
+
 function dispatch(action) {
   switch (action) {
     case 'login': return { code: 0, data: { role: 'admin' } }
@@ -61,8 +111,10 @@ function dispatch(action) {
     // 缺这个 case 会落到 default 的 code:-1，浏览器用例里任何 reload/二次进入都被弹回密钥框。
     case 'verifyKey': return { code: 0, data: { role: 'admin' } }
     case 'getDashboardStats': return { code: 0, data: STATS }
-    case 'getProducts': return { code: 0, data: [] }
+    case 'getProducts': return { code: 0, data: PRODUCTS }
     case 'getOrders': return { code: 0, data: [], hasMore: false }
+    case 'getAllReviews': return { code: 0, data: REVIEWS }
+    case 'getSubmissions': return { code: 0, data: SUBMISSIONS }
     case 'getPublicCategories': return { code: 0, data: [{ _id: 'c1', name: '饮品', subcategories: [] }] }
     case 'getPublicProducts': return { code: 0, data: [] }
     case 'aiAdvice': return { code: 0, data: { content: '（本地桩）示例建议：关注饮品毛利。', source: 'rule' } }
