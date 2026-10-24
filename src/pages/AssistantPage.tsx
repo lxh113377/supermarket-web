@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { publicCall } from '../auth'
 import { IconRobot } from '../components/Icons'
+import ThemeToggle from '../components/brand/ThemeToggle'
 import { ASSISTANT_GREETING, SUGGESTED_QUESTIONS, ASSISTANT_CONVERSATION_KEY } from '../data/assistantFaq'
 
 interface ChatMsg {
@@ -108,6 +109,7 @@ export default function AssistantPage() {
           <IconRobot className="w-4 h-4 text-brand-300" />
           AI 导购助手
         </h1>
+        <span className="ml-auto"><ThemeToggle /></span>
       </div>
 
       {/* 消息区：role="log" + aria-live 让读屏在 AI 回复到达时自动播报新消息
