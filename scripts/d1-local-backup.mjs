@@ -13,7 +13,6 @@ import { spawnSync } from 'node:child_process'
 import { readFileSync, mkdirSync, existsSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { homedir } from 'node:os'
 
 const DIR = fileURLToPath(new URL('..', import.meta.url))
 const argv = process.argv.slice(2)
