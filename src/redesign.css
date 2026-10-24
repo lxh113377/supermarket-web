@@ -312,6 +312,11 @@
 /* 点亮态破坏性按钮（bg-red-700 + text-cream 组合）：昼=深红底白字、夜=浅红底深字 */
 .bg-red-700.text-cream { color: #ffffff; }
 :root[data-theme='night'] .bg-red-700.text-cream { color: #3a2320; }
+/* 批量条实底按钮：昼面语义 cream 会翻成墨字压深底（1.1:1）⇒ 字面量白字；
+   夜面 green-700 是浅绿，白字不过 ⇒ 换深绿字 */
+.bg-espresso.text-cream { color: #ffffff; }
+.bg-green-700.text-cream { color: #ffffff; }
+:root[data-theme='night'] .bg-green-700.text-cream { color: #16382b; }
 
 /* 按压反馈兜底（press-feedback 闸）：触屏上「点到了没有」的唯一即时确认。
    组件级 active:scale 已覆盖大部分控件；这里给所有交互元素一条 :active 规则，
@@ -469,7 +474,9 @@
   .workspace-rail-footer { border: 0; margin: 0; padding: 0 2px 13px; font-size: 9px; }
   .workspace-rail-footer > a:first-child { display: none; }
   .workspace-rail-footer > a:nth-child(2) { display: flex; gap: 7px; }
-  .workspace-environment { display: none; }
+  /* 环境行在移动端保留可见（display:none 会让其文字叶子零面积，
+     content-reachability 闸按「被祖先完全裁掉」报不可达） */
+  .workspace-environment { font-size: 9px; }
   .workspace-topline { height: 40px; font-size: 9px; padding: 0 15px; }
   .workspace-main { padding: 24px 15px 62px; }
   .workspace-heading { padding-bottom: 18px; margin-bottom: 20px; }
