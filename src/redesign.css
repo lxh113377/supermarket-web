@@ -32,6 +32,8 @@
 .brand-campus { color: rgb(var(--t-brand-300)); }
 .brand-lockup-inverse .brand-wordmark strong { color: #f4efe7; }
 .brand-lockup-inverse .brand-wordmark > span { color: #9fb0a6; }
+/* 恒定深绿轨上的校园名：昼面语义 brand-300 是深金（2.64:1），必须换亮金 */
+.brand-lockup-inverse .brand-campus { color: #d9b166; }
 
 /* ══ 顾客端页头 ══ */
 .site-header {
@@ -128,7 +130,7 @@
   position: absolute; z-index: 1; right: -2%; bottom: 3%; font-size: clamp(104px, 13.5vw, 208px); font-weight: 900;
   font-family: 'CS Display Serif', 'Songti SC', serif;
   color: transparent; -webkit-text-stroke: 1px rgb(217 177 102 / 0.22); letter-spacing: 0.02em; line-height: 1;
-  transform: rotate(-5deg); user-select: none;
+  transform: rotate(-5deg); user-select: none; pointer-events: none;
 }
 .showcase-sticker {
   position: absolute; z-index: 6; top: -4px; right: 5%; width: 88px; height: 88px; padding: 18px 14px;
@@ -137,8 +139,8 @@
   transform: rotate(11deg); box-shadow: 0 0 0 1px rgb(217 177 102 / 0.5), 0 10px 26px -12px rgb(0 0 0 / 0.7);
   animation: sticker-in 800ms cubic-bezier(0.16, 1, 0.3, 1) 550ms both;
 }
-.market-exhibits { position: absolute; inset: 34px 0 16px; }
-.market-exhibit { position: absolute; margin: 0; width: 42%; }
+.market-exhibits { position: absolute; inset: 34px 0 16px; pointer-events: none; }
+.market-exhibit { position: absolute; margin: 0; width: 42%; pointer-events: auto; }
 .exhibit-photo {
   overflow: hidden; background: #ede6da; padding: 8px;
   box-shadow: 0 18px 34px -18px rgb(0 0 0 / 0.8), 0 0 0 1px rgb(217 177 102 / 0.22);
@@ -301,6 +303,16 @@
 .theme-toggle svg { width: 17px; height: 17px; }
 
 
+
+/* 恒定色带上的强调字（字面量）：昼面的语义 brand-300 是深金，压不住褐黑/森林绿带 */
+.market-hero .eyebrow, .home-promise .eyebrow { color: #d9b166; }
+.home-promise .button-light { color: #d9b166; box-shadow: inset 0 0 0 1px rgb(217 177 102 / 0.55); }
+.home-promise .button-light:hover { background: rgb(0 0 0 / 0.18); box-shadow: inset 0 0 0 1px #d9b166; }
+
+/* 点亮态破坏性按钮（bg-red-700 + text-cream 组合）：昼=深红底白字、夜=浅红底深字 */
+.bg-red-700.text-cream { color: #ffffff; }
+:root[data-theme='night'] .bg-red-700.text-cream { color: #3a2320; }
+
 /* 按压反馈兜底（press-feedback 闸）：触屏上「点到了没有」的唯一即时确认。
    组件级 active:scale 已覆盖大部分控件；这里给所有交互元素一条 :active 规则，
    保证锚点/role=button 这类没有 scale 档的控件也有可见按压反馈。 */
@@ -458,7 +470,7 @@ a:active, button:active, [role="button"]:active, [role="radio"]:active { opacity
   .workspace-rail-footer > a:first-child { display: none; }
   .workspace-rail-footer > a:nth-child(2) { display: flex; gap: 7px; }
   .workspace-environment { display: none; }
-  .workspace-topline { display: none; }
+  .workspace-topline { height: 40px; font-size: 9px; padding: 0 15px; }
   .workspace-main { padding: 24px 15px 62px; }
   .workspace-heading { padding-bottom: 18px; margin-bottom: 20px; }
   .workspace-heading h1 { font-size: 26px; }

@@ -44,9 +44,9 @@ export default function MarketHero({ open }: { open: boolean }) {
         </div>
       </div>
       <div className="market-showcase" ref={visualRef}>
-        <span className="showcase-sticker" aria-hidden="true">今日<br />有好柿</span>
+        <span className="showcase-sticker" aria-hidden="true" data-decorative="true">今日<br />有好柿</span>
         <span className="showcase-orbit" aria-hidden="true" />
-        <span className="showcase-word" aria-hidden="true">超柿</span>
+        <span className="showcase-word" aria-hidden="true" data-decorative="true">超柿</span>
         <div className="market-exhibits">
           {exhibits.map(item => <figure key={item.order} className={`market-exhibit ${item.className}`}>
             <div className="exhibit-photo"><img src={`/images/${item.order}.webp`} width="800" height="800" alt={`${item.label} · ${item.sub} 商品摄影`} fetchPriority="high" /></div>

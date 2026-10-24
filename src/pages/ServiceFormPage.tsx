@@ -267,7 +267,7 @@ export default function ServiceFormPage() {
   return (
     <div role="main" id="main-content" tabIndex={-1} className="page-container">
       {/* Header */}
-      <div className={`relative overflow-hidden bg-gradient-to-br ${category?.color || 'from-gray-600 to-gray-700'} text-cream px-5 pt-10 pb-14`}>
+      <div className={`cover-band relative overflow-hidden bg-gradient-to-br ${category?.color || 'from-gray-600 to-gray-700'} px-5 pt-10 pb-14`}>
         {/* 装饰元素 */}
         {/* 装饰圆 → 品牌色带（与首页/分类页同一套形状语言） */}
         <span aria-hidden="true" className="brand-bar absolute inset-x-0 top-0 h-1" />
@@ -289,7 +289,7 @@ export default function ServiceFormPage() {
             </div>
             <div>
               <h1 className="text-xl font-bold">{service.name}</h1>
-              <p className="text-cream/70 text-xs mt-1">{service.description}</p>
+              <p className="cover-band-sub text-xs mt-1">{service.description}</p>
             </div>
           </div>
         </div>
