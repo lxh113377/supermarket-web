@@ -304,16 +304,20 @@ export default function ProductsTab({ products, categories, onDataChange }: {
               <div className="flex-1 flex gap-1.5">
                 <button onClick={() => batchAction('enable')} className="flex-1 py-2 bg-green-700 text-white rounded-lg text-xs font-medium">上架</button>
                 <button onClick={() => batchAction('disable')} className="flex-1 py-2 bg-ink text-white rounded-lg text-xs font-medium">下架</button>
-                {/* 两步确认：batchAction 内部判断第一下只点亮。armed 态把数量写进文案，
-                    让用户第二下点之前还能看清「要删几个」—— 原生 confirm 就是这个信息量。
-                    上架/下架可逆，不套两步确认（见 batchAction 注释）。 */}
+                {/* 两步确认：batchAction 内部判断第一下只点亮。上架/下架可逆，不套两步确认。
+                    ⚠️ armed 文案刻意只用「确认」两字，不写「确认删除 63 个」—— 实测后者在
+                    68px 的 flex-1 按钮里会折成两行（文字高 32px），而这一排是 flex 容器、
+                    align-items 默认 stretch ⇒ 一个按钮变高会把整排四个按钮一起从 32px 撑到
+                    48px，用户点第一下就看到版面跳一次。数量不必重复写：同一排左边就有
+                    「已选 63 项」，完整语义由 aria-label 承载给读屏。
+                    与 ProductRow 行内删除同一口径（那里也是保持 36px 只换「确认」二字）。 */}
                 <button
                   onClick={() => batchAction('delete')}
                   onBlur={disarmConfirm}
                   aria-label={isConfirmArmed('batch:delete') ? `确认删除选中的 ${selectedIds.size} 个商品（不可撤销）` : '批量删除选中商品'}
-                  className="flex-1 py-2 bg-red-700 text-white rounded-lg text-xs font-medium transition-colors duration-200"
+                  className="flex-1 whitespace-nowrap py-2 bg-red-700 text-white rounded-lg text-xs font-medium transition-colors duration-200"
                 >
-                  {isConfirmArmed('batch:delete') ? `确认删除 ${selectedIds.size} 个` : '删除'}
+                  {isConfirmArmed('batch:delete') ? '确认' : '删除'}
                 </button>
                 <button onClick={() => setSelectedIds(new Set())} aria-label="取消选择" className="tap-44 px-3 py-2 text-stone-500 text-xs">✕</button>
               </div>
@@ -326,8 +330,16 @@ export default function ProductsTab({ products, categories, onDataChange }: {
                 onChange={e => setBatchPrice(e.target.value)}
                 className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-xs"
               />
-              {/* 两步确认（同上）：armed 态把目标值写进文案，「应用」→「确认改为 X」。
-                  未点亮时沿用 btn-primary 的柿底墨字（主控件口径：白字压柿黄只有 1.92:1）。 */}
+              {/* 两步确认（与上面批量删除同一口径）。
+                  ⚠️ armed 文案不带目标值，且按钮用 min-w-14 + whitespace-nowrap 锁宽。
+                  实测第一版写「确认改为 ¥5.00」时按钮从 47.7px 涨到 103.1px，而这一行是
+                  flex、输入框 flex-1 ⇒ 按钮变宽等量吃掉输入框（264.3 → 208.9px），
+                  用户点第一下会看到自己正在输入的框突然变窄。目标值本来就显示在旁边的
+                  输入框里，按钮重复它既挤版面又冗余；完整语义交给 aria-label。
+                  第二版收成「应用 / 确认改价」仍跳 15.3px —— 因为两态**字数不同**
+                  （2 字 vs 4 字 = 48px vs 72px），min-w-14 只兜得住较窄的一边。
+                  最终解法是让两态等字数：「应用改价 / 确认改价」都是 4 字 ⇒ 恒 72px。
+                  ⇒ 按钮文案换态要锁宽度，真正的约束是**字数等长**，不是给个 min-width。 */}
               <button
                 onClick={batchAdjustPrice}
                 onBlur={disarmConfirm}
@@ -335,11 +347,11 @@ export default function ProductsTab({ products, categories, onDataChange }: {
                   ? `确认把选中的 ${selectedIds.size} 个商品改为 ${priceTarget}（不可撤销）`
                   : `应用批量改价：${priceTarget || '请先输入价格'}`}
                 className={
-                  'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors duration-200 ' +
+                  'min-w-14 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium transition-colors duration-200 ' +
                   (isConfirmArmed('batch:price') ? 'bg-red-700 text-white' : 'bg-brand-500 text-ink')
                 }
               >
-                {isConfirmArmed('batch:price') ? `确认改为 ${priceTarget}` : '应用'}
+                {isConfirmArmed('batch:price') ? '确认改价' : '应用改价'}
               </button>
             </div>
           </div>
