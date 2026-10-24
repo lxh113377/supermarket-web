@@ -338,8 +338,16 @@ export default function ProductsTab({ products, categories, onDataChange }: {
                   输入框里，按钮重复它既挤版面又冗余；完整语义交给 aria-label。
                   第二版收成「应用 / 确认改价」仍跳 15.3px —— 因为两态**字数不同**
                   （2 字 vs 4 字 = 48px vs 72px），min-w-14 只兜得住较窄的一边。
-                  最终解法是让两态等字数：「应用改价 / 确认改价」都是 4 字 ⇒ 恒 72px。
-                  ⇒ 按钮文案换态要锁宽度，真正的约束是**字数等长**，不是给个 min-width。 */}
+                  最终解法是让两态等字数：「应用改价 / 确认改价」都是 4 字 ⇒ 恒 71.3px
+                  （实测值；我先前写的 72px 是估的，又一次"没量就写"）。
+                  ⇒ 按钮文案换态要锁宽度，真正的约束是**字数等长**，不是给个 min-width。
+
+                  第三轮再补 shrink-0：flex 子项默认可收缩，实测按钮会被挤到 min-w-14
+                  下限（71.3 → 56px），也就是「应用改价」在窄屏 armed 时会被截断 ——
+                  那是比输入框变窄更严重的缺陷（按钮文字被切）。加 shrink-0 之后挤压只会
+                  落到 flex-1 的输入框上。五档视口实测（320/360/390/768/1440）：armed 与
+                  idle 的输入框宽度完全一致、按钮恒 71.3px、无文字截断，320px 下也无横向
+                  溢出（那一档按钮 44.7px 仍 ≥ 触控最小尺寸）。 */}
               <button
                 onClick={batchAdjustPrice}
                 onBlur={disarmConfirm}
@@ -347,7 +355,7 @@ export default function ProductsTab({ products, categories, onDataChange }: {
                   ? `确认把选中的 ${selectedIds.size} 个商品改为 ${priceTarget}（不可撤销）`
                   : `应用批量改价：${priceTarget || '请先输入价格'}`}
                 className={
-                  'min-w-14 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium transition-colors duration-200 ' +
+                  'shrink-0 min-w-14 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium transition-colors duration-200 ' +
                   (isConfirmArmed('batch:price') ? 'bg-red-700 text-white' : 'bg-brand-500 text-ink')
                 }
               >
