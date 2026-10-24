@@ -1,0 +1,57 @@
+name: D1 Local Backup Weekly
+
+# 每周一次的本机备份链 CI 版（round-4 立，#37 判据 2 的产物接链件）。
+#
+# 为什么有它：round-4 打通本机备份链（wrangler OAuth 实测含 d1(write) scope ⇒ export+encrypt+verify
+# 四步 rc=0，2,333,946B → 2,333,995B AES-256-GCM 往返逐字节相等）。但 H3（head-closure）指出
+# `scripts/d1-local-backup.mjs` 是**孤儿入口**——HEAD 里有、链上没人引用。按判据口径正解是接链，
+# 不是发豁免（豁免=给欠账发永久休假条）。本 workflow 就是那条链。
+#
+# 与 d1-backup.yml 的分工：那条走 CF_D1_BACKUP_TOKEN + GitHub artifact（加密后才放行，public 仓纪律）；
+# 本条走**仓库 secret 注入的本机同构链**——同一脚本、同一容器格式、同一口令 env 名，口令缺席 ⇒ 响亮失败
+# 不产明文（rc=2）。CI 没配 secret 时它红，正是"没人喂"的告警，不是假绿。
+on:
+  schedule:
+    # 每周一 UTC 20:00 = 北京周二 04:00（与 d1-backup.yml 错开半小时，避免同刻抢 D1 导出配额）
+    - cron: '30 20 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    # 第七十三轮 I-73-4 同族：时间上界。取值依据：本机实测 export 约 20s + 四步加密约 5s；
+    #   CI 冷启动 + npm ci 约 2-4 分钟 ⇒ 上界取 15 分钟（p95 的十倍量级，宁松勿假红）。
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # 口令只从 secret 读；缺它 ⇒ 响亮失败（与 backup-crypto 的 fail-closed 同口径）
+      - name: Run local backup chain (export + encrypt + verify)
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          if [ -z "$BACKUP_PASSPHRASE" ]; then
+            echo "::error::BACKUP_PASSPHRASE secret 未配 ⇒ 拒明文落盘（fail-closed）。配法：仓库 Settings → Secrets → Actions → New repository secret"
+            exit 2
+          fi
+          node scripts/d1-local-backup.mjs --dir "${RUNNER_TEMP}/d1-backup"
+
+      # 加密容器进 artifact（与 d1-backup.yml 的 encrypted 模式同纪律：public 仓只放密文）
+      - name: Upload encrypted backup artifact
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
+        with:
+          name: d1-local-backup-${{ github.run_number }}
+          path: ${{ runner.temp }}/d1-backup/*.smbk
+          retention-days: 14
+          if-no-files-found: warn

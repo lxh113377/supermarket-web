@@ -24,6 +24,7 @@
     "print:tunnel": "node scripts/print-tunnel.mjs",
     "print:tunnel:check": "node scripts/print-tunnel.mjs --check",
     "backup:print-data": "node scripts/backup-print-data.mjs",
+    "backup:d1-local": "node scripts/d1-local-backup.mjs",
     "uptime": "node scripts/uptime-check.mjs",
     "ci:status": "node scripts/ci-status.mjs",
     "verify:backend": "node scripts/verify-backend.mjs",
