@@ -58,9 +58,16 @@
      别人的文档 WIP 之后跑 --update；复核重生只动了 observed_utc 与 counts 两个字段
      （mentions/claim 各 +1），无附带漂移。⇒ 改生成物追上真相源，不是改真相源凑绿。
   ② 第 31 步 verify:entrypoints：G2「登记 12 / 实测 13；未登记缺口: d1-local-backup.mjs」
-     与 G9「派生风险 29 ⇄ 登记 28；漏登」。**这条判据不在 CI 的 gates 里**（ci.yml 只跑
-     check:doc-commands），所以 origin/main 的 CI 是绿的、只有本地全链看得见 —— 与我上一轮
-     修掉的 governance 盲区同一形状。
+     与 G9「派生风险 29 ⇄ 登记 28；漏登」。
+     ⚠️ 本条第一版在这里写过「这条判据不在 CI 的 gates 里、只有本地全链看得见」—— 那是
+     假的，而且与我当时手里正拿着的证据直接矛盾（我就是从 CI gates 的日志里读到这三条
+     FAIL 的）。一手核对：ci.yml 的 gates job 有 step「Test (vitest, with v8 coverage)」
+     跑 npx vitest run --coverage，而 tests/cliEntrypoints.test.js:936 那条腿写的是「真仓
+     GATE-PASS：判据跑在自己的仓库上必须是绿的」+ expect(rc).toBe(0) ⇒ 登记一漂 CI 必红；
+     8fbf1c3 那次 gates 红，抓它的正是这条腿。错因：我把「ci.yml 里没有一条叫
+     verify:entrypoints 的 step」错记成「CI 看不见这件事」，而它其实是通过**测试文件**进
+     CI 的。⇒ 判据进没进 CI 要看两条路：直接 step 与 vitest 面里的夹具腿，只看前者会
+     得出**相反**的结论。
 - 登记时守的一条纪律：**没有实测读数就不写实测**。该脚本第 32 行无条件 spawnSync 打
   wrangler d1 export --remote（真导线上库），而本机 .dev.vars 里 BACKUP_PASSPHRASE 在册、
   node_modules/wrangler 已装 ⇒ 门口那条缺口令 bail 进不去，跑一次就是真导一次库；全文 44 行
@@ -76,9 +83,13 @@
   ⇒ 教训：往共享表格加行，锚点必须是"整行 + 换行"或者干脆按结构定位；行前缀替换等于
     在别人的句子中间插话。
 - 顺带一条方法论收获：本轮并行会话的两次提交（60a2eba 引入死导入、9a2ae60 接链）都**没跑
-  本地全链**就落地，把断口留给了下一个跑 verify 的人。这与我上一轮把 governance 接进 CI 是
-  同一个病：判据只住在本地链里 ⇒ 谁不跑谁就漏。verify:entrypoints 现在仍是这种"本地独占"
-  判据；本轮不扩面（那是改 CI 结构的大盘活），只把断口补上并记在这里。
+  本地全链**就落地，把断口留给了下一个跑 verify 的人。
+  但**病因不是我上一笔写的那个**：上一笔说「entrypoints 与 governance 同一形状、都只
+  住在本地链」—— 核对后恰好说反了。entrypoints 一直有 CI 抓手（上面那条 vitest 夹具
+  腿），所以 60a2eba 的红是 CI 抓的；真正曾经看不见的是 governance —— 在我上一轮给
+  它加 ci.yml step 之前，它的夹具腿写的是 expect([0,1,2]).toContain(rc)，也就是
+  rc=1 也算过 ⇒ 登记漂了测不红。⇒ 教训收窄成一条准确的：提交前不跑本地全链，会把
+  断口留给别人（CI 能抓，但要等一次推送 + 一轮 CI，成本比本地高一个量级）。
 - 验证：oxlint 0 警告 0 错误（修复前 1 error）/ verify:entrypoints 14/14 通过（G2 登记 13 ⇄
   实测 13、G9 派生 29 ⇄ 登记 29）/ doc-commands --check rc=0 / npm run verify 完整链推进到
   第 40 步（lint、entrypoints、doc-commands 三道全过），停在 check:delivery-claims —— 读数
