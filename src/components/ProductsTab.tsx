@@ -258,7 +258,10 @@ export default function ProductsTab({ products, categories, onDataChange }: {
             {f.label}
           </button>
         ))}
-        <button onClick={selectAllFiltered} className="ml-auto rounded-lg px-3 py-1.5 text-xs text-stone-500 transition hover:bg-gray-100 active:scale-[0.98]">
+        {/* hover 时背景转 gray-100，文字必须跟着加深一档：stone-500 压 gray-100 实测
+            4.36:1 不过 AA（默认态压 bg-surface 是 4.59:1，刚过）。同文件其余 9 处
+            hover:bg-gray-100 都配了 hover:text-*，这处是漏配。 */}
+        <button onClick={selectAllFiltered} className="ml-auto rounded-lg px-3 py-1.5 text-xs text-stone-500 transition hover:bg-gray-100 hover:text-stone-700 active:scale-[0.98]">
           {filtered.length > 0 && selectedIds.size === filtered.length ? '取消全选' : `全选(${filtered.length})`}
         </button>
       </div>

@@ -1,5 +1,53 @@
 ## [未发布]
 
+### 2026-10-24 hover 换底态进判据：默认态看不见的 4.36:1，以及判据自身的三处坑
+
+- 继续上轮同一类问题（「改了背景忘了改文字」）。contrast 只扫默认渲染态，hover:bg-*
+  要指针真移上去才生效 ⇒ 所有 hover 换底按钮的**hover 态**此前一行都没被扫过。
+  实测抓到两处：ProductsTab「全选(63)」默认 stone-500 压 bg-surface 是 4.59:1（刚过），
+  hover 转 gray-100 掉到 4.36:1；CartItem 减号按钮默认压 bg-gray-50 是 4.59:1，hover 转
+  gray-100 同样 4.36:1。两处都补 hover:text-stone-700（实测 9.33:1）。
+- 作用面没有窄化成 gray-100：src 里 hover:bg-* 共 61 处、19 种底色、40 处未配 hover:text-*，
+  哪些会跌破 4.5:1 不能靠推 ⇒ 新判据 tests/e2e-visual/hover-contrast.spec.ts 跑 7 条路由，
+  把候选元素逐个用真实指针 hover 后量合成背景的对比度。全绿只说明当前没有跌破 AA 的
+  hover 态，不代表"41 处没配都该改" —— 那是另一个没测过的说法。
+- 判据自身踩了三个坑，都当场修了：
+  ① bgOf 起点写成 node.parentElement，**跳过了按钮自己的底色** —— 把"白字压深底"量成
+     "白字压米白页底"，报出 1.04:1 的荒谬读数（home 那条「打开 AI 导购助手」）。按本仓
+     「读数反常识先怀疑探针」的规矩查出起点应为 bgOf(node)。
+  ② 初版想用 page.addStyleTag 注入禁 transition 的样式，**生产 CSP 当场拦死**
+     （style-src 'self' 无 unsafe-inline）。改用平台能力 emulateMedia({ reducedMotion:
+     'reduce' }) —— index.css 自带那条 @media 会把 transition 压到 0.01ms，且不受 inline
+     限制；后台商品页 130 个候选从等 70 秒超时降到整套 45 秒。另加自证：实测时长没压住就
+     报错，防止哪天那条媒体查询被删后静默读动画中间帧。
+  ③ page.evaluate 只序列化函数体，拿不到外层作用域；早期"把函数字符串再 eval"在
+     script-src 'self' 的生产构建上也必挂 ⇒ 量测逻辑整个内联在 evaluate 里，与既有
+     contrastAudit.ts 同形。
+- 三处变异验真（各 RED + RESTORED:true）：撤销 ProductsTab 修复 ⇒ admin 腿点名
+  「全选(63) 4.36:1」；撤销 CartItem 修复 ⇒ cart 腿点名两条减号按钮；把 bgOf 起点改回
+  parentElement ⇒ home 腿重现 1.04:1。这也顺便证明"选择器确实量到了真实 hover 态"，
+  不是默认态假绿。
+- 验证：oxlint 0 警告 / tsc 零错 / hover 判据 7 条全过 / stub 9 条全过 / unit 147 文件
+  2165 条全过 / report:item-budgets GREEN / 三处变异 RED + RESTORED:true。
+
+### 2026-10-24 龄期级红：回执过期 7 天 ⇒ 刷新生产者并同步 governance 三向对账
+
+- 完整 unit 在 22:00 左右报 check-d1-roundtrips 红，A11 的判词是「回执时刻缺失或已超 7 天
+  （@2026-10-17T08:09:00.527Z）⇒ 过期的 VERIFIED 等于没取到」。这与我本轮改动无关：
+  在干净 HEAD 的独立 worktree 复跑同一条，得到同样 24 通过 / 1 失败与同一时刻 —— 时间到了
+  自然红，属于判据里含「今天」的龄期级，而不是代码回归。
+- 处置不是把阈值改大：docs/d1-remote-usage.json 是 docs/d1-write-quota.json 的 remote_usage
+  声明 ⇄ 回执对账用的**生产者输出**。本机 wrangler OAuth 在册，按脚本自带 --write 跑一次
+  node scripts/check-d1-remote-usage.mjs --write（只读 Analytics，不写线上库），两通道均
+  VERIFIED、回执时刻刷新到 2026-10-24T14:06:13.262Z，A11 随即 25/0 全过。
+- 但光刷新回执会漏掉第三向：governance F2 还拿 registry.facts.d1Usage 对回执 byDateUtc
+  最后一项。verify 链立刻报「册 8⇄实测 198、1703⇄17321、2026-10-17⇄2026-10-24」⇒
+  按判据指示**改册追上真相源**（不是改现值凑绿），并把「--write 后同笔同步 registry」
+  写进生产者头部注释，避免下次再漏。
+- 另有两条在途红不是回归：migrateReplay 报「rollback-add-product-zhengda-wuhuaguo.sql
+  未登记」、verifyImages 一时 rc=1，但几分钟后复跑分别 57 条与全量单测均过。那是并行
+  会话正在把新商品「正大无花果」的迁移/回滚/图片逐个落盘，撞上文件只落一半的中间态。
+  后来对方已提交 3d8ae88（新增商品链）；我只提交自己的判据链路，不把对方商品改动混进来。
 ### 2026-10-24 新增商品：正大无花果 ¥0.5
 
 - **新增 1 件商品**：正大无花果，分类「零食」(snacks)，价格 0.5 元，`spec` 留空（供货图无净含量小字），已上架。
@@ -24,6 +72,47 @@
   等那笔刷新自己入库时由 `receipt-refresh` 通道一起跟。② `check:delivery-claims` 新增 5 条全部落在
   第七十八轮报告的 §3/§5，本轮未碰 `deliverables/`（外层 git 面 dirty 0 件）。
 
+### 2026-10-24 订单页签有数据态进判据：首跑就抓到一个 4.36:1 的真缺陷
+
+- 这是上一轮补「评价 / 服务提交」两个页签时剩下的**同一形状的最后一块**。桩此前对
+  getOrders 直接回空数组，而 getAllOrders 在非云模式读本地（demo 里同样空）⇒ 订单页签的
+  有数据态一行都没被任何判据扫过。
+- 关键判断：它不是一个面而是四个。订单页拿到列表后会自动去拉 stalePendingReport（超时
+  未确认面板）与 getPromotions（满减档位面板），两者**默认收起**、事件时间线**要逐单点击
+  展开** ⇒ 光补列表数据仍然扫不到那三块，而它们恰好是本页小字最密的地方。所以判据分
+  两条腿：一条扫默认视图，一条把三块全展开后再扫。
+- 造数据前逐条核对形状（上一轮我因"没核对就断言"被自己抓到两次，这次先把每个类型读
+  出来）：Order 来自 src/types.ts；StaleReport 是 OrdersTab 内联 interface；PromotionTier
+  含嵌套 hits{orders,totalDiscount}；OrderEventItem 在 src/db/orders.ts。口味徽章那条尤其
+  需要核对 —— splitOrderSpec 按 SPEC_FLAVOR_SEP 切分，实测该常量是「空格+间隔号+空格」
+  三个字符，所以 spec 必须写成 "40g · 黄瓜味" 才会出现那枚 text-3xs 徽章，写成 "40g黄瓜味"
+  就静默不触发。状态造 pending/paid/delivering/cancelled 各一条，因为状态 select 的选项由
+  nextOrderStatuses 按状态机派生（cancelled 只能回 pending、completed 无后继）。
+- **新判据第一次跑就红**：满减档位面板里「已停用」徽章 text-stone-500 压 bg-gray-100
+  实测 4.36:1，不过 AA（11px 小字）。这不是我造的假数据文案，是 OrdersTab:291 的产品
+  代码。改成 text-stone-600 得 6.93:1（仍是"次要信息"的灰调，但看得清）。
+  同族扫描：src 里 12 处出现 bg-gray-100 + 中灰文字，但其中 11 处是 hover:bg-gray-100
+  （默认态不成立、hover 时文字会换成 stone-700），**唯一静态失败的就是这一处** ⇒ 修一处
+  就够，不做"顺手全改"。
+- 阈值全部让判据自己报数：把两处 toBeGreaterThan 临时抬到 99999，读出默认视图 41 个
+  含字元素、三块面板展开后 50 个 ⇒ 第一条取下限 20（防取数面塌），第二条取 45（高于
+  默认读数 ⇒ "以为点了其实没展开"会直接红，同时留 5 个余量不因文案合并元素而假红）。
+  依据写进注释，不留"这数字哪来的"的悬念。
+- 一处桩的固有局限如实写进注释（不当成已覆盖）：dispatch 只接 action 名、不接 payload
+  ⇒ getEventLog 无法按 orderId 区分，所有订单展开都看到同一组事件。本件量的是"时间线
+  渲染出来的文字看不看得见"，不是"事件是否归属正确"（后者归 functions 侧 action 测试）。
+- 变异验真两处：A 把徽章改回 stone-500（撤销本轮修复）⇒ 面板腿立刻红并点名
+  「4.36:1 (需 4.5) 11px『已停用』」；B 让桩的 getOrders 返回空数组（模拟原始盲区）⇒
+  前置条件腿红在「房间号：36栋-501 not found」。两处还原 RESTORED:true。
+- 顺带改掉自己刚写下的两处未验证声称：spec 注释第一版写「实测含 text-2xs 11px 与
+  text-3xs 10px」与「压的是 amber-50 / emerald-50 / 白 70% 半透明底」—— 前半的字号后来
+  被判据实测证实（size:11 / 10），但写的时候我确实没量；后半的"半透明"是想当然（面板
+  容器是 bg-emerald-50 / bg-amber-50，行内条目才是 bg-white/70）。已按核实改掉。
+- 验证：oxlint 0 警告 / tsc 零错 / stub 套件 7→9 条全过（改 getProducts 返回值没打断
+  既有 spec，实测确认）/ unit 147 文件 2165 条全过 / visual 207 条全过（73+134 两批 +
+  1 合法 skip）/ e2e 26 过 / report:item-budgets GREEN（未新增产物）/ doc-consistency、
+  doc-commands、governance 12/12、cli-entrypoints 14/14 全 rc=0 / 两处变异 RED +
+  RESTORED:true / 完整 verify 链见下。
 ### 2026-10-24 后台评价与服务提交两个页签的有数据态：此前一行都没被扫过
 
 - 继续逐页用眼睛看（第五次）。这轮走查后台评价与服务提交 tab，发现它们**永远空**，

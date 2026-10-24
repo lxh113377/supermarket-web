@@ -104,6 +104,88 @@ const SUBMISSIONS = [
   },
 ]
 
+/**
+ * 后台订单页签的有数据态（2026-10-24 补）。
+ *
+ * 为什么必须有：上一轮补评价/提交两个 tab 时查明「桩没有某 action ⇒ 该 tab 在
+ * 判据里永远空」这一类盲区，订单 tab 是同一形状的**剩余那一块**：getOrders 此前
+ * 直接回空数组，而 getAllOrders 在非云模式读本地（demo 里也空）⇒ 订单行、超时未确认
+ * 面板、满减档位面板、事件时间线**四块**从未被任何判据扫过。后三块还各有门槛：
+ * stale 要 stalePendingReport.count>0 且默认收起、促销要 getPromotions 返回数组且默认
+ * 收起、时间线要 getEventLog 且逐单点击展开 ⇒ 光有列表数据也扫不到它们。
+ *
+ * 形状逐条核对过源码，不是凭印象：
+ *   Order        → src/types.ts（_id/roomNumber/items/totalAmount/discountAmount/status/createdAt）
+ *   口味徽章     → splitOrderSpec 按 SPEC_FLAVOR_SEP 切，该常量实测是 ' · '（三个字符），
+ *                  所以 spec 写 "40g · 黄瓜味" 才会拆出 flavor 并渲染那枚 text-3xs 徽章
+ *   StaleReport  → OrdersTab 内联 interface（thresholdMinutes/count/orders[]/stockReserved[]）
+ *   PromotionTier→ src/types.ts（含嵌套 hits{orders,totalDiscount}）
+ *   OrderEventItem→ src/db/orders.ts（type/at/orderId/status/totalAmount/discountAmount/createdAt）
+ *
+ * 状态覆盖 pending / paid / delivering / cancelled 各一条：状态 select 的选项由
+ * nextOrderStatuses(status) 按状态机派生（cancelled 只能回 pending，completed 无后继），
+ * 只造一种就等于没扫其余分支的 option 文案。
+ *
+ * ⚠️ 一处桩的固有局限（不是数据问题，记下来免得被当成覆盖了）：dispatch 只接 action
+ *   名、不接 payload ⇒ getEventLog 无法按 orderId 区分，所有订单展开都看到同一组事件。
+ *   本件量的是"时间线渲染出来的文字看不看得见"，不是"事件是否归属正确"（后者由
+ *   functions 侧的 action 测试管）。
+ */
+const ORDERS = [
+  {
+    _id: 'ord_1', roomNumber: '36栋-501', status: 'pending',
+    items: [
+      // 带口味分隔符的一条：要触发「口味 X」那枚 text-3xs 品牌色徽章
+      { productId: 'p_33', name: '乐事薯片', spec: '40g · 黄瓜味', price: 2.66, quantity: 2 },
+      { productId: 'p_46', name: '白象方便面', spec: '桶装', price: 3.66, quantity: 1 },
+    ],
+    totalAmount: 8.98, discountAmount: 1.0, promotionId: 'promo_1',
+    createdAt: '2026-10-24T01:10:00.000Z', updatedAt: '2026-10-24T01:10:00.000Z',
+  },
+  {
+    _id: 'ord_2', roomNumber: '12栋-308', status: 'paid',
+    items: [{ productId: 'p_1', name: '农夫山泉', spec: '550ml', price: 1.5, quantity: 6 }],
+    totalAmount: 9.0, discountAmount: 0,
+    createdAt: '2026-10-23T10:02:00.000Z', updatedAt: '2026-10-23T11:40:00.000Z',
+  },
+  {
+    _id: 'ord_3', roomNumber: '8栋-1202', status: 'delivering',
+    items: [{ productId: 'p_22', name: '有糖可乐', spec: '罐装330ml', price: 2.88, quantity: 3 }],
+    totalAmount: 8.64, discountAmount: 0,
+    createdAt: '2026-10-23T09:15:00.000Z', updatedAt: '2026-10-23T09:50:00.000Z',
+  },
+  {
+    _id: 'ord_4', roomNumber: '21栋-706', status: 'cancelled',
+    items: [{ productId: 'p_33', name: '乐事薯片', spec: '40g', price: 2.66, quantity: 1 }],
+    totalAmount: 2.66, discountAmount: 0,
+    createdAt: '2026-10-21T20:30:00.000Z', updatedAt: '2026-10-22T08:00:00.000Z',
+  },
+]
+
+const STALE_REPORT = {
+  thresholdMinutes: 60,
+  count: 2,
+  orders: [
+    { id: 'ord_1', roomNumber: '36栋-501', totalAmount: 8.98, ageMinutes: 137, hasPaymentProof: true },
+    { id: 'ord_4', roomNumber: '21栋-706', totalAmount: 2.66, ageMinutes: 95, hasPaymentProof: false },
+  ],
+  stockReserved: [
+    { productId: 'p_33', name: '乐事薯片', reserved: 2 },
+    { productId: 'p_46', name: '白象方便面', reserved: 1 },
+  ],
+}
+
+const PROMOTIONS = [
+  { _id: 'promo_1', name: '满 8 减 1', threshold: 8, discount: 1, enabled: true, hits: { orders: 26, totalDiscount: 26 } },
+  { _id: 'promo_2', name: '满 20 减 3（已停用）', threshold: 20, discount: 3, enabled: false, hits: { orders: 0, totalDiscount: 0 } },
+]
+
+const EVENT_LOG = [
+  { type: 'create', status: 'pending', orderId: 'ord_1', at: '2026-10-24T01:10:00.000Z', totalAmount: 8.98, discountAmount: 1, createdAt: '2026-10-24T01:10:00.000Z' },
+  { type: 'proof', status: 'pending', orderId: 'ord_1', at: '2026-10-24T01:31:00.000Z', totalAmount: 8.98, discountAmount: 1, createdAt: '2026-10-24T01:10:00.000Z' },
+  { type: 'status', status: 'paid', orderId: 'ord_1', at: '2026-10-24T02:05:00.000Z', totalAmount: 8.98, discountAmount: 1, createdAt: '2026-10-24T01:10:00.000Z' },
+]
+
 function dispatch(action) {
   switch (action) {
     case 'login': return { code: 0, data: { role: 'admin' } }
@@ -112,9 +194,12 @@ function dispatch(action) {
     case 'verifyKey': return { code: 0, data: { role: 'admin' } }
     case 'getDashboardStats': return { code: 0, data: STATS }
     case 'getProducts': return { code: 0, data: PRODUCTS }
-    case 'getOrders': return { code: 0, data: [], hasMore: false }
+    case 'getOrders': return { code: 0, data: ORDERS, hasMore: false }
     case 'getAllReviews': return { code: 0, data: REVIEWS }
     case 'getSubmissions': return { code: 0, data: SUBMISSIONS }
+    case 'stalePendingReport': return { code: 0, data: STALE_REPORT }
+    case 'getPromotions': return { code: 0, data: PROMOTIONS }
+    case 'getEventLog': return { code: 0, data: { orderId: 'ord_1', events: EVENT_LOG } }
     case 'getPublicCategories': return { code: 0, data: [{ _id: 'c1', name: '饮品', subcategories: [] }] }
     case 'getPublicProducts': return { code: 0, data: [] }
     case 'aiAdvice': return { code: 0, data: { content: '（本地桩）示例建议：关注饮品毛利。', source: 'rule' } }

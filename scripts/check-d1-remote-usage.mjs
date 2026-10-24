@@ -21,6 +21,12 @@
 //   `google/go-github github/rate_limit.go:14-25` —— `Limit/Remaining/Reset` 三元组绑在**同一快照**里、
 //     注释显式钉 UTC；`github/github.go:1654-1660` —— 读数为零值时按"不知道"放过，**绝不推断成"还有额度"**。
 // 配额权威值不在本文件写死：从 `scripts/lib/d1-quota.mjs` import（同一事实只许一处判，见下方 import）。
+//
+// ⚠️ --write 之后**必须同笔同步 docs/governance/registry.json 的 d1Usage 三项**
+//   （rowsWrittenLastDay / rowsReadLastDay / dayUtc）：A11 只管「声明 VERIFIED ⇄ 回执不陈旧」，
+//   而 governance F2 是第三向对账（registry facts ⇄ 回执 byDateUtc 最后一项）。
+//   2026-10-24 本机刷新时只写了回执、没同步 registry，verify 链当即在第 36 步判红
+//   「册 8⇄实测 198、1703⇄17321、2026-10-17⇄2026-10-24」⇒ 改册追上真相源（禁改现值凑绿）。
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'

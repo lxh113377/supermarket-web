@@ -1,14 +1,14 @@
 {
   "schema": "chaoshi-d1-remote-usage-v1",
-  "retrievedAtUtc": "2026-10-17T08:09:00.527Z",
+  "retrievedAtUtc": "2026-10-24T14:06:13.262Z",
   "endpoint": "https://api.cloudflare.com/client/v4/graphql",
   "accountResolvedVia": "wrangler whoami",
   "databaseName": "supermarket",
   "windowUtc": {
-    "today_geq": "2026-10-17T00:00:00Z",
-    "today_lt": "2026-10-18T00:00:00Z",
-    "hist_geq": "2026-10-11T00:00:00Z",
-    "hist_lt": "2026-10-18T00:00:00Z"
+    "today_geq": "2026-10-24T00:00:00Z",
+    "today_lt": "2026-10-25T00:00:00Z",
+    "hist_geq": "2026-10-18T00:00:00Z",
+    "hist_lt": "2026-10-25T00:00:00Z"
   },
   "quota": {
     "rows_written_free_per_day": 100000,
@@ -19,57 +19,57 @@
   "channels": {
     "graphql": {
       "state": "VERIFIED",
-      "retrievedAt": "2026-10-17T08:09:13.677Z",
-      "rowsRead": 1703,
-      "rowsWritten": 8,
+      "retrievedAt": "2026-10-24T14:06:19.071Z",
+      "rowsRead": 17321,
+      "rowsWritten": 198,
       "byDateUtc": [
         [
-          "2026-10-11",
+          "2026-10-18",
           {
-            "rowsRead": 9506,
-            "rowsWritten": 26
-          }
-        ],
-        [
-          "2026-10-12",
-          {
-            "rowsRead": 16701,
-            "rowsWritten": 76
-          }
-        ],
-        [
-          "2026-10-13",
-          {
-            "rowsRead": 16847,
+            "rowsRead": 2247,
             "rowsWritten": 50
           }
         ],
         [
-          "2026-10-14",
+          "2026-10-19",
           {
-            "rowsRead": 3928,
-            "rowsWritten": 50
+            "rowsRead": 29310,
+            "rowsWritten": 255
           }
         ],
         [
-          "2026-10-15",
+          "2026-10-20",
           {
-            "rowsRead": 5294,
-            "rowsWritten": 25
+            "rowsRead": 18463,
+            "rowsWritten": 104
           }
         ],
         [
-          "2026-10-16",
+          "2026-10-21",
           {
-            "rowsRead": 1223,
-            "rowsWritten": 47
+            "rowsRead": 1738353,
+            "rowsWritten": 87472
           }
         ],
         [
-          "2026-10-17",
+          "2026-10-22",
           {
-            "rowsRead": 1703,
-            "rowsWritten": 8
+            "rowsRead": 613499,
+            "rowsWritten": 270
+          }
+        ],
+        [
+          "2026-10-23",
+          {
+            "rowsRead": 24444,
+            "rowsWritten": 318
+          }
+        ],
+        [
+          "2026-10-24",
+          {
+            "rowsRead": 17321,
+            "rowsWritten": 198
           }
         ]
       ],
@@ -77,12 +77,12 @@
     },
     "wrangler": {
       "state": "VERIFIED",
-      "retrievedAt": "2026-10-17T08:09:16.234Z",
+      "retrievedAt": "2026-10-24T14:06:21.119Z",
       "rolling24h": {
-        "rows_read_24h": 2296,
-        "rows_written_24h": 36,
-        "read_queries_24h": 44,
-        "write_queries_24h": 12
+        "rows_read_24h": 23665,
+        "rows_written_24h": 150,
+        "read_queries_24h": 395,
+        "write_queries_24h": 47
       },
       "databaseId": "4bfc0283-d307-4285-9f02-dc230cfe4f5c",
       "reason": null

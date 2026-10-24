@@ -28,7 +28,7 @@ function CartItem({ item, onAdd, onRemove, onDelete }: CartItemProps) {
           <button
             onClick={() => onRemove(item)}
             aria-label={`减少${displayName}`}
-            className="tap-44 w-8 h-8 rounded-full bg-gray-50 border border-gray-200 text-stone-500 flex items-center justify-center text-sm hover:bg-gray-100 transition duration-200 active:scale-90"
+            className="tap-44 w-8 h-8 rounded-full bg-gray-50 border border-gray-200 text-stone-500 flex items-center justify-center text-sm hover:bg-gray-100 hover:text-stone-700 transition duration-200 active:scale-90"
           >
             <span aria-hidden="true">-</span>
           </button>

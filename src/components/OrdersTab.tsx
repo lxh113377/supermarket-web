@@ -288,7 +288,10 @@ export default function OrdersTab({ orders, onOrdersChange, loading = false }: {
                   </span>
                   <span className="text-2xs text-stone-500 shrink-0">
                     命中 {p.hits?.orders ?? 0} 单{Number(p.hits?.totalDiscount) > 0 && ` · 已让利 ${formatYuan(p.hits.totalDiscount)}`}
-                    <span className={`ml-1.5 px-1 py-px rounded ${p.enabled ? 'text-green-700 bg-green-100' : 'text-stone-500 bg-gray-100'}`}>
+                    {/* 停用态徽章原先是 text-stone-500 on bg-gray-100 —— 判据实测 4.36:1
+                        不过 AA（11px 小字）。改 stone-600 得 6.93:1：仍是"次要信息"的
+                        灰调，但看得清。启用态（green-700 on green-100）实测 4.57:1 过。 */}
+                    <span className={`ml-1.5 px-1 py-px rounded ${p.enabled ? 'text-green-700 bg-green-100' : 'text-stone-600 bg-gray-100'}`}>
                       {p.enabled ? '启用中' : '已停用'}
                     </span>
                   </span>
