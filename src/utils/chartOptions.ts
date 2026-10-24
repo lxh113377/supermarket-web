@@ -32,8 +32,8 @@ export const CHART_THEME_FALLBACK: ChartTheme = {
   b1: '#d9b166',
   b2: '#4f8f6d',
   b3: '#b18739',
-  b4: '#8fb3c4',
-  grid: 'rgba(217,177,102,0.1)',
+  b4: '#d8cdbb',
+  grid: '#3a3128',
   text: '#a99c88',
 }
 

@@ -329,7 +329,10 @@ export default function CustomerPage() {
     <div className="market-shop flex flex-col h-full bg-surface">
       <CustomerHeader minimal />
       <button onClick={() => (location.state?.fromCategory ? navigate(-1) : navigate('/'))} aria-label="返回" className="market-back">← <span>返回</span></button>
-      <h1 className="sr-only">{category?.name || '全部商品'}</h1>
+      {/* 窄屏刊头：分类名以可见的小字号档承载（桌面刊头是 text-3xl 那一档，条件渲染互斥）。
+          2026-10-25 v3：从前是 sr-only —— 手机上整屏没有可见的「我在哪一类」，
+          读屏有名字但肉眼没有层级；v3 移动刊头把它变成一行可见的紧凑标题。 */}
+      <h1 className="market-shop-title text-sm font-bold text-ink px-4 pt-3 pb-1 truncate">{category?.name || '全部商品'}</h1>
       {nav}
 
       <div role="main" id="main-content" tabIndex={-1} className="market-shop-main flex-1 overflow-y-auto px-4 pt-3 pb-32">

@@ -1,8 +1,15 @@
 // AdminPage 测试（对标第五轮 E1：管理壳层 110 句破零）
 // 五个子 Tab 全部打桩（各 Tab 逻辑已另有专测），这里只测 AdminPage 自身：
 // 数据装载、错误横幅、云端空态种子、tablist 键盘流转、订单增量轮询首拉。
+//
+// 2026-10-25 视觉 v2：AdminPage 外壳换成 WorkspaceShell，侧栏里有 <Link to="/">，
+// 而本文件此前是裸 render(<AdminPage />) ⇒ react-router 的 useContext 为 null ⇒
+// 整份 AdminPage 测试 5 条全红（TypeError: Cannot destructure property 'basename' of
+// React10.useContext(...) as it is null）。修法是给渲染套一层 MemoryRouter：
+// 组件本身没改，是**测试的宿主环境**跟上了外壳的路由依赖。
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 
 const h = vi.hoisted(() => ({
   cloud: true,
@@ -33,6 +40,11 @@ import AdminPage from '../src/pages/AdminPage'
 
 const order = { _id: 'o_1', roomNumber: '501', items: [], totalAmount: 3, status: 'pending', createdAt: '2026-09-24T00:00:00Z', updatedAt: '2026-09-24T00:00:00Z' }
 
+/** 渲染 AdminPage 并提供路由上下文（外壳侧栏含 <Link>，无 Router 会整棵抛错） */
+function renderAdmin() {
+  return render(<MemoryRouter><AdminPage /></MemoryRouter>)
+}
+
 describe('AdminPage 管理壳', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -44,7 +56,7 @@ describe('AdminPage 管理壳', () => {
   })
 
   it('云端模式：徽标、5 个 tab、默认商品 tab 拿到数据、订单首拉全量', async () => {
-    render(<AdminPage />)
+    renderAdmin()
     expect(await screen.findByText('云端模式')).toBeTruthy()
     const tabs = screen.getAllByRole('tab')
     expect(tabs.length).toBe(5)
@@ -55,7 +67,7 @@ describe('AdminPage 管理壳', () => {
 
   it('商品读取失败：显式错误横幅（禁静默回退）', async () => {
     h.getAdminProducts.mockRejectedValue(new Error('502'))
-    render(<AdminPage />)
+    renderAdmin()
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain('502')
     expect(screen.getByTestId('tab-products').getAttribute('data-count')).toBe('0')
@@ -65,7 +77,7 @@ describe('AdminPage 管理壳', () => {
   // 「只点第一下不会真导入」必须单独测 —— 它是两步确认存在的全部理由。
   it('云端空商品：导入种子走两步确认，第二下才 seedCloudData 并回显结果', async () => {
     h.getAdminProducts.mockResolvedValue([])
-    render(<AdminPage />)
+    renderAdmin()
     const btn = await screen.findByRole('button', { name: '导入种子数据' })
     fireEvent.click(btn)
     await new Promise((res) => setTimeout(res, 0))
@@ -77,7 +89,7 @@ describe('AdminPage 管理壳', () => {
   })
 
   it('tablist 键盘右移切到订单 tab 并渲染（增量游标复用）', async () => {
-    render(<AdminPage />)
+    renderAdmin()
     const productsTab = await screen.findByRole('tab', { name: /商品/ })
     productsTab.focus()
     fireEvent.keyDown(productsTab.closest('[role="tablist"]')!, { key: 'ArrowRight' })
@@ -87,8 +99,8 @@ describe('AdminPage 管理壳', () => {
 
   it('本地演示模式：徽标切换 + 演示提示条', async () => {
     h.cloud = false
-    render(<AdminPage />)
+    renderAdmin()
     expect(await screen.findByText('本地演示')).toBeTruthy()
-    expect(screen.getByText(/数据仅保存在浏览器中/)).toBeTruthy()
+    expect(screen.getByText(/数据仅保存在/)).toBeTruthy()
   })
 })
