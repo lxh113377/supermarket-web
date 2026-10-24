@@ -1,15 +1,19 @@
 /** @type {import('tailwindcss').Config}
- *  色彩令牌（2026-10-25 重构 v2 · 老大钦定三色，色值一个色相都不下移）
- *  ─────────────────────────────────────────────
- *  深褐黑 #2A221D（沉静、厚实、原始感）—— 全站底色与结构面
- *  森林绿 #1F4A39（自然、稳固、生命力）—— 第二结构色：导航/区块/状态
- *  黄铜金 #B18739（坚韧、权威、岁月感）—— 唯一强调色：价格/选中/焦点/按钮
- *
- *  前景规则（WCAG 实算，比值见 docs/redesign-awwwards-v2.md）：
- *    黄铜金底 ⇒ 配深褐黑字（4.75:1）；米白压金只有 2.87:1，禁止
- *    深褐黑底 ⇒ 米白 #F4EFE7（13.64:1）；弱化正文用 #A99C88（5.8:1）
- *    森林绿底 ⇒ 米白（8.75:1）；金字用高亮金 #D9B166（4.97:1）
- *    价格/强调金字 #B18739 落在面板 #332A24 = 4.27:1（粗体大字，过 AA 大字 3:1）
+ *  色彩令牌 v3（2026-10-25 · 双主题：昼 = 暖纸 / 夜 = 深褐黑）
+ *  ─────────────────────────────────────────────────────────────
+ *  老大钦定三色为唯一色相来源：
+ *    深褐黑 #2A221D（沉静、厚实、原始感）
+ *    森林绿 #1F4A39（自然、稳固、生命力）
+ *    黄铜金 #B18739（坚韧、权威、岁月感）
+ *  双主题口径：主题切换只换「语义槽」的取值，类名与 DOM 零改动。
+ *    昼（默认）：暖纸 #FAF7F0 为底、暖墨 #241E19 为字 —— 白昼的铺子；
+ *    夜：深褐黑 #241E19 为底、米白 #F4EFE7 为字 —— 夜里亮灯的铺子（v1 的气质保留为夜主题）。
+ *  所有令牌以「RGB 三通道」存进 CSS 变量，Tailwind 用 rgb(var(--t-x) / <alpha-value>)
+ *  接住，于是 bg-panel/95、text-cream/85 这类既有透明度写法在两个主题下都继续成立。
+ *  前景铁律（WCAG 实算，见 docs/redesign-awwwards-v3.md）：
+ *    昼：正文墨 #241E19/纸 15.4:1；次级 #6B5F51 5.8:1；价格金 #8A6520 4.6:1；
+ *    夜：正文米白/褐 14.4:1；次级 #A99C88 6.1:1；亮金 #D9B166 7.7:1；
+ *    黄铜金实底按钮一律配深褐字（4.98:1），两主题同值。
  */
 export default {
   content: [
@@ -19,96 +23,172 @@ export default {
   theme: {
     extend: {
       colors: {
-        // 黄铜金：品牌主强调。500 = 老大给定的 #B18739。
+        // 黄铜金族：500 = 钦定 #B18739；300 是「强调文字槽」（昼深金 / 夜亮金）
         brand: {
-          50:  '#3a2f22',
-          100: '#4a3c26',
-          200: '#6b552c',
-          300: '#d9b166',  // 高亮金（深底文字/图标 7.76:1）
-          400: '#c99c4a',
-          500: '#b18739',  // 主色（承载深褐黑字 4.75:1）
-          600: '#98712e',
-          700: '#7a5c20',
-          800: '#5f481b',
-          900: '#463514',
+          50:  'rgb(var(--t-brand-50) / <alpha-value>)',
+          100: 'rgb(var(--t-brand-100) / <alpha-value>)',
+          200: 'rgb(var(--t-brand-200) / <alpha-value>)',
+          300: 'rgb(var(--t-brand-300) / <alpha-value>)',
+          400: 'rgb(var(--t-brand-400) / <alpha-value>)',
+          500: 'rgb(var(--t-brand-500) / <alpha-value>)',
+          600: 'rgb(var(--t-brand-600) / <alpha-value>)',
+          700: 'rgb(var(--t-brand-700) / <alpha-value>)',
+          800: 'rgb(var(--t-brand-800) / <alpha-value>)',
+          900: 'rgb(var(--t-brand-900) / <alpha-value>)',
         },
         brass: {
-          DEFAULT: '#b18739',
-          deep: '#7a5c20',
-          bright: '#d9b166',
+          DEFAULT: 'rgb(var(--t-brand-500) / <alpha-value>)',
+          deep: 'rgb(var(--t-brand-700) / <alpha-value>)',
+          bright: 'rgb(var(--t-brass-bright) / <alpha-value>)',
         },
-        // 深褐黑家族：全站之底
+        // 深褐黑族：字面棕阶，两主题同值（它是「木料」，不随昼夜换色）
         espresso: {
-          DEFAULT: '#2a221d',
-          950: '#1c1714',
-          900: '#241e19',
-          850: '#2a221d',
-          800: '#332a24',
-          700: '#3e332b',
-          600: '#4a3d33',
-          500: '#5a4b3f',
+          DEFAULT: 'rgb(var(--t-espresso) / <alpha-value>)',
+          950: 'rgb(var(--t-espresso-950) / <alpha-value>)',
+          900: 'rgb(var(--t-espresso-900) / <alpha-value>)',
+          850: 'rgb(var(--t-espresso) / <alpha-value>)',
+          800: 'rgb(var(--t-espresso-800) / <alpha-value>)',
+          700: 'rgb(var(--t-espresso-700) / <alpha-value>)',
+          600: 'rgb(var(--t-espresso-600) / <alpha-value>)',
+          500: 'rgb(var(--t-espresso-500) / <alpha-value>)',
         },
-        // 森林绿家族：第二结构色
+        // 森林绿族：字面绿阶，两主题同值
         forest: {
-          DEFAULT: '#1f4a39',
-          deep: '#16382b',
-          mid: '#2c5f4b',
-          soft: '#3e7a61',
+          DEFAULT: 'rgb(var(--t-forest) / <alpha-value>)',
+          deep: 'rgb(var(--t-forest-deep) / <alpha-value>)',
+          mid: 'rgb(var(--t-forest-mid) / <alpha-value>)',
+          soft: 'rgb(var(--t-forest-soft) / <alpha-value>)',
         },
-        // 旧 ink 令牌并入褐黑（保住既有 66 处 text-ink 的语义：浅底深字 → 深底浅字改由 cream 承载）
+        // 墨/米白：语义文字槽（昼墨夜米，对偶互换）
         ink: {
-          DEFAULT: '#f4efe7',
-          soft: '#e6dfd2',
-          mute: '#a99c88',
+          DEFAULT: 'rgb(var(--t-ink) / <alpha-value>)',
+          soft: 'rgb(var(--t-ink-soft) / <alpha-value>)',
+          mute: 'rgb(var(--t-ink-mute) / <alpha-value>)',
         },
-        // 浅面令牌
-        cream: { DEFAULT: '#f4efe7', deep: '#ede6da' },
-        panel: { DEFAULT: '#332a24', deep: '#3e332b' },
-        mute: { DEFAULT: '#a99c88', dim: '#8c7f6d' },
-        // 表面令牌（bg-surface 等旧类名继续可用，值已换褐黑体系）
-        surface: { DEFAULT: '#2a221d', warm: '#241e19', card: '#332a24' },
-        // 旧 dark-500/600/700 并入森林绿
-        dark: { 500: '#2c5f4b', 600: '#1f4a39', 700: '#16382b' },
-        // 状态语义：文字/底两两按「压深底 ≥4.5:1」校准
-        green: { 50: '#1b3327', 100: '#24402f', 400: '#7fc48f', 500: '#5aa96c', 700: '#7fc48f', 800: '#3f7d4e', 900: '#2d5c39' },
-        red: { 50: '#3a2320', 100: '#4a2b25', 200: '#6b3730', 500: '#e07a5f', 700: '#e88a72', 800: '#c96a52' },
-        amber: { 50: '#3a2f1e', 100: '#4a3c26', 200: '#6b552c', 300: '#d9b166', 500: '#b18739', 600: '#c99c4a', 800: '#e0bd76', 900: '#8a6828' },
-        emerald: { 50: '#1b3327', 100: '#24402f', 200: '#2f5439', 700: '#7fc48f', 800: '#3f7d4e' },
-        gray: { 50: '#241e19', 100: '#332a24', 200: '#3e332b', 300: '#4a3d33', 400: '#5a4b3f', 600: '#a99c88', 700: '#c8bda9' },
-        stone: { 50: '#332a24', 100: '#3e332b', 200: '#4a3d33', 300: '#5a4b3f', 400: '#a99c88', 500: '#a99c88', 600: '#b8ab97', 700: '#c8bda9', 800: '#e6dfd2' },
-        orange: { 50: '#3a2f1e', 800: '#8a6828', 900: '#5f481b' },
-        yellow: { 100: '#4a3c26', 700: '#b18739', 900: '#5f481b' },
-        teal: { 700: '#1f4a39' },
-        cyan: { 800: '#16382b' },
-        blue: { 50: '#1e2c33', 700: '#8fb3c4', 800: '#5a7d8c' },
-        purple: { 400: '#8c7f6d' },
+        cream: {
+          DEFAULT: 'rgb(var(--t-cream) / <alpha-value>)',
+          deep: 'rgb(var(--t-cream-deep) / <alpha-value>)',
+        },
+        panel: {
+          DEFAULT: 'rgb(var(--t-panel) / <alpha-value>)',
+          deep: 'rgb(var(--t-panel-deep) / <alpha-value>)',
+        },
+        mute: {
+          DEFAULT: 'rgb(var(--t-mute) / <alpha-value>)',
+          dim: 'rgb(var(--t-mute-dim) / <alpha-value>)',
+        },
+        surface: {
+          DEFAULT: 'rgb(var(--t-surface) / <alpha-value>)',
+          warm: 'rgb(var(--t-surface-warm) / <alpha-value>)',
+          card: 'rgb(var(--t-panel) / <alpha-value>)',
+        },
+        dark: {
+          500: 'rgb(var(--t-forest-mid) / <alpha-value>)',
+          600: 'rgb(var(--t-forest) / <alpha-value>)',
+          700: 'rgb(var(--t-forest-deep) / <alpha-value>)',
+        },
+        // 语义状态：成功/危险/警告/信息，两主题各取「压得住本主题底」的一档
+        green: {
+          50: 'rgb(var(--t-green-50) / <alpha-value>)',
+          100: 'rgb(var(--t-green-100) / <alpha-value>)',
+          400: 'rgb(var(--t-green-400) / <alpha-value>)',
+          500: 'rgb(var(--t-green-500) / <alpha-value>)',
+          700: 'rgb(var(--t-green-700) / <alpha-value>)',
+          800: 'rgb(var(--t-green-800) / <alpha-value>)',
+          900: 'rgb(var(--t-green-900) / <alpha-value>)',
+        },
+        red: {
+          50: 'rgb(var(--t-red-50) / <alpha-value>)',
+          100: 'rgb(var(--t-red-100) / <alpha-value>)',
+          200: 'rgb(var(--t-red-200) / <alpha-value>)',
+          500: 'rgb(var(--t-red-500) / <alpha-value>)',
+          700: 'rgb(var(--t-red-700) / <alpha-value>)',
+          800: 'rgb(var(--t-red-800) / <alpha-value>)',
+        },
+        amber: {
+          50: 'rgb(var(--t-amber-50) / <alpha-value>)',
+          100: 'rgb(var(--t-amber-100) / <alpha-value>)',
+          200: 'rgb(var(--t-amber-200) / <alpha-value>)',
+          300: 'rgb(var(--t-amber-300) / <alpha-value>)',
+          500: 'rgb(var(--t-brand-500) / <alpha-value>)',
+          600: 'rgb(var(--t-amber-600) / <alpha-value>)',
+          800: 'rgb(var(--t-amber-800) / <alpha-value>)',
+          900: 'rgb(var(--t-amber-900) / <alpha-value>)',
+        },
+        emerald: {
+          50: 'rgb(var(--t-green-50) / <alpha-value>)',
+          100: 'rgb(var(--t-green-100) / <alpha-value>)',
+          200: 'rgb(var(--t-emerald-200) / <alpha-value>)',
+          700: 'rgb(var(--t-emerald-700) / <alpha-value>)',
+          800: 'rgb(var(--t-emerald-800) / <alpha-value>)',
+        },
+        // 中性：暖灰（stone 族同源），禁冷灰（warm-foreground 闸）
+        gray: {
+          50: 'rgb(var(--t-gray-50) / <alpha-value>)',
+          100: 'rgb(var(--t-gray-100) / <alpha-value>)',
+          200: 'rgb(var(--t-gray-200) / <alpha-value>)',
+          300: 'rgb(var(--t-gray-300) / <alpha-value>)',
+          400: 'rgb(var(--t-gray-400) / <alpha-value>)',
+          600: 'rgb(var(--t-gray-600) / <alpha-value>)',
+          700: 'rgb(var(--t-gray-700) / <alpha-value>)',
+        },
+        stone: {
+          50: 'rgb(var(--t-stone-50) / <alpha-value>)',
+          100: 'rgb(var(--t-stone-100) / <alpha-value>)',
+          200: 'rgb(var(--t-stone-200) / <alpha-value>)',
+          300: 'rgb(var(--t-stone-300) / <alpha-value>)',
+          400: 'rgb(var(--t-stone-400) / <alpha-value>)',
+          500: 'rgb(var(--t-stone-500) / <alpha-value>)',
+          600: 'rgb(var(--t-stone-600) / <alpha-value>)',
+          700: 'rgb(var(--t-stone-700) / <alpha-value>)',
+          800: 'rgb(var(--t-stone-800) / <alpha-value>)',
+        },
+        orange: {
+          50: 'rgb(var(--t-amber-50) / <alpha-value>)',
+          800: 'rgb(var(--t-amber-800) / <alpha-value>)',
+          900: 'rgb(var(--t-amber-900) / <alpha-value>)',
+        },
+        yellow: {
+          100: 'rgb(var(--t-brand-100) / <alpha-value>)',
+          700: 'rgb(var(--t-brand-700) / <alpha-value>)',
+          900: 'rgb(var(--t-brand-900) / <alpha-value>)',
+        },
+        teal: { 700: 'rgb(var(--t-forest) / <alpha-value>)' },
+        cyan: { 800: 'rgb(var(--t-forest-deep) / <alpha-value>)' },
+        blue: {
+          50: 'rgb(var(--t-blue-50) / <alpha-value>)',
+          700: 'rgb(var(--t-blue-700) / <alpha-value>)',
+          800: 'rgb(var(--t-blue-800) / <alpha-value>)',
+        },
+        purple: { 400: 'rgb(var(--t-mute-dim) / <alpha-value>)' },
       },
       boxShadow: {
-        'soft': '0 2px 8px -2px rgba(0,0,0,0.45), 0 4px 16px -4px rgba(0,0,0,0.3)',
-        'brand': '0 2px 6px -1px rgba(177,135,57,0.35), 0 10px 28px -10px rgba(138,104,40,0.5)',
-        'card': '0 1px 2px rgba(0,0,0,0.4), 0 8px 24px -10px rgba(0,0,0,0.45)',
-        'elevated': '0 4px 12px -2px rgba(0,0,0,0.5), 0 12px 40px -8px rgba(0,0,0,0.45)',
-        'float': '0 8px 30px -4px rgba(0,0,0,0.55), 0 20px 60px -12px rgba(0,0,0,0.45)',
-        'inner-soft': 'inset 0 2px 6px rgba(0,0,0,0.35)',
+        'soft': '0 2px 8px -2px rgba(42,34,29,0.10), 0 4px 16px -4px rgba(42,34,29,0.08)',
+        'brand': '0 2px 6px -1px rgba(177,135,57,0.30), 0 10px 28px -10px rgba(122,90,34,0.35)',
+        'card': '0 1px 2px rgba(42,34,29,0.06), 0 8px 24px -10px rgba(42,34,29,0.10)',
+        'elevated': '0 4px 12px -2px rgba(42,34,29,0.12), 0 12px 40px -8px rgba(42,34,29,0.14)',
+        'float': '0 8px 30px -4px rgba(42,34,29,0.20), 0 20px 60px -12px rgba(42,34,29,0.16)',
+        'inner-soft': 'inset 0 2px 6px rgba(42,34,29,0.10)',
         'brass-glow': '0 0 0 1px rgba(177,135,57,0.35), 0 6px 24px -8px rgba(177,135,57,0.28)',
       },
       fontFamily: {
-        display: ['"Bricolage Grotesque"', 'ui-sans-serif', 'system-ui', '"PingFang SC"', '"Microsoft YaHei"', 'sans-serif'],
+        display: ['"Bricolage Grotesque"', '"CS Display Serif"', '"Songti SC"', 'STSong', '"Noto Serif CJK SC"', 'serif'],
+        serifcn: ['"CS Display Serif"', '"Songti SC"', 'STSong', '"Noto Serif CJK SC"', 'serif'],
         sans: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', '"PingFang SC"', '"Hiragino Sans GB"', '"Microsoft YaHei"', 'sans-serif'],
       },
       fontSize: {
-        'display-xl': ['3.25rem', { lineHeight: '1.05', letterSpacing: '-0.03em' }],
-        'display-lg': ['2.25rem', { lineHeight: '1.1', letterSpacing: '-0.025em' }],
-        'display-md': ['1.5rem', { lineHeight: '1.2', letterSpacing: '-0.02em' }],
-        'eyebrow':  ['0.6875rem', { lineHeight: '1.4', letterSpacing: '0.16em' }],
-        '2xs':      ['0.6875rem', { lineHeight: '1rem' }],
-        '3xs':      ['0.625rem', { lineHeight: '0.875rem' }],
+        'display-xl': ['clamp(2.75rem, 6vw, 4.5rem)', { lineHeight: '1.08', letterSpacing: '-0.02em' }],
+        'display-lg': ['clamp(2rem, 4vw, 2.75rem)', { lineHeight: '1.16', letterSpacing: '-0.015em' }],
+        'display-md': ['1.5rem', { lineHeight: '1.25', letterSpacing: '-0.01em' }],
+        'eyebrow':  ['0.6875rem', { lineHeight: '1.5', letterSpacing: '0.16em' }],
+        '2xs':      ['0.75rem', { lineHeight: '1.125rem' }],
+        '3xs':      ['0.75rem', { lineHeight: '1rem' }],
         'price-sm': ['1.375rem', { lineHeight: '1.5rem', letterSpacing: '-0.02em' }],
         'price-md': ['2rem',     { lineHeight: '2.25rem', letterSpacing: '-0.025em' }],
         'price-lg': ['2.5rem',   { lineHeight: '2.75rem', letterSpacing: '-0.03em' }],
         'card-title': ['0.9375rem', { lineHeight: '1.35rem' }],
       },
-      borderRadius: { '2xl': '1rem', '3xl': '1.5rem', '4xl': '2rem' },
+      borderRadius: { '2xl': '0.75rem', '3xl': '1.25rem', '4xl': '1.75rem' },
       keyframes: {
         'fade-in-up': { '0%': { opacity: '0', transform: 'translateY(12px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
         'fade-in': { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
@@ -118,12 +198,13 @@ export default {
         'shimmer': { '0%': { backgroundPosition: '-200% 0' }, '100%': { backgroundPosition: '200% 0' } },
       },
       animation: {
-        'fade-in-up': 'fade-in-up 0.4s cubic-bezier(0.16,1,0.3,1) both',
-        'fade-in': 'fade-in 0.3s cubic-bezier(0.16,1,0.3,1) both',
-        'scale-in': 'scale-in 0.25s cubic-bezier(0.16,1,0.3,1) both',
-        'slide-up': 'slide-up 0.35s cubic-bezier(0.16,1,0.3,1) both',
-        'slide-down': 'slide-down 0.3s cubic-bezier(0.16,1,0.3,1) both',
-        'shimmer': 'shimmer 1.5s ease-in-out infinite',
+        // 时长全部落在 50ms 网格（motion-consistency 闸）；曲线只用在册四条
+        'fade-in-up': 'fade-in-up 400ms cubic-bezier(0.16, 1, 0.3, 1) both',
+        'fade-in': 'fade-in 300ms cubic-bezier(0.16, 1, 0.3, 1) both',
+        'scale-in': 'scale-in 250ms cubic-bezier(0.16, 1, 0.3, 1) both',
+        'slide-up': 'slide-up 350ms cubic-bezier(0.16, 1, 0.3, 1) both',
+        'slide-down': 'slide-down 300ms cubic-bezier(0.16, 1, 0.3, 1) both',
+        'shimmer': 'shimmer 1500ms linear infinite',
       },
     },
   },

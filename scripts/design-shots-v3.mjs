@@ -1,7 +1,8 @@
 import { chromium } from 'playwright';
 import fs from 'node:fs';
 import path from 'node:path';
-const OUT = process.argv[2]; const BASE = process.argv[3] || 'http://127.0.0.1:5183';
+const OUT = process.argv[2]; const BASE = process.argv[3] || 'http://127.0.0.1:5184';
+const THEME = process.argv[4] || 'day';
 fs.mkdirSync(OUT, { recursive: true });
 const CART = { items: [
   { productId: 'p_33', name: '乐事薯片', spec: '40g', price: 2.66, quantity: 2 },
@@ -17,14 +18,28 @@ for (const [vpName, vp] of [['desk',{width:1440,height:900}],['mob',{width:390,h
   ]) shots.push({ name: p[0] + '-' + vpName, url: p[1], vp, full: p[2] });
 }
 const browser = await chromium.launch({ channel: 'msedge', headless: true });
+const report = [];
 for (const s of shots) {
   const ctx = await browser.newContext({ viewport: s.vp, deviceScaleFactor: 1.5, reducedMotion: 'reduce' });
-  await ctx.addInitScript((cart) => { try { localStorage.setItem('sm_cart', JSON.stringify({ ...cart, updatedAt: Date.now() })); } catch {} }, CART);
+  await ctx.addInitScript(([cart, theme]) => {
+    try {
+      localStorage.setItem('sm_cart', JSON.stringify({ ...cart, updatedAt: Date.now() }));
+      localStorage.setItem('sm_theme', theme);
+    } catch {}
+  }, [CART, THEME]);
   const page = await ctx.newPage();
-  await page.goto(BASE + '/' + s.url, { waitUntil: 'networkidle' }).catch(() => {});
+  const errs = [];
+  page.on('pageerror', e => errs.push('pageerror: ' + e.message));
+  page.on('console', m => { if (m.type() === 'error') errs.push('console: ' + m.text().slice(0, 160)); });
+  await page.goto(BASE + '/' + s.url, { waitUntil: 'networkidle' }).catch(e => errs.push('goto ' + e.message));
   await page.waitForTimeout(1200);
+  const overflowX = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth).catch(() => -1);
   await page.screenshot({ path: path.join(OUT, s.name + '.png'), fullPage: !!s.full });
+  report.push({ shot: s.name, overflowX, errors: errs.slice(0, 3) });
   await ctx.close();
 }
 await browser.close();
-console.log('done ' + shots.length);
+fs.writeFileSync(path.join(OUT, 'report-' + THEME + '.json'), JSON.stringify(report, null, 1));
+const bad = report.filter(r => r.overflowX > 0 || r.errors.length);
+console.log(JSON.stringify(bad, null, 1));
+console.log('shots ' + report.length + ' theme ' + THEME);

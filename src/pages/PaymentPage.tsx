@@ -88,13 +88,13 @@ export default function PaymentPage() {
           <p className="text-sm text-stone-500">请选择支付方式完成付款</p>
           <button
             onClick={() => setMethod('wechat')}
-            className="w-full max-w-sm bg-green-700 text-cream py-4 rounded-2xl text-base font-medium shadow-elevated hover:bg-green-800 transition duration-200 active:scale-[0.98] animate-fade-in-up stagger-1"
+            className="pay-wechat w-full max-w-sm py-4 rounded-2xl text-base font-medium shadow-elevated animate-fade-in-up stagger-1"
           >
             微信支付
           </button>
           <button
             onClick={() => { setMethod('alipay'); setShowTip(true) }}
-            className="w-full max-w-sm bg-blue-700 text-cream py-4 rounded-2xl text-base font-medium shadow-elevated hover:bg-blue-800 transition duration-200 active:scale-[0.98] animate-fade-in-up stagger-2"
+            className="pay-alipay w-full max-w-sm py-4 rounded-2xl text-base font-medium shadow-elevated animate-fade-in-up stagger-2"
           >
             支付宝付款
           </button>

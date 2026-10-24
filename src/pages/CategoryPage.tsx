@@ -46,13 +46,13 @@ export default function CategoryPage() {
           无关的通用装饰。现在换成与首页封面同一套语言：顶部品牌色带 + 右下切角，
           形状全站统一，一眼是同一个产品。渐变色由 data/categories.ts 提供，
           其两端都保证白字过 AA（口径见该文件头注释）。 */}
-      <div className={`cover-clip relative overflow-hidden bg-gradient-to-r ${category.color} text-cream px-5 pt-9 pb-14 sm:px-8`}>
+      <div className={`cover-clip cover-band relative overflow-hidden bg-gradient-to-r ${category.color} px-5 pt-9 pb-14 sm:px-8`}>
         <span aria-hidden="true" className="brand-bar absolute inset-x-0 top-0 h-1" />
         <div className="relative z-10 mx-auto flex max-w-lg items-center gap-4">
           <button
             onClick={() => navigate('/')}
             aria-label="返回"
-            className="w-9 h-9 rounded-full bg-panel/15 backdrop-blur-sm flex items-center justify-center text-cream/90 hover:bg-panel/25 transition duration-200 active:scale-90"
+            className="cover-band-back w-9 h-9 rounded-full bg-panel/15 backdrop-blur-sm flex items-center justify-center"
           >
             ←
           </button>
@@ -61,7 +61,7 @@ export default function CategoryPage() {
               <span className="text-2xl">{category.icon}</span>
               {category.name}
             </h1>
-            <p className="mt-1.5 text-xs text-cream/85">{category.description}</p>
+            <p className="cover-band-sub mt-1.5 text-xs">{category.description}</p>
           </div>
         </div>
       </div>

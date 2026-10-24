@@ -91,7 +91,7 @@ export default function OrderQueryPage() {
                         <span
                           aria-hidden="true"
                           className={`w-5 h-5 rounded-full flex items-center justify-center text-3xs shrink-0 ${
-                            done ? 'bg-green-700 text-cream' : current ? 'bg-brand-500 text-espresso ring-4 ring-brand-300' : 'bg-gray-100 text-stone-600'
+                            done ? 'step-done' : current ? 'bg-brand-500 text-espresso ring-4 ring-brand-300' : 'bg-gray-100 text-stone-600'
                           }`}
                         >
                           {done ? '✓' : i + 1}

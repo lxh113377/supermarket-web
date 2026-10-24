@@ -300,18 +300,18 @@ export default function CustomerPage() {
               onMouseEnter={() => prefetchRoute('cart')}
               onFocus={() => prefetchRoute('cart')}
               aria-label={`查看购物车，共 ${totalCount} 件，合计 ${formatYuan(totalAmount)}`}
-              className="w-full max-w-2xl mx-auto bg-espresso hover:bg-espresso-soft text-cream py-4 rounded-2xl shadow-float flex items-center justify-center gap-3 transition duration-200 active:scale-[0.98]"
+              className="float-cart w-full max-w-2xl mx-auto py-4 rounded-2xl shadow-float flex items-center justify-center gap-3"
             >
               <span className="font-medium">购物车</span>
-              <span className="bg-brand-500 px-2.5 py-0.5 rounded-full text-xs font-bold">
+              <span className="float-cart-count px-2.5 py-0.5 rounded-full text-xs font-bold">
                 {totalCount} 件
               </span>
-              <span className="font-bold text-brand-300">{formatYuan(totalAmount)}</span>
+              <span className="float-cart-price font-bold">{formatYuan(totalAmount)}</span>
               {/* 起送门槛实时反馈（2026-10-22 立规「总价低于六元不配送」）：
                   加购当场就告诉他还差多少，凑单是此刻的事，不必走到结算才发现。
                   两种视口各一条吸底栏 ⇒ 同一片段渲染两处，数字不许各写一遍。 */}
               {!meetsMinDelivery(totalAmount) && (
-                <span className="text-amber-300 text-xs font-medium">差 {formatYuan(minDeliveryGap(totalAmount))} 起送</span>
+                <span className="float-cart-price text-xs font-medium">差 {formatYuan(minDeliveryGap(totalAmount))} 起送</span>
               )}
             </button>
           </div>
@@ -351,7 +351,7 @@ export default function CustomerPage() {
             onMouseEnter={() => prefetchRoute('cart')}
             onFocus={() => prefetchRoute('cart')}
             aria-label={`查看购物车，共 ${totalCount} 件，合计 ${formatYuan(totalAmount)}`}
-            className="w-full max-w-2xl mx-auto bg-espresso hover:bg-espresso-soft text-cream py-4 rounded-2xl shadow-float flex items-center justify-center gap-3 transition duration-200 active:scale-[0.98]"
+            className="float-cart w-full max-w-2xl mx-auto py-4 rounded-2xl shadow-float flex items-center justify-center gap-3"
           >
             <span className="font-medium">购物车</span>
             <span className="bg-brand-500 px-2.5 py-0.5 rounded-full text-xs font-bold">
@@ -359,7 +359,7 @@ export default function CustomerPage() {
             </span>
             <span className="font-bold text-brand-300">{formatYuan(totalAmount)}</span>
             {!meetsMinDelivery(totalAmount) && (
-              <span className="text-amber-300 text-xs font-medium">差 {formatYuan(minDeliveryGap(totalAmount))} 起送</span>
+              <span className="float-cart-price text-xs font-medium">差 {formatYuan(minDeliveryGap(totalAmount))} 起送</span>
             )}
           </button>
         </div>
@@ -381,7 +381,7 @@ function toastLayer(toast: string) {
       aria-live="polite"
     >
       {toast && (
-        <div className="bg-espresso/90 backdrop-blur-sm text-cream text-sm px-5 py-2.5 rounded-full shadow-float animate-scale-in">
+        <div className="shop-toast backdrop-blur-sm text-sm px-5 py-2.5 rounded-full shadow-float animate-scale-in">
           {toast}
         </div>
       )}

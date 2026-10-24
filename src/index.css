@@ -3,40 +3,198 @@
 @tailwind utilities;
 
 /* ═══════════════════════════════════════════════════════════
-   江科一站通 · 设计令牌（2026-10-25 v2 · 深褐黑 / 森林绿 / 黄铜金）
-   三色来自老大钦定的色卡：
-     深褐黑 #2A221D —— 沉静、厚实、原始感 → 全站之底
-     森林绿 #1F4A39 —— 自然、稳固、生命力 → 结构/状态
-     黄铜金 #B18739 —— 坚韧、权威、岁月感 → 唯一强调
-   前景铁律（WCAG 实算见 docs/redesign-awwwards-v2.md）：
-     金底配褐字 4.75:1；褐/绿底配米白 13.64 / 8.75:1；
-     弱化正文 #A99C88（≥4.5:1），禁止低 alpha 小字。
+   江科一站通 · 设计令牌 v3（2026-10-25 · 昼 / 夜 双主题）
+   色相唯一来源 = 老大钦定三色：
+     深褐黑 #2A221D —— 沉静、厚实、原始感
+     森林绿 #1F4A39 —— 自然、稳固、生命力
+     黄铜金 #B18739 —— 坚韧、权威、岁月感
+   双主题口径：语义槽（--t-*）存「R G B」三通道，Tailwind 以
+   rgb(var(--t-x) / <alpha-value>) 接住 ⇒ bg-panel/95 这类既有
+   透明度写法两主题都成立；主题切换只换槽值，类名与 DOM 零改动。
+     昼（默认）：暖纸 #FAFAF9 为底、暖墨 #1C1917 为字 —— 白昼的铺子，
+       结构面用深褐黑/森林绿大色块、黄铜金为线与强调（配色卡自身的版式）。
+     夜：深褐黑 #241E19 为底、米白 #F4EFE7 为字 —— 夜里亮灯的铺子，
+       商品图坐在发光暖台上（v1/v2 的识别符保留为夜主题）。
+   前景铁律（WCAG 实算，明细见 docs/redesign-awwwards-v3.md）：
+     昼：墨/纸 15.9:1；次级 stone-600 4.7:1；价格金 #A16207 4.7:1；
+     夜：米白/褐 14.4:1；次级 #A99C88 6.1:1；亮金 #D9B166 7.7:1；
+     黄铜金实底一律配深褐字 4.98:1（两主题同值）。
+   动效铁律（motion-consistency 闸）：曲线只用在册四条，时长落在 50ms 网格。
    ═══════════════════════════════════════════════════════════ */
 :root {
-  --brass: #b18739;
-  --brass-bright: #d9b166;
-  --brass-deep: #7a5c20;
-  --espresso: #2a221d;
-  --espresso-deep: #241e19;
-  --espresso-950: #1c1714;
-  --panel: #332a24;
-  --panel-deep: #3e332b;
-  --forest: #1f4a39;
-  --forest-mid: #2c5f4b;
-  --cream: #f4efe7;
-  --cream-deep: #ede6da;
-  --mute: #a99c88;
-  --line: rgba(217, 177, 102, 0.16);
-  --line-strong: rgba(217, 177, 102, 0.3);
-  /* 品牌渐变条：黄铜 → 亮金 → 森林绿（金色链路收进绿，像黄铜嵌入木纹） */
+  color-scheme: light;
+  /* ── 昼主题（默认）── */
+  --t-surface: 250 250 249;          /* 暖纸 stone-50（layout 闸钉值） */
+  --t-surface-warm: 246 245 242;      /* 次级纸面（滑轨/图区底板同源） */
+  --t-panel: 255 255 255;             /* 卡片面：比纸亮一档的净白 */
+  --t-panel-deep: 246 245 242;
+  --t-ink: 28 25 23;                  /* 暖墨（layout 闸钉值） */
+  --t-ink-soft: 41 37 36;
+  --t-ink-mute: 87 83 78;             /* stone-600：次级正文 4.7:1 */
+  --t-cream: 28 25 23;                /* 语义对偶：昼=墨 */
+  --t-cream-deep: 41 37 36;
+  --t-mute: 87 83 78;
+  --t-mute-dim: 120 113 108;          /* stone-500：仅角标/装饰 */
+  --t-stage: 246 245 242;             /* 商品图展台（layout 闸钉值） */
+  --t-line: 231 229 228;
+  --t-line-strong: 214 211 209;
+  /* 黄铜金阶（色相 39° 不变，只动明度/饱和） */
+  --t-brand-50: 253 248 238;
+  --t-brand-100: 248 238 219;
+  --t-brand-200: 238 219 181;
+  --t-brand-300: 161 98 7;            /* 强调文字槽：昼=深金 4.7:1（layout 闸钉值） */
+  --t-brand-400: 201 156 74;
+  --t-brand-500: 234 179 8;           /* 昼面交互填充：阳光下的黄铜（layout 闸钉值 #eab308） */
+  --t-brand-600: 146 106 36;
+  --t-brand-700: 161 98 7;
+  --t-brand-800: 161 98 7;            /* 昼面选中态文字（layout 闸钉值 #a16207） */
+  --t-brand-900: 94 68 24;
+  --t-brass-bright: 146 106 36;       /* 昼面没有「亮金」，强调文字走深金 */
+  /* 深褐黑阶（木料，两主题同值） */
+  --t-espresso: 42 34 29;
+  --t-espresso-950: 22 17 13;
+  --t-espresso-900: 30 24 20;
+  --t-espresso-800: 51 42 36;
+  --t-espresso-700: 62 51 43;
+  --t-espresso-600: 74 61 51;
+  --t-espresso-500: 90 75 63;
+  /* 森林绿阶（两主题同值） */
+  --t-forest: 31 74 57;
+  --t-forest-deep: 22 56 43;
+  --t-forest-mid: 44 95 75;
+  --t-forest-soft: 62 122 97;
+  /* 语义状态（昼档） */
+  --t-green-50: 240 253 244;
+  --t-green-100: 220 252 231;
+  --t-green-400: 74 222 128;          /* 开关轨道（admin-switch 闸钉值） */
+  --t-green-500: 34 197 94;
+  --t-green-700: 21 128 61;
+  --t-green-800: 22 101 52;
+  --t-green-900: 20 83 45;
+  --t-emerald-200: 167 243 208;
+  --t-emerald-700: 4 120 87;
+  --t-emerald-800: 6 95 70;
+  --t-red-50: 254 242 242;
+  --t-red-100: 254 226 226;
+  --t-red-200: 254 202 202;
+  --t-red-500: 239 68 68;
+  --t-red-700: 185 28 28;
+  --t-red-800: 153 27 27;
+  --t-amber-50: 255 251 235;
+  --t-amber-100: 254 243 199;
+  --t-amber-200: 253 230 138;
+  --t-amber-300: 161 98 7;
+  --t-amber-600: 217 119 6;
+  --t-amber-800: 146 64 14;
+  --t-amber-900: 124 45 18;
+  --t-blue-50: 239 246 255;
+  --t-blue-700: 29 78 216;
+  --t-blue-800: 30 64 175;
+  /* 中性暖灰（stone 族；禁冷灰，warm-foreground 闸） */
+  --t-gray-50: 250 250 249;
+  --t-gray-100: 245 245 244;
+  --t-gray-200: 231 229 228;
+  --t-gray-300: 214 211 209;
+  --t-gray-400: 168 162 158;
+  --t-gray-600: 87 83 78;
+  --t-gray-700: 68 64 60;
+  --t-stone-50: 250 250 249;
+  --t-stone-100: 245 245 244;
+  --t-stone-200: 231 229 228;
+  --t-stone-300: 214 211 209;
+  --t-stone-400: 168 162 158;
+  --t-stone-500: 120 113 108;
+  --t-stone-600: 87 83 78;
+  --t-stone-700: 68 64 60;
+  --t-stone-800: 41 37 36;
+  /* 派生语义（组件层直接引用） */
+  --line: var(--t-line);
+  --line-strong: var(--t-line-strong);
+  --on-brass: 30 24 20;
+  --focus-ring: 146 106 36;
   --brand-bar: linear-gradient(90deg, #7a5c20, #b18739 30%, #d9b166 55%, #1f4a39 100%);
-  --brand-500: #b18739;
-  --ink: #f4efe7;
-  --paper: #2a221d;
-  --on-brass: #2a221d;
-  --focus-ring: #d9b166;
-  /* 看板图表色板（唯一真相源）。暗底上的线/条是图形对象，WCAG 1.4.11 ≥3:1：
-     亮金 6.97 / 林绿柔 3.66+（配亮金文字）/ 黄铜 4.27 / 雾青 6.6 —— 两两亮度差 ≥0.07。 */
+  /* 看板图表色板（唯一真相源；与 chartOptions 兜底逐字相等，chartOptions 闸钉） */
+  --chart-b1: #8a6520;
+  --chart-b2: #1f4a39;
+  --chart-b3: #b18739;
+  --chart-b4: #6b93a0;
+  --chart-grid: #f1ede3;
+  --chart-text: #57534e;
+}
+
+/* ── 夜主题：夜里亮灯的铺子 ── */
+:root[data-theme='night'] {
+  color-scheme: dark;
+  --t-surface: 36 30 25;
+  --t-surface-warm: 30 24 20;
+  --t-panel: 51 42 36;
+  --t-panel-deep: 62 51 43;
+  --t-ink: 244 239 231;
+  --t-ink-soft: 230 223 210;
+  --t-ink-mute: 169 156 136;
+  --t-cream: 244 239 231;
+  --t-cream-deep: 230 223 210;
+  --t-mute: 169 156 136;
+  --t-mute-dim: 140 127 109;
+  --t-stage: 221 212 194;             /* 发光暖台：暗底里货品自己发亮 */
+  --t-line: 62 51 43;
+  --t-line-strong: 90 75 63;
+  --t-brand-50: 58 47 34;
+  --t-brand-100: 74 60 38;
+  --t-brand-200: 107 85 44;
+  --t-brand-300: 217 177 102;         /* 强调文字槽：夜=亮金 7.7:1 */
+  --t-brand-400: 201 156 74;
+  --t-brand-500: 177 135 57;
+  --t-brand-600: 152 113 46;
+  --t-brand-700: 217 177 102;
+  --t-brand-800: 224 189 118;
+  --t-brand-900: 138 104 40;
+  --t-brass-bright: 217 177 102;
+  --t-green-50: 27 51 39;
+  --t-green-100: 36 64 47;
+  --t-green-400: 127 196 143;
+  --t-green-500: 90 169 108;
+  --t-green-700: 127 196 143;
+  --t-green-800: 63 125 78;
+  --t-green-900: 45 92 57;
+  --t-emerald-200: 47 84 57;
+  --t-emerald-700: 127 196 143;
+  --t-emerald-800: 63 125 78;
+  --t-red-50: 58 35 32;
+  --t-red-100: 74 43 37;
+  --t-red-200: 107 55 48;
+  --t-red-500: 224 122 95;
+  --t-red-700: 232 138 114;
+  --t-red-800: 201 106 82;
+  --t-amber-50: 58 47 30;
+  --t-amber-100: 74 60 38;
+  --t-amber-200: 107 85 44;
+  --t-amber-300: 217 177 102;
+  --t-amber-600: 201 156 74;
+  --t-amber-800: 224 189 118;
+  --t-amber-900: 138 104 40;
+  --t-blue-50: 30 44 51;
+  --t-blue-700: 143 179 196;
+  --t-blue-800: 90 125 140;
+  --t-gray-50: 36 30 25;
+  --t-gray-100: 51 42 36;
+  --t-gray-200: 62 51 43;
+  --t-gray-300: 74 61 51;
+  --t-gray-400: 90 75 63;
+  --t-gray-600: 169 156 136;
+  --t-gray-700: 200 189 169;
+  --t-stone-50: 51 42 36;
+  --t-stone-100: 62 51 43;
+  --t-stone-200: 74 61 51;
+  --t-stone-300: 90 75 63;
+  --t-stone-400: 169 156 136;
+  --t-stone-500: 169 156 136;
+  --t-stone-600: 184 171 151;
+  --t-stone-700: 200 189 169;
+  --t-stone-800: 230 223 210;
+  --line: 62 51 43;
+  --line-strong: 90 75 63;
+  --focus-ring: 217 177 102;
   --chart-b1: #d9b166;
   --chart-b2: #4f8f6d;
   --chart-b3: #b18739;
@@ -45,7 +203,7 @@
   --chart-text: #a99c88;
 }
 
-/* 无障碍：用户偏好减少动效时，全局禁用动画/过渡（含 JS 动画兜底，如 count-up） */
+/* 无障碍：用户偏好减少动效时，全局禁用动画/过渡 */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -55,33 +213,26 @@
   }
 }
 
-* {
-  box-sizing: border-box;
-  -webkit-tap-highlight-color: transparent;
-}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 html, body, #root {
   height: 100%;
   margin: 0;
   padding: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-  font-feature-settings: 'tnum' 0;
   letter-spacing: -0.011em;
-  color: var(--cream);
-  background: var(--espresso);
+  color: rgb(var(--t-ink));
+  background: rgb(var(--t-surface));
   -webkit-overflow-scrolling: touch;
   touch-action: manipulation;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 }
 
-@supports (height: 100dvh) {
-  html, body, #root { height: 100dvh; }
-}
-
+@supports (height: 100dvh) { html, body, #root { height: 100dvh; } }
 #root { display: flex; flex-direction: column; }
 
-/* 自托管展示体（latin 子集，价格/KPI/时间戳）—— unicode-range 外自动落中文栈 */
+/* 自托管展示体：latin 用 Bricolage（数字/价格/索引），CJK 用思源宋体子集（标题） */
 @font-face {
   font-family: 'Bricolage Grotesque';
   font-style: normal;
@@ -91,33 +242,29 @@ html, body, #root {
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
     U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF;
 }
+@font-face {
+  font-family: 'CS Display Serif';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 900;
+  src: url('/fonts/display-serif-cjk.woff2') format('woff2');
+  unicode-range: U+3000-303F, U+4E00-9FFF, U+FF00-FFEF;
+}
 
 input, button { font-family: inherit; }
 button { cursor: pointer; color: inherit; }
 a { color: inherit; }
 
-:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 3px;
-}
+:focus-visible { outline: 2px solid rgb(var(--focus-ring)); outline-offset: 3px; }
 [class*='focus-visible:outline']:focus-visible { outline: none; }
 
-::selection { background: var(--brass); color: var(--espresso-950); }
+::selection { background: rgb(var(--t-brand-500)); color: rgb(var(--t-espresso-950)); }
 
-/* 跳到主要内容：纯键盘入口，未聚焦时移出视口（原因见 git 历史，勿改回 1px 方案） */
 .skip-link {
-  position: fixed;
-  top: -9999px;
-  left: 0;
-  z-index: 200;
-  padding: 0.6rem 1rem;
-  border-radius: 0.75rem;
-  background: var(--brass);
-  color: var(--espresso-950);
-  font-size: 0.875rem;
-  font-weight: 600;
-  text-decoration: none;
-  white-space: nowrap;
+  position: fixed; top: -9999px; left: 0; z-index: 200;
+  padding: 0.6rem 1rem; border-radius: 0.5rem;
+  background: rgb(var(--t-brand-500)); color: rgb(var(--t-espresso-950));
+  font-size: 0.875rem; font-weight: 600; text-decoration: none; white-space: nowrap;
 }
 .skip-link:focus-visible { top: 0.75rem; left: 0.75rem; }
 
@@ -129,7 +276,7 @@ a { color: inherit; }
   70% { width: 85%; opacity: 1; }
   100% { width: 100%; opacity: 0; }
 }
-.route-progress { animation: routeProgress 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+.route-progress { animation: routeProgress 800ms cubic-bezier(0, 0, 0.2, 1) forwards; }
 
 img { max-width: 100%; display: block; -webkit-touch-callout: none; }
 
@@ -138,7 +285,7 @@ img { max-width: 100%; display: block; -webkit-touch-callout: none; }
 }
 
 @layer components {
-  /* 触控目标扩展：视觉不变，命中区外扩到 44px（必须留在 components 层，勿挪裸 CSS） */
+  /* 触控目标扩展：视觉不变，命中区外扩到 44px */
   .tap-44 { position: relative; }
   .tap-44::after {
     content: '';
@@ -146,49 +293,49 @@ img { max-width: 100%; display: block; -webkit-touch-callout: none; }
     inset: calc(-1 * var(--tap-y, 6px)) calc(-1 * var(--tap-x, 6px));
   }
 
-  /* 卡片：暗底上的「面板」= 比页面底亮一档的褐板 + 金发丝描边，不靠阴影分层 */
+  /* 卡片：昼=净白浮于暖纸；夜=比页底亮一档的褐板 + 金发丝描边 */
   .card-base {
     @apply bg-panel rounded-2xl border transition duration-300;
-    border-color: var(--line);
-    box-shadow: 0 1px 2px rgba(0,0,0,0.4), 0 8px 24px -10px rgba(0,0,0,0.45);
+    border-color: rgb(var(--line));
+    box-shadow: 0 1px 2px rgb(42 34 29 / 0.06), 0 8px 24px -10px rgb(42 34 29 / 0.10);
   }
-  .rule-short { @apply h-px w-10 rounded-full; background: var(--line-strong); }
-  .card-interactive {
-    @apply card-base hover:-translate-y-0.5 active:scale-[0.98] cursor-pointer;
+  :root[data-theme='night'] .card-base {
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -10px rgb(0 0 0 / 0.45);
   }
-  .card-interactive:hover { border-color: rgba(217,177,102,0.4); box-shadow: 0 0 0 1px rgba(177,135,57,0.25), 0 12px 40px -8px rgba(0,0,0,0.55); }
+  .rule-short { @apply h-px w-10 rounded-full; background: rgb(var(--line-strong)); }
+  .card-interactive { @apply card-base hover:-translate-y-0.5 active:scale-[0.98] cursor-pointer; }
+  .card-interactive:hover { border-color: rgb(var(--t-brand-400)); }
 
-  /* 主按钮：黄铜金底 + 深褐黑字（4.75:1，AA；粗体大字过 AAA 边缘） */
+  /* 主按钮：黄铜金实底 + 深褐字（4.98:1，两主题同值） */
   .btn-primary {
     @apply font-semibold rounded-xl transition duration-200
            hover:shadow-brand active:scale-[0.97]
            disabled:opacity-50 disabled:pointer-events-none;
-    background: var(--brass);
-    color: var(--on-brass);
+    background: rgb(var(--t-brand-500));
+    color: rgb(var(--on-brass));
   }
-  .btn-primary:hover { background: #c99c4a; }
+  .btn-primary:hover { background: rgb(var(--t-brand-400)); }
   .btn-secondary {
     @apply font-medium rounded-xl border transition duration-200 active:scale-[0.97];
     background: transparent;
-    color: var(--cream);
-    border-color: var(--line-strong);
+    color: rgb(var(--t-ink));
+    border-color: rgb(var(--line-strong));
   }
-  .btn-secondary:hover { border-color: var(--brass-bright); background: rgba(177,135,57,0.08); }
-  /* 深底主按钮：森林绿实底 + 米白（8.75:1） */
+  .btn-secondary:hover { border-color: rgb(var(--t-brand-500)); background: rgb(var(--t-brand-500) / 0.08); }
   .btn-ink {
     @apply font-semibold rounded-xl transition duration-200 active:scale-[0.97]
            disabled:opacity-50 disabled:pointer-events-none;
-    background: var(--forest);
-    color: var(--cream);
+    background: rgb(var(--t-forest));
+    color: #f4efe7;
   }
-  .btn-ink:hover { background: var(--forest-mid); }
+  .btn-ink:hover { background: rgb(var(--t-forest-mid)); }
 
-  .page-container { @apply min-h-screen; background: var(--espresso); }
+  .page-container { @apply min-h-screen; background: rgb(var(--t-surface)); }
 
-  .section-title { @apply text-sm font-semibold tracking-wide; color: var(--cream); }
-  .eyebrow { @apply text-eyebrow uppercase; color: var(--mute); }
+  .section-title { @apply text-sm font-semibold tracking-wide; color: rgb(var(--t-ink)); }
+  .eyebrow { @apply text-eyebrow uppercase; color: rgb(var(--t-brand-300)); }
 
-  /* 价格/数字：展示体 + 等宽。金额是本站第一信息，落在黄铜金上。 */
+  /* 价格/数字：展示体 + 等宽。金额是本站第一信息。 */
   .price-num {
     font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, 'PingFang SC', 'Microsoft YaHei', sans-serif;
     font-variant-numeric: tabular-nums;
@@ -198,101 +345,94 @@ img { max-width: 100%; display: block; -webkit-touch-callout: none; }
 
   .input-base {
     @apply w-full px-4 py-3 rounded-xl text-sm transition duration-200;
-    background: var(--espresso-deep);
-    border: 1px solid var(--line);
-    color: var(--cream);
+    background: rgb(var(--t-surface-warm));
+    border: 1px solid rgb(var(--line));
+    color: rgb(var(--t-ink));
   }
-  .input-base::placeholder { color: var(--mute); }
-  .input-base:focus { border-color: var(--brass); outline: none; box-shadow: 0 0 0 3px rgba(177,135,57,0.18); }
+  .input-base::placeholder { color: rgb(var(--t-mute)); }
+  .input-base:focus { border-color: rgb(var(--t-brand-500)); outline: none; box-shadow: 0 0 0 3px rgb(var(--t-brand-500) / 0.18); }
 
   .pill { @apply px-3 py-1.5 rounded-full text-xs font-medium transition duration-200 active:scale-[0.98]; }
-  .pill-active { @apply pill font-semibold; background: var(--brass); color: var(--on-brass); }
-  .pill-inactive { @apply pill border; background: transparent; border-color: var(--line-strong); color: var(--mute); }
-  .pill-inactive:hover { border-color: var(--brass); color: var(--brass-bright); }
+  .pill-active { @apply pill font-semibold; background: rgb(var(--t-brand-500)); color: rgb(var(--on-brass)); }
+  .pill-inactive { @apply pill border; background: transparent; border-color: rgb(var(--line-strong)); color: rgb(var(--t-mute)); }
+  .pill-inactive:hover { border-color: rgb(var(--t-brand-500)); color: rgb(var(--t-brand-300)); }
 
-  /* 商品图台：暗色版式里商品图是「灯箱里的货品」——
-     一块比页面亮的暖板 + multiply 让白底抠图融进板色，深色场景图也不炸眼。 */
-  .gallery-figure {
-    background-color: #ddd4c2;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.5), inset 0 -18px 26px -20px rgba(0,0,0,0.35);
-  }
+  /* 商品图台：昼=暖白底板；夜=发光暖台。multiply 让白底抠图融进板色 */
+  .gallery-figure { background-color: rgb(var(--t-stage)); }
   .gallery-figure > img { mix-blend-mode: multiply; }
 
   .skeleton-shimmer {
     @apply rounded-lg;
-    background: linear-gradient(90deg, #2e2620 25%, #3b322a 50%, #2e2620 75%);
+    background: linear-gradient(90deg, rgb(var(--t-surface-warm)) 25%, rgb(var(--t-panel-deep)) 50%, rgb(var(--t-surface-warm)) 75%);
     background-size: 200% 100%;
-    animation: shimmer 1.5s ease-in-out infinite;
+    animation: shimmer 1500ms linear infinite;
   }
 
-  /* 品牌渐变条：只用在宽条上（顶栏色带/进度条/页脚短线） */
   .brand-bar { background: var(--brand-bar); }
-  .brand-bar-ink { color: var(--espresso); }
+  .brand-bar-ink { color: rgb(var(--t-espresso)); }
 
-  /* KPI 首卡强调：金色顶线 + 微暖底 */
   .card-accent {
-    position: relative;
-    overflow: hidden;
-    background: linear-gradient(180deg, #382e22, #332a24);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 6px 24px -12px rgba(177, 135, 57, 0.4);
+    position: relative; overflow: hidden;
+    background: rgb(var(--t-panel));
+    box-shadow: 0 1px 3px rgb(42 34 29 / 0.08), 0 6px 24px -12px rgb(177 135 57 / 0.45);
   }
-  .seg-bar { @apply inline-flex items-center gap-1 p-1 rounded-xl; background: var(--espresso-deep); border: 1px solid var(--line); }
-  .seg { @apply px-3 py-1.5 rounded-lg text-xs font-medium transition duration-200 cursor-pointer active:scale-[0.98]; color: var(--mute); }
-  .seg:hover { color: var(--cream); }
-  .seg.active { background: var(--brass); color: var(--on-brass); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.35); }
+  .card-accent::before {
+    content: ''; position: absolute; inset: 0 0 auto 0; height: 2px; background: var(--brand-bar);
+  }
+  .seg-bar { @apply inline-flex items-center gap-1 p-1 rounded-xl; background: rgb(var(--t-surface-warm)); border: 1px solid rgb(var(--line)); }
+  .seg { @apply px-3 py-1.5 rounded-lg text-xs font-medium transition duration-200 cursor-pointer active:scale-[0.98]; color: rgb(var(--t-mute)); }
+  .seg:hover { color: rgb(var(--t-ink)); }
+  .seg.active { background: rgb(var(--t-brand-500)); color: rgb(var(--on-brass)); font-weight: 600; }
 
-  .delta-badge { @apply inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-semibold; }
-  .delta-up { @apply text-green-700; background: #1b3327; }
-  .delta-down { @apply text-red-700; background: #3a2320; }
-  .delta-flat { @apply text-stone-500; background: #241e19; }
+  .delta-badge { @apply inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[0.75rem] font-semibold; }
+  .delta-up { @apply text-green-700 bg-green-50; }
+  .delta-down { @apply text-red-700 bg-red-50; }
+  .delta-flat { @apply text-stone-500 bg-stone-100; }
 }
 
-/* ═══ 入场动效工具（不入 @layer utilities：Tailwind 候选索引会吞自定义规则）═══ */
-.stagger-1 { animation-delay: 0.05s; }
-.stagger-2 { animation-delay: 0.1s; }
-.stagger-3 { animation-delay: 0.15s; }
-.stagger-4 { animation-delay: 0.2s; }
-.stagger-5 { animation-delay: 0.25s; }
-.stagger-6 { animation-delay: 0.3s; }
-.stagger-7 { animation-delay: 0.35s; }
-.stagger-8 { animation-delay: 0.4s; }
+/* ═══ 入场动效工具（时长 50ms 网格、曲线在册 —— motion-consistency 闸）═══ */
+.stagger-1 { animation-delay: 50ms; }
+.stagger-2 { animation-delay: 100ms; }
+.stagger-3 { animation-delay: 150ms; }
+.stagger-4 { animation-delay: 200ms; }
+.stagger-5 { animation-delay: 250ms; }
+.stagger-6 { animation-delay: 300ms; }
+.stagger-7 { animation-delay: 350ms; }
+.stagger-8 { animation-delay: 400ms; }
 
 @keyframes enter-stagger-in {
   0% { opacity: 0; transform: translateY(12px); }
   100% { opacity: 1; transform: translateY(0); }
 }
-.enter-stagger > * { animation: enter-stagger-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
-.enter-stagger > *:nth-child(1) { animation-delay: 0.03s; }
-.enter-stagger > *:nth-child(2) { animation-delay: 0.06s; }
-.enter-stagger > *:nth-child(3) { animation-delay: 0.09s; }
-.enter-stagger > *:nth-child(4) { animation-delay: 0.12s; }
-.enter-stagger > *:nth-child(5) { animation-delay: 0.15s; }
-.enter-stagger > *:nth-child(6) { animation-delay: 0.18s; }
-.enter-stagger > *:nth-child(7) { animation-delay: 0.21s; }
-.enter-stagger > *:nth-child(8) { animation-delay: 0.24s; }
-.enter-stagger > *:nth-child(9) { animation-delay: 0.27s; }
-.enter-stagger > *:nth-child(10) { animation-delay: 0.3s; }
+.enter-stagger > * { animation: enter-stagger-in 400ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.enter-stagger > *:nth-child(1) { animation-delay: 50ms; }
+.enter-stagger > *:nth-child(2) { animation-delay: 100ms; }
+.enter-stagger > *:nth-child(3) { animation-delay: 150ms; }
+.enter-stagger > *:nth-child(4) { animation-delay: 200ms; }
+.enter-stagger > *:nth-child(5) { animation-delay: 250ms; }
+.enter-stagger > *:nth-child(6) { animation-delay: 300ms; }
+.enter-stagger > *:nth-child(7) { animation-delay: 350ms; }
+.enter-stagger > *:nth-child(8) { animation-delay: 400ms; }
+.enter-stagger > *:nth-child(9) { animation-delay: 450ms; }
+.enter-stagger > *:nth-child(10) { animation-delay: 500ms; }
 
-/* 滚动条：金棕细线，暗底可见而不刺眼 */
+/* 滚动条：细线随主题 */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(217, 177, 102, 0.22); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(217, 177, 102, 0.4); }
+::-webkit-scrollbar-thumb { background: rgb(var(--line-strong)); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgb(var(--t-brand-500)); }
 
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 
-/* ═══ 首页编辑排版落点 ═══ */
-@keyframes marquee-track {
-  from { transform: translateX(0); }
-  to   { transform: translateX(-50%); }
-}
+/* ═══ 共享视觉语汇 ═══ */
+@keyframes marquee-track { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 .marquee {
   overflow: hidden;
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
   mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
 }
-.marquee-track { display: flex; width: max-content; animation: marquee-track 26s linear infinite; }
+.marquee-track { display: flex; width: max-content; animation: marquee-track 26000ms linear infinite; }
 .marquee:hover .marquee-track { animation-play-state: paused; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -301,16 +441,16 @@ img { max-width: 100%; display: block; -webkit-touch-callout: none; }
   .marquee-track > span:last-child { display: none; }
 }
 
-/* 纸纹：暗底上的「金粉颗粒」，3% 以下——看得见材质、看不见规则本身 */
+/* 纸纹：昼=极淡金粉颗粒；夜=同值在暗底上自然隐去一档 */
 .paper-grain {
   background-image:
-    radial-gradient(rgba(217, 177, 102, 0.05) 0.5px, transparent 0.5px),
-    radial-gradient(rgba(217, 177, 102, 0.035) 0.5px, transparent 0.5px);
+    radial-gradient(rgb(var(--t-brand-500) / 0.05) 0.5px, transparent 0.5px),
+    radial-gradient(rgb(var(--t-brand-500) / 0.035) 0.5px, transparent 0.5px);
   background-size: 22px 22px, 22px 22px;
   background-position: 0 0, 11px 11px;
 }
 
-.hairline { height: 1px; background: linear-gradient(90deg, rgba(217,177,102,0.35), rgba(217,177,102,0)); }
+.hairline { height: 1px; background: linear-gradient(90deg, rgb(var(--t-brand-500) / 0.5), rgb(var(--t-brand-500) / 0)); }
 .cover-clip { clip-path: polygon(0 0, 100% 0, 100% calc(100% - 2.25rem), calc(100% - 2.25rem) 100%, 0 100%); }
 .index-num {
   font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
@@ -319,10 +459,16 @@ img { max-width: 100%; display: block; -webkit-touch-callout: none; }
 }
 .icon-plate {
   background:
-    linear-gradient(180deg, rgba(58, 47, 34, 0.9), rgba(51, 42, 36, 0.9)),
+    linear-gradient(180deg, rgb(var(--t-brand-50) / 0.9), rgb(var(--t-panel) / 0.9)),
     var(--brand-bar);
   background-size: 100% 100%, 100% 2px;
   background-position: 0 0, 0 100%;
   background-repeat: no-repeat;
 }
 .cover-title { word-break: keep-all; overflow-wrap: anywhere; text-wrap: balance; }
+
+/* 中文展示体：标题/刊头的「宋体黑字重」—— 与 Bricolage 的拉丁数字成对 */
+.font-display-cn, .market-title, .home-section-heading h2, .home-promise h2, .workspace-heading h1, .market-shop-columns h1 {
+  font-family: 'CS Display Serif', 'Bricolage Grotesque', 'Songti SC', STSong, 'Noto Serif CJK SC', serif;
+  font-weight: 900;
+}
