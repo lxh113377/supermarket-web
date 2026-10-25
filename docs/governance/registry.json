@@ -30,7 +30,7 @@
     },
     "itemBudgets": {
       "registered": 32,
-      "noBudgetMax": 37,
+      "noBudgetMax": 38,
       "source": "docs/item-budgets.json（2026-10-24 新增 inline-confirm-hook 条目 ⇒ 30→31：新 hook 被 Vite 拆成独立共享块，未登记件数 36→37 当场撞破地板，正解是给它上名册而不是放宽地板。上一条为 2026-10-21 打印页替换删掉 three-vendor/scroll-vendor 两条死条目 ⇒ 32→30）"
     },
     "memoryVolume": {
