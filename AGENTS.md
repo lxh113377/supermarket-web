@@ -19,6 +19,7 @@
 - **判"密码错还是文档旧"只认线上实测**，不认任何文档里的值：`curl -X POST /web -d '{"action":"login","adminKey":"<候选>"}'` 看 `code`。改 secret 后**必须重部**，否则线上仍用旧值（这是最高频的"改了却不生效"）。
 - 管理后台商品编辑**禁弹窗/禁抽屉**，唯一交互为 InlineEditForm 内联展开。
 - 密钥/占位符**禁止明文入库**（`.env`、`.dev.vars`、cloudbaserc 类文件均 gitignore）。
+- **本会话的改动必须提交并部署（#40，2026-10-25 老大立规）**：收尾前 提交（显式文件清单）→ 部署（先加载 `chaoshi-web-deploy` skill，禁裸跑）→ 线上验证（`node scripts/check-live-shape.mjs` / `/_health` 的 `deploy=` == HEAD）三件缺一不可；不以"提交成功"当"部署成功"。只提交本会话产出，会话前的 dirty/untracked 不并入。
 - 云函数保持 CommonJS JS（不迁 TS，避免部署编译步骤）。
 
 ## 架构现状（一句话）

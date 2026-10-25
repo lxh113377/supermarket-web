@@ -1,4 +1,13 @@
 ## [未发布]
+### 2026-10-25 交付纪律入册：所有会话提交并部署自己的改动（#40 铁律）
+
+- 老大立规「记住,以后所有会话都需要提交与部署属于自己的改动」⇒ 落 P0 锚点 #40：
+  behavior_core.md V56→V57（38→39 锚点）、侧车 rule40_commit_and_deploy_own_changes.md
+  （三段清单：提交→部署→线上验证；"属于自己的"判据；与 #31/#37/#38/#39 分工）、
+  behavior_core_history.md 沿革、DSH 启动摘要、本仓 AGENTS.md 红线 + memory/AGENTS.md 交付纪律。
+- 本轮同时**兑现**：把第 85–88 轮留在本地 main 的 8 个提交推上线（pages.dev + github.io 双端），
+  线上验证以 `/_health` 的 `deploy=` == HEAD 与 `check-live-shape.mjs` 为准。
+
 ### 2026-10-25 账房门厅：管理端登录墙重排（第 88 轮）
 
 - AdminGuard 登录墙改「账房门厅」：后台是店里的账房，登录 = 上工签到。桌面双栏

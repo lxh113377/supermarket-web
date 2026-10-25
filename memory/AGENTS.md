@@ -3,6 +3,11 @@
 > 2026-09-05 由优化审查会话补齐（此前缺失，A-memory-start Step 3.5 P-1 告警源）。
 > 新会话检测到本项目时按此表加载 skill / 执行门禁；结构与焚诀 A-project-handoff 约定对齐。
 
+## 交付纪律（#40，2026-10-25 老大立规）
+
+任何会话的改动收尾前必须：**提交**（显式文件清单 commit）→ **部署**（chaoshi-web-deploy skill，禁止裸跑）→ **线上验证**（`check-live-shape.mjs` / `ci-status.mjs` / `/_health` 回 HEAD sha）。
+只提交本会话产出；会话开始前已存在的 dirty/untracked（他人或既往轮次）不并入提交面。
+
 ## 门禁命令
 
 ```
