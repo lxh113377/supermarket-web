@@ -4,7 +4,7 @@
 // 腿形同 memoryVolume：真入口子进程（rc 断言）+ 纯函数变异（证明红因是那次比较）。
 import { describe, it, expect } from 'vitest'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync, mkdirSync } from 'node:fs'
+import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { collectRefs, collectDefs, evaluate, stripComments, ROOT } from '../scripts/check-css-tokens.mjs'
