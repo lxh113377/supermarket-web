@@ -13,6 +13,12 @@
   hidden 于窄档致零面积文字叶 ⇒ 摘除。分类路由 15 条视觉闸（含 320/390 可达/对比/触控/
   动效一致/暖前景）全绿；vitest 全量 148 文件绿（memoryVolume 3 红系并行会话卷 185 未并号，
   本笔并号 1–187 后复绿）；check:size 3/3、item-budgets 全绿（CSS 余 1079B）。
+- 同轮第二批（桌面空洞清除）：OrderQueryPage 桌面双栏「查询工单 + 问事处状态台账」
+  （五态账本别名逐条记档，铜序号 + 虚线分行；无结果态垂直居中治下半空洞）；
+  AssistantPage 空态桌面双栏「对话列 + 常问台账侧轨」（六问记档点击即问）。
+  判据红一处自修：台账用状态标签原文会撞 contrast 闸 order-query-result 前置
+  getByText('已支付') 子串匹配（strict 双元素）⇒ 改账本别名（立单/收款/出送/闭环/废单）。
+  两页 28 条视觉闸全绿；窄档单列堆叠、侧轨不隐藏（零面积叶防可达闸红）。
 - P0 部署链闭环：run 40209467148 gates 红根因 = memory/AGENTS.md 4258B 超 4KB 铁限
   带跑 vitest ⇒ deploy job 因 needs 从未创建 ⇒ 线上卡 15b0046 落后 12 笔。拆卷治
   （git 段逐字迁 AGENTS.part2.md，非压措辞），提交 2108f96 后 CI 全绿、deploy 恢复

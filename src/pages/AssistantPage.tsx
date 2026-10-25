@@ -135,7 +135,11 @@ export default function AssistantPage() {
       >
         {/* 间距用 gap-3 而不是 space-y-3：两态都是 flex 容器，gap 在居中态同样生效
             （space-y 只在非居中分支会给，空态就会丢掉 greeting 与 chips 的间距）。 */}
-        <div className={'mx-auto flex w-full max-w-3xl flex-col gap-3 px-4 py-4 pb-4 ' + (isEmptyState ? 'min-h-full justify-center' : '')}>
+        <div className={'mx-auto flex w-full max-w-4xl flex-col gap-3 px-4 py-4 pb-4 ' + (isEmptyState ? 'min-h-full justify-center' : '')}>
+        {/* 桌面空态双栏：对话列 + 常问台账侧轨（2026-10-26 治首屏空洞）；
+            窄档单列堆叠，侧轨不隐藏（零面积文字叶会被可达闸判红）。 */}
+        <div className="assistant-desk">
+        <div className="flex min-w-0 flex-col gap-3">
         {/* 柜员灯牌：AI 在线状态（呼吸点 = 全站营业状态同一语言），空态时它是门面的一部分 */}
         {isEmptyState && (
           <div className="clerk-plate" aria-hidden="true">
@@ -204,6 +208,22 @@ export default function AssistantPage() {
           </div>
         )}
         </div>
+        {isEmptyState && (
+          <aside className="assistant-faq" aria-label="常问台账">
+            <div className="assistant-faq-head">
+              <h2>常问台账</h2>
+              <span>Frequent Asks</span>
+            </div>
+            {SUGGESTED_QUESTIONS.map((q, i) => (
+              <button key={q} onClick={() => void send(q)} className="assistant-faq-row">
+                <span aria-hidden="true" className="counter-no">{String(i + 1).padStart(2, '0')}</span>
+                <span className="assistant-faq-q">{q}</span>
+              </button>
+            ))}
+          </aside>
+        )}
+        </div>
+        </div>
       </div>
 
       {/* 输入区 */}
@@ -211,7 +231,7 @@ export default function AssistantPage() {
         onSubmit={onSubmit}
         className="border-t border-gray-100 bg-panel/95 backdrop-blur-sm px-4 py-3 safe-bottom"
       >
-        <div className="flex items-center gap-2 w-full max-w-3xl mx-auto">
+        <div className="flex items-center gap-2 w-full max-w-4xl mx-auto">
         <input
           type="text"
           aria-label="向 AI 导购提问"

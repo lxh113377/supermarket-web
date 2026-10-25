@@ -856,5 +856,37 @@
   .counter-row:hover .counter-stage { transform: none; }
 }
 
+/* ══ 查询工单双栏（OrderQueryPage · 2026-10-26）══
+   桌面 = 左工单（intake-sheet 同族）+ 右状态台账；窄档单列堆叠。
+   台账行复用柜台台账的铜序号与金线语言；虚线分行 = 账本行。 */
+.query-desk { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+@media (min-width: 900px) { .query-desk { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 22px; align-items: start; } }
+.query-faq { background: rgb(var(--t-panel)); border: 1px solid rgb(var(--line)); border-radius: 2px; padding: 18px 18px 8px; }
+.query-faq-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid rgb(var(--line)); margin-bottom: 4px; }
+.query-faq-head h2 { margin: 0; font-size: 13px; font-weight: 800; color: rgb(var(--t-ink)); letter-spacing: 0.02em; }
+.query-faq-head span { font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif; font-size: 9.5px; letter-spacing: 0.18em; color: rgb(var(--t-mute)); text-transform: uppercase; }
+.query-faq-row { display: flex; align-items: flex-start; gap: 12px; padding: 11px 2px; border-bottom: 1px dashed rgb(var(--line)); }
+.query-faq-row:last-child { border-bottom: 0; }
+.query-faq-name { font-size: 13px; font-weight: 700; color: rgb(var(--t-ink-soft)); }
+.query-faq-note { margin-top: 2px; font-size: 12px; line-height: 1.6; color: rgb(var(--t-mute)); }
+/* ══ 导购空态侧轨（AssistantPage · 2026-10-26）══
+   桌面空态 = 对话列 + 「常问台账」侧轨（六问逐条记档，点击即问）；
+   窄档侧轨堆叠在 chips 下方，不隐藏（零面积叶会被可达闸判红）。 */
+.assistant-desk { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+@media (min-width: 900px) { .assistant-desk { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 22px; align-items: start; } }
+.assistant-faq { background: rgb(var(--t-panel)); border: 1px solid rgb(var(--line)); border-radius: 2px; padding: 16px 16px 6px; }
+.assistant-faq-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid rgb(var(--line)); margin-bottom: 2px; }
+.assistant-faq-head h2 { margin: 0; font-size: 13px; font-weight: 800; color: rgb(var(--t-ink)); letter-spacing: 0.02em; }
+.assistant-faq-head span { font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif; font-size: 9.5px; letter-spacing: 0.18em; color: rgb(var(--t-mute)); text-transform: uppercase; }
+.assistant-faq-row { display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 10px 2px; border: 0; border-bottom: 1px dashed rgb(var(--line)); background: none; cursor: pointer; text-align: left; }
+.assistant-faq-row:last-child { border-bottom: 0; }
+.assistant-faq-row:hover .assistant-faq-q { color: rgb(var(--t-brand-300)); }
+.assistant-faq-row:active { transform: scale(0.98); }
+.assistant-faq-q { font-size: 12.5px; font-weight: 600; color: rgb(var(--t-ink-soft)); line-height: 1.6; transition: color 200ms cubic-bezier(0.4, 0, 0.2, 1); }
+@media (prefers-reduced-motion: reduce) { .assistant-faq-q { transition: none; } }
+/* 查询页无结果态垂直居中（2026-10-26）：min-height 100% + flex 居中只作用于
+   无结果态（有结果时不加类，内容自由长高贴顶，避免裁顶）。 */
+.query-desk-center { min-height: 100%; display: flex; flex-direction: column; justify-content: center; }
+
 
 
