@@ -19,6 +19,10 @@
   判据红一处自修：台账用状态标签原文会撞 contrast 闸 order-query-result 前置
   getByText('已支付') 子串匹配（strict 双元素）⇒ 改账本别名（立单/收款/出送/闭环/废单）。
   两页 28 条视觉闸全绿；窄档单列堆叠、侧轨不隐藏（零面积叶防可达闸红）。
+- 第三批（判据面）：新增 scripts/check-css-tokens.mjs「引用⇄定义」令牌对账闸并入
+  verify 链（44→45 腿）—— 治 forest 同族病（v3 起引用 --t-forest* 而 :root 未定义，
+  v4 暴露为线上封面带透明）第四次复发；T2 缺定义即 RED 点名，T3 死槽只报不拦，
+  剥注释防文档示例误报；tests/cssTokens.test.js 6 腿含变异验真（摘 forest 定义当场红）。
 - P0 部署链闭环：run 40209467148 gates 红根因 = memory/AGENTS.md 4258B 超 4KB 铁限
   带跑 vitest ⇒ deploy job 因 needs 从未创建 ⇒ 线上卡 15b0046 落后 12 笔。拆卷治
   （git 段逐字迁 AGENTS.part2.md，非压措辞），提交 2108f96 后 CI 全绿、deploy 恢复
