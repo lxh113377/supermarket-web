@@ -67,10 +67,12 @@ export default function HomePage() {
         onMouseEnter={() => prefetchRoute('assistant')}
         onFocus={() => prefetchRoute('assistant')}
         aria-label="打开 AI 导购助手"
-        className="float-cart safe-offset-bottom fixed right-4 z-30 flex animate-slide-up items-center gap-2 rounded-full py-3 pl-3 pr-4 shadow-float"
+        className="ai-float float-cart safe-offset-bottom fixed right-4 bottom-[calc(env(safe-area-inset-bottom)+6.5rem)] z-30 flex animate-slide-up items-center gap-2 rounded-full py-3 pl-3 pr-4 shadow-float"
       >
         <span className="float-cart-chip flex h-7 w-7 items-center justify-center rounded-full">
-          <IconRobot className="h-4 w-4" />
+          {/* 图标色落在 svg 自己身上（contrast 闸按元素 computed color 对元素 rect 底量，
+              色在父 span 上会量成深徽压深钮 = 1.14:1 假红） */}
+          <IconRobot className="h-4 w-4 text-espresso" />
         </span>
         <span className="text-xs font-semibold tracking-wide">AI 导购</span>
       </button>
