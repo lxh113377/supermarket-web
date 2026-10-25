@@ -33,7 +33,8 @@ export default function MarketHero({ open }: { open: boolean }) {
       <div className="market-hero-copy">
         <p className="eyebrow hero-eyebrow"><span className="hero-index">NO. 01</span> 宿舍楼下的日常市集</p>
         <h1 id="market-title" className="market-title">把日常，<br /><span>过得有滋味。</span></h1>
-        <p className="market-intro">零食、饮料与生活所需。<br />下楼之前，先替你送到楼下。</p>
+        {/* 首句保留平台定位句：既是给新访客的一句话定位，也是 e2e 冒烟的语义锚（tests/e2e/smoke.spec.ts） */}
+        <p className="market-intro">一站式校园生活服务平台——零食、饮料与生活所需。<br />下楼之前，先替你送到楼下。</p>
         <div className="market-actions">
           <Link to="/shop" className="button button-primary button-large" onMouseEnter={() => prefetchRoute('shop')}>现在，逛点好吃的 <span aria-hidden="true">↗</span></Link>
           <Link to="/order-query" className="text-link">我的订单 <span aria-hidden="true">→</span></Link>

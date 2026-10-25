@@ -339,6 +339,8 @@
 .float-cart:hover { background: #332a24; }
 .float-cart:active { transform: scale(0.98); }
 .float-cart-count { background: #b18739; color: #1c1714; }
+/* AI 导购浮钮的黄铜圆徽：与计数徽同色恒定（两主题不变，它是「铜牌」不是语义槽） */
+.float-cart-chip { background: #b18739; color: #1c1714; }
 .float-cart-price { color: #d9b166; }
 .shop-toast { background: rgb(42 34 29 / 0.92); color: #f4efe7; }
 

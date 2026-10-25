@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { IconRobot } from '../components/Icons'
 import { CATEGORIES } from '../data/categories'
 import { MIN_DELIVERY_AMOUNT } from '../data/deliveryLimits'
 import { formatYuan } from '../utils/format'
@@ -58,6 +59,21 @@ export default function HomePage() {
         <span>江西科技学院 · 校园日常服务站</span>
         <span>日常有味，事事省心。</span>
       </footer>
+      {/* AI 导购浮钮（v3 形态）：恒定深褐底 + 黄铜圆徽 + 米白字（16.5:1），语义与旧版一致——
+          e2e 冒烟按 aria-label 找它，视觉走色块带语言 */}
+      <button
+        type="button"
+        onClick={() => window.location.assign('#/assistant')}
+        onMouseEnter={() => prefetchRoute('assistant')}
+        onFocus={() => prefetchRoute('assistant')}
+        aria-label="打开 AI 导购助手"
+        className="float-cart safe-offset-bottom fixed right-4 z-30 flex animate-slide-up items-center gap-2 rounded-full py-3 pl-3 pr-4 shadow-float"
+      >
+        <span className="float-cart-chip flex h-7 w-7 items-center justify-center rounded-full">
+          <IconRobot className="h-4 w-4" />
+        </span>
+        <span className="text-xs font-semibold tracking-wide">AI 导购</span>
+      </button>
     </div>
   )
 }
