@@ -39,4 +39,4 @@
 - **提交纪律**：并行会话风险——`git add` 只用显式文件列表；提交前 `git status` 确认无他人改动混入；编辑后构建/断言前先 grep 验证落盘（写入竞态坑）。
   ⇒ 结构性隔离已给出：用 scripts/session-worktree.mjs 每会话开一棵 worktree（各自独立 index），
     用法与实测行为见 docs/session-worktree.md；显式路径提交仍是底线，工具不替代纪律。
-- **git 操作防静默失败**（2026-09-05 实测坑）：① git 命令**禁用 `| tail`/`| head` 等管道吃 exit code**——失败会静默进 `&&` 链继续执行后续命令；② 新建分支/新 ref 操作后必须 `git branch --show-current && git rev-parse --verify HEAD` 自检 ref 落盘——沙箱 shim 在 npm install 等大 IO 期间可致 ref 写入失败（HEAD 挂 unborn 分支 → commit 变成根提交、父链断裂）；③ 修复法：`git symbolic-ref HEAD refs/heads/main` 指回 main 后直接 commit（index 中 staged 改动完好）；④ 重大升级评估优先 stash + main 直操，少用临时分支。
+- **git 操作防静默失败四条**（管道吃 exit code / ref 自检 / symbolic-ref 修复 / 升级评估走 main）→ 逐字迁 `AGENTS.part2.md`（2026-10-26 拆卷治 V2：本卷 4258B 超 4096B 限 162B，CI memory-volume V2 判红带跑 vitest 3 条 ⇒ deploy 链断，线上卡 15b0046）。
