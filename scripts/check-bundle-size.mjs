@@ -27,7 +27,7 @@ const dist = join(root, 'dist')
 // 改这里前请先跑 --baseline 复核，并在 CHANGELOG 写清归因。
 const BUDGET = {
   firstLoadJs: 95 * 1024,    // 首屏 JS（2026-09-24 实测 86.4）
-  firstLoadCss: 12 * 1024,   // 首屏 CSS（2026-10-07 实测 11.0）
+  firstLoadCss: 20 * 1024,   // 首屏 CSS（2026-10-25 实测 17.1：v4 纯暗把昼/夜两套调色面折叠成一套常载主题层，+43% 为结构性增长而非回归；--baseline 复核 ×1.15=20）
   // 单个 chunk 上限。**2026-10-07 由 90KB 抬到 300KB**，归因（不抬就是必红）：
   //   打印页引入 three + @react-three/fiber 做滚动驱动的 3D 实景导航，
   //   three-vendor 单块实测 gzip 245.6KB（raw 953KB）—— 这是 WebGL 引擎本身的体积，

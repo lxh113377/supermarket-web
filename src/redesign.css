@@ -292,15 +292,9 @@
 .workspace-panel .seg.active { background: rgb(var(--t-brand-500)); color: rgb(var(--on-brass)); }
 .workspace-panel .rounded-2xl { border-radius: 4px; }
 
-/* ══ 主题切换钮 ══ */
-.theme-toggle {
-  width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%;
-  border: 1px solid rgb(var(--line-strong)); color: rgb(var(--t-mute)); background: transparent;
-  transition: color 250ms cubic-bezier(0.4, 0, 0.2, 1), border-color 250ms cubic-bezier(0.4, 0, 0.2, 1), transform 250ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-.theme-toggle:hover { color: rgb(var(--t-brand-300)); border-color: rgb(var(--t-brand-500)); }
-.theme-toggle:active { transform: scale(0.9); }
-.theme-toggle svg { width: 17px; height: 17px; }
+
+
+
 
 
 
@@ -403,7 +397,7 @@
   .header-shop { padding: 10px 12px; gap: 8px; min-height: 38px; font-size: 10px; }
   .header-ai { display: none; }
   .business-state { font-size: 10px; }
-  .theme-toggle { width: 32px; height: 32px; }
+  
   .market-hero { min-height: 0; padding: 32px 18px 18px; display: flex; flex-direction: column; gap: 0; }
   .market-hero::before, .market-hero::after { display: none; }
   .market-hero-copy { padding: 0; }
@@ -512,7 +506,7 @@
   .exhibit-side { transform: rotate(10deg); }
   .business-state i { animation: none; }
   .button::before { display: none; }
-  .market-exhibit img, .service-directory-item, .button, .workspace-nav-item, .brand-fruit, .theme-toggle { transition: none; }
+  .market-exhibit img, .service-directory-item, .button, .workspace-nav-item, .brand-fruit { transition: none; }
 }
 
 
