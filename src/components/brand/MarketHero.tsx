@@ -17,7 +17,7 @@ const allExhibits = pickExhibits(
 
 export default function MarketHero({ open }: { open: boolean }) {
   const visualRef = useRef<HTMLDivElement>(null)
-  const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches)
+  const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 767px)').matches)
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return
     const mq = window.matchMedia('(max-width: 767px)')
