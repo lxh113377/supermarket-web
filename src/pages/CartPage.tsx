@@ -112,7 +112,10 @@ export default function CartPage() {
               aria-label={clearArmed('clear') ? '确认清空购物车' : '清空购物车'}
               className={
                 'text-xs px-2.5 py-1.5 rounded-lg transition-colors duration-200 ' +
-                (clearArmed('clear') ? 'bg-red-700 text-cream font-medium' : 'text-red-700 hover:bg-red-50')
+                // 两分支分行：点亮态与悬停态的字色语义分开写，press-feedback 静态尺逐行配对
+                (clearArmed('clear')
+                  ? 'bg-red-700 text-cream font-medium'
+                  : 'text-red-700 hover:bg-red-50 hover:text-cream')
               }
             >
               {clearArmed('clear') ? '确认清空' : '清空'}

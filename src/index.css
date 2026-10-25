@@ -3,127 +3,19 @@
 @tailwind utilities;
 
 /* ═══════════════════════════════════════════════════════════
-   江科一站通 · 设计令牌 v3（2026-10-25 · 昼 / 夜 双主题）
+   江科一站通 · 设计令牌 v4（2026-10-25 · 纯暗单主题）
    色相唯一来源 = 老大钦定三色：
-     深褐黑 #2A221D —— 沉静、厚实、原始感
-     森林绿 #1F4A39 —— 自然、稳固、生命力
-     黄铜金 #B18739 —— 坚韧、权威、岁月感
-   双主题口径：语义槽（--t-*）存「R G B」三通道，Tailwind 以
-   rgb(var(--t-x) / <alpha-value>) 接住 ⇒ bg-panel/95 这类既有
-   透明度写法两主题都成立；主题切换只换槽值，类名与 DOM 零改动。
-     昼（默认）：暖纸 #FAFAF9 为底、暖墨 #1C1917 为字 —— 白昼的铺子，
-       结构面用深褐黑/森林绿大色块、黄铜金为线与强调（配色卡自身的版式）。
-     夜：深褐黑 #241E19 为底、米白 #F4EFE7 为字 —— 夜里亮灯的铺子，
-       商品图坐在发光暖台上（v1/v2 的识别符保留为夜主题）。
-   前景铁律（WCAG 实算，明细见 docs/redesign-awwwards-v3.md）：
-     昼：墨/纸 15.9:1；次级 stone-600 4.7:1；价格金 #A16207 4.7:1；
-     夜：米白/褐 14.4:1；次级 #A99C88 6.1:1；亮金 #D9B166 7.7:1；
-     黄铜金实底一律配深褐字 4.98:1（两主题同值）。
-   动效铁律（motion-consistency 闸）：曲线只用在册四条，时长落在 50ms 网格。
+     深褐黑 #2A221D —— 沉静、厚实、原始感（全站底色）
+     森林绿 #1F4A39 —— 自然、稳固、生命力（结构/状态）
+     黄铜金 #B18739 —— 坚韧、权威、岁月感（唯一强调）
+   主题口径（v4 收敛）：只出暗一套 —— 「夜里亮灯的铺子」是本站唯一面孔；
+   昼档语义槽与 :root[data-theme] 切换器整体退役（useTheme/theme-toggle 同轮摘除）。
+   前景铁律（WCAG 实算，明细见 docs/redesign-awwwards-v4.md）：
+     正文米白/褐 14.4:1；次级 #A99C88 6.1:1；亮金 #D9B166 7.7:1；
+     黄铜实底配深褐字 4.98:1；图表四墨压面板 3.66–8.93:1（两两亮度差 ≥0.147）。
+   动效铁律：曲线只用在册四条，时长落在 50ms 网格。
    ═══════════════════════════════════════════════════════════ */
 :root {
-  color-scheme: light;
-  /* ── 昼主题（默认）── */
-  --t-surface: 250 250 249;          /* 暖纸 stone-50（layout 闸钉值） */
-  --t-surface-warm: 246 245 242;      /* 次级纸面（滑轨/图区底板同源） */
-  --t-panel: 255 255 255;             /* 卡片面：比纸亮一档的净白 */
-  --t-panel-deep: 246 245 242;
-  --t-ink: 28 25 23;                  /* 暖墨（layout 闸钉值） */
-  --t-ink-soft: 41 37 36;
-  --t-ink-mute: 87 83 78;             /* stone-600：次级正文 4.7:1 */
-  --t-cream: 28 25 23;                /* 语义对偶：昼=墨 */
-  --t-cream-deep: 41 37 36;
-  --t-mute: 87 83 78;
-  --t-mute-dim: 120 113 108;          /* stone-500：仅角标/装饰 */
-  --t-stage: 246 245 242;             /* 商品图展台（layout 闸钉值） */
-  --t-line: 231 229 228;
-  --t-line-strong: 214 211 209;
-  /* 黄铜金阶（色相 39° 不变，只动明度/饱和） */
-  --t-brand-50: 253 248 238;
-  --t-brand-100: 254 249 195;        /* layout 闸钉值 #fef9c3（角标底） */
-  --t-brand-200: 238 219 181;
-  --t-brand-300: 161 98 7;            /* 强调文字槽：昼=深金 4.7:1（layout 闸钉值） */
-  --t-brand-400: 201 156 74;
-  --t-brand-500: 234 179 8;           /* 昼面交互填充：阳光下的黄铜（layout 闸钉值 #eab308） */
-  --t-brand-600: 146 106 36;
-  --t-brand-700: 161 98 7;
-  --t-brand-800: 161 98 7;            /* 昼面选中态文字（layout 闸钉值 #a16207） */
-  --t-brand-900: 94 68 24;
-  --t-brass-bright: 146 106 36;       /* 昼面没有「亮金」，强调文字走深金 */
-  /* 深褐黑阶（木料，两主题同值） */
-  --t-espresso: 42 34 29;
-  --t-espresso-950: 22 17 13;
-  --t-espresso-900: 30 24 20;
-  --t-espresso-800: 51 42 36;
-  --t-espresso-700: 62 51 43;
-  --t-espresso-600: 74 61 51;
-  --t-espresso-500: 90 75 63;
-  /* 森林绿阶（两主题同值） */
-  --t-forest: 31 74 57;
-  --t-forest-deep: 22 56 43;
-  --t-forest-mid: 44 95 75;
-  --t-forest-soft: 62 122 97;
-  /* 语义状态（昼档） */
-  --t-green-50: 240 253 244;
-  --t-green-100: 220 252 231;
-  --t-green-400: 74 222 128;          /* 开关轨道（admin-switch 闸钉值） */
-  --t-green-500: 34 197 94;
-  --t-green-700: 21 128 61;
-  --t-green-800: 22 101 52;
-  --t-green-900: 20 83 45;
-  --t-emerald-200: 167 243 208;
-  --t-emerald-700: 4 120 87;
-  --t-emerald-800: 6 95 70;
-  --t-red-50: 254 242 242;
-  --t-red-100: 254 226 226;
-  --t-red-200: 254 202 202;
-  --t-red-500: 239 68 68;
-  --t-red-700: 185 28 28;
-  --t-red-800: 153 27 27;
-  --t-amber-50: 255 251 235;
-  --t-amber-100: 254 243 199;
-  --t-amber-200: 253 230 138;
-  --t-amber-300: 161 98 7;
-  --t-amber-600: 217 119 6;
-  --t-amber-800: 146 64 14;
-  --t-amber-900: 124 45 18;
-  --t-blue-50: 239 246 255;
-  --t-blue-700: 29 78 216;
-  --t-blue-800: 30 64 175;
-  /* 中性暖灰（stone 族；禁冷灰，warm-foreground 闸） */
-  --t-gray-50: 250 250 249;
-  --t-gray-100: 245 245 244;
-  --t-gray-200: 231 229 228;
-  --t-gray-300: 214 211 209;
-  --t-gray-400: 168 162 158;
-  --t-gray-600: 87 83 78;
-  --t-gray-700: 68 64 60;
-  --t-stone-50: 250 250 249;
-  --t-stone-100: 245 245 244;
-  --t-stone-200: 231 229 228;
-  --t-stone-300: 214 211 209;
-  --t-stone-400: 168 162 158;
-  --t-stone-500: 120 113 108;
-  --t-stone-600: 87 83 78;
-  --t-stone-700: 68 64 60;
-  --t-stone-800: 41 37 36;
-  /* 派生语义（组件层直接引用） */
-  --line: var(--t-line);
-  --line-strong: var(--t-line-strong);
-  --on-brass: 30 24 20;
-  --focus-ring: 146 106 36;
-  --brand-bar: linear-gradient(90deg, #7a5c20, #b18739 30%, #d9b166 55%, #1f4a39 100%);
-  /* 看板图表色板（唯一真相源；与 chartOptions 兜底逐字相等，chartOptions 闸钉） */
-  --chart-b1: #8a6520;
-  --chart-b2: #1f4a39;
-  --chart-b3: #b18739;
-  --chart-b4: #6b93a0;
-  --chart-grid: #f1ede3;
-  --chart-text: #57534e;
-}
-
-/* ── 夜主题：夜里亮灯的铺子 ── */
-:root[data-theme='night'] {
   color-scheme: dark;
   --t-surface: 36 30 25;
   --t-surface-warm: 30 24 20;
@@ -192,6 +84,16 @@
   --t-stone-600: 184 171 151;
   --t-stone-700: 200 189 169;
   --t-stone-800: 230 223 210;
+  /* 深褐黑字面阶（木料，主题无关）：text-espresso/brand-950 深字底色全靠它；
+     v4 手术曾漏带 ⇒ text-espresso 解析成空值回落 cream，黄铜底对比度塌到 2.87（实测） */
+  --t-espresso: 42 34 29;
+  --t-espresso-950: 22 17 13;
+  --t-espresso-900: 30 24 20;
+  --t-espresso-800: 51 42 36;
+  --t-espresso-700: 62 51 43;
+  --t-espresso-600: 74 61 51;
+  --t-espresso-500: 90 75 63;
+  --on-brass: 42 34 29;   /* 压黄铜实底的字：深褐 4.75:1，字面值两主题恒定（v4 手术漏带 ⇒ 整排黄铜钮字色塌回米白 2.87，实测） */
   --line: 62 51 43;
   --line-strong: 90 75 63;
   --focus-ring: 217 177 102;
@@ -293,13 +195,10 @@ img { max-width: 100%; display: block; -webkit-touch-callout: none; }
     inset: calc(-1 * var(--tap-y, 6px)) calc(-1 * var(--tap-x, 6px));
   }
 
-  /* 卡片：昼=净白浮于暖纸；夜=比页底亮一档的褐板 + 金发丝描边 */
+  /* 卡片：比页底亮一档的褐板 + 金发丝描边 */
   .card-base {
     @apply bg-panel rounded-2xl border transition duration-300;
     border-color: rgb(var(--line));
-    box-shadow: 0 1px 2px rgb(42 34 29 / 0.06), 0 8px 24px -10px rgb(42 34 29 / 0.10);
-  }
-  :root[data-theme='night'] .card-base {
     box-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -10px rgb(0 0 0 / 0.45);
   }
   .rule-short { @apply h-px w-10 rounded-full; background: rgb(var(--line-strong)); }
@@ -314,7 +213,7 @@ img { max-width: 100%; display: block; -webkit-touch-callout: none; }
     background: rgb(var(--t-brand-500));
     color: rgb(var(--on-brass));
   }
-  .btn-primary:hover { background: rgb(var(--t-brand-400)); }
+  .btn-primary:hover { background: rgb(var(--t-brass-bright)); }
   .btn-secondary {
     @apply font-medium rounded-xl border transition duration-200 active:scale-[0.97];
     background: transparent;

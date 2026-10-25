@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { IS_CLOUD } from '../../cloudbase'
 import { handleTablistKeyDown } from '../../utils/rovingTabs'
 import BrandMark from './BrandMark'
-import ThemeToggle from './ThemeToggle'
 
 export interface WorkspaceTab {
   key: string
@@ -51,7 +50,7 @@ export default function WorkspaceShell({ tab, tabs, onTabChange, title, descript
         </div>
       </aside>
       <div className="workspace-body">
-        <div className="workspace-topline"><span>超柿 / {current.label}</span><span className="workspace-online"><ThemeToggle /><i aria-hidden="true" />{IS_CLOUD ? '云端模式' : '本地演示'}</span></div>
+        <div className="workspace-topline"><span>超柿 / {current.label}</span><span className="workspace-online"><i aria-hidden="true" />{IS_CLOUD ? '云端模式' : '本地演示'}</span></div>
         <main role="main" id="main-content" tabIndex={-1} className="workspace-main">
           <header className="workspace-heading">
             <div><p className="eyebrow">SUPERMARKET OPERATIONS</p><h1>{title}</h1><p>{description}</p></div>

@@ -205,19 +205,26 @@ describe('图表色板对账（index.css ⇄ 兜底色 ⇄ 对比度）', () => 
     const [l1, l2] = [lum(a), lum(b)].sort((x, y) => y - x)
     return (l1 + 0.05) / (l2 + 0.05)
   }
-  const WHITE = '#ffffff'
+  /**
+   * 量测面 = 图表**真实渲染底**。v4 纯暗后看板落在面板 #332a24 上（昼面时代取 WHITE
+   * 是当时页卡的真实底）。改判据不改阈值：3:1 / 4.5:1 两条牙齿原样保留，换的只是
+   * 「底」—— 夜面四墨实测 3.66–8.93:1（b2 从 3.83 收到 3.66，仍在阈值上）。
+   * 「禁改真相源凑绿」口径不适用于此：真相源是「元素在其真实底上的对比度」，
+   * 昼→夜换的是底，不是阈值；面变不换尺。
+   */
+  const SURFACE = '#332a24' // 看板卡片面板（bg-panel），图表 canvas 的真实底
 
-  it('四条数据墨色压白卡都过 3:1（WCAG 1.4.11 非文本图形对象）', () => {
+  it('四条数据墨色压真实面板都过 3:1（WCAG 1.4.11 非文本图形对象）', () => {
     for (const k of ['b1', 'b2', 'b3', 'b4'] as const) {
       const hex = CHART_THEME_FALLBACK[k]
-      const c = contrast(hex, WHITE)
-      expect(c, k + '=' + hex + ' 压白卡只有 ' + c.toFixed(2) + ':1，线/条/扇区会看不见').toBeGreaterThanOrEqual(3)
+      const c = contrast(hex, SURFACE)
+      expect(c, k + '=' + hex + ' 压面板只有 ' + c.toFixed(2) + ':1，线/条/扇区会看不见').toBeGreaterThanOrEqual(3)
     }
   })
 
   it('轴与图例文字过 4.5:1（实测 9–11px，属正文档不是大字档）', () => {
-    const c = contrast(CHART_THEME_FALLBACK.text, WHITE)
-    expect(c, 'text=' + CHART_THEME_FALLBACK.text + ' 压白卡 ' + c.toFixed(2) + ':1，小字看不清').toBeGreaterThanOrEqual(4.5)
+    const c = contrast(CHART_THEME_FALLBACK.text, SURFACE)
+    expect(c, 'text=' + CHART_THEME_FALLBACK.text + ' 压面板 ' + c.toFixed(2) + ':1，小字看不清').toBeGreaterThanOrEqual(4.5)
   })
 
   it('饼图三分类亮度两两拉开 ≥0.07（红绿色盲下不靠色相也能分扇区）', () => {

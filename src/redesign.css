@@ -233,7 +233,7 @@
 /* 商品卡：图区是发光暖台，文字退回图注 */
 .gallery-figure { border-radius: 2px; }
 .gallery-figure .tap-44:last-child { background: rgb(var(--t-brand-500)); color: rgb(var(--on-brass)); box-shadow: 0 4px 14px -6px rgb(0 0 0 / 0.5); }
-.gallery-figure .tap-44:last-child:hover { background: rgb(var(--t-brand-400)); }
+.gallery-figure .tap-44:last-child:hover { background: rgb(var(--t-brass-bright)); }
 [data-card-name] { letter-spacing: -0.01em; color: rgb(var(--t-ink)); }
 .price-num.text-brand-700 { color: rgb(var(--t-brand-300)); }
 
@@ -309,14 +309,13 @@
 .home-promise .button-light { color: #d9b166; box-shadow: inset 0 0 0 1px rgb(217 177 102 / 0.55); }
 .home-promise .button-light:hover { box-shadow: inset 0 0 0 1px #d9b166; }
 
-/* 点亮态破坏性按钮（bg-red-700 + text-cream 组合）：昼=深红底白字、夜=浅红底深字 */
-.bg-red-700.text-cream { color: #ffffff; }
-:root[data-theme='night'] .bg-red-700.text-cream { color: #3a2320; }
+/* 点亮态破坏性按钮（bg-red-700 + text-cream 组合）：v4 纯暗的 red-700 是浅鲑红（232,138,114），
+   白字 2.53 / cream 2.55 都不够 ⇒ 深褐 espresso 6.18:1 才过 AA */
+.bg-red-700.text-cream { color: #2a221d !important; }
 /* 批量条实底按钮：昼面语义 cream 会翻成墨字压深底（1.1:1）⇒ 字面量白字；
    夜面 green-700 是浅绿，白字不过 ⇒ 换深绿字 */
 .bg-espresso.text-cream { color: #ffffff; }
-.bg-green-700.text-cream { color: #ffffff; }
-:root[data-theme='night'] .bg-green-700.text-cream { color: #16382b; }
+.bg-green-700.text-cream { color: #2a221d !important; } /* v4 纯暗 mint 底：espresso 7.58:1，白字仅 2.06 */
 
 /* 按压反馈兜底（press-feedback 闸）：触屏上「点到了没有」的唯一即时确认。
    组件级 active:scale 已覆盖大部分控件；这里给所有交互元素一条 :active 规则，
@@ -326,7 +325,7 @@
 /* ══ 恒定色块带上的字色（字面量，不随主题换）══ */
 .on-brass { color: #1c1714; }
 .cover-band { color: #f4efe7; }
-.cover-band-sub { color: rgb(244 239 231 / 0.85); }
+.cover-band-sub { color: rgb(244 239 231); } /* v4: 0.85 压森林绿只剩 4.21，全值 8.75 */
 .cover-band-back { color: rgb(244 239 231 / 0.9); transition: background-color 200ms cubic-bezier(0.4, 0, 0.2, 1), transform 200ms cubic-bezier(0.16, 1, 0.3, 1); }
 .cover-band-back:hover { background: rgb(0 0 0 / 0.15); }
 .cover-band-back:active { transform: scale(0.9); }

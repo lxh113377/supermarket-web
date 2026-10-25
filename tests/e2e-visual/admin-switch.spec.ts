@@ -35,7 +35,7 @@ async function assertSwitchStyled(page: import('@playwright/test').Page, name: s
         display: getComputedStyle(track).display,
       }
     })
-  expect(bg.bg, '轨道底色不是 green-400 ⇒ CSS 未生效，几何断言无意义').toBe('rgb(74, 222, 128)')
+  expect(bg.bg, '轨道底色不是 green-400 ⇒ CSS 未生效，几何断言无意义').toBe('rgb(127, 196, 143)') // v4 纯暗 green-400
   expect(bg.radius, 'rounded-full 未生效').toBe('9999px')
   // flex 子项会被 blockify，w-9/h-5 才吃得到；若还是 inline 则宽高一律被忽略
   expect(bg.display, '轨道 display 异常，w-9/h-5 不会生效').not.toBe('inline')

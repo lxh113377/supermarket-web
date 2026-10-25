@@ -130,7 +130,7 @@ export default function ReviewsTab() {
           </button>
           <button
             onClick={() => setShowForm(true)}
-            className="rounded-lg bg-brand-500 px-3 py-1.5 text-xs text-ink transition hover:bg-brass active:scale-[0.98]"
+            className="rounded-lg bg-brand-500 px-3 py-1.5 text-xs text-espresso transition hover:bg-brass active:scale-[0.98]"
           >
             + 新增评价
           </button>

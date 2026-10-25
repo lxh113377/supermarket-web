@@ -228,7 +228,7 @@ export default function ProductsTab({ products, categories, onDataChange }: {
           />
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500 text-sm" aria-hidden="true">🔍</span>
         </div>
-        <button onClick={() => setEditingId('new')} className="shrink-0 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-medium text-ink transition hover:bg-brass active:scale-[0.98]">+ 新增</button>
+        <button onClick={() => setEditingId('new')} className="shrink-0 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-medium text-espresso transition hover:bg-brass active:scale-[0.98]">+ 新增</button>
       </div>
 
       {/* 新增表单（内联在列表顶部，非弹窗） */}

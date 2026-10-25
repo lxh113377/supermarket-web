@@ -29,12 +29,12 @@ export interface ChartTheme {
 
 // 与 index.css 的 --chart-* 变量同值：读不到（SSR / 变量未注入）时退到这套兜底色
 export const CHART_THEME_FALLBACK: ChartTheme = {
-  b1: '#8a6520',
-  b2: '#1f4a39',
+  b1: '#d9b166',
+  b2: '#4f8f6d',
   b3: '#b18739',
-  b4: '#6b93a0',
-  grid: '#f1ede3',
-  text: '#57534e',
+  b4: '#d8cdbb',
+  grid: '#3a3128',
+  text: '#a99c88',
 }
 
 // 只认十六进制：Tailwind 变量写成 rgb()/oklch() 时宁可用兜底色，也不把非法色值塞进 echarts

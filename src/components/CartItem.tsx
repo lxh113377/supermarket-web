@@ -44,7 +44,7 @@ function CartItem({ item, onAdd, onRemove, onDelete }: CartItemProps) {
         <button
           onClick={() => onDelete(item)}
           aria-label={`删除${displayName}`}
-          className="text-xs text-red-700 px-2.5 py-1.5 border border-red-100 rounded-lg hover:bg-red-50 hover:text-red-800 hover:border-red-200 transition duration-200"
+          className="text-xs text-red-700 px-2.5 py-1.5 border border-red-100 rounded-lg hover:bg-red-50 hover:text-cream hover:border-red-700 transition duration-200"
         >
           删除
         </button>

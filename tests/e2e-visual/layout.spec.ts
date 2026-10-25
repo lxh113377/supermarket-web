@@ -32,7 +32,7 @@ async function assertCssLive(page: import('@playwright/test').Page) {
     const el = document.querySelector('.bg-surface')
     return el ? getComputedStyle(el).backgroundColor : 'NO-EL'
   })
-  expect(bg, 'Tailwind 未生效（很可能跑在 dev 上被 CSP 拦了 CSS）').toBe('rgb(250, 250, 249)')
+  expect(bg, 'Tailwind 未生效（很可能跑在 dev 上被 CSP 拦了 CSS）').toBe('rgb(36, 30, 25)') // v4 纯暗页底
 }
 
 async function open(page: import('@playwright/test').Page, order: number, vp = DESKTOP) {
@@ -146,8 +146,8 @@ test('暖白底 + 近黑字，正文对比度过 AA', async ({ page }) => {
   })
   // 先判"取数是否成功"，再判颜色对不对 —— 否则空集会一路走到断言里报成别的错
   expect((c as { error?: string }).error, '取数失败').toBeFalsy()
-  expect(c.fg).toBe('rgb(28, 25, 23)') // ink #1c1917，暖黑主文字色
-  expect(c.pageBg).toBe('rgb(250, 250, 249)') // 暖白页底
+  expect(c.fg).toBe('rgb(244, 239, 231)') // v4 纯暗 ink #F4EFE7，米白主文字色
+  expect(c.pageBg).toBe('rgb(36, 30, 25)') // v4 纯暗页底 #241E19 族
   expect(c.cardBg).toBe('rgba(0, 0, 0, 0)') // 桌面右栏透出暖白底
   // 相对亮度法算 #111827 on #fafaf9 的对比度（AA 正文要求 >= 4.5）
   const ratio = (hex: string) => {
@@ -292,7 +292,7 @@ test('图区底板全站统一且图片参与 multiply 混合（素材底色不�
   })
   expect(m.figures).toBeGreaterThan(4)
   expect(m.distinctBg, '所有卡片必须共用同一块图区底板').toBe(1)
-  expect(m.bg).toBe('rgb(246, 245, 242)')
+  expect(m.bg).toBe('rgb(226, 216, 196)') // v4 发光暖台（--t-stage）：暗底里货品自己发亮
   expect(m.blend).toBe('multiply')
   expect(m.distinctBlend).toBe(1)
 })
@@ -414,7 +414,7 @@ test('商城价格文字对比度过 AA（brand-700，不再是 brand-600 的 2.
     const l1 = lum(fg), l2 = lum(bg)
     return { fg: getComputedStyle(price).color, ratio: (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05), card: !!card }
   })
-  expect(c.fg).toBe('rgb(161, 98, 7)') // brand-700 #a16207
+  expect(c.fg).toBe('rgb(217, 177, 102)') // v4 纯暗 brand-700 = 亮金 #D9B166
   expect(c.ratio).toBeGreaterThanOrEqual(4.5)
 })
 
@@ -471,15 +471,15 @@ test('口味比周边微文案更抢眼（轴标题字重 + 品牌色角标 + �
   })
   expect(axis.weight, '口味轴字重掉回 normal/semibold ⇒「不明显」复发').toBeGreaterThanOrEqual(700)
   expect(axis.size, '口味轴字号掉回 12px 微文案档').toBeGreaterThanOrEqual(14)
-  expect(axis.color).toBe('rgb(28, 25, 23)') // ink #1c1917，主文本色
-  expect(axis.barBg, '口味轴左侧品牌色竖条丢失').toBe('rgb(234, 179, 8)') // brand-500
+  expect(axis.color).toBe('rgb(244, 239, 231)') // v4 纯暗 ink #F4EFE7
+  expect(axis.barBg, '口味轴左侧品牌色竖条丢失').toBe('rgb(177, 135, 57)') // v4 brand-500 黄铜金
   expect(axis.barH).toBeGreaterThanOrEqual(16)
 
   await page.getByRole('button', { name: '烤虾味' }).click()
   const picked = page.getByText(/^已选口味：/)
   await expect(picked).toHaveCount(1)
   expect(await picked.evaluate((el) => el.textContent?.trim())).toBe('已选口味：烤虾味')
-  expect(await picked.evaluate((el) => getComputedStyle(el).color)).toBe('rgb(161, 98, 7)') // brand-700
+  expect(await picked.evaluate((el) => getComputedStyle(el).color)).toBe('rgb(217, 177, 102)') // v4 brand-700 亮金
 
   await openShop(page, '/shop/food/snacks')
   const badges = await page.evaluate(() => {
@@ -498,8 +498,8 @@ test('口味比周边微文案更抢眼（轴标题字重 + 品牌色角标 + �
   const lay = badges.find((x) => x.name === '乐事薯片')
   expect(lay, '乐事薯片卡未渲染 ⇒ 被测对象已变，须同步修订本判据').toBeTruthy()
   expect(lay!.text).toBe('可选 8 种口味')
-  expect(lay!.bg, '角标底色不是品牌色 ⇒ 又退回白底灰字').toBe('rgb(254, 249, 195)') // brand-100
-  expect(lay!.fg).toBe('rgb(161, 98, 7)') // brand-700
+  expect(lay!.bg, '角标底色不是品牌色 ⇒ 又退回白底灰字').toBe('rgb(74, 60, 38)') // v4 brand-100 深金底
+  expect(lay!.fg).toBe('rgb(217, 177, 102)') // v4 brand-700 亮金
   const bare = badges.filter((x) => x.text === '')
   expect(bare.length, '全列表都长出角标 ⇒ 角标不再等于"有口味"').toBeGreaterThan(0)
 })

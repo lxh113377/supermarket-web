@@ -310,9 +310,34 @@ async function measureOnce(page: Page): Promise<{ checked: number; problems: Pro
         }
       }
       if (hist.size === 0) continue
+      /** 底色口径与文字腿同规（2026-10-23 文字腿的第二次更正）：控件自身有不透明
+       *  backgroundColor 时用 CSSOM 精确值，像素众数只当渐变/半透明时的兜底。
+       *  一手：滚屏覆盖审计 260ms 推一格，add 浮钮会恰好卡在 sticky 头下的滚动缝里，
+       *  截图里框内只剩 2 个表面像素 ⇒ 算出 1.12:1 裁切伪影；控件真实底是黄铜 4.75:1。
+       *  采样面积 < 半框（>50% 被盖/裁）时同样跳过 —— 没有对象就不记红。 */
+      const sampled = [...hist.values()].reduce((m, n2) => m + n2, 0)
+      const boxArea = Math.max(1, (x1 - x0) * (y1 - y0))
+      // 图标的真实底 = **svg 自己**往上找到的第一块不透明底（不是控件的底）：浮钮=深褐带、
+      // 里面黄铜圆徽、徽上深褐 icon —— 控件底会给 1:1 假红，svg 的真实底是圆徽。
+      const cssBgIcon = (() => {
+        let node: HTMLElement | null = (svg as HTMLElement) || el
+        while (node) {
+          const got = cssBackground(node)
+          if (got.sure) return got
+          node = node.parentElement
+        }
+        return cssBackground(el)
+      })()
       const ranked = [...hist.entries()].sort((a, b) => b[1] - a[1])
-      let bg = unkey(ranked[0][0])
-      if (near(bg, [fr, fg2, fb]) && ranked[1]) bg = unkey(ranked[1][0])
+      let bg: number[]
+      if (cssBgIcon.sure) {
+        bg = cssBgIcon.rgb
+      } else {
+        const boxAreaFloor = Math.max(24, boxArea * 0.5)
+        if (sampled < boxAreaFloor) continue
+        bg = unkey(ranked[0][0])
+        if (near(bg, [fr, fg2, fb]) && ranked[1]) bg = unkey(ranked[1][0])
+      }
       const fgFinal = fa >= 0.999 ? [fr, fg2, fb] : over([fr, fg2, fb], fa, bg)
       const got = ratio(fgFinal, bg)
       const label = (el.getAttribute('aria-label') || el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 24)
