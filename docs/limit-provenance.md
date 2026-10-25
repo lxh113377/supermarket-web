@@ -24,6 +24,8 @@
 
 | 文件 | 类型 | 值 | 来源类别 | 依据 |
 |---|---|---|---|---|
+| src/components/brand/MarketHero.tsx | 截断型 | 3 | product | 首页展台「今日三件」桌面档固定展示 3 件拍立得（v3 设计定式，exhibits 三档位 back/front/side）；随机池再大也只取前 3，档位类名只有三个 |
+| src/components/brand/MarketHero.tsx | 截断型 | 2 | product | 窄档（<768px）拍立得两件并排（三件在 320px 互相叠压被 reachability 闸判遮死，reachability 实测后收敛为 2）；随机池取前 2 与桌面同源 |
 | functions/_health.js | 截断型 | 7 | perf | 探活响应只回短版本串：slice(0,7) 取 git 短 SHA 长度，避免把完整 SHA 或异常长值塞进高频探活响应体 |
 | functions/lib/actions/ai.js | 分页 | 2000 | perf | aiAdvice 全量取近 N 单做规则兜底分析：2000 = 店内订单量级（实测存量 49 单）约 40 倍余量，取「一次拿完且不打爆行数配额」的上界 |
 | functions/lib/actions/ai.js | 截断型 | 40 | product | 匿名访客标识 pub-<ip 前 40> ：Dify 侧只需稳定不冲突，40 容得下 IPv6 全文且远小于 Dify 字段上限 |
