@@ -25,7 +25,7 @@
       "source": ".github/workflows/ci.yml 的 jobs: 段（本机实跑该段 6 个 job 键）"
     },
     "limitRosterRows": {
-      "value": 94,
+      "value": 96,
       "source": "docs/limit-provenance.md 表格行（2026-10-22 起送门槛新增两行：functions/lib/shared.js 与 src/data/deliveryLimits.ts 的 MIN_DELIVERY_AMOUNT=6 ⇒ 91→93；2026-10-23 5106dac 新增 src/pages/ServiceFormPage.tsx 的 MAX_PRINT_FILES 一行 ⇒ 93→94，该笔未同步本册 —— 与上一条 gateScripts 同形：commit 了源文件没跟登记册。CI 的 gates job 不含 npm run verify，故只有本地聚合链会暴露）"
     },
     "itemBudgets": {
@@ -79,7 +79,7 @@
     "codeFace": {
       "files": {
         "functions": 27,
-        "src": 96
+        "src": 97
       },
       "_filesNote": "2026-10-24 新增 src/hooks/useInlineConfirm.ts（内联两步确认，替代原生 confirm()）：src +1（91→92）。⚠️ 同族欠账**第二次**：上一轮 85f15cb 新增 useBusinessHours.ts 时漏更过一次（90→91，隔一轮才被 F2 抓到），本轮改完 src 又漏了一次 —— 说明「改 src 文件数当场同步 codeFace」只长在注释里、没长进流程。本轮的补救是把这条判据的现值直接钉死（F2 每次跑都比对），并在提交前跑完整 verify 链而不是子集。上一条为 2026-10-23 新增 src/hooks/useBusinessHours.ts（营业状态跟着时间走，修「走钟每秒跳、已打烊却冻结在挂载那一刻」）：src +1（90→91）。⚠️ 这条登记值是我在 85f15cb 当时漏更的，隔了一轮才被 F2 抓到 —— 漏因：CI 的 gates job 46 个 step 里没有 governance 这条腿（它只在本地 verify 链里），而 check-gate-parity 的方向是「CI ⊆ 本地」，本地比 CI 宽属合法 ⇒ 这条错位不在任何远端判据面上。教训：推之前跑的是 verify 的**子集**（unit/visual/e2e/stub/doc-consistency/doc-commands/a11y/budgets）就等于没跑全链，本轮起改 src 文件数必须当场同步 codeFace.files.src。上一条为 2026-10-23 新增 src/components/SkipLink.tsx（键盘「跳到主要内容」）：src +1（89→90）。上一条为 2026-10-22 按用户要求移除 Turnstile 人机验证：functions −1（删 lib/turnstile.js）、src −1（删 utils/turnstile.ts）；同日曾 +1/+1 引入过。上一条为 2026-10-22 起送门槛：src +1（新增 src/data/deliveryLimits.ts）。再上一条为 2026-10-21 打印页替换：functions +2（api/[[path]].js、lib/print-proxy.js），src −8（旧打印页 3D 层与表单全删、新增 printApp.ts）",
       "firstCommitDate": "2026-08-08",
