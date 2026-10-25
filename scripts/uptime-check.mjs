@@ -212,6 +212,50 @@ try {
   failures.push(`打印后端反代请求异常：${e?.name || e?.message}`)
 }
 
+/**
+ * ⑥ 管理密钥禁令复验（老大 2026-10-25 立规：ADMIN_KEY 永不轮换，唯一值 = supermarket-admin-2026）。
+ *
+ * 为什么值得每天真调一次：这个值被轮换过三次（08-23 / 09-05 / 09-25，每次都把用户挡在后台门外），
+ * 又被写脏过一次（2026-10-25 用 PowerShell 管道写 secret 带进了 UTF-8 BOM，线上只认「BOM+值」，
+ * 用户当天进不去）。而 ①–⑤ 没有任何一条看得见「这个密码还能不能登」—— 四次事故全靠用户自己撞上来。
+ * 判据两条**一起要**（只有一条必假绿）：唯一值必须 `code 0` + `role admin`；错值必须 401 且 code≠0。
+ * 本脚本里带明文是有据的例外：该值自 2026-09 起就在本公开仓历史里，掩码在这里 = 让判据空转。
+ */
+const ADMIN_KEY_PIN = 'supermarket-admin-2026'
+const loginProbe = (key) => getWithRetry(`${API_BASE}/web`, {
+  fetcher: async (url) => {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: { 'Content-Type': 'application/json', 'User-Agent': 'chaoshi-uptime/1.0' },
+        body: JSON.stringify({ action: 'login', adminKey: key }),
+      })
+      return { status: res.status, body: await res.text() }
+    } finally { clearTimeout(timer) }
+  },
+})
+const parseJson = (body) => { try { return JSON.parse(body) } catch { return null } }
+try {
+  const good = await loginProbe(ADMIN_KEY_PIN)
+  const goodJson = parseJson(good.body)
+  if (good.status !== 200 || goodJson?.code !== 0 || goodJson?.role !== 'admin') {
+    failures.push(`管理密钥禁令复验：唯一值登录被拒（HTTP ${good.status} code=${goodJson?.code} role=${goodJson?.role}） ⇒ ADMIN_KEY 已被轮换/被写脏，或该值没进这次部署（坑 19）`)
+  } else {
+    const bad = await loginProbe('uptime-wrong-key-' + Date.now())
+    const badJson = parseJson(bad.body)
+    if (bad.status !== 401 || badJson?.code === 0) {
+      failures.push(`管理密钥禁令复验：错值未被拒（HTTP ${bad.status} code=${badJson?.code}）⇒ 鉴权面可能已失效，唯一值不再唯一`)
+    } else {
+      console.log('  管理密钥禁令复验 → 唯一值 code 0 role admin；错值 401（禁令在守）')
+    }
+  }
+} catch (e) {
+  failures.push(`管理密钥禁令复验请求异常：${e?.name || e?.message}`)
+}
+
 if (failures.length) {
   console.error('❌ 探活失败：')
   for (const f of failures) console.error(`   · ${f}`)

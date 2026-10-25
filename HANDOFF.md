@@ -185,7 +185,7 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN`（repo �
 | Pages 项目   | supermarket-web（`supermarket-web.pages.dev`）                                                              |
 | D1 数据库     | supermarket（id `4bfc0283-...`，binding `DB`）                                                               |
 | Workers KV | RATE\_KV（id `47242e45-...`，限流计数）                                                                          |
-| 管理密钥       | `ADMIN_KEY` = 短语型固定值（**2026-09-26 第三次回退为当前值**：09-25 转 public 前曾轮换为随机串，用户拍板换回便于手机输入的固定值并接受"该值明文在公开仓历史"的风险；生产 Pages secret 与本地 `.dev.vars` 同值，**真值不写进任何文档**）。⚠️ 改 secret 后必须重新部署才生效（坑 19）。轮换历史三轮：08-23 随机→重置、09-05 随机→回退、09-25 随机→09-26 回退 |
+| 管理密钥       | `ADMIN_KEY` = **唯一值 `supermarket-admin-2026`，禁令永不轮换**（老大 2026-10-25 直接下令；旧的"转 public 前必须轮换"口径作废 —— 本仓 2026-09-26 起即 public）。唯一权威 = 生产 Pages secret 与本地 `.dev.vars`（同值）；本行是"文档不写明文"的**具名例外**。⚠️ 改 secret 后必须重新部署才生效（坑 19）；**写值禁用 PowerShell 管道**（UTF-8 BOM 会把值写脏，2026-10-25 实测）。轮换史三轮：08-23 随机→重置、09-05 随机→回退、09-25 随机→09-26 回退。疑改红/白分界只认线上实测（`/web login` 的 `code`） |
 | 只读密钥       | `ADMIN_READONLY_KEY`（可选）                                                                                  |
 | CORS 追加源   | `ALLOWED_ORIGINS`（逗号分隔，可选）                                                                                |
 
@@ -442,6 +442,13 @@ push main 后 `.github/workflows/dispatch.yml` 经 `GH_DISPATCH_TOKEN`（repo �
       值可能带上看不见的编码痕迹（本轮第一次上传后线上一直认证失败）；改成 node `spawnSync` 传
       `input` 字节串重传才是干净的（32 字节、无 CR/LF）。**保密值绝不走命令行参数**（会进进程列表与
       历史），走 stdin。
+    · 🔁 **同一坑 2026-10-25 又踩一次（这次是本会话自己撞的，代价是用户被挡在门外近 4 小时）**：用
+      `$v | wrangler pages secret put ADMIN_KEY` 写入的值实际存成了 **`EF BB BF` + 值**；当时立刻复验
+      「能登录」是**假绿**——线上跑的还是改值之前那个部署（Pages 的 env 在部署时注入）。20:03 那次部署把
+      脏值注入后，用户输干净的值一律「认证失败」，而**指纹实锤**是：`adminKey` 传 `\uFEFF` + 值 → `code 0
+      role admin`，传纯值 → `auth_failed`。⇒ 两条现在写进红线：① 写 ADMIN_KEY 只走 node `spawnSync` 字节串；
+      ②「改完立刻 curl 一下」**不构成生效证据**，必须等新部署（`/_health` 的 `deploy=` 变了）再验。
+      本轮已把它做成日巡检判据：`scripts/uptime-check.mjs` 每天用唯一值真调一次 login（code 0）+ 错值验拒（401）。
     · 边界（别把它说成不存在的功能）：只读键解决的是「**同一套后台、两个人都能看**」；它**不会**
       把 github.io 的打印单送进朋友的校园打印后台 —— 那两套单据活在两个库里，跨库同步需要
       上游改造（第 8 条：那台机器得能跑 Node）。老大要的「都能收到」在超市后台这一侧已成立。
