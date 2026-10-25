@@ -457,6 +457,13 @@ export default function ProductDetailPage() {
                     </button>
                   </>
                 )}
+                {/* 数量联动合计：算式形态（3 × ¥3.66 = ¥10.98）整串一个文本节点 ——
+                    金额不作为独立叶子，避免与右栏主价/参数表单价/摘要弹窗的金额串撞测试锚点 */}
+                {cartProduct && qty > 1 && (
+                  <span className="qty-total">
+                    <b>{qty} × {formatYuan(effPrice)} = {formatYuan(effPrice * qty)}</b>
+                  </span>
+                )}
                 {narrow && (
                   <p className="text-xs text-stone-500">数量已选定，结算入口在屏幕底部。</p>
                 )}

@@ -113,18 +113,25 @@ export default function ProductGallery({ product, gallery, items, index, onIndex
               onKeyDown={onKeyDown}
             >
               {!galleryErr[galleryIdx] ? (
-                <img
-                  src={list[galleryIdx].src}
-                  srcSet={list[galleryIdx].srcSet}
-                  sizes={list[galleryIdx].sizes || '(max-width: 1023px) 100vw, 560px'}
-                  alt={`${product.name} 第 ${galleryIdx + 1} 张`}
-                  width={600}
-                  height={288}
-                  loading="lazy"
-                  decoding="async"
-                  className="w-full h-72 lg:h-[420px] object-contain p-6 lg:p-4"
-                  onError={() => setGalleryErr((prevState) => (prevState[galleryIdx] ? prevState : { ...prevState, [galleryIdx]: true }))}
-                />
+                <div className="stage-frame relative">
+                  <img
+                    src={list[galleryIdx].src}
+                    srcSet={list[galleryIdx].srcSet}
+                    sizes={list[galleryIdx].sizes || '(max-width: 1023px) 100vw, 560px'}
+                    alt={`${product.name} 第 ${galleryIdx + 1} 张`}
+                    width={600}
+                    height={288}
+                    loading="lazy"
+                    decoding="async"
+                    className="w-full h-72 lg:h-[420px] object-contain p-6 lg:p-4"
+                    onError={() => setGalleryErr((prevState) => (prevState[galleryIdx] ? prevState : { ...prevState, [galleryIdx]: true }))}
+                  />
+                  {orderNum != null && (
+                    <span className="stage-tag" aria-hidden="true" data-decorative="true">
+                      <b>No.{String(orderNum).padStart(2, '0')}</b>
+                    </span>
+                  )}
+                </div>
               ) : (
                 <div className="h-72 lg:h-[420px]">
                   <Placeholder name={product.name} spec={product.spec} />
@@ -146,19 +153,27 @@ export default function ProductGallery({ product, gallery, items, index, onIndex
               </button>
             </div>
           ) : singleSrc && !galleryErr[0] ? (
-            <img
-              src={singleSrc}
-              srcSet={singleSrcSet}
-              sizes={singleSizes || '(max-width: 1023px) 100vw, 560px'}
-              width={600}
-              height={288}
-              alt={product.name}
-              loading="eager"
-              decoding="async"
-              fetchPriority="high"
-              className="w-full h-72 lg:h-[420px] object-contain p-6 lg:p-4"
-              onError={() => setGalleryErr((prevState) => (prevState[0] ? prevState : { ...prevState, 0: true }))}
-            />
+            <div className="stage-frame relative">
+              <img
+                src={singleSrc}
+                srcSet={singleSrcSet}
+                sizes={singleSizes || '(max-width: 1023px) 100vw, 560px'}
+                width={600}
+                height={288}
+                alt={product.name}
+                loading="eager"
+                decoding="async"
+                fetchPriority="high"
+                className="w-full h-72 lg:h-[420px] object-contain p-6 lg:p-4"
+                onError={() => setGalleryErr((prevState) => (prevState[0] ? prevState : { ...prevState, 0: true }))}
+              />
+              {/* 货架价签：目录编号是真实目录字段（ProductInfoSections 同源），装饰性复述 */}
+              {orderNum != null && (
+                <span className="stage-tag" aria-hidden="true" data-decorative="true">
+                  <b>No.{String(orderNum).padStart(2, '0')}</b>
+                </span>
+              )}
+            </div>
           ) : (
             <div className="h-72 lg:h-[420px]">
               <Placeholder name={product.name} spec={product.spec} />

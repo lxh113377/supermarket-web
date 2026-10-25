@@ -467,6 +467,53 @@
 .query-flow li > span:first-child { position: relative; z-index: 1; box-shadow: 0 0 0 3px rgb(var(--t-panel)); }
 .query-flow li > span:last-child { min-width: 0; }
 
+/* ══ 货架灯箱：详情页主图台（第 86 轮）══
+   商城卡的发光暖台（.gallery-figure）延续到详情页主图：白底抠图 multiply 融进台面，
+   消掉「白方块浮在暗面板」的硬边；渐晕让灯从上方打下来。价签角标 = 货架上的编号牌。 */
+.stage-frame {
+  background:
+    radial-gradient(120% 90% at 50% 6%, rgb(217 177 102 / 0.16), transparent 56%),
+    linear-gradient(180deg, rgb(var(--t-stage) / 0.94), rgb(var(--t-stage) / 0.8));
+  box-shadow: inset 0 0 0 1px rgb(217 177 102 / 0.2), inset 0 -36px 56px -34px rgb(0 0 0 / 0.4);
+}
+.stage-frame > img { mix-blend-mode: multiply; }
+.stage-tag {
+  position: absolute; right: 10px; bottom: 10px; z-index: 2; padding: 4px 8px;
+  display: inline-flex; align-items: baseline;
+  background: #f2ecdf; color: #2a221d;
+  font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
+  box-shadow: 0 4px 14px -6px rgb(0 0 0 / 0.55), 0 0 0 1px rgb(217 177 102 / 0.35);
+}
+.stage-tag b { font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: 0.06em; }
+.stage-tag::before { content: ''; position: absolute; left: 0; right: 0; top: -3px; height: 2px;
+  background: repeating-linear-gradient(90deg, #b18739 0 6px, transparent 6px 10px); }
+
+/* 详情页数量联动合计行 */
+.qty-total { display: inline-flex; align-items: baseline; }
+.qty-total b { font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif; font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; font-size: 13.5px; font-weight: 700; color: rgb(var(--t-brand-300)); letter-spacing: 0.01em; }
+
+/* ══ 购物车票脚：结算区接上收据语言（打孔线 + 票据行）══
+   穿孔半圆咬进的是页面底（surface），与成功页收据同一道边。 */
+.receipt-perf--surface::before, .receipt-perf--surface::after { background: rgb(var(--t-surface)); }
+.cart-ticket-row { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; }
+.cart-ticket-row > span { font-size: 12px; letter-spacing: 0.06em; color: rgb(var(--t-mute)); }
+.cart-ticket-row > b.cart-ticket-amount { font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif; font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; font-size: 24px; font-weight: 800; letter-spacing: -0.02em; color: rgb(var(--t-brand-300)); }
+
+/* ══ AI 导购：柜员灯牌（第 86 轮）══ */
+.clerk-plate { display: inline-flex; align-items: center; gap: 7px; margin-bottom: 6px; padding-left: 39px; }
+.clerk-plate i {
+  width: 5px; height: 5px; border-radius: 50%; background: #5aa96c; flex: 0 0 auto;
+  box-shadow: 0 0 0 3px rgb(90 169 108 / 0.16); animation: live-pulse 2600ms cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+.clerk-plate span { font-size: 10px; letter-spacing: 0.18em; color: rgb(var(--t-mute)); text-transform: uppercase; }
+/* 等待指示：三粒黄铜呼吸点（复用在册曲线 wait-pulse，替换通用 gray bounce） */
+.typing-dots { display: inline-flex; align-items: center; gap: 7px; }
+.typing-dots .wait-pulse { width: 7px; height: 7px; }
+/* 机器人徽章底座：黄铜下弦光 */
+.bot-socket { position: relative; }
+.bot-socket::after { content: ''; position: absolute; left: 4px; right: 4px; bottom: -4px; height: 2px; border-radius: 2px;
+  background: linear-gradient(90deg, transparent, rgb(177 135 57 / 0.75), transparent); }
+
 /* ══ 响应式 ══ */
 @media (min-width: 1500px) {
   .market-hero { padding-top: 72px; }
@@ -641,6 +688,7 @@
   .exhibit-side { transform: rotate(10deg); }
   .business-state i { animation: none; }
   .receipt-enter, .receipt-stamp, .wait-pulse { animation: none !important; }
+  .clerk-plate i, .typing-dots .wait-pulse { animation: none !important; }
   .receipt-stamp { opacity: 1; }
   .button::before { display: none; }
   .market-exhibit img, .service-directory-item, .button, .workspace-nav-item, .brand-fruit { transition: none; }

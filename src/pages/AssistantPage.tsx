@@ -136,10 +136,17 @@ export default function AssistantPage() {
         {/* 间距用 gap-3 而不是 space-y-3：两态都是 flex 容器，gap 在居中态同样生效
             （space-y 只在非居中分支会给，空态就会丢掉 greeting 与 chips 的间距）。 */}
         <div className={'mx-auto flex w-full max-w-3xl flex-col gap-3 px-4 py-4 pb-4 ' + (isEmptyState ? 'min-h-full justify-center' : '')}>
+        {/* 柜员灯牌：AI 在线状态（呼吸点 = 全站营业状态同一语言），空态时它是门面的一部分 */}
+        {isEmptyState && (
+          <div className="clerk-plate" aria-hidden="true">
+            <i />
+            <span>Assistant on duty</span>
+          </div>
+        )}
         {messages.map((m) => (
           <div key={m.id} className={`flex gap-2 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             {m.role === 'assistant' && (
-              <div className="bg-brand-500 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-ink">
+              <div className="bot-socket bg-brand-500 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-ink">
                 <IconRobot className="w-4 h-4" />
               </div>
             )}
@@ -187,10 +194,12 @@ export default function AssistantPage() {
             <div className="bg-brand-500 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-ink">
               <IconRobot className="w-4 h-4" />
             </div>
-            <div className="bg-panel border border-gray-100/80 shadow-card rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-1">
-              <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-              <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-              <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+            <div className="bg-panel border border-gray-100/80 shadow-card rounded-2xl rounded-bl-md px-4 py-3">
+              <span className="typing-dots" aria-hidden="true">
+                <i className="wait-pulse" />
+                <i className="wait-pulse" style={{ animationDelay: '400ms' }} />
+                <i className="wait-pulse" style={{ animationDelay: '800ms' }} />
+              </span>
             </div>
           </div>
         )}

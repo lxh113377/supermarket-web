@@ -174,14 +174,18 @@ export default function CartPage() {
       </div>
 
       {/* safe-bottom 覆盖下内边距，为 iPhone 底部小黑条留白 */}
+      {/* 票脚：购物车是收据的「草稿面」，结算条沿用出票语言（打孔线 + 票据行合计），
+          与下单成功页的「超柿收据」形成 车 → 票 的同一叙事；e2e 锚点「共 N 件」原文保留。
+          （注释必须在 && 括号外：JSX 注释只在 children 位置合法，CartPage 顶栏那次已踩过同坑。） */}
       {cart.items.length > 0 && (
-        <div className="border-t border-gray-100 px-5 pt-5 bg-panel/95 backdrop-blur-sm safe-bottom">
+        <div className="border-t-0 px-5 pt-2 bg-panel/95 backdrop-blur-sm safe-bottom">
           <div className="w-full max-w-3xl lg:max-w-4xl mx-auto">
+            <div className="receipt-perf receipt-perf--surface mb-3" aria-hidden="true" />
             <div className="flex justify-between items-center mb-4">
               <span className="text-sm text-stone-500">共 {totalCount} 件</span>
-              <span className="text-xl font-bold text-ink">
-                <span className="text-xs font-medium text-stone-500 mr-1">合计</span>
-                <span className="price-num font-bold text-brand-300">{formatYuan(totalAmount)}</span>
+              <span className="cart-ticket-row">
+                <span>合计</span>
+                <b className="cart-ticket-amount price-num">{formatYuan(totalAmount)}</b>
               </span>
             </div>
             {/* 起送门槛（2026-10-22 老大立规「总价低于六元不配送」）：
