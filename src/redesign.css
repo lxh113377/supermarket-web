@@ -600,6 +600,51 @@
    现把三分类改成「黄铜家族亮度阶」：b1 亮金 / b2 松绿保留（绿是三色之一，
    不是引入第四色相）/ b4 米纸白。亮度对账与对比度对账由 chartOptions.test 钉死。 */
 
+/* ══ 账房门厅：管理端登录墙（第 88 轮）══
+   后台是店里的账房，登录 = 上工签到。桌面双栏：左侧森林绿门面（与 workspace-rail
+   同一渐变木料），右侧签到牌（intake-sheet 同族）；移动端单列绿带置顶。 */
+.gate-hall { position: relative; display: grid; grid-template-columns: 1fr; min-height: 100dvh; background: rgb(var(--t-surface)); }
+.gate-face {
+  position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between;
+  padding: 34px 30px 26px; background: linear-gradient(180deg, #16382b, #122b21 72%);
+  border-bottom: 1px solid rgb(217 177 102 / 0.24);
+}
+.gate-face::before {
+  content: ''; position: absolute; inset: -30% 55% 40% -20%; pointer-events: none;
+  background: radial-gradient(60% 60% at 30% 25%, rgb(217 177 102 / 0.14), transparent 70%);
+}
+.gate-face::after {
+  content: ''; position: absolute; inset: 45% -20% -25% 40%; pointer-events: none;
+  background: radial-gradient(55% 55% at 60% 60%, rgb(217 177 102 / 0.08), transparent 70%);
+}
+.gate-face-brand { position: relative; z-index: 2; }
+.gate-face-title { position: relative; z-index: 2; margin-top: 34px; }
+.gate-face-title .gate-cn {
+  margin: 0; font-family: 'CS Display Serif', 'Songti SC', STSong, 'Noto Serif CJK SC', serif;
+  font-weight: 900; font-size: clamp(34px, 4.6vw, 58px); line-height: 1.22; letter-spacing: 0.01em; color: #f4efe7;
+}
+.gate-face-title .gate-cn span { color: #d9b166; }
+.gate-face-title p { margin: 14px 0 0; font-size: 12.5px; line-height: 2; color: #9fb0a6; max-width: 30em; }
+.gate-face-foot { position: relative; z-index: 2; display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 10.5px; letter-spacing: 0.05em; color: #8fa79a; }
+.gate-face-foot i { font-style: normal; color: #b18739; margin-right: 6px; }
+.gate-sign { display: flex; align-items: center; justify-content: center; padding: 44px 22px 60px; }
+/* 签到牌：与工单底稿同一族（装订缘 + 打孔线分隔） */
+.gate-plate { width: min(400px, 100%); }
+.gate-plate .intake-head { margin-bottom: 4px; }
+.gate-key .input-base { position: relative; }
+.gate-key { position: relative; }
+.gate-key::before {
+  content: ''; position: absolute; left: 0; top: 7px; bottom: 7px; width: 3px; border-radius: 2px;
+  background: linear-gradient(180deg, rgb(217 177 102 / 0.9), rgb(177 135 57 / 0.4));
+}
+.gate-key .input-base { padding-left: 14px; }
+
+@media (min-width: 1024px) {
+  .gate-hall { grid-template-columns: minmax(380px, 0.92fr) minmax(420px, 1.08fr); }
+  .gate-face { border-bottom: 0; border-right: 1px solid rgb(217 177 102 / 0.24); padding: 44px 44px 30px; }
+  .gate-sign { padding: 0 44px; }
+}
+
 /* ══ 响应式 ══ */
 @media (min-width: 1500px) {
   .market-hero { padding-top: 72px; }
