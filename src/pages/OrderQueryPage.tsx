@@ -6,6 +6,8 @@ import { orderStatusLabel, ORDER_FLOW } from '../utils/orderStatus'
 /**
  * 顾客侧订单进度查询（2026-09-24 对标 litemall 订单跟踪）。
  * 匿名设计：订单号即凭证（genId 时间戳+随机，不可枚举），后端 getOrderStatus 只回 status/updatedAt。
+ * 视觉（2026-10-25）：进度列表改「brass 时间线」—— 一根金线轨道穿起节点，压轨的当前步
+ * 用黄铜实底点亮；订单号同时以收据票据的等宽字体上屏，与成功/支付两页同一「出票」语言。
  */
 export default function OrderQueryPage() {
   const navigate = useNavigate()
@@ -40,7 +42,7 @@ export default function OrderQueryPage() {
   const currentIndex = status ? ORDER_FLOW.indexOf(status.status) : -1
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-surface animate-fade-in">
+    <div className="fixed inset-0 z-50 flex flex-col bg-surface animate-fade-in paper-grain">
       <div className="px-5 py-4 bg-panel/95 backdrop-blur-sm border-b border-gray-100 flex items-center justify-between">
         <button
           onClick={() => navigate(-1)}
@@ -62,7 +64,7 @@ export default function OrderQueryPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') void lookup(input) }}
-            className="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-panel focus:border-brand-600"
+            className="input-base flex-1 min-w-0 rounded-xl text-sm"
           />
           <button
             onClick={() => void lookup(input)}
@@ -76,27 +78,37 @@ export default function OrderQueryPage() {
           {notice && <p className="mt-3 text-sm text-amber-800 bg-amber-50 border border-amber-200/80 rounded-xl px-3 py-2">{notice}</p>}
 
           {status && (
-            <div className="mt-4 bg-panel rounded-2xl p-5 shadow-card border border-gray-100/80">
-              <p className="text-xs text-stone-500 mb-1">订单号</p>
-              <p className="text-sm font-mono text-stone-700 break-all mb-4">{queried}</p>
+            <div className="mt-4 bg-panel rounded-2xl p-5 shadow-card border border-gray-100/80 query-flow animate-fade-in-up">
+              <div className="flex items-end justify-between gap-3 border-b border-gray-100 pb-3">
+                <div className="min-w-0">
+                  {/* e2e 锚点：getByText('订单号', { exact: true }) 钉的是这个标签本身 */}
+                  <p className="receipt-serial-label" style={{ color: 'rgb(var(--t-mute))' }}>订单号</p>
+                  <p className="receipt-serial-id price-num text-ink break-all">{queried}</p>
+                </div>
+                <span aria-hidden="true" className="brand-bar mb-1 h-0.5 w-10 shrink-0 rounded-full opacity-70" />
+              </div>
               {status.status === 'cancelled' ? (
-                <p className="text-base font-bold text-red-700">该订单已取消</p>
+                <p className="pt-4 text-base font-bold text-red-700">该订单已取消</p>
               ) : (
-                <ol className="space-y-3">
+                <ol className="pt-1">
                   {ORDER_FLOW.map((s, i) => {
                     const done = i < currentIndex
                     const current = i === currentIndex
                     return (
-                      <li key={s} className="flex items-center gap-3">
+                      <li key={s}>
                         <span
                           aria-hidden="true"
-                          className={`w-5 h-5 rounded-full flex items-center justify-center text-3xs shrink-0 ${
-                            done ? 'step-done' : current ? 'bg-brand-500 text-espresso ring-4 ring-brand-300' : 'bg-gray-100 text-stone-600'
-                          }`}
+                          className={
+                            done
+                              ? 'step-done w-5 h-5 flex items-center justify-center rounded-full text-3xs shrink-0'
+                              : current
+                              ? 'bg-brand-500 text-espresso w-5 h-5 flex items-center justify-center rounded-full text-3xs shrink-0 ring-4 ring-brand-300'
+                              : 'bg-gray-100 text-stone-600 w-5 h-5 flex items-center justify-center rounded-full text-3xs shrink-0'
+                          }
                         >
                           {done ? '✓' : i + 1}
                         </span>
-                        <span className={`text-sm ${current ? 'font-bold text-ink' : done ? 'text-stone-600' : 'text-stone-500'}`}>
+                        <span className={current ? 'text-sm font-bold text-ink' : done ? 'text-sm text-stone-600' : 'text-sm text-stone-500'}>
                           {orderStatusLabel(s)}
                           {current && status.updatedAt && (
                             <span className="ml-2 text-xs font-normal text-stone-500">{new Date(status.updatedAt).toLocaleString()}</span>

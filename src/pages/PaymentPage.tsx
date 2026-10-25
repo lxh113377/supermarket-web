@@ -32,7 +32,6 @@ export default function PaymentPage() {
     const check = async () => {
       try {
         // 对标补齐（2026-09-24）：走 /pub getOrderStatus（顾客免密钥）。
-        // 旧实现误用 adminCall('getOrder')，顾客端无会话密钥必然鉴权失败，轮询形同虚设。
         const s = await getOrderStatus(orderId)
         // P0-7：卸载后不再 setState
         if (!cancelled && s && s.status !== 'pending') setOrderStatus(s.status)
@@ -48,23 +47,25 @@ export default function PaymentPage() {
   const qrSrc = method === 'wechat' ? './wechat-pay.png' : './alipay.jpg'
 
   /**
-   * 金额块。提成一个变量而不是在两个分支各写一遍：这两处显示的是同一笔钱，
+   * 收银屏金额块：金额是收银台唯一主角（衬线数字压大字），单号以票据等宽小字托底。
+   * 提成一个变量而不是在两个分支各写一遍：这两处显示的是同一笔钱，
    * 满减口径哪天改了，两处各写迟早漂开。
    */
   const amountBlock = totalAmount > 0 ? (
-    <div className="text-center">
-      <p className="text-xs text-stone-500 mb-1">本次应付</p>
-      <p className="price-num text-price-md font-extrabold leading-none text-ink">{formatYuan(totalAmount)}</p>
+    <div className="cashier-board animate-fade-in-up stagger-1">
+      <p className="cashier-label">本次应付</p>
+      <p className="cashier-amount price-num">{formatYuan(totalAmount)}</p>
       {discountAmount > 0 && (
-        <p className="text-xs text-green-700 mt-1.5" role="status">满减已优惠 {formatYuan(discountAmount)}</p>
+        <p className="cashier-discount" role="status">满减已优惠 {formatYuan(discountAmount)}</p>
       )}
+      <p className="cashier-order">单号 {orderId}</p>
     </div>
   ) : null
 
   if (!orderId) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-surface animate-fade-in">
+    <div className="fixed inset-0 z-50 flex flex-col bg-surface animate-fade-in paper-grain">
       {/* 顶栏 */}
       <div className="px-5 py-4 bg-panel/95 backdrop-blur-sm border-b border-gray-100 flex items-center justify-between">
         <button
@@ -80,21 +81,19 @@ export default function PaymentPage() {
 
       {!method ? (
         <div role="main" id="main-content" tabIndex={-1} className="flex-1 flex flex-col items-center justify-center gap-4 p-6 w-full max-w-lg mx-auto">
-          {/* 金额必须在选方式之前就显示：这一屏是用户决定「要不要现在付」的地方，
-              不告诉他付多少钱就把他推到两个支付按钮面前，是交易页的信息架构缺陷。
-              2026-10-24 实测：改之前 chooser 态整屏只有「请选择支付方式完成付款」+ 两个
-              按钮，金额要等点完微信/支付宝才出现。 */}
+          {/* 金额必须在选方式之前就显示：这一屏是用户决定「要不要现在付」的地方
+              （2026-10-24 信息架构缺陷修复，口径沿用）。 */}
           {amountBlock}
           <p className="text-sm text-stone-500">请选择支付方式完成付款</p>
           <button
             onClick={() => setMethod('wechat')}
-            className="pay-wechat w-full max-w-sm py-4 rounded-2xl text-base font-medium shadow-elevated animate-fade-in-up stagger-1"
+            className="pay-wechat w-full max-w-sm py-4 rounded-2xl text-base font-medium shadow-elevated animate-fade-in-up stagger-2"
           >
             微信支付
           </button>
           <button
             onClick={() => { setMethod('alipay'); setShowTip(true) }}
-            className="pay-alipay w-full max-w-sm py-4 rounded-2xl text-base font-medium shadow-elevated animate-fade-in-up stagger-2"
+            className="pay-alipay w-full max-w-sm py-4 rounded-2xl text-base font-medium shadow-elevated animate-fade-in-up stagger-3"
           >
             支付宝付款
           </button>
@@ -123,12 +122,13 @@ export default function PaymentPage() {
             <div className="text-center w-full max-w-sm animate-fade-in-up flex flex-col items-center">
               {/* 与 chooser 态同一个 amountBlock（同一笔钱不在两处各写一遍） */}
               {amountBlock}
-              <div className="w-full bg-amber-50 border border-amber-200/80 rounded-xl px-3 py-2 mb-2">
+              <div className="bg-amber-50 border border-amber-200/80 rounded-xl px-3 py-2 mb-3 mt-4 w-full">
                 <p className="text-amber-800 text-xs font-medium">
                   <span aria-hidden="true">⚠️</span> 请截图扫码付款，付款后联系商家进行配送
                 </p>
               </div>
-              <div className="bg-panel p-2 rounded-2xl shadow-card border border-gray-100/80 inline-block mb-3">
+              {/* 二维码收进奶油纸票框：码是「票面上的码」，不是悬在暗面板上的一块白 */}
+              <div className="pay-qr-frame rounded-sm inline-block mb-3">
                 <img
                   src={qrSrc}
                   alt={method === 'wechat' ? '微信支付二维码' : '支付宝二维码'}
@@ -136,9 +136,13 @@ export default function PaymentPage() {
                   height={240}
                   loading="lazy"
                   decoding="async"
-                  className="max-w-full max-h-[20vh] object-contain rounded-xl"
+                  className="max-w-full max-h-[20vh] object-contain"
                 />
               </div>
+              <p className="pay-wait">
+                <i className="wait-pulse" aria-hidden="true" />
+                商家侧确认到账后，订单状态会自动更新
+              </p>
               <button
                 onClick={() => setMethod(null)}
                 className="mt-4 text-sm text-stone-500 hover:text-stone-600 transition-colors duration-200"
@@ -151,8 +155,7 @@ export default function PaymentPage() {
         </div>
       )}
 
-      {/* 支付宝温馨提示弹窗：改用统一 Overlay
-          （补齐原实现缺失的焦点陷阱、焦点归还、背景滚动锁） */}
+      {/* 支付宝温馨提示弹窗：统一 Overlay（焦点陷阱、焦点归还、背景滚动锁沿用） */}
       <Overlay open={showTip} onClose={() => setShowTip(false)} label="温馨提示" className="rounded-3xl p-7">
         <div className="text-center">
           <span className="text-4xl block mb-3" aria-hidden="true">💡</span>

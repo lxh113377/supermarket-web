@@ -1,4 +1,34 @@
 ## [未发布]
+### 2026-10-25 收据语言：支付链路三页 + 404 视差的原创交互升级（第 85 轮）
+
+- 子页面「通用白卡+emoji」观感改造：**下单成功页重写为「超柿收据」** —— 奶油纸票面
+  （#f2ecdf 字面量，纸不随主题翻面）+ 顶/底锯齿撕边 + 两侧半圆打孔线 + 宋体刊头
+  「超柿收据/Supermarket Receipt」+ 票据行（楼栋/房间/本次应付）+ 打孔线下票据脚
+  （订单号等宽字 + 打印时间 + 单号哈希条码：djb2×LCG 确定性生成，同一单号恒同条纹，
+  aria-hidden + data-decorative 装饰豁免）+ 黄铜「已出票」印章（receipt-stamp 动画
+  = 章压落位，350ms cubic-bezier(0.16,1,0.3,1)）。三态文案/兜底键/复制/锚点全部沿用
+  （successAndNotFound 7 用例零改动过）。
+- **支付页 = 收银台**：金额块升 cashier-board（Bricolage 大字金额 + 票据等宽单号托底，
+  chooser/QR 两态共用同一 amountBlock 口径沿用）；二维码收进奶油纸票框 pay-qr-frame
+  （码是「票面上的码」，不再是悬在暗面板上的一块白）；等待反馈加 wait-pulse 黄铜脉冲点
+  （2600ms ease-in-out 在册曲线）。文案与 e2e 锚点（选择支付方式/微信支付/请截图扫码）全保留。
+- **订单查询页 = brass 时间线**：金线轨道（linear-gradient 1px）穿 20px 节点，当前步
+  ring-brand-300 压轨点亮；卡片头 ORDER SERIAL 改回中文锚点「订单号」（e2e
+  getByText('订单号',{exact:true}) 钉这个标签本身）。orderQueryPage 6 用例零改动过。
+- **404 页新增「提灯找路」光标视差**：柿形徽记朝光标方向倾转（rotateX/Y ≤14°），
+  404 水印反向慢移（≤18px，transform 合成层零重排）；仅 pointer:fine 且非
+  prefers-reduced-motion 启用，触屏/降级全静态；matchMedia 存在性守卫兜 jsdom。
+- redesign.css +9KB（收据系统段 + 响应式/reduced-motion 补条），未拆新文件：四页共享
+  一套票据语汇，拆件反而碎；首屏 CSS 预算 20KB 余量充足（实测 dist 17.6KB）。
+- 首页窄档展台改真·并排（承 be1cfdc 随机化遗留：图注长度不定后任何横向重叠都可能把
+  换行图注压进兄弟卡照片，reachability 判据对随机组合不稳定）—— back 左上/front 右下
+  错位零重叠，320/390 双档 + 5 次随机采样全绿。
+- 验证：tsc clean、oxlint 0、vitest 149 文件 2172 用例全绿、视觉闸 16 spec 全绿
+  （contrast 34 / motion 10 / press 12 / reachability 19 / touch 12 / warm 13 / layout 17+1skip
+  / heading 27 / hover 7 / empty 7 / skip-link / reduced-motion 9 / armed 5 / admin 2 / print 4）、
+  渲染级对比度四页五态 0 违规、双端截图归档 _design-qa/r85-*.png。
+
+
 
 ### 2026-10-25 纯暗单主题（v4）+ 视觉闸三处口径升级
 
