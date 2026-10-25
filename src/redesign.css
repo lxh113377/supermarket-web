@@ -348,6 +348,122 @@
 /* 订单进度：已完成步恒定深绿 + 白字 */
 .step-done { background: #15803d; color: #ffffff; }
 
+/* ══ 收据系统：支付链路三页（成功/支付/查询）的「出票」语言 ══
+   隐喻：下单 = 收银机出票。票据是实物 —— 奶油纸面用字面量色（不随语义槽翻面，
+   它是「纸」），压纸的字用深褐 espresso（≥9:1）。与首页色块横带同一识别系：
+   金线分层、宋体刊头、Bricolage 等宽数字、锯齿撕边与打孔线是版式而非贴图。 */
+.receipt-paper {
+  position: relative; width: 100%; max-width: 400px; margin: 0 auto;
+  padding: 22px 22px 24px; background: #f2ecdf; color: #2a221d;
+  box-shadow: 0 30px 70px -30px rgb(0 0 0 / 0.8), 0 0 0 1px rgb(217 177 102 / 0.25);
+}
+/* 顶/底锯齿撕边：票据从收银机里撕出来的那道边（纯装饰，无文字） */
+.receipt-paper::before, .receipt-paper::after {
+  content: ''; position: absolute; left: 0; right: 0; height: 9px; pointer-events: none; z-index: -1;
+}
+.receipt-paper::before {
+  top: -8px;
+  background: linear-gradient(45deg, #f2ecdf 6px, transparent 0), linear-gradient(-45deg, #f2ecdf 6px, transparent 0);
+  background-position: left top; background-repeat: repeat-x; background-size: 12px 9px;
+}
+.receipt-paper::after {
+  bottom: -8px;
+  background: linear-gradient(135deg, #f2ecdf 6px, transparent 0), linear-gradient(-135deg, #f2ecdf 6px, transparent 0);
+  background-position: left bottom; background-repeat: repeat-x; background-size: 12px 9px;
+}
+.receipt-brand {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  border-bottom: 1px solid rgb(42 34 29 / 0.22); padding-bottom: 10px;
+}
+.receipt-brand strong { font-family: 'CS Display Serif', 'Songti SC', STSong, 'Noto Serif CJK SC', serif; font-weight: 900; font-size: 15px; letter-spacing: 0.06em; }
+.receipt-brand span { font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif; font-size: 10px; letter-spacing: 0.16em; color: rgb(42 34 29 / 0.7); text-transform: uppercase; }
+.receipt-headline { padding: 14px 0 4px; text-align: center; }
+.receipt-headline .receipt-kicker { font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.22em; color: #7a5c20; }
+.receipt-headline h1 { margin: 6px 0 0; font-size: 22px; font-weight: 900; letter-spacing: -0.01em; color: #2a221d; }
+.receipt-headline > p { margin: 6px 0 0; font-size: 11.5px; line-height: 1.8; color: rgb(42 34 29 / 0.72); }
+/* 打孔撕线：两侧半圆咬进纸边，像被冲子打穿 */
+.receipt-perf { height: 0; border-top: 2px dashed rgb(42 34 29 / 0.3); margin: 15px -8px; position: relative; }
+.receipt-perf::before, .receipt-perf::after {
+  content: ''; position: absolute; top: -8px; width: 15px; height: 15px; border-radius: 50%;
+  background: rgb(var(--t-surface)); box-shadow: inset 0 0 0 1px rgb(217 177 102 / 0.3);
+}
+.receipt-perf::before { left: -15px; }
+.receipt-perf::after { right: -15px; }
+.receipt-meta { display: grid; gap: 2px; }
+.receipt-row { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; padding: 6px 0; }
+.receipt-row > span { font-size: 11px; letter-spacing: 0.1em; color: rgb(42 34 29 / 0.7); flex: 0 0 auto; }
+.receipt-row > strong { font-weight: 800; font-size: 15px; letter-spacing: -0.01em; color: #2a221d; text-align: right; }
+.receipt-amount { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; padding: 8px 0 2px; }
+.receipt-amount > span { font-size: 11px; letter-spacing: 0.1em; color: rgb(42 34 29 / 0.7); }
+.receipt-amount strong { font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif; font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; font-size: 30px; font-weight: 800; letter-spacing: -0.02em; color: #2a221d; }
+.receipt-hold { margin-top: 12px; padding: 11px 13px; background: rgb(31 74 57 / 0.07); border: 1px solid rgb(31 74 57 / 0.4); }
+.receipt-hold-title { font-size: 12.5px; font-weight: 800; color: #1f4a39; }
+.receipt-hold-body { margin-top: 4px; font-size: 11.5px; line-height: 1.85; color: rgb(42 34 29 / 0.78); }
+/* 票脚：单号 + 确定性条码（同一单号同一条纹）+ 绿墨章 */
+.receipt-foot { display: flex; align-items: flex-end; gap: 14px; }
+.receipt-serial { flex: 1 1 auto; min-width: 0; }
+.receipt-serial-label { font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif; font-size: 10px; letter-spacing: 0.2em; color: rgb(42 34 29 / 0.7); text-transform: uppercase; }
+.receipt-serial-id { margin-top: 4px; font-family: 'Bricolage Grotesque', ui-monospace, monospace; font-variant-numeric: tabular-nums; font-size: 12px; word-break: break-all; color: #2a221d; }
+.receipt-serial-time { margin-top: 7px; font-size: 12px; color: rgb(42 34 29 / 0.72); }
+.receipt-barcode { display: flex; align-items: stretch; height: 30px; margin-top: 8px; }
+.receipt-barcode i { background: #2a221d; flex: 0 0 auto; }
+.receipt-stamp {
+  position: relative; flex: 0 0 auto; width: 70px; height: 70px; border-radius: 50%;
+  display: grid; place-content: center; text-align: center;
+  color: #1f4a39; border: 2.5px solid #1f4a39; background: rgb(31 74 57 / 0.05);
+  font-weight: 900; font-size: 13px; line-height: 1.3; letter-spacing: 0.08em;
+  transform: rotate(-13deg); mix-blend-mode: multiply;
+  box-shadow: inset 0 0 0 1.5px rgb(31 74 57 / 0.35);
+  animation: receipt-stamp 350ms cubic-bezier(0.16, 1, 0.3, 1) 500ms both;
+}
+.receipt-stamp::after { content: ''; position: absolute; inset: 4px; border: 1px solid rgb(31 74 57 / 0.4); border-radius: 50%; }
+/* 屏幕面（暗底）上的章换黄铜材质：字 espresso 4.98:1 过 AA —— 纸票盖绿墨章，屏幕挂铜牌 */
+.receipt-stamp-on-dark {
+  color: #2a221d; background: rgb(217 177 102 / 0.95); border-color: #b18739;
+  box-shadow: inset 0 0 0 1.5px rgb(42 34 29 / 0.3), 0 8px 26px -12px rgb(177 135 57 / 0.6);
+  mix-blend-mode: normal; margin-bottom: 14px;
+}
+.receipt-stamp-on-dark::after { border-color: rgb(42 34 29 / 0.4); }
+@keyframes receipt-stamp {
+  0% { opacity: 0; transform: rotate(-32deg) scale(1.7); }
+  100% { opacity: 1; transform: rotate(-13deg) scale(1); }
+}
+@keyframes receipt-print {
+  0% { opacity: 0; transform: translateY(-26px); clip-path: inset(0 0 72% 0); }
+  55% { clip-path: inset(0 0 0 0); }
+  100% { opacity: 1; transform: translateY(0); clip-path: inset(0 0 0 0); }
+}
+.receipt-enter { animation: receipt-print 500ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+/* 暂存警示变体：琥珀墨代替绿墨（暂存 ≠ 出票成功） */
+.receipt-hold-warn { background: rgb(177 135 57 / 0.08); border-color: rgb(177 135 57 / 0.55); }
+.receipt-hold-warn .receipt-hold-title { color: #7a5c20; }
+.receipt-discount { margin-top: 6px; text-align: right; font-size: 11.5px; font-weight: 600; color: #1f4a39; }
+.receipt-actions { margin-top: 22px; width: 100%; max-width: 400px; margin-left: auto; margin-right: auto; display: grid; gap: 12px; }
+.receipt-actions-row { display: flex; gap: 10px; }
+
+/* 收银屏（支付页 chooser）：金额是唯一主角，单号以票据等宽小字托底 */
+.cashier-board {
+  width: min(400px, 100%); padding: 20px 24px 16px; text-align: center; border-radius: 3px;
+  background: linear-gradient(180deg, rgb(var(--t-panel-deep)), rgb(var(--t-panel)));
+  box-shadow: inset 0 0 0 1px rgb(217 177 102 / 0.3), 0 20px 50px -28px rgb(0 0 0 / 0.8);
+}
+.cashier-label { font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif; font-size: 10px; letter-spacing: 0.24em; color: rgb(var(--t-mute)); text-transform: uppercase; }
+.cashier-amount { margin-top: 6px; font-size: clamp(38px, 9vw, 50px); font-weight: 800; line-height: 1.12; color: rgb(var(--t-ink)); }
+.cashier-discount { font-size: 12px; color: #7fc48f; margin-top: 5px; }
+.cashier-order { margin-top: 12px; padding-top: 11px; border-top: 1px dashed rgb(var(--line-strong)); font-family: 'Bricolage Grotesque', ui-monospace, monospace; font-variant-numeric: tabular-nums; font-size: 11px; letter-spacing: 0.02em; word-break: break-all; color: rgb(var(--t-mute)); }
+/* 二维码票框：奶油纸托底，白底码图融进纸面而不是悬在暗面板上 */
+.pay-qr-frame { padding: 10px; background: #f2ecdf; box-shadow: 0 0 0 1px rgb(217 177 102 / 0.3), 0 18px 44px -24px rgb(0 0 0 / 0.85); }
+.pay-wait { display: inline-flex; align-items: center; gap: 9px; font-size: 12px; letter-spacing: 0.04em; color: rgb(var(--t-mute)); }
+.wait-pulse { width: 8px; height: 8px; border-radius: 50%; background: #b18739; display: inline-block; flex: 0 0 auto; animation: wait-pulse 2600ms cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+@keyframes wait-pulse { 0%, 100% { box-shadow: 0 0 0 3px rgb(177 135 57 / 0.22); } 50% { box-shadow: 0 0 0 6px rgb(177 135 57 / 0.04); } }
+
+/* 查询页 brass 时间线：轨道一根金线到底，节点压在轨上 */
+.query-flow ol { list-style: none; margin: 0; padding: 0; position: relative; }
+.query-flow ol::before { content: ''; position: absolute; left: 10px; top: 16px; bottom: 16px; width: 1px; background: linear-gradient(180deg, rgb(177 135 57 / 0.55), rgb(90 75 63 / 0.4)); }
+.query-flow li { position: relative; display: flex; align-items: center; gap: 14px; padding: 10px 0; }
+.query-flow li > span:first-child { position: relative; z-index: 1; box-shadow: 0 0 0 3px rgb(var(--t-panel)); }
+.query-flow li > span:last-child { min-width: 0; }
+
 /* ══ 响应式 ══ */
 @media (min-width: 1500px) {
   .market-hero { padding-top: 72px; }
@@ -378,7 +494,10 @@
   .market-showcase { min-height: 430px; }
   .market-exhibits { top: 40px; }
   .market-exhibit { width: 47%; }
-  .exhibit-front { left: 27%; width: 53%; }
+  /* 两列并排不交叠（原 27%/53% 有 20% 水平交叠带，figcaption 会被兄弟卡图区压住，
+     reachability 闸随机到长文案时判遮）；back 左列、front 右列，top 错开保留拍立得散落感 */
+  .exhibit-back { left: 0; width: 48%; top: 40px; }
+  .exhibit-front { left: 51%; width: 48%; top: 110px; }
   /* 320–767px：三件拍立得在窄档互相叠压（reachability 闸实测第三件文案被兄弟卡遮死），
      收成前后两件并排；「开屏三件随机」在 ≥768px 全量展示 */
   .exhibit-side { display: none; }
@@ -487,6 +606,12 @@
   .workspace-heading > div > p:last-child { max-width: 300px; font-size: 10px; }
   .workspace-demo-note { gap: 8px; flex-direction: column; align-items: flex-start; font-size: 10px; }
   .workspace-panel .fixed.bottom-0 { padding-left: 15px; padding-right: 15px; }
+  .receipt-paper { padding: 18px 16px 22px; }
+  .receipt-stamp { width: 62px; height: 62px; font-size: 12px; }
+  .receipt-amount strong { font-size: 26px; }
+  .receipt-actions { gap: 10px; }
+  .cashier-board { padding: 18px 18px 14px; }
+  .pay-qr-frame img { max-height: 18vh; }
 }
 @media (max-width: 370px) {
   .brand-wordmark > span { max-width: 126px; overflow: hidden; text-overflow: ellipsis; }
@@ -507,6 +632,8 @@
   .exhibit-front { transform: rotate(4deg); }
   .exhibit-side { transform: rotate(10deg); }
   .business-state i { animation: none; }
+  .receipt-enter, .receipt-stamp, .wait-pulse { animation: none !important; }
+  .receipt-stamp { opacity: 1; }
   .button::before { display: none; }
   .market-exhibit img, .service-directory-item, .button, .workspace-nav-item, .brand-fruit { transition: none; }
 }
