@@ -1,4 +1,11 @@
 ## [未发布]
+### 2026-10-26 部署回执（#40 首轮兑现）
+
+- 管理端 pages.dev：CI run 40213196252 `completed/success` 六 job 全绿（gates/e2e/visual/e2e-cloud-stub/browser-install/**deploy**）；
+  `/_health` 回 `deploy=b3e058f`；产物标记 gate-hall / intake-sheet / receipt-paper / stage-frame 四中。
+- 顾客端 github.io：Dispatch run 40213196246 `completed/success`；同法标记四中。
+- 双红修复件（b3e058f）经逃生门（台账 2108f96 → b3e058f）推送后由 CI 判决通过；`verify:escape-hatch` C10 闭环。
+
 ### 2026-10-25 首轮 CI 双红修复（gates + visual）—— 上线阻断件
 
 - **visual 红（真缺陷，判据时钟盲区）**：CI 在北京时间凌晨跑，contrast 扫到 order-confirm
