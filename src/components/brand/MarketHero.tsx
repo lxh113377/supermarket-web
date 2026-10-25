@@ -1,18 +1,31 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getBusinessHoursText } from '../../utils/businessHours'
 import { MIN_DELIVERY_AMOUNT } from '../../data/deliveryLimits'
 import { formatYuan } from '../../utils/format'
 import { prefetchRoute } from '../../prefetchBus'
+import { pickExhibits } from '../../data/pick-exhibits'
+import { products } from '../../data/products-seed'
 
-const exhibits = [
-  { order: 38, label: '解馋', sub: '香辣一口', className: 'exhibit-back' },
-  { order: 33, label: '咔滋', sub: '快乐开袋', className: 'exhibit-front' },
-  { order: 1, label: '清爽', sub: '课间补水', className: 'exhibit-side' },
-]
+/** 开屏三件每次随机：模块加载时抽一次（一次页面会话内稳定，刷新/再开屏换新）。
+ *  池子 = seed 全量零食（subcategories 含 snacks 的在售面），图源 /images/{order}.webp 全量在册。
+ *  窄档（<768px）拍立得两件并排是设计定式 ⇒ 抽 5 件，桌面用前 3、窄档用前 2（同一次随机源，
+ *  刷新前两边看到的组合同源不同数，避免 CSS 藏卡片造成「内容存在但不可见」的判红）。 */
+const allExhibits = pickExhibits(
+  products.filter((p) => (p.subcategories || []).includes('snacks')),
+)
 
 export default function MarketHero({ open }: { open: boolean }) {
   const visualRef = useRef<HTMLDivElement>(null)
+  const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches)
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return
+    const mq = window.matchMedia('(max-width: 767px)')
+    const onChange = () => setNarrow(mq.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  const exhibits = narrow ? allExhibits.slice(0, 2) : allExhibits.slice(0, 3)
   useEffect(() => {
     if (typeof window.matchMedia !== 'function' || window.matchMedia('(prefers-reduced-motion: reduce), (max-width: 767px)').matches) return
     let frame = 0

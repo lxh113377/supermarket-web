@@ -379,7 +379,9 @@
   .market-exhibits { top: 40px; }
   .market-exhibit { width: 47%; }
   .exhibit-front { left: 27%; width: 53%; }
-  .exhibit-side { width: 35%; top: 206px; }
+  /* 320–767px：三件拍立得在窄档互相叠压（reachability 闸实测第三件文案被兄弟卡遮死），
+     收成前后两件并排；「开屏三件随机」在 ≥768px 全量展示 */
+  .exhibit-side { display: none; }
   .showcase-sticker { right: 0; }
   .home-services { gap: 32px; }
   .service-main { flex-direction: column; gap: 4px; }
