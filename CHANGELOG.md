@@ -1,4 +1,23 @@
 ## [未发布]
+### 2026-10-26 柜台台账：分类页品牌语言升级 + forest 变量族补漏（第 90 轮）
+
+- CategoryPage 从通用卡片网格升级为「柜台台账」：封面带挂 COUNTER No.0X 铜牌（米白
+  eyebrow + 宋体黑 h1），服务逐条记进台账行（铜序号码 + --t-stage 发光暖台图标 + hover
+  金线左轨），闭店提示换挂牌腔（铜左轨 + 琥珀槽，非通用警告框），页脚「其他柜台」横轨
+  把四个分类串成环（桌面不再悬空窄列）。形状/曲线/时长全用在册件，reduced-motion 降级块随附。
+- 修线上 latent 回归：tailwind forest 族自 v3 起引用 `--t-forest*` 而 :root 从未定义，
+  v4 把类目横带换 to-forest 后生活/学习两类封面带 computed 整链清空（线上透明）。
+  补锚点钦定森林绿 #1F4A39 族四值（白字 8.77:1）。对比度闸抓不到此病（祖先背景取样口径），
+  由本轮 stub 截图对照发现 ⇒ 待办：「引用⇄定义」变量对账腿入 verify 链。
+- 判据红两处自修（非放宽）：eyebrow 亮金压 via-amber-900 段 2.55:1 ⇒ 改米白；装饰铜牌
+  hidden 于窄档致零面积文字叶 ⇒ 摘除。分类路由 15 条视觉闸（含 320/390 可达/对比/触控/
+  动效一致/暖前景）全绿；vitest 全量 148 文件绿（memoryVolume 3 红系并行会话卷 185 未并号，
+  本笔并号 1–187 后复绿）；check:size 3/3、item-budgets 全绿（CSS 余 1079B）。
+- P0 部署链闭环：run 40209467148 gates 红根因 = memory/AGENTS.md 4258B 超 4KB 铁限
+  带跑 vitest ⇒ deploy job 因 needs 从未创建 ⇒ 线上卡 15b0046 落后 12 笔。拆卷治
+  （git 段逐字迁 AGENTS.part2.md，非压措辞），提交 2108f96 后 CI 全绿、deploy 恢复
+  （线上 deploy= 由 15b0046 推进）。
+
 ### 2026-10-26 部署回执（#40 首轮兑现）
 
 - 管理端 pages.dev：CI run 40213196252 `completed/success` 六 job 全绿（gates/e2e/visual/e2e-cloud-stub/browser-install/**deploy**）；

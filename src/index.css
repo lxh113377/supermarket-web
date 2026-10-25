@@ -49,6 +49,14 @@
   --t-green-700: 127 196 143;
   --t-green-800: 63 125 78;
   --t-green-900: 45 92 57;
+  /* 森林绿字面族（2026-10-26 补漏）：v3 重构起 tailwind 的 forest 族就引用这组变量，
+     但 :root 从未定义（与 espresso/on-brass 漏带同族病）；v4 把类目横带换成 to-forest
+     后暴露 —— 生活/学习两类的封面带 computed 值 invalid-at-computed-value-time 整链清空，
+     线上自 v4 起透明。锚点 = 钦定森林绿 #1F4A39，白字压 DEFAULT 8.77:1、压 deep 10.6:1。 */
+  --t-forest: 31 74 57;
+  --t-forest-deep: 24 58 45;
+  --t-forest-mid: 47 102 76;
+  --t-forest-soft: 79 143 109;
   --t-emerald-200: 47 84 57;
   --t-emerald-700: 127 196 143;
   --t-emerald-800: 127 196 143;      /* 夜面成功横幅文字（压 emerald-50 深底 6.7:1） */
