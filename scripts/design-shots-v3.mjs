@@ -4,6 +4,8 @@ import path from 'node:path';
 const OUT = process.argv[2]; const BASE = process.argv[3] || 'http://127.0.0.1:5184';
 const THEME = process.argv[4] || 'day';
 fs.mkdirSync(OUT, { recursive: true });
+// 生产 URL 不播种购物车（生产商品 id 形如 p001，播本地 id 会触发价格变动横幅污染截图）
+const SEED_CART = BASE.includes('127.0.0.1') || BASE.includes('localhost')
 const CART = { items: [
   { productId: 'p_33', name: '乐事薯片', spec: '40g', price: 2.66, quantity: 2 },
   { productId: 'p_46', name: '白象方便面', spec: '桶装', price: 3.66, quantity: 1 },
@@ -21,12 +23,12 @@ const browser = await chromium.launch({ channel: 'msedge', headless: true });
 const report = [];
 for (const s of shots) {
   const ctx = await browser.newContext({ viewport: s.vp, deviceScaleFactor: 1.5, reducedMotion: 'reduce' });
-  await ctx.addInitScript(([cart, theme]) => {
+  await ctx.addInitScript(([cart, theme, seed]) => {
     try {
-      localStorage.setItem('sm_cart', JSON.stringify({ ...cart, updatedAt: Date.now() }));
+      if (seed) localStorage.setItem('sm_cart', JSON.stringify({ ...cart, updatedAt: Date.now() }));
       localStorage.setItem('sm_theme', theme);
     } catch {}
-  }, [CART, THEME]);
+  }, [CART, THEME, SEED_CART]);
   const page = await ctx.newPage();
   const errs = [];
   page.on('pageerror', e => errs.push('pageerror: ' + e.message));
