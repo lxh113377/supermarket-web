@@ -397,7 +397,7 @@
   .header-shop { padding: 10px 12px; gap: 8px; min-height: 38px; font-size: 10px; }
   .header-ai { display: none; }
   .business-state { font-size: 10px; }
-  
+
   .market-hero { min-height: 0; padding: 32px 18px 18px; display: flex; flex-direction: column; gap: 0; }
   .market-hero::before, .market-hero::after { display: none; }
   .market-hero-copy { padding: 0; }
