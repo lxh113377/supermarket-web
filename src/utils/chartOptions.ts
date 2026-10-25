@@ -21,7 +21,9 @@ export interface ChartTheme {
   b2: string
   /** 强调墨色（TOP 榜前 3 名） */
   b3: string
-  /** 第三分类专用：与 b1/b2 的亮度差都 ≥0.07，保证色盲下三个扇区仍可分 */
+  /** 第三分类专用：与 b1/b2 的亮度差都 ≥0.07，保证色盲下三个扇区仍可分。
+   *  第 87 轮：b4 米纸白提亮一档（#d8cdbb→#e6ddca）—— 三色锚点家族内拉开「亮金/松绿/米纸」
+   *  的亮度阶（0.256/0.504，对账见 chartOptions.test.ts），对比度 10.39:1。 */
   b4: string
   grid: string
   text: string
@@ -32,7 +34,7 @@ export const CHART_THEME_FALLBACK: ChartTheme = {
   b1: '#d9b166',
   b2: '#4f8f6d',
   b3: '#b18739',
-  b4: '#d8cdbb',
+  b4: '#e6ddca',
   grid: '#3a3128',
   text: '#a99c88',
 }

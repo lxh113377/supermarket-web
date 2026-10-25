@@ -60,7 +60,7 @@
     },
     "bundleBudget": {
       "firstLoadJsBytes": 97280,
-      "firstLoadCssBytes": 20480,
+      "firstLoadCssBytes": 22528,
       "largestChunkBytes": 307200,
       "source": "scripts/check-bundle-size.mjs BUDGET"
     },

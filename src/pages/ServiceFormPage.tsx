@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type CSSProperties } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { getServiceById, getCategoryById } from '../data/services'
+import { getServiceById, getCategoryById, SERVICES } from '../data/services'
 import { getClosedMessage } from '../utils/businessHours'
 import { useBusinessHours } from '../hooks/useBusinessHours'
 import { createSubmission } from '../db'
@@ -11,6 +11,11 @@ import { compressImageFile } from '../utils/imageCompress'
 import { MAX_SUBMISSION_FILES } from '../data/submissionLimits'
 import { uploadPrintFile } from '../utils/printUpload'
 import { PRINT_INLINE_ACCEPT, PRINT_INLINE_ALLOWED_EXT, MAX_PRINT_FILES } from '../pages/print/print.config'
+
+/** 工单编号 = 服务在 SERVICES 目录中的声明序号（不写死 id：下一个新服务自动获得下一个号） */
+const SERVICE_SEQ: Record<string, string> = Object.fromEntries(
+  SERVICES.map((svc, i) => [svc.id, String(i + 1).padStart(2, '0')]),
+)
 
 export default function ServiceFormPage() {
   const { serviceId } = useParams()
@@ -243,22 +248,27 @@ export default function ServiceFormPage() {
     }
   }
 
-  // 提交成功页面
+  // 提交成功页面：底稿盖了章 —— 工单变收据（锯齿撕边 + 黄铜「已收单」章），与支付链路同一材质。
+  // 「提交成功」文案是测试锚点（serviceFormPrint/serviceFormPage/orderFlow 三处钉它），原文保留。
+  // （return( 后不能直接跟 JSX 注释——注释只能在 children 位，本文件顶栏已踩过同坑两次。）
   if (submitted) {
     return (
-      <div className="page-container flex items-center justify-center px-5">
-        <div className="bg-panel rounded-3xl p-8 shadow-card border border-gray-100/80 text-center max-w-sm w-full animate-scale-in">
-          <div className="w-20 h-20 mx-auto mb-5 rounded-full bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center">
-            <span className="text-4xl">✅</span>
+      <div className="page-container flex items-center justify-center px-5 py-10">
+        <div className="intake-done animate-fade-in" role="status" aria-live="polite">
+          <span className="done-stamp" aria-hidden="true">已收单<br />超柿服务台</span>
+          <div className="text-center pt-6">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[rgb(31_74_57/0.07)] border border-[rgb(31_74_57/0.4)] flex items-center justify-center">
+              <span className="text-3xl" aria-hidden="true">✅</span>
+            </div>
+            <h1 className="text-xl font-bold text-[#2a221d]">提交成功</h1>
+            <p className="text-[rgb(42_34_29/0.78)] text-sm mt-2 leading-relaxed">请耐心等待工作人员联系<br/>通常会在30分钟内回复</p>
+            <button
+              onClick={() => navigate('/')}
+              className="mt-7 btn-primary w-full py-3.5 text-base"
+            >
+              返回首页
+            </button>
           </div>
-          <h1 className="text-xl font-bold text-ink">提交成功</h1>
-          <p className="text-stone-500 text-sm mt-2 leading-relaxed">请耐心等待工作人员联系<br/>通常会在30分钟内回复</p>
-          <button
-            onClick={() => navigate('/')}
-            className="mt-7 btn-primary w-full py-3.5 text-base"
-          >
-            返回首页
-          </button>
         </div>
       </div>
     )
@@ -313,16 +323,15 @@ export default function ServiceFormPage() {
         {/* 服务说明卡片（hint 解析与渲染已在 ServiceHintCard） */}
         <ServiceHintCard hint={service.hint} />
 
-        {/* 表单卡片 */}
-        <div className="bg-panel rounded-3xl p-6 shadow-card border border-gray-100/80 animate-fade-in-up stagger-2">
-          <div className="flex items-center gap-2 mb-5">
-            {/* 标题跟着事实走：无字段时说「填写信息」是撒谎（框里一个字段都没有）。
-                实测这条曾被顾客走到 —— 屏上是「填写信息」+ 一个「提交信息」按钮，
-                中间零个输入框。 */}
-            <span className="w-6 h-6 rounded-lg bg-blue-50 flex items-center justify-center text-xs" aria-hidden="true">
-              {hasFields ? '📝' : '🛒'}
-            </span>
-            <h2 className="text-sm font-semibold text-ink-soft">{hasFields ? '填写信息' : '怎么下单'}</h2>
+        {/* 工单底稿：表单 = 待盖章的工单（intake-sheet），提交成功盖「已收单」章（见 submitted 分支）。
+            标题跟着事实走：无字段时说「填写信息」是撒谎（框里一个字段都没有），
+            实测这条曾被顾客走到 —— 屏上是「填写信息」+ 一个「提交信息」按钮，中间零个输入框。 */}
+        <div className="intake-sheet p-6 animate-fade-in-up stagger-2">
+          <div className="intake-head">
+            <i aria-hidden="true">{SERVICE_SEQ[service.id] ?? '··'}</i>
+            {/* h2 语义保留（serviceFormNoFields 用 getByRole('heading') 断言），strong 换成 h2 */}
+            <h2 className="intake-head-title">{hasFields ? '填写信息' : '怎么下单'}</h2>
+            <span aria-hidden="true">Service Intake</span>
           </div>
 
           <div className="space-y-5">
@@ -332,7 +341,7 @@ export default function ServiceFormPage() {
                     读屏只念「编辑框」不念字段名 */}
                 <label
                   htmlFor={`sf-${field.key}`}
-                  className="flex items-center gap-1.5 text-sm font-medium text-stone-700 mb-2.5"
+                  className="intake-label mb-2.5"
                 >
                   {field.label}
                   {field.required && <span className="text-red-700 text-xs" aria-hidden="true">*</span>}
@@ -375,7 +384,7 @@ export default function ServiceFormPage() {
                          读屏不会念隐藏元素，给它加 aria-invalid 等于没加。 */
                       aria-invalid={errorField === field.key || undefined}
                       aria-describedby={[field.hint ? `sf-hint-${field.key}` : '', errorField === field.key ? 'sf-error' : ''].filter(Boolean).join(' ') || undefined}
-                      className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-8 text-center text-stone-500 text-sm hover:border-brand-500 hover:text-brand-300 hover:bg-brand-50/30 transition duration-300 active:scale-[0.98]"
+                      className="paste-zone py-8 text-center text-stone-500 text-sm active:scale-[0.98]"
                     >
                       <span className="block text-2xl mb-2" aria-hidden="true">📷</span>
                       <span className="font-medium">点击上传截图</span>
@@ -400,20 +409,21 @@ export default function ServiceFormPage() {
                     {images.length > 0 && (
                       <ul className="mb-3 space-y-2">
                         {images.map((_, i) => (
-                          <li key={i} className="flex items-center gap-2.5 rounded-xl border border-gray-200 px-3 py-2.5 bg-panel">
+                          <li key={i} className="clip-chip">
                             <span className="text-base shrink-0" aria-hidden="true">📄</span>
-                            {/* 名字来自上传结果，不是 img：img 里存的是 r2:<key> 或 data: URL，读不出文件名 */}
-                            <span className="min-w-0 flex-1 text-xs text-ink-soft truncate">
+                            {/* 名字来自上传结果，不是 img：img 里存的是 r2:<key> 或 data: URL，读不出文件名。
+                                「以内联方式提交（未走云存储）」这句是测试锚点+顾客知情权，原文保留 */}
+                            <span className="clip-name">
                               {fileMeta[i]?.name || `文件 ${i + 1}`}
                               {fileMeta[i]?.inline && (
-                                <span className="block text-stone-500 mt-0.5">以内联方式提交（未走云存储）</span>
+                                <small>以内联方式提交（未走云存储）</small>
                               )}
                             </span>
                             <button
                               onClick={() => removeFile(i)}
                               aria-label={`删除文件 ${fileMeta[i]?.name || i + 1}`}
                               style={{ '--tap-x': '10px', '--tap-y': '10px' } as CSSProperties}
-                              className="tap-44 shrink-0 w-7 h-7 rounded-lg bg-gray-100 text-stone-600 flex items-center justify-center"
+                              className="tap-44 clip-x flex items-center justify-center"
                             >
                               <span aria-hidden="true">×</span>
                             </button>
@@ -426,7 +436,7 @@ export default function ServiceFormPage() {
                       /* 与图片分支同规：关联落在**可见按钮**上（隐藏的 input 读屏不念） */
                       aria-invalid={errorField === field.key || undefined}
                       aria-describedby={[field.hint ? `sf-hint-${field.key}` : '', errorField === field.key ? 'sf-error' : ''].filter(Boolean).join(' ') || undefined}
-                      className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-8 text-center text-stone-500"
+                      className="paste-zone py-8 text-center text-stone-500"
                     >
                       <span className="block text-2xl mb-2" aria-hidden="true">🖨️</span>
                       <span className="font-medium">点击选择要打印的文件</span>

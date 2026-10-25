@@ -82,9 +82,9 @@
   {
    "id": "first-load-css",
    "pattern": "index-*.css",
-   "budget": 19400,
-   "measuredAtBuild": "17538B gz（2026-10-25 本机 npx vite build，HEAD e7ab6b5 后）",
-   "note": "首屏 CSS（聚合预算里 firstLoadCss 的分项化）。2026-10-25 由 12300 上调 19400（实测 ×1.10）：v4 纯暗把昼/夜两套调色面折叠成一套常载层（结构性增长，见 CHANGELOG）。原注：2026-10-08 由 11100 上调到 12400：打印页（/print）组件的 Tailwind 工具类被全量扫描进主 CSS（Tailwind 不按路由拆分），+123B gz；打印页专属样式已拆 print.css 随路由加载（见 CHANGELOG），本条涨的是工具类面"
+   "budget": 21900,
+   "measuredAtBuild": "19901B gz（2026-10-25 本机 npx vite build，HEAD 95c0624+ 收据/灯箱/工单三轮）",
+   "note": "首屏 CSS（聚合预算里 firstLoadCss 的分项化）。2026-10-25 由 12300 上调 19400（实测 ×1.10）：v4 纯暗把昼/夜两套调色面折叠成一套常载层（结构性增长，见 CHANGELOG）。原注：2026-10-08 由 11100 上调到 12400：打印页（/print）组件的 Tailwind 工具类被全量扫描进主 CSS（Tailwind 不按路由拆分），+123B gz；打印页专属样式已拆 print.css 随路由加载（见 CHANGELOG），本条涨的是工具类面；2026-10-25 第87轮按规则重推导 19400→21900B（工单底稿 CSS 段结构性扩张，归因 CHANGELOG 同日条目）"
   },
   {
    "id": "print-page",

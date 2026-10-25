@@ -1,4 +1,22 @@
 ## [未发布]
+### 2026-10-25 工单底稿：服务表单页票据化 + 看板 b4 提亮（第 87 轮）
+
+- ServiceFormPage 接「工单底稿」语言（表单 = 待盖章的工单，与支付链路收据同店）：intake-sheet
+  装订缘 + 编号头（工单号 = SERVICES 目录声明序 SERVICE_SEQ 派生，不写死 id）+ 字段标签铜点腔
+  （intake-label，h2 语义保留——noFields 测试用 getByRole('heading') 断言）+ 上传区换 paste-zone
+  呼吸引导线 + 文件 chip 换奶油纸贴条 clip-chip（「以内联方式提交」锚点原文保留）。
+- 提交成功卡 → 盖章工单：intake-done 锯齿撕边 + 黄铜「已收单/超柿服务台」章（receipt-stamp
+  在册曲线）；「提交成功」三处测试锚点原文保留。第三次踩「return(/&& 括号内放 JSX 注释」坑，
+  三次都是 tsc 当场拦——教训已在 part181/182 各记一次。
+- 看板 b4 米纸白提亮一档（#d8cdbb→#e6ddca，index.css 与 chartOptions 兜底色双真相源同步）：
+  三分类亮度阶 0.256/0.504（对账 ≥0.07）、对比度 10.39:1（≥3），chartOptions.test 21 用例全绿；
+  stub 看板有数据态对比度闸 2 用例过。
+- 预算：首屏 CSS 实测 19901B → 分项 19400→21900B（×1.10 规则）、聚合 20→22KB（22*1024 整数
+  乘法形态——治理器 bundleBudget 正则只认 \d*\d 整数，21.5 写法会让 F2 缺键 UNVERIFIED）、
+  registry firstLoadCssBytes 同步 22528；ServiceFormPage 4929B 余 171B 不动。
+- 验证：tsc 0 / oxlint 0 / vitest 149 文件 2172 全绿 / 视觉闸 16 spec 全绿 / smoke e2e 4 过 /
+  服务表单四态（delivery/print/snacks 出口/提交成功）渲染对比度 0 违规 / 三项体积治理闸 GREEN。
+
 ### 2026-10-25 货架灯箱 + 购物车票脚 + 柜员灯牌（第 86 轮）
 
 - 商品详情页：主图区（单图/轮播两路）接「货架灯箱」——发光暖台渐晕底板 + multiply 融合
