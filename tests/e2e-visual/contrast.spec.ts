@@ -408,6 +408,18 @@ const ROUTES: RouteSpec[] = [
   // 关掉模态后的表单字段（标签/hint/上传区/约束文字）——遮挡判定把它们从上一条里豁免了
   { name: 'service-form-fields', route: '/#/service/delivery', prepare: dismissServicePopup, expectText: '电话号' },
   { name: 'order-confirm', route: '/#/order-confirm', prepare: seedCartThen('/#/order-confirm'), expectText: '确认订单' },
+  /**
+   * 打烊态确认页（2026-10-25 补，CI 实证立此条）。
+   *
+   * 由来：本轮 CI 在北京时间凌晨跑，contrast 扫到 order-confirm 的打烊按钮
+   * 「非营业时间 - 仍要下单」= bg-amber-600 + text-ink ⇒ 实测 2.2:1 不过 AA；
+   * 而本地营业时段跑同一条判据时这个按钮**根本不渲染** ⇒ 绿。这正是本文件头注里
+   * 批评过的「看运气才生效的判据」：缺陷不会只在凌晨出现，但判据只在凌晨看得见它。
+   * 处置两步（缺一不可）：① 修色（铜底配深褐字，amber-600 上 6.7:1）；
+   * ② 把该态**钉钟**成常驻路由，让判据每天任何时刻都必然扫到它。
+   * 钉 03:00 沿用 home-closed-pinned 的口径（工作日深夜打烊）。
+   */
+  { name: 'order-confirm-closed', route: '/#/order-confirm', clock: '2026-10-22T03:00:00+08:00', prepare: seedCartThen('/#/order-confirm'), expectText: '仍要下单' },
   // 「查询订单状态」只在成功页出现（确认页没有），且不受网络态改写标题影响
   { name: 'order-success', route: '/#/order-confirm', prepare: walkToSuccess, expectText: '查询订单状态' },
   // expectText 从「选择支付方式」改成「本次应付」—— 钉的是 2026-10-24 这次修复的

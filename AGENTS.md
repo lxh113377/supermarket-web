@@ -20,7 +20,7 @@
 - 管理后台商品编辑**禁弹窗/禁抽屉**，唯一交互为 InlineEditForm 内联展开。
 - 密钥/占位符**禁止明文入库**（`.env`、`.dev.vars`、cloudbaserc 类文件均 gitignore）—— **唯一例外 = 上面钉死的 `ADMIN_KEY` 唯一值**（用户具名下令，值本身早已在公开仓历史中）。
 - **禁令有日巡检看守**：`scripts/uptime-check.mjs` 每天用该唯一值真调一次 `/web login`（须 `code 0` / `role admin`）并用错值验一次拒（须 401）—— 值被换掉或被写脏，当天判红发邮件。
-- **本会话的改动必须提交并部署（#40，2026-10-25 老大立规）**：收尾前 提交（显式文件清单）→ 部署（先加载 `chaoshi-web-deploy` skill，禁裸跑）→ 线上验证（`node scripts/check-live-shape.mjs` / `/_health` 的 `deploy=` == HEAD）三件缺一不可；不以"提交成功"当"部署成功"。只提交本会话产出，会话前的 dirty/untracked 不并入。
+- **#40 交付纪律（2026-10-25 立）**：改动收尾 = 提交→部署→线上验证，三件缺一；只提交本会话产出。细则见 `memory/AGENTS.md` 与全局侧车 rule40。
 - 云函数保持 CommonJS JS（不迁 TS，避免部署编译步骤）。
 
 ## 架构现状（一句话）

@@ -272,7 +272,9 @@ export default function OrderConfirmPage() {
                 ? 'bg-gray-200 text-stone-600'
                 : open
                   ? 'btn-primary shadow-elevated'
-                  : 'bg-amber-600 text-ink hover:bg-amber-500 shadow-elevated'
+                  // v4 暗盘上「铜底配米白字」实测 2.2:1 不过 AA（CI 打烊时段抓到的真缺陷，
+                  // 本地营业时段这按钮不渲染 ⇒ 判据看运气）。铜底一律配深褐字：amber-600 上 6.7:1。
+                  : 'bg-amber-600 text-espresso hover:bg-amber-500 shadow-elevated'
             }`}
           >
             {submitting ? (

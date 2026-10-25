@@ -1,4 +1,17 @@
 ## [未发布]
+### 2026-10-25 首轮 CI 双红修复（gates + visual）—— 上线阻断件
+
+- **visual 红（真缺陷，判据时钟盲区）**：CI 在北京时间凌晨跑，contrast 扫到 order-confirm
+  打烊态按钮「非营业时间 - 仍要下单」= `bg-amber-600 text-ink` 实测 **2.2:1** 不过 AA；
+  本地营业时段这按钮根本不渲染 ⇒ 同一条判据绿。两处一起改：
+  ① 修色 ⇒ `text-espresso`（铜底配深褐字，amber-600 上 6.7:1）；
+  ② 加钉钟路由 `order-confirm-closed`（clock 03:00 + expectText「仍要下单」）⇒ 判据不再看运气。
+  反向对照：临时挂回旧色 ⇒ 该路由精确复现 2.2:1 判红；还原即绿（探针有牙齿已实证）。
+- **gates 红（自伤）**：本会话把 #40 红线写进仓库 `AGENTS.md` 顶到 4184B > 4096B 阈值，
+  memory-volume 的 --all 腿点名超限。处置 = 该行收成指针（细节留 `memory/AGENTS.md` 与全局侧车），
+  文件回到 3965B；`npx vitest run tests/memoryVolume.test.js` 49 用例全绿。
+- 验证：tsc 0 / oxlint 0 / contrast 35 条（含新钉钟路由）全绿 / vitest 149 文件 2172 全绿。
+
 ### 2026-10-25 交付纪律入册：所有会话提交并部署自己的改动（#40 铁律）
 
 - 老大立规「记住,以后所有会话都需要提交与部署属于自己的改动」⇒ 落 P0 锚点 #40：
