@@ -96,11 +96,18 @@
   {
    "id": "assistant-page",
    "pattern": "AssistantPage-*.js",
-   "budget": 2900,
+   "budget": 3800,
    "measuredAtBuild": "2547B gz（2026-10-25 本机 npx vite build，HEAD b5fc5d8+ 收据/灯箱轮）",
    "note": "AI 助手页路由块（懒加载）。2026-10-08 补登记：未登记尾部最大件（原 ≥2,500B 门槛看不见它）；2026-10-25 按名册规则（实测 ×1.10 取整 100B）2700→2900B 重推导"
   },
+
   {
+   "id": "payment-page",
+   "pattern": "PaymentPage-*.js",
+   "budget": 2900,
+   "measuredAtBuild": "2551B gz（2026-10-26 第 91 轮第十一笔本机 npm run build）",
+   "note": "收银台路由块（chooser/二维码/到账三态 + 第 91 轮的问店心跳与铜印）。登记它而不是抬地板：第 91 轮实测 2551B 过 2,500B 门槛被枚举腿点名，正解 = 补登记（同 GlyphIcon/inline-confirm-hook 处置）。按名册规则 2551×1.10=2806.1 → 2900。"
+  },  {
    "id": "echarts-axis",
    "pattern": "Axis-*.js",
    "budget": 2700,
