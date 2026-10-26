@@ -27,6 +27,21 @@ const JS_EXTS = new Set(['.js', '.cjs', '.mjs'])
 const BLIND_EXTS = new Set(['.ts', '.tsx', '.jsx'])
 const PY_EXTS = new Set(['.py'])
 
+/**
+ * 末行换行腿（第 91 轮加，理由是一手复发计数）：同一个动作「read 全文 → join(\n) → write 全文」
+ * 在本轮**四次**丢掉文件末尾的换行符（ProductCard / OrderConfirmPage / ServiceFormPage 三件被 CI 的
+ * verify:eol E7 抓到 = cb20506 那笔 gates 红；DashboardTab 第四件被本地 npm run verify 全链抓到）。
+ * E7 判的是**已提交的 blob** ⇒ 它只能在提交后或 CI 上现形，时机永远晚一步；本闸判的正是暂存区 blob，
+ * 于是把时机挪回 git commit 那一刻。这是「机制而非措辞」：不靠我记得每次补换行。
+ *
+ * 扩展名面取自 .gitattributes 里被钉成 text 的那些（不含 binary 件：它们的字节里出现 0A 是巧合，
+ * 判它们等于把内容当行尾）。空件豁免 —— 与 verify:eol E7 同口径：空文件没有最后一行可言。
+ */
+const TEXT_EXTS = new Set([
+  '.sh', '.md', '.json', '.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx',
+  '.css', '.html', '.svg', '.py', '.yml', '.yaml',
+])
+
 /** 暂存面：NUL 分隔取路径（文件名可含空格/中文；按行取会截断 —— 实测过的坑）。 */
 export function stagedFiles(cwd = process.cwd()) {
   const r = spawnSync('git', ['diff', '--cached', '--name-only', '--diff-filter=ACM', '-z'],
@@ -51,6 +66,13 @@ export function check({ cwd = process.cwd(), scratch = mkdtempSync(join(tmpdir()
   let pySkipped = 0
   for (const p of face.list) {
     const ext = extname(p)
+    // 末行换行腿：独立于语法腿 —— .ts/.tsx 是语法盲区，但末行换行照样能判（本轮那四件正是 .tsx）
+    if (TEXT_EXTS.has(ext)) {
+      const nb = indexBlob(p, cwd)
+      if (nb && nb.length > 0 && nb[nb.length - 1] !== 0x0a) {
+        rows.push({ path: p, ok: false, why: 'insert_final_newline：暂存 blob 末字节不是 LF（' + nb.length + 'B 缺末行换行；与 verify:eol E7 同口径，本闸把它挪到提交前）' })
+      }
+    }
     if (BLIND_EXTS.has(ext)) { blind++; continue }
     if (!JS_EXTS.has(ext) && !PY_EXTS.has(ext)) continue
     const bytes = indexBlob(p, cwd)
@@ -82,7 +104,7 @@ export function check({ cwd = process.cwd(), scratch = mkdtempSync(join(tmpdir()
     verdict: bad.length ? 'RED' : 'GREEN',
     rc: bad.length ? 1 : 0,
     rows: bad,
-    counts: { staged: face.list.length, checked: face.list.length - blind - pySkipped, blind, pySkipped },
+    counts: { staged: face.list.length, checked: face.list.length - blind - pySkipped, blind, pySkipped, nlChecked: face.list.filter((p) => TEXT_EXTS.has(extname(p))).length },
   }
 }
 
@@ -99,7 +121,7 @@ export function main() {
   const c = res.counts
   if (!c.staged) { console.log('[staged-syntax] 跳过：暂存面 0 个文件 ⇒ 没有对象可判（这是"跳过"，不是"通过"）'); return 0 }
   for (const r of res.rows) console.log(`FAIL ${r.path} :: ${r.why}`)
-  console.log(`${res.verdict === 'GREEN' ? 'GATE-PASS' : 'GATE-FAIL'} staged-syntax :: 暂存 ${c.staged} 个文件｜本闸判 ${c.checked} 个｜盲区 ${c.blind} 个（.ts/.tsx/.jsx 由 oxlint + typecheck 判，**本闸没判过**）${c.pySkipped ? `｜python 不可用跳过 ${c.pySkipped} 个 .py` : ''}`)
+  console.log(`${res.verdict === 'GREEN' ? 'GATE-PASS' : 'GATE-FAIL'} staged-syntax :: 暂存 ${c.staged} 个文件｜本闸判 ${c.checked} 个｜盲区 ${c.blind} 个（.ts/.tsx/.jsx 由 oxlint + typecheck 判，**本闸没判过**）｜末行换行判 ${c.nlChecked} 个${c.pySkipped ? `｜python 不可用跳过 ${c.pySkipped} 个 .py` : ''}`)
   return res.rc
 }
 

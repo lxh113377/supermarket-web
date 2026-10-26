@@ -108,6 +108,37 @@ describe('check-staged-syntax：暂存区语法闸', () => {
       expect(back.status, '还原后必须重新判红（证明那个 0 是变异造成的）').toBe(1)
     }
   })
+
+  // ── 末行换行腿（第 91 轮）──
+  // 立它的理由是一手复发计数：同一个动作「read 全文 → join(`n) → write 全文」在本轮四次丢掉
+  // 文件末尾换行（三件被 CI 的 verify:eol E7 抓到 = cb20506 那笔 gates 红，第四件被本地全链抓到）。
+  // 本腿把时机从「提交后 / CI」挪回「git commit 那一刻」。它自己必须有自证 —— 本轮正在修的就是
+  // 「写了不生效」那一族，加一条没人验的腿等于再埋一个。
+  it('末行换行腿正向：.tsx 缺末行 LF ⇒ 判红并点名（.ts/.tsx 是语法盲区，但行尾照样能判）', () => {
+    const dir = gitRepo({ 'typed.tsx': 'export const a = 1' })   // 刻意不给末尾换行
+    const r = run(dir)
+    expect(r.status, `缺末行换行必须拦下来：${r.stdout}`).toBe(1)
+    expect(r.stdout).toContain('FAIL typed.tsx')
+    expect(r.stdout).toContain('insert_final_newline')
+    expect(r.stdout).toContain('GATE-FAIL')
+  })
+
+  it('末行换行腿反向半边：补齐 LF 后同一件必须翻绿（证明上一条的红因就是那一个字节）', () => {
+    const dir = gitRepo({ 'typed.tsx': 'export const a = 1' })
+    expect(run(dir).status, '前置：坏版本必须判红').toBe(1)
+    writeFileSync(join(dir, 'typed.tsx'), 'export const a = 1' + String.fromCharCode(10), 'utf8')
+    expect(assertCliRan(spawnSync('git', ['add', '--', 'typed.tsx'], { cwd: dir, encoding: 'utf8' }), { label: 'git add 好版本' }).status).toBe(0)
+    const again = run(dir)
+    expect(again.status, `补了末行换行还判红 ⇒ 本腿在误伤：${again.stdout}`).toBe(0)
+    expect(again.stdout).toMatch(/末行换行判 1 个/)
+  })
+
+  it('末行换行腿边界：空件豁免（没有「最后一行」可言），不误伤好件', () => {
+    const dir = gitRepo({ 'empty.md': '', 'ok.css': 'a{color:red}' + String.fromCharCode(10) })
+    const r = run(dir)
+    expect(r.status, `空件不该被行尾腿误伤：${r.stdout}`).toBe(0)
+    expect(r.stdout).toMatch(/末行换行判 2 个/)
+  })
 })
 
 // 夹具目录是临时件：挂在 afterAll（写成模块尾部的裸循环会在测试跑之前就把它删光）。
