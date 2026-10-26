@@ -1,0 +1,88 @@
+{
+  "label": "edge+replica",
+  "base": "http://127.0.0.1:5193",
+  "at": "2026-10-26T15:31:15.946Z",
+  "shell": {
+    "status": 200,
+    "headers": {
+      "cache-control": "public, max-age=0, must-revalidate",
+      "content-encoding": "br",
+      "content-length": "21450",
+      "content-type": "text/html; charset=utf-8",
+      "date": "Mon, 26 Oct 2026 15:31:15 GMT",
+      "etag": "\"eba5dce8d406706a\"",
+      "link": "</assets/index-BIoJHo8Q.js>; rel=preload; as=script; crossorigin, </assets/HomePage-W7CkpB2H.js>; rel=preload; as=script; crossorigin, </fonts/bricolage-latin-wght.woff2>; rel=preload; as=font; type=font/woff2; crossorigin, </fonts/display-serif-cjk.woff2>; rel=preload; as=font; type=font/woff2; crossorigin",
+      "permissions-policy": "geolocation=(), microphone=(), camera=(), geolocation=(), microphone=(), camera=()",
+      "referrer-policy": "strict-origin-when-cross-origin, strict-origin-when-cross-origin",
+      "server": "supermarket-edge/0.1",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload, max-age=31536000; includeSubDomains; preload",
+      "vary": "accept-encoding",
+      "x-content-type-options": "nosniff, nosniff",
+      "x-edge-shell": "replica",
+      "x-frame-options": "DENY, DENY"
+    },
+    "decodedBytes": 136036,
+    "transferBytes": 21450,
+    "ttfbMs": 1.4679,
+    "totalMs": 2.2416,
+    "samples": 5
+  },
+  "shell304": {
+    "status": 304,
+    "headers": {
+      "cache-control": "public, max-age=0, must-revalidate",
+      "date": "Mon, 26 Oct 2026 15:31:15 GMT",
+      "etag": "\"eba5dce8d406706a\"",
+      "link": "</assets/index-BIoJHo8Q.js>; rel=preload; as=script; crossorigin, </assets/HomePage-W7CkpB2H.js>; rel=preload; as=script; crossorigin, </fonts/bricolage-latin-wght.woff2>; rel=preload; as=font; type=font/woff2; crossorigin, </fonts/display-serif-cjk.woff2>; rel=preload; as=font; type=font/woff2; crossorigin",
+      "permissions-policy": "geolocation=(), microphone=(), camera=(), geolocation=(), microphone=(), camera=()",
+      "referrer-policy": "strict-origin-when-cross-origin, strict-origin-when-cross-origin",
+      "server": "supermarket-edge/0.1",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload, max-age=31536000; includeSubDomains; preload",
+      "vary": "accept-encoding",
+      "x-content-type-options": "nosniff, nosniff",
+      "x-edge-shell": "replica",
+      "x-frame-options": "DENY, DENY"
+    },
+    "decodedBytes": 0,
+    "transferBytes": 0,
+    "ttfbMs": 0.565,
+    "totalMs": 0.5923,
+    "samples": 5
+  },
+  "entryChunk": {
+    "path": "assets/index-BIoJHo8Q.js",
+    "status": 200,
+    "headers": {
+      "cache-control": "public, max-age=31536000, immutable",
+      "content-encoding": "br",
+      "content-length": "5429",
+      "content-type": "text/javascript; charset=utf-8",
+      "date": "Mon, 26 Oct 2026 15:31:15 GMT",
+      "etag": "\"522a4da0670cedad\"",
+      "permissions-policy": "geolocation=(), microphone=(), camera=(), geolocation=(), microphone=(), camera=()",
+      "referrer-policy": "strict-origin-when-cross-origin, strict-origin-when-cross-origin",
+      "server": "supermarket-edge/0.1",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload, max-age=31536000; includeSubDomains; preload",
+      "vary": "accept-encoding",
+      "x-content-type-options": "nosniff, nosniff",
+      "x-frame-options": "DENY, DENY"
+    },
+    "decodedBytes": 17189,
+    "transferBytes": 5429,
+    "ttfbMs": 0.9915,
+    "totalMs": 1.3731,
+    "samples": 5
+  },
+  "shellGzipOnly": {
+    "bytes": 26262,
+    "encoding": "gzip"
+  },
+  "shellIdentity": {
+    "bytes": 136036,
+    "encoding": "identity"
+  },
+  "health": {
+    "status": 200,
+    "body": "{\"status\":\"ok\",\"db\":\"unknown\",\"ts\":\"2026-10-26T15:31:15.946Z\",\"ai\":{\"configured\":false,\"source\":\"rule\"},\"deploy\":null,\"edge\":{\"uptimeSeconds\":4,\"assets\":252,\"cacheHits\":0,\"cacheMisses\":0,\"inlineCss\":130973,\"routePreload\":\"assets/HomePage-W7CkpB2H.js\"}}"
+  }
+}

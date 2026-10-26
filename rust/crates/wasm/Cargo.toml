@@ -1,0 +1,17 @@
+[package]
+name = "supermarket-wasm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "购物袋计价 / 目录检索 / CSV 导出的 WASM 加速器（C ABI 裸导出，无 wasm-bindgen glue）"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# wasm 侧只多一个 serde_json：协议本身是 JSON（与前端既有数据结构同形，
+# 不另造二进制格式 —— 二进制协议能在字节上省一点，但会让「跨语言对账」变难，
+# 而这份加速器的第一价值是**算得一样**，不是省那几百字节）。
+supermarket-core = { path = "../core" }
+serde_json = "1"

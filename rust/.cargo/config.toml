@@ -1,0 +1,5 @@
+# 保持「一句话就能在本机与 CI 复现」：不写死任何镜像地址。
+# （本机首次装依赖时用 RUSTUP_DIST_SERVER/CARGO_REGISTRIES 环境变量提速，
+#   但仓内不留私有路径 —— 换一台机器 clone 下来仍然是标准 crates.io。）
+[build]
+# 只在 wasm 目标上开体积档；宿主目标仍走 [profile.release]

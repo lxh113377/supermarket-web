@@ -1,0 +1,701 @@
+{
+  "at": "2026-10-26T15:29:05.407Z",
+  "lighthouse": {
+    "cli": "D:\\app-cache\\npm-cache\\_npx\\325431a8ccff5984\\node_modules\\lighthouse\\cli\\index.js",
+    "version": "12.6.0"
+  },
+  "browser": "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
+  "config": {
+    "formFactor": "mobile",
+    "throttlingMethod": "simulate"
+  },
+  "samples": 7,
+  "arms": [
+    "baseline",
+    "edge",
+    "replica"
+  ],
+  "results": {
+    "baseline": {
+      "url": "http://127.0.0.1:5181/",
+      "runs": [
+        {
+          "fcp": 1745.3853500000005,
+          "lcp": 4662.2569,
+          "si": 2234.7163133805743,
+          "tbt": 11,
+          "ttfb": 1.244,
+          "cls": 0,
+          "bytes": 574940,
+          "requests": 49,
+          "docBytes": 1600,
+          "scriptBytes": 108320,
+          "cssBytes": 24156,
+          "fontBytes": 257396,
+          "unusedJs": 150,
+          "renderBlocking": 150,
+          "lcpElement": "<span>"
+        },
+        {
+          "fcp": 1755.0645,
+          "lcp": 4638.064499999999,
+          "si": 2157.1198399796726,
+          "tbt": 12,
+          "ttfb": 1.226,
+          "cls": 0,
+          "bytes": 559000,
+          "requests": 51,
+          "docBytes": 1600,
+          "scriptBytes": 108320,
+          "cssBytes": 24156,
+          "fontBytes": 257396,
+          "unusedJs": 150,
+          "renderBlocking": 150,
+          "lcpElement": "<span>"
+        },
+        {
+          "fcp": 1788.56525,
+          "lcp": 4614.0435,
+          "si": 2295.339441057102,
+          "tbt": 13,
+          "ttfb": 0.894,
+          "cls": 0,
+          "bytes": 542104,
+          "requests": 51,
+          "docBytes": 1600,
+          "scriptBytes": 108320,
+          "cssBytes": 24156,
+          "fontBytes": 257396,
+          "unusedJs": 150,
+          "renderBlocking": 150,
+          "lcpElement": "<span>"
+        },
+        {
+          "fcp": 1709.2213000000002,
+          "lcp": 4497.8142,
+          "si": 2013.5369119974234,
+          "tbt": 0,
+          "ttfb": 0.6439999999999999,
+          "cls": 0,
+          "bytes": 544874,
+          "requests": 51,
+          "docBytes": 1600,
+          "scriptBytes": 108320,
+          "cssBytes": 24156,
+          "fontBytes": 257396,
+          "unusedJs": 150,
+          "renderBlocking": 150,
+          "lcpElement": "<span>"
+        },
+        {
+          "fcp": 1630.2564499999999,
+          "lcp": 4371.5043,
+          "si": 2023.094948028745,
+          "tbt": 0,
+          "ttfb": 0.8360000000000001,
+          "cls": 0,
+          "bytes": 505412,
+          "requests": 49,
+          "docBytes": 1600,
+          "scriptBytes": 108320,
+          "cssBytes": 24156,
+          "fontBytes": 257396,
+          "unusedJs": 150,
+          "renderBlocking": 150,
+          "lcpElement": "<span>"
+        },
+        {
+          "fcp": 1759.5016500000002,
+          "lcp": 4534.0011,
+          "si": 2211.1558339703142,
+          "tbt": 0,
+          "ttfb": 1.174,
+          "cls": 0,
+          "bytes": 493682,
+          "requests": 51,
+          "docBytes": 1600,
+          "scriptBytes": 108320,
+          "cssBytes": 24156,
+          "fontBytes": 257396,
+          "unusedJs": 150,
+          "renderBlocking": 150,
+          "lcpElement": "<span>"
+        },
+        {
+          "fcp": 1623.8476500000002,
+          "lcp": 4894.5651,
+          "si": 1836.7890040123032,
+          "tbt": 0,
+          "ttfb": 0.7509999999999999,
+          "cls": 0,
+          "bytes": 567421,
+          "requests": 51,
+          "docBytes": 1600,
+          "scriptBytes": 108320,
+          "cssBytes": 24156,
+          "fontBytes": 257396,
+          "unusedJs": 300,
+          "renderBlocking": 150,
+          "lcpElement": "<span>"
+        }
+      ],
+      "stats": {
+        "fcp": {
+          "median": 1745.3853500000005,
+          "min": 1623.8476500000002,
+          "max": 1788.56525,
+          "n": 7
+        },
+        "lcp": {
+          "median": 4614.0435,
+          "min": 4371.5043,
+          "max": 4894.5651,
+          "n": 7
+        },
+        "si": {
+          "median": 2157.1198399796726,
+          "min": 1836.7890040123032,
+          "max": 2295.339441057102,
+          "n": 7
+        },
+        "tbt": {
+          "median": 0,
+          "min": 0,
+          "max": 13,
+          "n": 7
+        },
+        "ttfb": {
+          "median": 0.894,
+          "min": 0.6439999999999999,
+          "max": 1.244,
+          "n": 7
+        },
+        "cls": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "n": 7
+        },
+        "bytes": {
+          "median": 544874,
+          "min": 493682,
+          "max": 574940,
+          "n": 7
+        },
+        "requests": {
+          "median": 51,
+          "min": 49,
+          "max": 51,
+          "n": 7
+        },
+        "docBytes": {
+          "median": 1600,
+          "min": 1600,
+          "max": 1600,
+          "n": 7
+        },
+        "scriptBytes": {
+          "median": 108320,
+          "min": 108320,
+          "max": 108320,
+          "n": 7
+        },
+        "cssBytes": {
+          "median": 24156,
+          "min": 24156,
+          "max": 24156,
+          "n": 7
+        },
+        "fontBytes": {
+          "median": 257396,
+          "min": 257396,
+          "max": 257396,
+          "n": 7
+        },
+        "unusedJs": {
+          "median": 150,
+          "min": 150,
+          "max": 300,
+          "n": 7
+        },
+        "renderBlocking": {
+          "median": 150,
+          "min": 150,
+          "max": 150,
+          "n": 7
+        }
+      },
+      "median": {
+        "fcp": 1745.3853500000005,
+        "lcp": 4614.0435,
+        "si": 2157.1198399796726,
+        "tbt": 0,
+        "ttfb": 0.894,
+        "cls": 0,
+        "bytes": 544874,
+        "requests": 51,
+        "docBytes": 1600,
+        "scriptBytes": 108320,
+        "cssBytes": 24156,
+        "fontBytes": 257396,
+        "unusedJs": 150,
+        "renderBlocking": 150
+      },
+      "lcpElement": "<span>"
+    },
+    "edge": {
+      "url": "http://127.0.0.1:5182/",
+      "runs": [
+        {
+          "fcp": 1588.0315,
+          "lcp": 3991.225199999999,
+          "si": 2353.069331965679,
+          "tbt": 11,
+          "ttfb": 0.512,
+          "cls": 0,
+          "bytes": 690880,
+          "requests": 48,
+          "docBytes": 21822,
+          "scriptBytes": 141400,
+          "cssBytes": 0,
+          "fontBytes": 258257,
+          "unusedJs": 150,
+          "renderBlocking": 0,
+          "lcpElement": "<img width=\"800\" height=\"800\" alt=\"解馋 · 甜咸都行 商品摄影\" fetchpriority=\"high\" src=\"/im"
+        },
+        {
+          "fcp": 1628.7416249999999,
+          "lcp": 4362.5933,
+          "si": 2197.9331840011882,
+          "tbt": 19.351675,
+          "ttfb": 0.5299999999999999,
+          "cls": 0,
+          "bytes": 520243,
+          "requests": 48,
+          "docBytes": 21822,
+          "scriptBytes": 104354,
+          "cssBytes": 0,
+          "fontBytes": 258257,
+          "unusedJs": 0,
+          "renderBlocking": 0,
+          "lcpElement": "<span>"
+        },
+        {
+          "fcp": 1828.9146250000001,
+          "lcp": 3915.9317,
+          "si": 4934.828827976842,
+          "tbt": 5,
+          "ttfb": 0.5419999999999999,
+          "cls": 0,
+          "bytes": 628982,
+          "requests": 48,
+          "docBytes": 21822,
+          "scriptBytes": 136887,
+          "cssBytes": 0,
+          "fontBytes": 258257,
+          "unusedJs": 150,
+          "renderBlocking": 0,
+          "lcpElement": "<span>"
+        },
+        {
+          "fcp": 1613.9313750000001,
+          "lcp": 4433.7451,
+          "si": 2118.8326739869694,
+          "tbt": 0,
+          "ttfb": 0.27199999999999996,
+          "cls": 0,
+          "bytes": 469871,
+          "requests": 50,
+          "docBytes": 21822,
+          "scriptBytes": 104354,
+          "cssBytes": 0,
+          "fontBytes": 258257,
+          "unusedJs": 300,
+          "renderBlocking": 0,
+          "lcpElement": "<span>"
+        },
+        {
+          "fcp": 1610.985375,
+          "lcp": 4506.3883,
+          "si": 1774.9065080104879,
+          "tbt": 0,
+          "ttfb": 0.19000000000000006,
+          "cls": 0,
+          "bytes": 570952,
+          "requests": 50,
+          "docBytes": 21822,
+          "scriptBytes": 104354,
+          "cssBytes": 0,
+          "fontBytes": 258257,
+          "unusedJs": 150,
+          "renderBlocking": 0,
+          "lcpElement": "<span>"
+        },
+        {
+          "fcp": 1645.6982500000001,
+          "lcp": 4833.3586,
+          "si": 2009.4217939904063,
+          "tbt": 0,
+          "ttfb": 0.18,
+          "cls": 0,
+          "bytes": 556549,
+          "requests": 50,
+          "docBytes": 21822,
+          "scriptBytes": 104354,
+          "cssBytes": 0,
+          "fontBytes": 258257,
+          "unusedJs": 150,
+          "renderBlocking": 0,
+          "lcpElement": "<span>"
+        },
+        {
+          "fcp": 1610.661875,
+          "lcp": 4357.7295,
+          "si": 2056.6145820028305,
+          "tbt": 0,
+          "ttfb": 0.43000000000000005,
+          "cls": 0,
+          "bytes": 568469,
+          "requests": 48,
+          "docBytes": 21822,
+          "scriptBytes": 104354,
+          "cssBytes": 0,
+          "fontBytes": 258257,
+          "unusedJs": 150,
+          "renderBlocking": 0,
+          "lcpElement": "<span>"
+        }
+      ],
+      "stats": {
+        "fcp": {
+          "median": 1613.9313750000001,
+          "min": 1588.0315,
+          "max": 1828.9146250000001,
+          "n": 7
+        },
+        "lcp": {
+          "median": 4362.5933,
+          "min": 3915.9317,
+          "max": 4833.3586,
+          "n": 7
+        },
+        "si": {
+          "median": 2118.8326739869694,
+          "min": 1774.9065080104879,
+          "max": 4934.828827976842,
+          "n": 7
+        },
+        "tbt": {
+          "median": 0,
+          "min": 0,
+          "max": 19.351675,
+          "n": 7
+        },
+        "ttfb": {
+          "median": 0.43000000000000005,
+          "min": 0.18,
+          "max": 0.5419999999999999,
+          "n": 7
+        },
+        "cls": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "n": 7
+        },
+        "bytes": {
+          "median": 568469,
+          "min": 469871,
+          "max": 690880,
+          "n": 7
+        },
+        "requests": {
+          "median": 48,
+          "min": 48,
+          "max": 50,
+          "n": 7
+        },
+        "docBytes": {
+          "median": 21822,
+          "min": 21822,
+          "max": 21822,
+          "n": 7
+        },
+        "scriptBytes": {
+          "median": 104354,
+          "min": 104354,
+          "max": 141400,
+          "n": 7
+        },
+        "cssBytes": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "n": 7
+        },
+        "fontBytes": {
+          "median": 258257,
+          "min": 258257,
+          "max": 258257,
+          "n": 7
+        },
+        "unusedJs": {
+          "median": 150,
+          "min": 0,
+          "max": 300,
+          "n": 7
+        },
+        "renderBlocking": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "n": 7
+        }
+      },
+      "median": {
+        "fcp": 1613.9313750000001,
+        "lcp": 4362.5933,
+        "si": 2118.8326739869694,
+        "tbt": 0,
+        "ttfb": 0.43000000000000005,
+        "cls": 0,
+        "bytes": 568469,
+        "requests": 48,
+        "docBytes": 21822,
+        "scriptBytes": 104354,
+        "cssBytes": 0,
+        "fontBytes": 258257,
+        "unusedJs": 150,
+        "renderBlocking": 0
+      },
+      "lcpElement": "<img width=\"800\" height=\"800\" alt=\"解馋 · 甜咸都行 商品摄影\" fetchpriority=\"high\" src=\"/im"
+    },
+    "replica": {
+      "url": "http://127.0.0.1:5183/",
+      "runs": [
+        {
+          "fcp": 1397.1476000000002,
+          "lcp": 4079.147600000001,
+          "si": 2769.954056034962,
+          "tbt": 9.21309999999994,
+          "ttfb": 0.304,
+          "cls": 0,
+          "bytes": 604205,
+          "requests": 48,
+          "docBytes": 22542,
+          "scriptBytes": 141400,
+          "cssBytes": 0,
+          "fontBytes": 258257,
+          "unusedJs": 300,
+          "renderBlocking": 0,
+          "lcpElement": "<span>"
+        },
+        {
+          "fcp": 1488.8978250000002,
+          "lcp": 4655.1971,
+          "si": 2085.2344299858482,
+          "tbt": 35.499999999999886,
+          "ttfb": 0.31499999999999995,
+          "cls": 0,
+          "bytes": 667959,
+          "requests": 48,
+          "docBytes": 22542,
+          "scriptBytes": 120377,
+          "cssBytes": 0,
+          "fontBytes": 258257,
+          "unusedJs": 300,
+          "renderBlocking": 0,
+          "lcpElement": "<span>"
+        },
+        {
+          "fcp": 1617.722,
+          "lcp": 4437.1776,
+          "si": 1915.525733968911,
+          "tbt": 40.5,
+          "ttfb": 0.23100000000000004,
+          "cls": 0,
+          "bytes": 518873,
+          "requests": 50,
+          "docBytes": 22542,
+          "scriptBytes": 104354,
+          "cssBytes": 0,
+          "fontBytes": 258257,
+          "unusedJs": 150,
+          "renderBlocking": 0,
+          "lcpElement": "<span>"
+        },
+        {
+          "fcp": 1367.0958,
+          "lcp": 4887.1916,
+          "si": 1596.175676033325,
+          "tbt": 0,
+          "ttfb": 0.277,
+          "cls": 0,
+          "bytes": 581582,
+          "requests": 50,
+          "docBytes": 22542,
+          "scriptBytes": 104354,
+          "cssBytes": 0,
+          "fontBytes": 258257,
+          "unusedJs": 310,
+          "renderBlocking": 0,
+          "lcpElement": "<span>"
+        },
+        {
+          "fcp": 1369.8055,
+          "lcp": 3609.8055000000004,
+          "si": 1743.7057799787037,
+          "tbt": 0,
+          "ttfb": 0.174,
+          "cls": 0,
+          "bytes": 636572,
+          "requests": 48,
+          "docBytes": 22542,
+          "scriptBytes": 120377,
+          "cssBytes": 0,
+          "fontBytes": 258257,
+          "unusedJs": 150,
+          "renderBlocking": 0,
+          "lcpElement": "<span>"
+        },
+        {
+          "fcp": 1371.0808,
+          "lcp": 4818.1616,
+          "si": 1742.6981020415494,
+          "tbt": 0,
+          "ttfb": 0.194,
+          "cls": 0,
+          "bytes": 586814,
+          "requests": 50,
+          "docBytes": 22542,
+          "scriptBytes": 104354,
+          "cssBytes": 0,
+          "fontBytes": 258257,
+          "unusedJs": 160,
+          "renderBlocking": 0,
+          "lcpElement": "<span>"
+        },
+        {
+          "fcp": 1364.7854000000002,
+          "lcp": 4429.2854,
+          "si": 1623.625291996989,
+          "tbt": 0,
+          "ttfb": 0.24000000000000005,
+          "cls": 0,
+          "bytes": 481687,
+          "requests": 50,
+          "docBytes": 22542,
+          "scriptBytes": 104354,
+          "cssBytes": 0,
+          "fontBytes": 258257,
+          "unusedJs": 300,
+          "renderBlocking": 0,
+          "lcpElement": "<span>"
+        }
+      ],
+      "stats": {
+        "fcp": {
+          "median": 1371.0808,
+          "min": 1364.7854000000002,
+          "max": 1617.722,
+          "n": 7
+        },
+        "lcp": {
+          "median": 4437.1776,
+          "min": 3609.8055000000004,
+          "max": 4887.1916,
+          "n": 7
+        },
+        "si": {
+          "median": 1743.7057799787037,
+          "min": 1596.175676033325,
+          "max": 2769.954056034962,
+          "n": 7
+        },
+        "tbt": {
+          "median": 0,
+          "min": 0,
+          "max": 40.5,
+          "n": 7
+        },
+        "ttfb": {
+          "median": 0.24000000000000005,
+          "min": 0.174,
+          "max": 0.31499999999999995,
+          "n": 7
+        },
+        "cls": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "n": 7
+        },
+        "bytes": {
+          "median": 586814,
+          "min": 481687,
+          "max": 667959,
+          "n": 7
+        },
+        "requests": {
+          "median": 50,
+          "min": 48,
+          "max": 50,
+          "n": 7
+        },
+        "docBytes": {
+          "median": 22542,
+          "min": 22542,
+          "max": 22542,
+          "n": 7
+        },
+        "scriptBytes": {
+          "median": 104354,
+          "min": 104354,
+          "max": 141400,
+          "n": 7
+        },
+        "cssBytes": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "n": 7
+        },
+        "fontBytes": {
+          "median": 258257,
+          "min": 258257,
+          "max": 258257,
+          "n": 7
+        },
+        "unusedJs": {
+          "median": 300,
+          "min": 150,
+          "max": 310,
+          "n": 7
+        },
+        "renderBlocking": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "n": 7
+        }
+      },
+      "median": {
+        "fcp": 1371.0808,
+        "lcp": 4437.1776,
+        "si": 1743.7057799787037,
+        "tbt": 0,
+        "ttfb": 0.24000000000000005,
+        "cls": 0,
+        "bytes": 586814,
+        "requests": 50,
+        "docBytes": 22542,
+        "scriptBytes": 104354,
+        "cssBytes": 0,
+        "fontBytes": 258257,
+        "unusedJs": 300,
+        "renderBlocking": 0
+      },
+      "lcpElement": "<span>"
+    }
+  }
+}

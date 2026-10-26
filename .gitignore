@@ -21,6 +21,11 @@ vendor/CampusPrint-V1
 # 误建的 GPU 日志目录（2026-09-05 清理残留后防再犯）
 NVIDIA Corporation/
 
+# rust/ 工作区：只提交源码/文档/脚本，构建产物与压测工作副本不入库
+# （实测 rust/target 966 MB、rust/.cache 14 MB —— 不忽略就是一次 1 GB 的提交）
+rust/target
+rust/.cache
+
 # Cloudflare wrangler local cache
 .wrangler/
 

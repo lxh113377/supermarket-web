@@ -1,0 +1,23 @@
+[package]
+name = "supermarket-edge"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "江科一站通边缘服务：流式 SSR 外壳 + 资产交付（Brotli/ETag/immutable）+ /web /pub 网关"
+
+[dependencies]
+# ── 直接依赖 8 个，每个都给「为什么非它不可」；不引入任何未被用到的库 ──
+supermarket-core = { path = "../core" }
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "json"] }
+tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "net", "signal", "fs", "macros", "time", "sync"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+sha2 = "0.10"        # ETag 与 CSP 内联样式哈希：与浏览器同一套 sha256
+# 注：用 native-tls（Windows SChannel）而不是 rustls —— 实测 rustls 的 ring 后端在本机
+# gcc 16.2 上编不过（cc-rs 报 temp 目录权限 + gcc 状态 0xc0000409），而 SChannel 是系统 TLS，
+# 既无 C 依赖要编、也不影响「依赖精简」这条（它不引入新的传递依赖树）。
+reqwest = { version = "0.12", default-features = false, features = ["json", "native-tls", "stream"] }
+bytes = "1"
+http-body = "1"      # 只为实现「分块流式响应体」（见 src/stream.rs）
+brotli = "8"         # 预压缩：brotli 变体（quality 11）。动态压缩会每个请求吃 CPU，预压缩只吃一次
+flate2 = "1"         # 预压缩：gzip 变体（纯 Rust 后端，不引入系统 zlib 依赖）

@@ -1,0 +1,73 @@
+{
+  "label": "baseline",
+  "base": "http://127.0.0.1:5191",
+  "at": "2026-10-26T15:31:15.621Z",
+  "shell": {
+    "status": 200,
+    "headers": {
+      "cache-control": "max-age=600",
+      "connection": "keep-alive",
+      "content-encoding": "gzip",
+      "content-length": "1329",
+      "content-type": "text/html; charset=utf-8",
+      "date": "Mon, 26 Oct 2026 15:31:15 GMT",
+      "etag": "W/\"a5b-1a178b82370.637\"",
+      "keep-alive": "timeout=5",
+      "vary": "Accept-Encoding"
+    },
+    "decodedBytes": 2651,
+    "transferBytes": 1329,
+    "ttfbMs": 1.4382,
+    "totalMs": 1.91,
+    "samples": 5
+  },
+  "shell304": {
+    "status": 304,
+    "headers": {
+      "cache-control": "max-age=600",
+      "connection": "keep-alive",
+      "content-type": "text/html; charset=utf-8",
+      "date": "Mon, 26 Oct 2026 15:31:15 GMT",
+      "etag": "W/\"a5b-1a178b82370.637\"",
+      "keep-alive": "timeout=5",
+      "vary": "Accept-Encoding"
+    },
+    "decodedBytes": 0,
+    "transferBytes": 0,
+    "ttfbMs": 0.989,
+    "totalMs": 0.9959,
+    "samples": 5
+  },
+  "entryChunk": {
+    "path": "assets/index-BIoJHo8Q.js",
+    "status": 200,
+    "headers": {
+      "cache-control": "max-age=600",
+      "connection": "keep-alive",
+      "content-encoding": "gzip",
+      "content-length": "6398",
+      "content-type": "text/javascript; charset=utf-8",
+      "date": "Mon, 26 Oct 2026 15:31:15 GMT",
+      "etag": "W/\"4325-1a178b824b2.fe9\"",
+      "keep-alive": "timeout=5",
+      "vary": "Accept-Encoding"
+    },
+    "decodedBytes": 17189,
+    "transferBytes": 6398,
+    "ttfbMs": 1.1449,
+    "totalMs": 1.5082,
+    "samples": 5
+  },
+  "shellGzipOnly": {
+    "bytes": 1329,
+    "encoding": "gzip"
+  },
+  "shellIdentity": {
+    "bytes": 1329,
+    "encoding": "gzip"
+  },
+  "health": {
+    "status": 404,
+    "body": "404"
+  }
+}

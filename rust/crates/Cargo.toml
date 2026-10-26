@@ -1,0 +1,19 @@
+[package]
+name = "supermarket-edge"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "江科一站通边缘服务：流式 SSR 外壳 + 资产交付（Brotli/ETag/immutable）+ /web /pub 网关"
+
+[dependencies]
+# ── 直接依赖 8 个，每个都给「为什么非它不可」；不引入任何未被用到的库 ──
+supermarket-core = { path = "../core" }
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "json"] }
+tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "net", "signal", "fs", "macros", "time", "sync"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+sha2 = "0.10"        # ETag 与 CSP 内联样式哈希：与浏览器同一套 sha256
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
+bytes = "1"
+http-body = "1"      # 只为实现「分块流式响应体」（见 src/stream.rs）
+brotli = "8"         # 构建期预压缩（quality 11）。动态压缩会让每个请求都吃 CPU，预压缩只吃一次

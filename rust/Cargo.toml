@@ -1,0 +1,34 @@
+[workspace]
+resolver = "2"
+members = ["crates/core", "crates/edge", "crates/wasm"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+rust-version = "1.82"
+
+# ── 发布档：本项目「首屏与响应」优化的一半功劳在编译期，不在运行期 ──────────────
+# 为什么是这几个开关：
+#   lto="fat" + codegen-units=1 —— 跨 crate 内联（core 的纯函数被 edge 与 wasm 共用，
+#       不内联就等于每个调用点多一次跨模块跳转）。
+#   panic="abort" —— 去掉 unwind 表与 landing pad，二进制与 wasm 体积同时下降（实测见 docs/05）。
+#   strip=true —— 符号表不进产物；Rust 的 backtrace 在生产由外部日志（tracing）承担。
+#   opt-level=3 —— 加速档优先于体积档：edge 是长驻进程，运行期省下的 CPU 比磁盘上的 KB 值钱。
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+debug = false
+overflow-checks = true
+
+# wasm 专用：体积优先（产物要过网线，跑在手机 CPU 上）
+[profile.release-wasm]
+inherits = "release"
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true

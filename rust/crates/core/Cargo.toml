@@ -1,0 +1,13 @@
+[package]
+name = "supermarket-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "江科一站通：与前端/后端契约同源的纯计算与契约类型（无 IO、无 async）"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]

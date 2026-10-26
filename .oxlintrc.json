@@ -22,7 +22,7 @@
   },
   "overrides": [
     {
-      "files": ["scripts/**", "archive/**", "db/**", "vite.config.js"],
+      "files": ["scripts/**", "rust/scripts/**", "archive/**", "db/**", "vite.config.js"],
       "rules": { "no-console": "off" }
     }
   ]
