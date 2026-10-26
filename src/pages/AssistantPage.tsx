@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { publicCall } from '../auth'
 import { IconRobot } from '../components/Icons'
 import { ASSISTANT_GREETING, SUGGESTED_QUESTIONS, ASSISTANT_CONVERSATION_KEY } from '../data/assistantFaq'
+import AnswerShelf from '../components/service/AnswerShelf'
 
 interface ChatMsg {
   id: number
@@ -164,6 +165,11 @@ export default function AssistantPage() {
               }`}
             >
               {m.text}
+              {/* 答案里长出货架：只上架**这段回答原文点过名**的在售商品（不联想、不猜偏好）。
+                  命中 0 件时组件自己返回 null，所以这里不用加条件。
+                  刻意放在气泡内部而不是气泡下方悬空 —— 它是那句话的延续，
+                  视觉上必须还属于同一条回答（与气泡同一形状语言）。 */}
+              {m.role === 'assistant' && !m.isError && <AnswerShelf answer={m.text} />}
               {m.isError && (
                 <button
                   onClick={() => void send(lastRetryRef.current)}

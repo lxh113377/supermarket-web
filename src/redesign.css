@@ -1003,6 +1003,46 @@
   .home-shelf-item { animation: none; opacity: 1; }
 }
 
+/* ══ 答案货架（AssistantPage · 第 91 轮）══
+   AI 回一段文字，顾客还得自己去商城找它说的那件东西 —— 这条链在导购页断掉了。
+   本件把断掉的半截接上：答案**点过名**的商品当场立在气泡里（台面与价签沿用首页第四带
+   与详情页灯箱那套 --t-stage + 奶油纸铜顶齿，不引新形）。
+
+   ⚠️ 排布用 flex-wrap **换行**，不是横向滚动：本轮首页货架第一版做横滑，被
+   reduced-motion-content 判「靠位移露出内容、动画被压制后停在视野外」（该尺只纵向滚动，
+   横向由 content-reachability 分管）⇒ 同一个坑不在这里再踩第二次。
+   件数上限由组件侧控制（聊天气泡里排一排卡片，超过三件就把对话本身挤没了）。 */
+.answer-shelf { margin-top: 10px; padding-top: 9px; border-top: 1px dashed rgb(var(--line-strong)); }
+.answer-shelf-cap { display: flex; align-items: center; gap: 7px; margin: 0 0 8px; font-size: 11.5px; letter-spacing: 0.02em; color: rgb(var(--t-mute)); }
+.answer-shelf-rail { display: flex; flex-wrap: wrap; gap: 12px; list-style: none; margin: 0; padding: 0; }
+.answer-shelf-rail > li { min-width: 0; }
+.answer-shelf-item {
+  display: flex; flex-direction: column; gap: 5px; width: 96px; padding-bottom: 14px;
+  text-decoration: none; color: inherit;
+}
+.answer-shelf-item:focus-visible { outline: 2px solid rgb(var(--focus-ring)); outline-offset: 4px; }
+.answer-shelf-photo {
+  position: relative; display: block; width: 96px; height: 72px; overflow: hidden; border-radius: 2px;
+  background-color: rgb(var(--t-stage));
+  box-shadow: inset 0 0 0 1px rgb(217 177 102 / 0.22), 0 8px 18px -14px rgb(0 0 0 / 0.8);
+  transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 250ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.answer-shelf-photo > img { width: 100%; height: 100%; object-fit: contain; mix-blend-mode: multiply; }
+.answer-shelf-item:hover .answer-shelf-photo { box-shadow: inset 0 0 0 1px rgb(var(--t-brand-500)), 0 12px 22px -14px rgb(0 0 0 / 0.9); }
+.answer-shelf-item:active .answer-shelf-photo { transform: scale(0.97); }
+.answer-shelf-name { font-size: 12px; font-weight: 700; line-height: 1.5; color: rgb(var(--t-ink)); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* 价签挂在**照片**右下角（首页那版挂在条目底部会压住商品名 —— 同一个错不犯第二次） */
+.answer-shelf-tag {
+  position: absolute; right: 3px; bottom: 3px; display: inline-flex; align-items: baseline; gap: 1px;
+  padding: 2px 5px; background: rgb(var(--t-paper)); color: rgb(var(--t-espresso));
+  font-size: 11.5px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
+  box-shadow: 0 3px 10px -6px rgb(0 0 0 / 0.6), 0 0 0 1px rgb(217 177 102 / 0.35);
+}
+@media (prefers-reduced-motion: reduce) {
+  .answer-shelf-photo { transition: none; }
+  .answer-shelf-item:hover .answer-shelf-photo, .answer-shelf-item:active .answer-shelf-photo { transform: none; }
+}
+
 /* ══ 自绘线稿图标的托位（GlyphIcon 接入点 · 第 91 轮）══
    这些类只负责「把线稿摆正 + 给一个本站的色」，图形本体在 GlyphIcon.tsx。
    颜色一律走语义槽（currentColor 继承），所以对比度闸按 3:1 的功能图形线量得到它们 ——
