@@ -419,7 +419,7 @@
 .receipt-amount strong { font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif; font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; font-size: 30px; font-weight: 800; letter-spacing: -0.02em; color: #2a221d; }
 .receipt-hold { margin-top: 12px; padding: 11px 13px; background: rgb(31 74 57 / 0.07); border: 1px solid rgb(31 74 57 / 0.4); }
 .receipt-hold-title { font-size: 12.5px; font-weight: 800; color: #1f4a39; }
-.receipt-hold-body { margin-top: 4px; font-size: 11.5px; line-height: 1.85; color: rgb(42 34 29 / 0.78); }
+.receipt-hold-body { margin-top: 4px; font-size: var(--t-fs-meta); line-height: 1.85; color: rgb(42 34 29 / 0.78); }
 /* 票脚：单号 + 确定性条码（同一单号同一条纹）+ 绿墨章 */
 .receipt-foot { display: flex; align-items: flex-end; gap: 14px; }
 .receipt-serial { flex: 1 1 auto; min-width: 0; }
@@ -458,7 +458,7 @@
 /* 暂存警示变体：琥珀墨代替绿墨（暂存 ≠ 出票成功） */
 .receipt-hold-warn { background: rgb(177 135 57 / 0.08); border-color: rgb(177 135 57 / 0.55); }
 .receipt-hold-warn .receipt-hold-title { color: #7a5c20; }
-.receipt-discount { margin-top: 6px; text-align: right; font-size: 11.5px; font-weight: 600; color: #1f4a39; }
+.receipt-discount { margin-top: 6px; text-align: right; font-size: var(--t-fs-meta); font-weight: 600; color: #1f4a39; }
 .receipt-actions { margin-top: 22px; width: 100%; max-width: 400px; margin-left: auto; margin-right: auto; display: grid; gap: 12px; }
 .receipt-actions-row { display: flex; gap: 10px; }
 
@@ -471,7 +471,7 @@
 .cashier-label { font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif; font-size: 10px; letter-spacing: 0.24em; color: rgb(var(--t-mute)); text-transform: uppercase; }
 .cashier-amount { margin-top: 6px; font-size: clamp(38px, 9vw, 50px); font-weight: 800; line-height: 1.12; color: rgb(var(--t-ink)); }
 .cashier-discount { font-size: 12px; color: rgb(var(--t-green-400)); margin-top: 5px; }   /* 原写 #7fc48f = --t-green-400 的重复字面量 */
-.cashier-order { margin-top: 12px; padding-top: 11px; border-top: 1px dashed rgb(var(--line-strong)); font-family: 'Bricolage Grotesque', ui-monospace, monospace; font-variant-numeric: tabular-nums; font-size: 11px; letter-spacing: 0.02em; word-break: break-all; color: rgb(var(--t-mute)); }
+.cashier-order { margin-top: 12px; padding-top: 11px; border-top: 1px dashed rgb(var(--line-strong)); font-family: 'Bricolage Grotesque', ui-monospace, monospace; font-variant-numeric: tabular-nums; font-size: var(--t-fs-micro); letter-spacing: 0.02em; word-break: break-all; color: rgb(var(--t-mute)); }
 /* 二维码票框：奶油纸托底，白底码图融进纸面而不是悬在暗面板上 */
 .pay-qr-frame { padding: 10px; background: rgb(var(--t-paper)); box-shadow: 0 0 0 1px rgb(217 177 102 / 0.3), 0 18px 44px -24px rgb(0 0 0 / 0.85); }
 .pay-wait { display: inline-flex; align-items: center; gap: 9px; font-size: 12px; letter-spacing: 0.04em; color: rgb(var(--t-mute)); }
@@ -557,10 +557,10 @@
   font-size: 11px; font-weight: 800; color: rgb(var(--t-brand-300)); font-variant-numeric: tabular-nums;
 }
 .intake-head h2 { margin: 0; font-size: 13px; font-weight: 800; color: rgb(var(--t-ink)); letter-spacing: 0.02em; }
-.intake-head span { margin-left: auto; font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif; font-size: 9.5px; letter-spacing: 0.18em; color: rgb(var(--t-mute)); text-transform: uppercase; }
+.intake-head span { margin-left: auto; font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif; font-size: var(--t-fs-index); letter-spacing: 0.18em; color: rgb(var(--t-mute)); text-transform: uppercase; }
 
 /* 字段标签：票据行的「栏目名」腔（小字距大写拉丁味只给编号，中文标签走字重与铜点） */
-.intake-label { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 700; color: rgb(var(--t-ink-soft)); }
+.intake-label { display: flex; align-items: center; gap: 7px; font-size: var(--t-fs-body); font-weight: 700; color: rgb(var(--t-ink-soft)); }
 .intake-label::before { content: ''; width: 5px; height: 5px; border-radius: 1px; background: rgb(217 177 102 / 0.75); flex: 0 0 auto; }
 
 /* 上传区：底稿上的「附件粘贴框」——虚线框换裁切角 + 呼吸引导线 */
@@ -884,7 +884,7 @@
    降到 meta 档（12px / mute）：仍是完整一句「口味：xxx」，**必须保持单个文本节点**
    —— 三处用例（productDetailPage:136、productDetailVariants:173、e2e product-detail:107）
    按整串 getByText 定位，拆成子元素它们当场读不到（本仓踩过同形坑）。 */
-.detail-flavor { margin: 0; font-size: 12px; line-height: 1.6; letter-spacing: 0.02em; color: rgb(var(--t-mute)); }
+.detail-flavor { margin: 0; font-size: var(--t-fs-meta); line-height: 1.6; letter-spacing: 0.02em; color: rgb(var(--t-mute)); }
 
 /* ══ 收银台三件（PaymentPage · 第 91 轮）══
    ① 问店心跳：本站每 5s 真的去问一次店里到账没有，但这件事**以前只发生在代码里** ——
@@ -895,7 +895,7 @@
       系统色图形由 OS 决定长相，与「三色锚点唯一色相来源」冲突，也是通用完成态的典型形。
    ③ 提示牌：警示换自绘 IconAlert（描边继承 currentColor，由对比度闸按 3:1 量）。 */
 .pay-heartbeat { display: flex; align-items: baseline; gap: 6px; margin: 10px 0 0; font-size: 11px; letter-spacing: 0.04em; color: rgb(var(--t-mute)); }
-.pay-heartbeat-label { font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif; font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase; color: rgb(var(--t-mute-dim)); }
+.pay-heartbeat-label { font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif; font-size: var(--t-fs-index); letter-spacing: 0.18em; text-transform: uppercase; color: rgb(var(--t-mute-dim)); }
 .pay-heartbeat-num { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; color: rgb(var(--t-brand-300)); }
 .pay-heartbeat-unit { font-size: 11px; color: rgb(var(--t-mute)); }
 .pay-heartbeat-dot { color: rgb(var(--t-brand-500)); }
@@ -932,7 +932,7 @@
 .home-shelf::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 2px; background: var(--t-brand-bar); opacity: 0.55; }
 .home-shelf-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; max-width: 1240px; margin: 0 auto 26px; }
 .home-shelf-title { margin: 10px 0 0; font-size: clamp(28px, 3.4vw, 46px); line-height: 1.28; font-weight: 900; letter-spacing: 0.01em; color: rgb(var(--t-ink)); }
-.home-shelf-note { margin: 0; font-size: 12px; line-height: 1.8; letter-spacing: 0.02em; color: rgb(var(--t-mute)); }
+.home-shelf-note { margin: 0; font-size: var(--t-fs-meta); line-height: 1.8; letter-spacing: 0.02em; color: rgb(var(--t-mute)); }
 .home-shelf-note b { font-weight: 700; color: rgb(var(--t-brand-300)); font-variant-numeric: tabular-nums; }
 /* 一轨铺得下就一轨，铺不下就**换行** —— 不用横向滚动。
    第一版这里写的是 grid-auto-flow:column + overflow-x:auto（窄档横滑），
@@ -970,7 +970,7 @@
 .home-shelf-photo > img { width: 100%; height: 100%; object-fit: contain; mix-blend-mode: multiply; transition: transform 500ms cubic-bezier(0.16, 1, 0.3, 1); }
 .home-shelf-item:hover .home-shelf-photo { box-shadow: inset 0 0 0 1px rgb(var(--t-brand-500)), 0 18px 30px -18px rgb(0 0 0 / 0.9); }
 .home-shelf-item:hover .home-shelf-photo > img { transform: scale(1.05); }
-.home-shelf-name { font-size: 12.5px; font-weight: 700; line-height: 1.5; letter-spacing: -0.01em; color: rgb(var(--t-ink)); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.home-shelf-name { font-size: var(--t-fs-body); font-weight: 700; line-height: 1.5; letter-spacing: -0.01em; color: rgb(var(--t-ink)); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 /* 价签：奶油纸 + 铜顶齿（与详情页 .stage-tag 同一枚牌子，尺寸收一档）。
    钉在**照片右下角**而不是条目底部 —— 第一版挂在条目 bottom，压住了两行商品名
    （目检截图实测「康师傅冰糖雪梨」被盖住半行）。价的载体是货架上的牌，
@@ -1047,7 +1047,7 @@
   transition: width 400ms cubic-bezier(0.16, 1, 0.3, 1), background-color 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 .rating-ledger-row.is-active .rating-ledger-rail > i { background: linear-gradient(90deg, rgb(var(--t-forest) / 0.7), rgb(var(--t-forest-soft))); }
-.rating-ledger-num { flex: 0 0 auto; min-width: 22px; text-align: right; font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums; color: rgb(var(--t-mute)); }
+.rating-ledger-num { flex: 0 0 auto; min-width: 22px; text-align: right; font-size: var(--t-fs-meta); font-weight: 700; font-variant-numeric: tabular-nums; color: rgb(var(--t-mute)); }
 .rating-ledger-row.is-active .rating-ledger-num { color: rgb(var(--t-brand-300)); }
 .review-ledger-side { display: grid; justify-items: end; gap: 2px; position: relative; }
 .review-ledger-avg { font-size: 30px; font-weight: 800; line-height: 1.05; letter-spacing: -0.02em; color: rgb(var(--t-brand-300)); }
@@ -1079,7 +1079,7 @@
 .rail-meter[data-ready='true'] .rail-meter-ticks { background: repeating-linear-gradient(90deg, rgb(var(--t-forest-soft) / 0.45) 0 1px, transparent 1px 12.5%); }
 .rail-meter[data-ready='true'] .rail-meter-fill { background: linear-gradient(90deg, rgb(var(--t-forest) / 0.7), rgb(var(--t-forest-soft))); }
 .rail-meter[data-ready='true'] .rail-meter-knot { background: rgb(var(--t-forest-soft)); }
-.rail-meter-note { margin: 0 0 12px; font-size: 12px; line-height: 1.7; color: rgb(var(--t-mute)); }
+.rail-meter-note { margin: 0 0 12px; font-size: var(--t-fs-meta); line-height: 1.7; color: rgb(var(--t-mute)); }
 .rail-meter-note b { font-weight: 700; color: rgb(var(--t-brand-300)); font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) {
   .rail-meter-fill, .rail-meter-knot { transition: none; }
@@ -1092,7 +1092,7 @@
 .cart-line:last-child { border-bottom: 0; }
 .cart-line-main { min-width: 0; flex: 1 1 auto; display: flex; flex-direction: column; gap: 3px; }
 .cart-line-name { font-size: 13px; font-weight: 700; line-height: 1.5; letter-spacing: -0.01em; color: rgb(var(--t-ink)); }
-.cart-line-formula { font-size: 11.5px; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; color: rgb(var(--t-mute)); }
+.cart-line-formula { font-size: var(--t-fs-meta); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; color: rgb(var(--t-mute)); }
 .cart-line-side { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; gap: 7px; }
 .cart-line-amount { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; color: rgb(var(--t-brand-300)); }
 .cart-step { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 14px; line-height: 1; border: 0; cursor: pointer; }
@@ -1127,7 +1127,7 @@
    flex:0 0 auto（不缩不换），长名会把纸面撑出横向溢出。这里放开收缩并把字号提到 12px
    / 行高 1.6 —— 11px 是「栏目名」档，一旦真换两行就落进 prose-readability 闸的
    「会换行的中文正文必须 ≥12px 且行高 ≥1.5」判据（本仓立过的同族红）。 */
-.confirm-ticket .receipt-row > span { flex: 1 1 auto; min-width: 0; font-size: 12px; line-height: 1.6; letter-spacing: 0.02em; }
+.confirm-ticket .receipt-row > span { flex: 1 1 auto; min-width: 0; font-size: var(--t-fs-meta); line-height: 1.6; letter-spacing: 0.02em; }
 .confirm-ticket .receipt-row > strong { font-size: 14px; }
 /* 侧轨吸附：sticky 必须挂在**网格项本身**（.confirm-desk-ticket）而不是里面的纸面 ——
    配合 align-items:start 让该项短于其网格区域，才有可滑动的余量；
@@ -1141,7 +1141,7 @@
 .confirm-ticket .receipt-headline > p { margin: 6px 0 0; font-size: 12px; line-height: 1.7; color: rgb(42 34 29 / 0.72); }
 /* 分区题：票据纸面上的小标 —— **不能复用 .section-title**，那是语义墨（--t-ink=米白），
    压奶油纸面等于白字白纸（对比度当场塌）。纸上的字一律走 espresso 族。 */
-.ticket-section { margin: 14px 0 6px; font-size: 12.5px; font-weight: 800; letter-spacing: 0.1em; color: rgb(42 34 29 / 0.78); }
+.ticket-section { margin: 14px 0 6px; font-size: var(--t-fs-body); font-weight: 800; letter-spacing: 0.1em; color: rgb(42 34 29 / 0.78); }
 /* 空车一行：底稿还没写内容时给一句人话，而不是留一块空白（留白读起来像缺内容） */
 .ticket-empty { margin: 2px 0 0; font-size: 12px; line-height: 1.7; color: rgb(42 34 29 / 0.72); }
 /* 待填 / 未贴：占位是「还没写的字」，比栏目名淡一档但仍过 AA（0.72 压纸面实测 5.5:1） */
@@ -1189,11 +1189,11 @@
 .query-faq { background: rgb(var(--t-panel)); border: 1px solid rgb(var(--line)); border-radius: 2px; padding: 18px 18px 8px; }
 .query-faq-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid rgb(var(--line)); margin-bottom: 4px; }
 .query-faq-head h2 { margin: 0; font-size: 13px; font-weight: 800; color: rgb(var(--t-ink)); letter-spacing: 0.02em; }
-.query-faq-head span { font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif; font-size: 9.5px; letter-spacing: 0.18em; color: rgb(var(--t-mute)); text-transform: uppercase; }
+.query-faq-head span { font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif; font-size: var(--t-fs-index); letter-spacing: 0.18em; color: rgb(var(--t-mute)); text-transform: uppercase; }
 .query-faq-row { display: flex; align-items: flex-start; gap: 12px; padding: 11px 2px; border-bottom: 1px dashed rgb(var(--line)); }
 .query-faq-row:last-child { border-bottom: 0; }
 .query-faq-name { font-size: 13px; font-weight: 700; color: rgb(var(--t-ink-soft)); }
-.query-faq-note { margin-top: 2px; font-size: 12px; line-height: 1.6; color: rgb(var(--t-mute)); }
+.query-faq-note { margin-top: 2px; font-size: var(--t-fs-meta); line-height: 1.6; color: rgb(var(--t-mute)); }
 /* ══ 导购空态侧轨（AssistantPage · 2026-10-26）══
    桌面空态 = 对话列 + 「常问台账」侧轨（六问逐条记档，点击即问）；
    窄档侧轨堆叠在 chips 下方，不隐藏（零面积叶会被可达闸判红）。 */
@@ -1202,12 +1202,12 @@
 .assistant-faq { background: rgb(var(--t-panel)); border: 1px solid rgb(var(--line)); border-radius: 2px; padding: 16px 16px 6px; }
 .assistant-faq-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid rgb(var(--line)); margin-bottom: 2px; }
 .assistant-faq-head h2 { margin: 0; font-size: 13px; font-weight: 800; color: rgb(var(--t-ink)); letter-spacing: 0.02em; }
-.assistant-faq-head span { font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif; font-size: 9.5px; letter-spacing: 0.18em; color: rgb(var(--t-mute)); text-transform: uppercase; }
+.assistant-faq-head span { font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif; font-size: var(--t-fs-index); letter-spacing: 0.18em; color: rgb(var(--t-mute)); text-transform: uppercase; }
 .assistant-faq-row { display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 10px 2px; border: 0; border-bottom: 1px dashed rgb(var(--line)); background: none; cursor: pointer; text-align: left; }
 .assistant-faq-row:last-child { border-bottom: 0; }
 .assistant-faq-row:hover .assistant-faq-q { color: rgb(var(--t-brand-300)); }
 .assistant-faq-row:active { transform: scale(0.98); }
-.assistant-faq-q { font-size: 12.5px; font-weight: 600; color: rgb(var(--t-ink-soft)); line-height: 1.6; transition: color 200ms cubic-bezier(0.4, 0, 0.2, 1); }
+.assistant-faq-q { font-size: var(--t-fs-body); font-weight: 600; color: rgb(var(--t-ink-soft)); line-height: 1.6; transition: color 200ms cubic-bezier(0.4, 0, 0.2, 1); }
 @media (prefers-reduced-motion: reduce) { .assistant-faq-q { transition: none; } }
 /* 查询页无结果态垂直居中（2026-10-26）：min-height 100% + flex 居中只作用于
    无结果态（有结果时不加类，内容自由长高贴顶，避免裁顶）。 */
