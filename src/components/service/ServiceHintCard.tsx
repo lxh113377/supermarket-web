@@ -1,5 +1,6 @@
 
 // 服务说明卡片（M6 拆分自 ServiceFormPage，2026-09-05）
+import GlyphIcon from '../brand/GlyphIcon'
 // hint 文本按空行分段，标题行（括号包裹）、价格行高亮；渲染逻辑与拆分前逐字一致。
 
 function parseHintSections(hint?: string): string[][] {
@@ -16,7 +17,7 @@ export default function ServiceHintCard({ hint }: { hint?: string }) {
   return (
     <div className="bg-panel rounded-3xl p-5 mb-4 shadow-card border border-gray-100/80 animate-fade-in-up stagger-1">
       <div className="flex items-center gap-2 mb-3.5">
-        <span className="w-6 h-6 rounded-lg bg-brand-100 flex items-center justify-center text-xs">📋</span>
+        <span className="hint-plate"><GlyphIcon glyph="📋" /></span>
         <h2 className="text-sm font-semibold text-ink-soft">服务说明</h2>
       </div>
       <div className="space-y-3">

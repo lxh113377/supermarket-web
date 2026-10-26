@@ -1,6 +1,7 @@
 import { useState, type KeyboardEvent } from 'react'
 import type { Product } from '../../types'
 import { productImageUrl, productSrcSet } from '../../utils/images'
+import GlyphIcon from '../brand/GlyphIcon'
 import type { Selection } from '../../utils/variants'
 
 // 商品图集组件（M6 拆分自 ProductDetailPage，2026-09-05；缩略图列 2026-09-25）
@@ -28,7 +29,7 @@ function Placeholder({ name, spec }: { name: string; spec?: string }) {
   return (
     <div className="w-full h-full min-h-60 flex items-center justify-center bg-gradient-to-br from-brand-50 via-surface-warm to-brand-100/50">
       <div className="text-center animate-scale-in">
-        <div className="text-6xl mb-3" aria-hidden="true">🛒</div>
+        <div className="gallery-fallback-glyph mb-3" aria-hidden="true"><GlyphIcon glyph="🛒" /></div>
         <p className="text-brand-300 font-bold text-lg">{name}</p>
         {spec && <p className="text-brand-300 text-sm mt-1">{spec}</p>}
         {/* 如实标注：这是占位示意，不是商品实拍 */}
@@ -201,7 +202,7 @@ export default function ProductGallery({ product, gallery, items, index, onIndex
                 }`}
               >
                 {galleryErr[i] ? (
-                  <span className="w-full h-full flex items-center justify-center text-lg" aria-hidden="true">🛒</span>
+                  <span className="w-full h-full flex items-center justify-center" aria-hidden="true"><GlyphIcon glyph="🛒" /></span>
                 ) : (
                   <img
                     src={item.src}

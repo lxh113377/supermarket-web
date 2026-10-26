@@ -2,20 +2,25 @@ import { memo } from 'react'
 import type { OrderItem as OrderItemType } from '../types'
 import { formatYuan } from '../utils/format'
 
+/**
+ * 确认页「已选商品」的一行 = 收据上的一行（2026-10-26 第 91 轮）。
+ *
+ * 旧形态是通用列表行（text-sm + border-b + 右侧灰字件数），与本页右栏那张实时票据
+ * 不是一套语言 —— 同一张单上「商品行」与「金额行」长得不一样，读起来像两个页面拼的。
+ * 现在直接复用收据的行版式：栏目名在左（字距拉开的小字）、金额在右（等宽粗体），
+ * 件数并进名称那一侧而不是悬在中间。
+ *
+ * 本组件唯一的消费者就是 OrderConfirmPage（实测 grep 全站仅此一处 import），
+ * 所以改它不会波及其他页面；行身份 (productId, spec) 由调用方的 key 承担。
+ */
 function OrderItem({ item }: { item: OrderItemType }) {
-  const displayName = item.spec
-    ? `${item.name} (${item.spec})`
-    : item.name
-
   return (
-    <div className="flex justify-between items-center gap-3 py-2.5 border-b border-gray-50 last:border-0">
-      <div className="flex-1 min-w-0">
-        <span className="text-sm text-stone-700 truncate">{displayName}</span>
-        <span className="text-xs text-stone-500 ml-2">x{item.quantity}</span>
-      </div>
-      <span className="text-sm font-semibold text-ink shrink-0">
-        {formatYuan(item.price * item.quantity)}
+    <div className="receipt-row">
+      <span>
+        {item.name}
+        {item.spec ? ` (${item.spec})` : ''} ×{item.quantity}
       </span>
+      <strong>{formatYuan(item.price * item.quantity)}</strong>
     </div>
   )
 }

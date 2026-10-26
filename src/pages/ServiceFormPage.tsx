@@ -5,6 +5,7 @@ import { getClosedMessage } from '../utils/businessHours'
 import { useBusinessHours } from '../hooks/useBusinessHours'
 import { createSubmission } from '../db'
 import ServiceHintCard from '../components/service/ServiceHintCard'
+import GlyphIcon from '../components/brand/GlyphIcon'
 import ServicePopup from '../components/service/ServicePopup'
 import type { ServiceCategory } from '../types'
 import { compressImageFile } from '../utils/imageCompress'
@@ -294,8 +295,10 @@ export default function ServiceFormPage() {
 
           {/* 服务图标+名称 */}
           <div className="flex items-center gap-4 animate-fade-in-up">
-            <div className="w-14 h-14 rounded-2xl bg-panel/15 backdrop-blur-sm flex items-center justify-center text-3xl shadow-soft">
-              {service.icon}
+            {/* 服务刊头图标：与柜台台账 .counter-stage 同一块暖台（旧版是半透明灰块里悬一枚
+               emoji —— 台面与图形两头都不在本站语言里） */}
+            <div className="counter-stage w-14 h-14 text-3xl">
+              <GlyphIcon glyph={service.icon} />
             </div>
             <div>
               <h1 className="text-xl font-bold">{service.name}</h1>

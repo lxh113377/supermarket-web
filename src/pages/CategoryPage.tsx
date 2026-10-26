@@ -3,6 +3,7 @@ import { CATEGORIES } from '../data/categories'
 import { getCategoryById, getServicesByCategory } from '../data/services'
 import { getClosedMessage } from '../utils/businessHours'
 import { useBusinessHours } from '../hooks/useBusinessHours'
+import GlyphIcon from '../components/brand/GlyphIcon'
 import { resolveCampusPrintUrl } from './print/printApp'
 import type { Service } from '../types'
 
@@ -71,7 +72,7 @@ export default function CategoryPage() {
               COUNTER No.{String(counterNo).padStart(2, '0')}
             </p>
             <h1 className="flex items-center gap-2.5 font-serifcn text-display-lg leading-tight">
-              <span aria-hidden="true" className="text-2xl">{category.icon}</span>
+              <span aria-hidden="true" className="text-2xl"><GlyphIcon glyph={category.icon} /></span>
               {category.name}
             </h1>
             <p className="cover-band-sub mt-2 text-xs">{category.description}</p>
@@ -98,7 +99,7 @@ export default function CategoryPage() {
               className={`counter-row card-interactive w-full p-4 flex items-start gap-3.5 text-left animate-fade-in-up stagger-${Math.min(i + 1, 8)}`}
             >
               <span aria-hidden="true" className="counter-no">{String(i + 1).padStart(2, '0')}</span>
-              <span aria-hidden="true" className="counter-stage">{service.icon}</span>
+              <span aria-hidden="true" className="counter-stage"><GlyphIcon glyph={service.icon} /></span>
               <span className="min-w-0 flex-1">
                 <span className="flex items-baseline justify-between gap-2">
                   <span className="font-semibold text-ink text-sm">{service.name}</span>
@@ -122,7 +123,7 @@ export default function CategoryPage() {
               onClick={() => navigate(`/category/${c.id}`)}
               className="counter-exit-link"
             >
-              <span aria-hidden="true">{c.icon}</span>
+              <span aria-hidden="true" className="counter-exit-glyph"><GlyphIcon glyph={c.icon} /></span>
               {c.name}
               <span aria-hidden="true">›</span>
             </button>

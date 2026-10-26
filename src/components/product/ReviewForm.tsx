@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { addReview } from '../../db'
 import { compressImage, uploadReviewImages } from '../../utils/reviewImages'
 import { MAX_IMAGE_DATAURL_CHARS } from '../../utils/imageCompress'
+import GlyphIcon from '../brand/GlyphIcon'
 
 // 写评价表单子组件（M6 拆分自 ProductDetailPage，2026-09-05）
 // 图片压缩/上传/表单状态全部内聚，提交后通过 onPublished 通知父刷新。
@@ -160,7 +161,7 @@ export default function ReviewForm({ productOrder, onPublished }: { productOrder
           )}
           {images.length < MAX_REVIEW_IMAGES && (
             <label className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-4 text-sm text-stone-500 hover:border-brand-500 hover:text-brand-300 hover:bg-brand-50/30 transition duration-300 flex flex-col items-center cursor-pointer">
-              <span className="text-xl mb-1">📷</span>
+              <span className="upload-glyph mb-1" aria-hidden="true"><GlyphIcon glyph="📷" /></span>
               添加图片（选填，最多 {MAX_REVIEW_IMAGES} 张）
               <input type="file" accept="image/*" multiple aria-label="选择要上传的评价图片" className="hidden" onChange={handleImages} />
             </label>

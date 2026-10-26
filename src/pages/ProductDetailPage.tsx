@@ -367,9 +367,12 @@ export default function ProductDetailPage() {
             {/* 标题 / 价格 / 口味 */}
             <div className="bg-panel lg:bg-transparent mt-2.5 lg:mt-0 p-5 lg:p-0 animate-fade-in-up stagger-1">
               <h1 className="text-xl lg:text-2xl font-bold text-ink min-w-0 leading-snug">{effName}</h1>
-              {/* 整行保持为直接文本节点（不套 span）：拆成子元素会让按文本定位的用例读不到整串 */}
+              {/* 整行保持为直接文本节点（不套 span）：拆成子元素会让按文本定位的用例读不到整串。
+                  2026-10-26 层级归位：这行原来是 text-base font-bold（16px/700），比 20px 的 h1
+                  只小一档、又与下方「已选口味」重复播报同一事实 —— 副信息压过主标题是层级倒挂。
+                  降到 meta 档（12px + mute）并把「口味」二字做成栏目名，事实仍在一处。 */}
               {effSpec && (
-                <p className="text-base font-bold text-ink mt-2">口味：{effSpec}</p>
+                <p className="detail-flavor mt-2">口味：{effSpec}</p>
               )}
               {avgRating && (
                 <div className="flex items-center gap-2 mt-3">

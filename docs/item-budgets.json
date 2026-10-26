@@ -12,9 +12,9 @@
   {
    "id": "home-page",
    "pattern": "HomePage-*.js",
-   "budget": 3700,
-   "measuredAtBuild": "2830B gz（2026-10-25 本机 npx vite build，HEAD e7ab6b5 后）",
-   "note": "首页单块（v4 主题重构后从 index 主块拆出独立家族）；按名册规则实测 ×1.10 向上取整到 100B"
+   "budget": 4200,
+   "measuredAtBuild": "3797B gz（2026-10-26 第 91 轮本机 npx vite build）",
+   "note": "首页单块（v4 主题重构后从 index 主块拆出独立家族）。2026-10-26 按名册规则重推导 3700→4200（3797×1.10=4176.7→上取整 100B）：归因 = 新增「今日货架」第四带（在售取数 + 八件暖台价签），是**新承载一屏内容**，不是同一件事换写法。"
   },
   {
    "id": "react-vendor",
@@ -82,8 +82,8 @@
   {
    "id": "first-load-css",
    "pattern": "index-*.css",
-   "budget": 21900,
-   "measuredAtBuild": "19901B gz（2026-10-25 本机 npx vite build，HEAD 95c0624+ 收据/灯箱/工单三轮）",
+   "budget": 25400,
+   "measuredAtBuild": "23061B gz（2026-10-26 第 91 轮本机 npx vite build）",
    "note": "首屏 CSS（聚合预算里 firstLoadCss 的分项化）。2026-10-25 由 12300 上调 19400（实测 ×1.10）：v4 纯暗把昼/夜两套调色面折叠成一套常载层（结构性增长，见 CHANGELOG）。原注：2026-10-08 由 11100 上调到 12400：打印页（/print）组件的 Tailwind 工具类被全量扫描进主 CSS（Tailwind 不按路由拆分），+123B gz；打印页专属样式已拆 print.css 随路由加载（见 CHANGELOG），本条涨的是工具类面；2026-10-25 第87轮按规则重推导 19400→21900B（工单底稿 CSS 段结构性扩张，归因 CHANGELOG 同日条目）"
   },
   {
@@ -222,9 +222,16 @@
   {
    "id": "order-confirm-page",
    "pattern": "OrderConfirmPage-*.js",
-   "budget": 3500,
-   "measuredAtBuild": "3099B gz（2026-10-23 07:20 本机 npx vite build，HEAD 61acefe）",
-   "note": "顾客端下单确认页路由块。名册里第二条业务页路由块：门槛从 ≥3,500B 降到 ≥2,500B 后它才进入视野（第五十四轮的旧门槛下它属于「最大未登记件」却从不被判定）"
+   "budget": 4200,
+   "measuredAtBuild": "3814B gz（2026-10-26 第 91 轮本机 npx vite build）",
+   "note": "顾客端下单确认页路由块。名册里第二条业务页路由块：门槛从 ≥3,500B 降到 ≥2,500B 后它才进入视野（第五十四轮的旧门槛下它属于「最大未登记件」却从不被判定）。2026-10-26 按规则重推导 3500→4200（3814×1.10=4195.4→4200）：归因 = 本页从一列通用表单改成「左底稿 + 右实时票据」双栏，票据随填写逐行长出（新渲染一整张单的内容）"
+  },
+  {
+   "id": "glyph-icon-registry",
+   "pattern": "GlyphIcon-*.js",
+   "budget": 1800,
+   "measuredAtBuild": "1618B gz（2026-10-26 第 91 轮本机 npm run build）",
+   "note": "数据位图形（emoji）→ 本站自绘线稿的映射件，被分类页/服务页/评价区/图集/相关推荐共享 ⇒ Vite 提到独立块。**登记它而不是抬地板**（与 inline-confirm-hook 同一处置，见其 note）：本件 <2,500B 门槛，但它是一个**新 chunk 家族** —— 新家族不进名册就等于允许一件没人管的产物。它一旦明显变大（比如有人把整站图标库塞进来而不是按需加），这条就该红。"
   },
   {
    "id": "inline-confirm-hook",

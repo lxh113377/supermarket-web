@@ -26,6 +26,10 @@
   --t-ink-mute: 169 156 136;
   --t-cream: 244 239 231;
   --t-cream-deep: 230 223 210;
+  /* 票据纸面（2026-10-26 入册）：收据/工单/价签的「纸」比语义米白更暖一档
+     （#F2ECDF vs #F4EFE7）。此前它是 redesign.css 里 13 处字面量 —— 站内同时存在
+     两种白而只有米白有名分，纸色没有令牌就等于它可以随手漂。 */
+  --t-paper: 242 236 223;
   --t-mute: 169 156 136;
   --t-mute-dim: 140 127 109;
   --t-stage: 226 216 196;             /* 发光暖台：暗底里货品自己发亮（夜档比昼台更暖一档） */
@@ -102,6 +106,13 @@
   --t-espresso-600: 74 61 51;
   --t-espresso-500: 90 75 63;
   --on-brass: 42 34 29;   /* 压黄铜实底的字：深褐 4.75:1，字面值两主题恒定（v4 手术漏带 ⇒ 整排黄铜钮字色塌回米白 2.87，实测） */
+  /* 签名铜条（本站识别符）：2026-10-26 实测它**从未渲染过** —— 六处 var(--brand-bar)
+     （路由进度条 / card-accent 顶线 / 分类与服务页封面顶条 / 404 / 查询页）而全站零定义，
+     computed 整链清空 ⇒ 金线全透明。同 forest 病形态，但旧名不带 --t- 前缀，
+     check-css-tokens 的引用面（只扫 --t-*）根本看不见它。
+     治法不是补一个游离变量，而是**改名进 --t- 族**：从此缺定义即判红。
+     三色锚点顺序 = 铜 → 亮金 → 森林绿（深底上 3:1 装饰线，非文字承载面）。 */
+  --t-brand-bar: linear-gradient(90deg, #b18739 0%, #d9b166 42%, #1f4a39 100%);
   --line: 62 51 43;
   --line-strong: 90 75 63;
   --focus-ring: 217 177 102;
@@ -166,7 +177,15 @@ button { cursor: pointer; color: inherit; }
 a { color: inherit; }
 
 :focus-visible { outline: 2px solid rgb(var(--focus-ring)); outline-offset: 3px; }
-[class*='focus-visible:outline']:focus-visible { outline: none; }
+/* 让位规则必须**自带环**：Tailwind 3 的 outline-2 只产出 outline-width、outline-color 与
+   outline-style: solid 中的前两者（dist 实测 outline-style 出现 0 次），而本条旧写法把
+   全局环摘掉后，挂了 focus-visible:outline-* 的 8 处控件（商品卡 role=button、口味选择、
+   图集 prev/next、分类栏滚动区、相关推荐、管理端行）键盘聚焦时**零焦点环**。
+   :where() 把特异性归零 ⇒ 组件若真写了自定义环仍然赢；没写就吃这条在册环。 */
+:where([class*='focus-visible:outline']):focus-visible {
+  outline: 2px solid rgb(var(--focus-ring));
+  outline-offset: 3px;
+}
 
 ::selection { background: rgb(var(--t-brand-500)); color: rgb(var(--t-espresso-950)); }
 
@@ -240,7 +259,10 @@ img { max-width: 100%; display: block; -webkit-touch-callout: none; }
   .page-container { @apply min-h-screen; background: rgb(var(--t-surface)); }
 
   .section-title { @apply text-sm font-semibold tracking-wide; color: rgb(var(--t-ink)); }
-  .eyebrow { @apply text-eyebrow uppercase; color: rgb(var(--t-brand-300)); }
+  /* eyebrow 单源：redesign.css 的 .eyebrow（10px / .18em）**未分层**，按层叠规则恒压
+     本条 @layer components 版本 ⇒ 旧写法（11px / .16em）实际从未生效，是第二个真相源。
+     这里把它折成与页面层同值，两处不再打架（页面层保留权威，本条只是兜底面）。 */
+  .eyebrow { font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif; font-size: 10px; line-height: 1.5; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: rgb(var(--t-brand-300)); }
 
   /* 价格/数字：展示体 + 等宽。金额是本站第一信息。 */
   .price-num {
@@ -274,8 +296,18 @@ img { max-width: 100%; display: block; -webkit-touch-callout: none; }
     background-size: 200% 100%;
     animation: shimmer 1500ms linear infinite;
   }
+  /* 2026-10-26 实测：dist 里 @keyframes shimmer 出现 0 次 —— tailwind.config.js 定义了它，
+     但 animate-shimmer 这个工具类全站使用 0 次 ⇒ Tailwind 不产出对应 keyframes，
+     而本类是直接写 animation: shimmer ⇒ 骨架屏拿到一个**不存在的动画名**，纹丝不动。
+     加载反馈整维失效（商城列表、管理端五页签、看板、分类栏骨架全在此列）。
+     方向与 background-position 对账：渐变亮带居中在 50%，从右往左扫（-200%→200% 位移）
+     读起来像光从货架左侧打过来，与首页暖台光源同向。 */
+  @keyframes shimmer {
+    from { background-position: 200% 0; }
+    to { background-position: -200% 0; }
+  }
 
-  .brand-bar { background: var(--brand-bar); }
+  .brand-bar { background: var(--t-brand-bar); }
   .brand-bar-ink { color: rgb(var(--t-espresso)); }
 
   .card-accent {
@@ -284,7 +316,7 @@ img { max-width: 100%; display: block; -webkit-touch-callout: none; }
     box-shadow: 0 1px 3px rgb(42 34 29 / 0.08), 0 6px 24px -12px rgb(177 135 57 / 0.45);
   }
   .card-accent::before {
-    content: ''; position: absolute; inset: 0 0 auto 0; height: 2px; background: var(--brand-bar);
+    content: ''; position: absolute; inset: 0 0 auto 0; height: 2px; background: var(--t-brand-bar);
   }
   .seg-bar { @apply inline-flex items-center gap-1 p-1 rounded-xl; background: rgb(var(--t-surface-warm)); border: 1px solid rgb(var(--line)); }
   .seg { @apply px-3 py-1.5 rounded-lg text-xs font-medium transition duration-200 cursor-pointer active:scale-[0.98]; color: rgb(var(--t-mute)); }
@@ -367,15 +399,21 @@ img { max-width: 100%; display: block; -webkit-touch-callout: none; }
 .icon-plate {
   background:
     linear-gradient(180deg, rgb(var(--t-brand-50) / 0.9), rgb(var(--t-panel) / 0.9)),
-    var(--brand-bar);
+    var(--t-brand-bar);
   background-size: 100% 100%, 100% 2px;
   background-position: 0 0, 0 100%;
   background-repeat: no-repeat;
 }
 .cover-title { word-break: keep-all; overflow-wrap: anywhere; text-wrap: balance; }
 
-/* 中文展示体：标题/刊头的「宋体黑字重」—— 与 Bricolage 的拉丁数字成对 */
+/* 中文展示体：标题/刊头的「宋体黑字重」—— 与 Bricolage 的拉丁数字成对。
+   回退链按平台补全（2026-10-26 实测缺陷）：子集字体 display-serif-cjk.woff2 只覆盖
+   常用汉字面，缺字要落到系统宋体；而 'Songti SC' / STSong 是 macOS 名、
+   'Noto Serif CJK SC' 是 Linux 名 —— **Windows 上这三名一个都不存在**（本机实测家族名 =
+   SimSun / NSimSun / Microsoft YaHei），于是 Windows 缺字直接退 generic serif（Times 的
+   CJK 回退），宋体黑变成「不知哪来的衬线」。补 Source Han Serif SC（Adobe/思源宋体在
+   Windows 的注册名）与 SimSun/NSimSun（系统宋体），Windows 才真正有落点。 */
 .font-display-cn, .market-title, .home-section-heading h2, .home-promise h2, .workspace-heading h1, .market-shop-columns h1 {
-  font-family: 'CS Display Serif', 'Bricolage Grotesque', 'Songti SC', STSong, 'Noto Serif CJK SC', serif;
+  font-family: 'CS Display Serif', 'Source Han Serif SC', 'Songti SC', STSong, 'Noto Serif CJK SC', SimSun, NSimSun, serif;
   font-weight: 900;
 }

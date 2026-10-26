@@ -32,10 +32,14 @@ describe('Stars', () => {
 })
 
 describe('列表与空态', () => {
-  it('空列表给"抢沙发"引导而不是空白卡片', () => {
+  it('空列表给「没有人写过」的明说而不是空白卡片', () => {
+    // 2026-10-26 第 91 轮：文案从「暂无评价，快来抢沙发~」改为「还没有人留下口碑」+ 一句
+    // 说明。改判据而不是留着旧断言：本条测的是「空态必须把话说清」，文案换了它就该跟着换；
+    // 保留旧字面量等于把判据钉在一句已被淘汰的话上。
     render(<ReviewList reviews={[]} sort="newest" onSortChange={vi.fn()} />)
     expect(screen.getByText('买家评价 (0)')).toBeTruthy()
-    expect(screen.getByText('暂无评价，快来抢沙发~')).toBeTruthy()
+    expect(screen.getByText('还没有人留下口碑')).toBeTruthy()
+    expect(screen.getByText(/第一家说的人/)).toBeTruthy()
   })
 
   it('排序三档按钮回调正确值', () => {

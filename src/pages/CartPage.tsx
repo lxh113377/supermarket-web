@@ -81,6 +81,10 @@ export default function CartPage() {
 
   const totalAmount = getTotalAmount(cart)
   const totalCount = getTotalCount(cart)
+  /* 凑单铜轨的填充比例：口径与 meetsMinDelivery **同一个数**（折前小计 ÷ 门槛），
+     不另立一套算法 —— 否则轨显示"满了"而按钮说"还差"，两处各说各话。
+     上限 100%：超过门槛后轨是满的，差额由文案说"已达"而不是让轨溢出。 */
+  const railPct = Math.min(100, Math.round((totalAmount / MIN_DELIVERY_AMOUNT) * 100))
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-surface animate-fade-in">
@@ -191,16 +195,33 @@ export default function CartPage() {
             {/* 起送门槛（2026-10-22 老大立规「总价低于六元不配送」）：
                 在购物车这一站就把话说清，不让人填完楼栋房间号才被拦。
                 未达标时结算入口直接换成「去凑单」（回 /shop），
-                深链直接进 /order-confirm 的人由确认页那一道同文案闸兜住。 */}
-            {!meetsMinDelivery(totalAmount) && (
-              <div className="mb-3 flex items-start gap-2 rounded-2xl bg-amber-50/90 border border-amber-200/70 px-4 py-3" role="status">
-                <span aria-hidden="true" className="mt-0.5">🛵</span>
-                <p className="text-amber-800 text-xs leading-relaxed">
-                  <span className="font-semibold">不满 {formatYuan(MIN_DELIVERY_AMOUNT)} 不配送</span>
-                  ：当前合计 {formatYuan(totalAmount)}，再挑 {formatYuan(minDeliveryGap(totalAmount))} 即可下单。
-                </p>
-              </div>
-            )}
+                深链直接进 /order-confirm 的人由确认页那一道同文案闸兜住。
+
+                2026-10-26 第 91 轮：文字版差额换成**凑单铜轨** —— 门槛是一笔钱，
+                不是一个抽象数字；把「还差多少」画成一根还差多少就满的轨，
+                眼睛一次就读完了（旧版要读两句字才知道自己差在哪）。
+                达标那一档整条转森林绿 = 「够一趟配送」这个状态变了，颜色跟着变。
+                轨是纯图形（aria-hidden + data-decorative），同样的事实由下面那行文字承载。 */}
+            <div className="rail-meter" aria-hidden="true" data-decorative="true" data-ready={meetsMinDelivery(totalAmount) ? 'true' : 'false'}>
+              <span className="rail-meter-ticks" />
+              <span className="rail-meter-fill" style={{ width: railPct + '%' }} />
+              <span className="rail-meter-knot" style={{ left: railPct + '%' }} />
+            </div>
+            {/* 文案口径（e2e 钉死，不许拆）：未达标那一句必须**同时**含
+                「不满 ¥6.00 不配送」与「再挑 ¥3.34 即可下单」两个子串 ——
+                tests/e2e/order-flow.spec.ts 的「未达起送门槛」用例先按后者定位元素、
+                再断言该元素 containsText 前者。拆成两段 = 当场判红（这是有意的：
+                一句话承载一个承诺，被拆到两处迟早各说各话）。 */}
+            {/* 整句必须是**一个文本节点**（不套 <b>）：testing-library 的 getByText 只取
+                元素的直接子文本节点拼接，金额一旦包进子元素，「再挑 ¥3.34 即可下单」
+                就被切成两截 —— 三处判据（minDeliveryGate:39、order-flow:74 及其
+                containsText('不满 ¥6.00 不配送')）当场取不到。金额档改由整行的
+                font-variant-numeric + 颜色承载，不靠内嵌标签。 */}
+            <p className="rail-meter-note" role="status">
+              {meetsMinDelivery(totalAmount)
+                ? `已达起送线 ${formatYuan(MIN_DELIVERY_AMOUNT)}，这一趟送得值。`
+                : `不满 ${formatYuan(MIN_DELIVERY_AMOUNT)} 不配送：已选 ${formatYuan(totalAmount)}，再挑 ${formatYuan(minDeliveryGap(totalAmount))} 即可下单`}
+            </p>
             {/* CTA 分两态：达标走结算；未达标直接把用户送回选品，
                 不把他带进一个「填完地址才发现下不了单」的死胡同。 */}
             {meetsMinDelivery(totalAmount) ? (

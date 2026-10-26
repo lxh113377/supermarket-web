@@ -9,45 +9,54 @@ interface CartItemProps {
   onDelete: (item: CartItemType) => void
 }
 
+/**
+ * 购物袋的一行 = 底稿上的一行（2026-10-26 第 91 轮）。
+ *
+ * 旧形态是通用卡（rounded-2xl + shadow-card + border-gray-100/80 + 中间悬一个件数），
+ * 与本页票脚、确认页实时票据不是一套语言 —— 同一条链路上「车」与「票」长得像两个产品。
+ * 现在：名称与规格在左（可换行，不再 truncate 掉长名）、单价与件数在中间成式、
+ * 小计压右（等宽数字，与票据金额同一档），行间用虚线而不是卡片描边。
+ *
+ * 件数那格保留 aria-live：它是「按了 +/- 之后到底变没变」的读屏回执；
+ * 视觉上它是算式的一部分（¥2.66 × 3），不再是一个悬在中间的孤立数字。
+ */
 function CartItem({ item, onAdd, onRemove, onDelete }: CartItemProps) {
-  const displayName = item.spec
-    ? `${item.name} (${item.spec})`
-    : item.name
-
+  const displayName = item.spec ? item.name + ' (' + item.spec + ')' : item.name
   return (
-    <div className="flex items-center justify-between bg-panel p-4 rounded-2xl border border-gray-100/80 shadow-card transition duration-200">
-      <div className="flex-1 min-w-0 pr-3">
-        <h2 className="text-sm font-medium text-ink leading-tight truncate">{displayName}</h2>
-        <p className="text-brand-300 font-bold mt-1.5">
-          <span className="price-num text-sm font-bold text-brand-300"><span className="text-[0.7em] opacity-70">¥</span>{formatPrice(item.price)}</span>
-        </p>
+    <div className="cart-line">
+      <div className="cart-line-main">
+        <span className="cart-line-name">{displayName}</span>
+        <span className="cart-line-formula price-num">
+          ¥{formatPrice(item.price)} <span aria-hidden="true">×</span>
+          <span aria-live="polite">{item.quantity}</span>
+        </span>
       </div>
-      <div className="flex items-center gap-3">
-        {/* gap 由 10px 提到 12px 配合 .tap-44 命中区扩展，避免相邻按钮误触 */}
-        <div className="flex items-center gap-3">
+      <div className="cart-line-side">
+        <strong className="cart-line-amount price-num">{formatPrice(item.price * item.quantity)}</strong>
+        <div className="flex items-center gap-1">
+          {/* gap 12px 配合 .tap-44 命中区外扩，避免相邻按钮误触（触控闸口径） */}
           <button
             onClick={() => onRemove(item)}
-            aria-label={`减少${displayName}`}
-            className="tap-44 w-8 h-8 rounded-full bg-gray-50 border border-gray-200 text-stone-500 flex items-center justify-center text-sm hover:bg-gray-100 hover:text-stone-700 transition duration-200 active:scale-90"
+            aria-label={'减少' + displayName}
+            className="tap-44 cart-step bg-gray-50 border border-gray-200 text-stone-500 hover:bg-gray-100 hover:text-stone-700 transition duration-200 active:scale-90"
           >
             <span aria-hidden="true">-</span>
           </button>
-          <span className="text-sm font-semibold w-5 text-center text-ink-soft" aria-live="polite">{item.quantity}</span>
           <button
             onClick={() => onAdd(item)}
-            aria-label={`增加${displayName}`}
-            className="tap-44 w-8 h-8 rounded-full bg-brand-500 text-espresso flex items-center justify-center text-sm shadow-soft hover:bg-brass transition duration-200 active:scale-90"
+            aria-label={'增加' + displayName}
+            className="tap-44 cart-step bg-brand-500 text-espresso hover:bg-brass shadow-soft transition duration-200 active:scale-90"
           >
             <span aria-hidden="true">+</span>
           </button>
+          <button
+            onClick={() => onDelete(item)}
+            aria-label={'删除' + displayName}
+            className="cart-remove text-xs text-red-700 border border-red-100 hover:bg-red-50 hover:text-cream hover:border-red-700 transition duration-200"
+          >
+            删除
+          </button>
         </div>
-        <button
-          onClick={() => onDelete(item)}
-          aria-label={`删除${displayName}`}
-          className="text-xs text-red-700 px-2.5 py-1.5 border border-red-100 rounded-lg hover:bg-red-50 hover:text-cream hover:border-red-700 transition duration-200"
-        >
-          删除
-        </button>
       </div>
     </div>
   )

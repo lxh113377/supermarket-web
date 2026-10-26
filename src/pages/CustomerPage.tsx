@@ -5,7 +5,7 @@ import ProductCard from '../components/ProductCard'
 import FlyDot from '../components/shop/FlyDot'
 import EmptyState from '../components/EmptyState'
 import { SkeletonList } from '../components/Skeleton'
-import { IconCart, IconEmpty } from '../components/Icons'
+import { IconCart, IconEmpty, IconAlert } from '../components/Icons'
 import useCart from '../hooks/useCart'
 import useProducts from '../hooks/useProducts'
 import { useShopFilters, SORT_OPTIONS } from '../hooks/useShopFilters'
@@ -37,6 +37,16 @@ export default function CustomerPage() {
   const [showSearch, setShowSearch] = useState(() => q !== '')
   const [flyDots, setFlyDots] = useState<FlyDotData[]>([])
   const cartBtnRef = useRef<HTMLDivElement | null>(null)
+  /* 飞点是否该挂载：CSS 的 prefers-reduced-motion 全局压制管不到**JS 驱动的位移**
+     （FlyDot 靠改 transform 补间，不是 animation-name），所以要在源头判。
+     触屏无 hover 也一样：飞点的意义是「我按的那一下有东西飞出去」，
+     触摸端已有 toast + 角标数字两重即时反馈，不必再叠一层位移。
+     jsdom（单测）无 matchMedia ⇒ 视为不挂载，测试面只看一套结构。 */
+  const motionOk = useRef<boolean>(
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      : false,
+  )
 
   // 搜索框的值走本地草稿，不直接绑 URL 派生的 q：中文输入法在「每次按键都往返写
   // URL」的受控输入下会丢字（组合输入未完成就被回写覆盖）。URL 仍是筛选的唯一真相，
@@ -105,7 +115,7 @@ export default function CustomerPage() {
     add(product)
     showToast('已添加 ' + product.name)
     const rect = e?.currentTarget?.getBoundingClientRect?.() || null
-    if (rect) {
+    if (rect && motionOk.current) {
       const ct = cartBtnRef.current?.getBoundingClientRect()
       // 事件回调内生成飞行点 id（非渲染期调用；oxlint purity 静态分析无法区分调用时机，行内豁免）
       // oxlint-disable-next-line react/purity
@@ -214,7 +224,7 @@ export default function CustomerPage() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3 p-6" role="alert">
-        <span className="text-3xl" aria-hidden="true">😵</span>
+        <span className="shop-error-glyph" aria-hidden="true"><IconAlert className="w-8 h-8" /></span>
         <p className="text-red-700 text-sm text-center">{error}</p>
         <button
           onClick={refresh}
@@ -294,7 +304,7 @@ export default function CustomerPage() {
         </div>
 
         {totalCount > 0 && (
-          <div className="safe-offset-bottom fixed left-5 right-5 z-30 animate-slide-up" ref={cartBtnRef}>
+          <div data-cart-dock className="safe-offset-bottom fixed left-5 right-5 z-30 animate-slide-up" ref={cartBtnRef}>
             <button
               onClick={() => navigate('/cart')}
               onMouseEnter={() => prefetchRoute('cart')}
@@ -345,7 +355,7 @@ export default function CustomerPage() {
       </div>
 
       {totalCount > 0 && (
-        <div className="safe-offset-bottom fixed left-5 right-5 z-30 animate-slide-up" ref={cartBtnRef}>
+        <div data-cart-dock className="safe-offset-bottom fixed left-5 right-5 z-30 animate-slide-up" ref={cartBtnRef}>
           <button
             onClick={() => navigate('/cart')}
             onMouseEnter={() => prefetchRoute('cart')}

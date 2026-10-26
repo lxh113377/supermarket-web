@@ -222,12 +222,16 @@
 .market-shop-columns .pill-inactive, .market-shop-main .pill-inactive { background: transparent; border-color: rgb(var(--line-strong)); color: rgb(var(--t-mute)); }
 .market-shop-columns .pill-active, .market-shop-main .pill-active { background: rgb(var(--t-brand-500)); color: rgb(var(--on-brass)); box-shadow: 0 4px 16px -8px rgb(177 135 57 / 0.8); }
 .market-shop-columns [role="button"]:focus-visible { outline-color: rgb(var(--focus-ring)); }
-.market-shop .fixed[ref] > button { border-radius: 2px; background: #1f4a39; color: #f4efe7; }
-.market-shop .fixed[ref] > button .bg-brand-500 { background: rgb(var(--t-brand-500)); color: rgb(var(--on-brass)); }
-.market-shop .fixed[ref] > button .text-brand-300 { color: rgb(var(--t-brand-300)); }
+/* 吸底购物条（data-cart-dock）：2026-10-26 实测本组选择器**从未命中** —— 旧写法是
+   `.fixed[ref]`，而 React 的 ref 是组件引用、不落成 HTML 属性，属性选择器永远取空
+   ⇒ 购物条的直角/深绿底/右靠停靠位三条覆写全是「写了不生效」，线上一直是通用圆角卡。
+   治法 = 在 CustomerPage 的两处容器上显式挂 data-cart-dock（DOM 属性可查、判据可扫）。 */
+.market-shop [data-cart-dock] > button { border-radius: 2px; background: rgb(var(--t-forest)); color: rgb(var(--t-cream)); }
+.market-shop [data-cart-dock] > button .bg-brand-500 { background: rgb(var(--t-brand-500)); color: rgb(var(--on-brass)); }
+.market-shop [data-cart-dock] > button .text-brand-300 { color: rgb(var(--t-brand-300)); }
 .market-shop .input-base { border-radius: 2px; background: rgb(var(--t-surface-warm)); }
-.market-shop .fixed[ref] { left: auto; right: clamp(18px, 4vw, 58px); bottom: 22px; width: min(480px, calc(100% - 36px)); }
-.market-shop .fixed[ref] > button { width: 100%; }
+.market-shop [data-cart-dock] { left: auto; right: clamp(18px, 4vw, 58px); bottom: 22px; width: min(480px, calc(100% - 36px)); }
+.market-shop [data-cart-dock] > button { width: 100%; }
 .market-shop nav[aria-label="商品分类导航"] .text-brand-700 { color: rgb(var(--t-brand-300)); }
 
 /* 商品卡：图区是发光暖台，文字退回图注 */
@@ -345,8 +349,25 @@
 .pay-alipay:hover { background: #1e40af; }
 .pay-alipay:active { transform: scale(0.98); }
 
-/* 订单进度：已完成步恒定深绿 + 白字 */
-.step-done { background: #15803d; color: #ffffff; }
+/* 订单进度：已完成步 = 站内语义，回到锚点森林绿（#15803d 是微信品牌档，只该活在
+   「微信支付」那一个按钮上；进度条借用它等于把第三方品牌色泄进本站状态语言）。
+   米白压森林绿 8.77:1，比原白字压 #15803d 的 4.73:1 高一档。 */
+.step-done { background: rgb(var(--t-forest)); color: rgb(var(--t-cream)); }
+
+/* ══ 加购飞点（FlyDot）══
+   2026-10-26：几何与曲线全部收到这一处 —— 组件只写 transform/opacity 两个合成属性。
+   起点钉在视口原点（fixed + left/top 常量），位移由组件的 translate 承担，
+   所以动画期间零布局写入（旧版补间 left/top/width/height，每帧重排）。
+   色 = 黄铜锚点（与计数徽、铜牌同一材质），投影取铜光而非旧版的 #eab308（柿子黄，
+   不在三色锚点内）。 */
+.fly-dot {
+  position: fixed; left: 0; top: 0; z-index: 60; pointer-events: none;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: rgb(var(--t-brand-500));
+  box-shadow: 0 2px 10px -2px rgb(177 135 57 / 0.75), inset 0 1px 0 rgb(255 255 255 / 0.35);
+  transition: transform 600ms cubic-bezier(0.16, 1, 0.3, 1), opacity 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform, opacity;
+}
 
 /* ══ 收据系统：支付链路三页（成功/支付/查询）的「出票」语言 ══
    隐喻：下单 = 收银机出票。票据是实物 —— 奶油纸面用字面量色（不随语义槽翻面，
@@ -354,7 +375,7 @@
    金线分层、宋体刊头、Bricolage 等宽数字、锯齿撕边与打孔线是版式而非贴图。 */
 .receipt-paper {
   position: relative; width: 100%; max-width: 400px; margin: 0 auto;
-  padding: 22px 22px 24px; background: #f2ecdf; color: #2a221d;
+  padding: 22px 22px 24px; background: rgb(var(--t-paper)); color: #2a221d;
   box-shadow: 0 30px 70px -30px rgb(0 0 0 / 0.8), 0 0 0 1px rgb(217 177 102 / 0.25);
 }
 /* 顶/底锯齿撕边：票据从收银机里撕出来的那道边（纯装饰，无文字） */
@@ -363,12 +384,12 @@
 }
 .receipt-paper::before {
   top: -8px;
-  background: linear-gradient(45deg, #f2ecdf 6px, transparent 0), linear-gradient(-45deg, #f2ecdf 6px, transparent 0);
+  background: linear-gradient(45deg, rgb(var(--t-paper)) 6px, transparent 0), linear-gradient(-45deg, rgb(var(--t-paper)) 6px, transparent 0);
   background-position: left top; background-repeat: repeat-x; background-size: 12px 9px;
 }
 .receipt-paper::after {
   bottom: -8px;
-  background: linear-gradient(135deg, #f2ecdf 6px, transparent 0), linear-gradient(-135deg, #f2ecdf 6px, transparent 0);
+  background: linear-gradient(135deg, rgb(var(--t-paper)) 6px, transparent 0), linear-gradient(-135deg, rgb(var(--t-paper)) 6px, transparent 0);
   background-position: left bottom; background-repeat: repeat-x; background-size: 12px 9px;
 }
 .receipt-brand {
@@ -449,10 +470,10 @@
 }
 .cashier-label { font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif; font-size: 10px; letter-spacing: 0.24em; color: rgb(var(--t-mute)); text-transform: uppercase; }
 .cashier-amount { margin-top: 6px; font-size: clamp(38px, 9vw, 50px); font-weight: 800; line-height: 1.12; color: rgb(var(--t-ink)); }
-.cashier-discount { font-size: 12px; color: #7fc48f; margin-top: 5px; }
+.cashier-discount { font-size: 12px; color: rgb(var(--t-green-400)); margin-top: 5px; }   /* 原写 #7fc48f = --t-green-400 的重复字面量 */
 .cashier-order { margin-top: 12px; padding-top: 11px; border-top: 1px dashed rgb(var(--line-strong)); font-family: 'Bricolage Grotesque', ui-monospace, monospace; font-variant-numeric: tabular-nums; font-size: 11px; letter-spacing: 0.02em; word-break: break-all; color: rgb(var(--t-mute)); }
 /* 二维码票框：奶油纸托底，白底码图融进纸面而不是悬在暗面板上 */
-.pay-qr-frame { padding: 10px; background: #f2ecdf; box-shadow: 0 0 0 1px rgb(217 177 102 / 0.3), 0 18px 44px -24px rgb(0 0 0 / 0.85); }
+.pay-qr-frame { padding: 10px; background: rgb(var(--t-paper)); box-shadow: 0 0 0 1px rgb(217 177 102 / 0.3), 0 18px 44px -24px rgb(0 0 0 / 0.85); }
 .pay-wait { display: inline-flex; align-items: center; gap: 9px; font-size: 12px; letter-spacing: 0.04em; color: rgb(var(--t-mute)); }
 .wait-pulse { width: 8px; height: 8px; border-radius: 50%; background: #b18739; display: inline-block; flex: 0 0 auto; animation: wait-pulse 2600ms cubic-bezier(0.4, 0, 0.6, 1) infinite; }
 @keyframes wait-pulse { 0%, 100% { box-shadow: 0 0 0 3px rgb(177 135 57 / 0.22); } 50% { box-shadow: 0 0 0 6px rgb(177 135 57 / 0.04); } }
@@ -480,7 +501,7 @@
 .stage-tag {
   position: absolute; right: 10px; bottom: 10px; z-index: 2; padding: 4px 8px;
   display: inline-flex; align-items: baseline;
-  background: #f2ecdf; color: #2a221d;
+  background: rgb(var(--t-paper)); color: #2a221d;
   font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
   box-shadow: 0 4px 14px -6px rgb(0 0 0 / 0.55), 0 0 0 1px rgb(217 177 102 / 0.35);
 }
@@ -558,7 +579,7 @@
 /* 已传文件 chip：票据附件贴条（奶油纸，同 stage-tag 材质） */
 .clip-chip {
   display: flex; align-items: center; gap: 10px; padding: 9px 12px;
-  background: #f2ecdf; color: #2a221d; border-radius: 2px;
+  background: rgb(var(--t-paper)); color: #2a221d; border-radius: 2px;
   box-shadow: 0 0 0 1px rgb(217 177 102 / 0.3), 0 6px 18px -10px rgb(0 0 0 / 0.7);
   animation: chip-in 350ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
@@ -574,16 +595,16 @@
 @keyframes chip-in { from { opacity: 0; transform: translateY(-8px) rotate(-0.6deg); } to { opacity: 1; transform: translateY(0) rotate(0); } }
 
 /* 提交成功 = 盖章的工单：底稿变收据（同 OrderSuccessPage 材质，纸面奶油色字面量） */
-.intake-done { position: relative; max-width: 400px; width: 100%; margin: 0 auto; padding: 26px 24px 24px; background: #f2ecdf; color: #2a221d;
+.intake-done { position: relative; max-width: 400px; width: 100%; margin: 0 auto; padding: 26px 24px 24px; background: rgb(var(--t-paper)); color: #2a221d;
   box-shadow: 0 30px 70px -30px rgb(0 0 0 / 0.8), 0 0 0 1px rgb(217 177 102 / 0.25); }
 .intake-done::before, .intake-done::after {
   content: ''; position: absolute; left: 0; right: 0; height: 9px; pointer-events: none; z-index: -1;
 }
 .intake-done::before { top: -8px;
-  background: linear-gradient(45deg, #f2ecdf 6px, transparent 0), linear-gradient(-45deg, #f2ecdf 6px, transparent 0);
+  background: linear-gradient(45deg, rgb(var(--t-paper)) 6px, transparent 0), linear-gradient(-45deg, rgb(var(--t-paper)) 6px, transparent 0);
   background-position: left top; background-repeat: repeat-x; background-size: 12px 9px; }
 .intake-done::after { bottom: -8px;
-  background: linear-gradient(135deg, #f2ecdf 6px, transparent 0), linear-gradient(-135deg, #f2ecdf 6px, transparent 0);
+  background: linear-gradient(135deg, rgb(var(--t-paper)) 6px, transparent 0), linear-gradient(-135deg, rgb(var(--t-paper)) 6px, transparent 0);
   background-position: left bottom; background-repeat: repeat-x; background-size: 12px 9px; }
 .intake-done .done-stamp {
   position: absolute; top: -18px; right: 14px; width: 74px; height: 74px; border-radius: 50%;
@@ -760,7 +781,7 @@
   .market-shop .header-order { display: inline-flex; }
   .market-back { top: 70px; font-size: 10px; }
   .market-shop-main { padding-left: 14px; padding-right: 14px; }
-  .market-shop .fixed[ref] { left: 14px; right: 14px; bottom: calc(env(safe-area-inset-bottom) + 12px); width: auto; }
+  .market-shop [data-cart-dock] { left: 14px; right: 14px; bottom: calc(env(safe-area-inset-bottom) + 12px); width: auto; }
   .market-shop .gallery-figure .tap-44:last-child { border-radius: 50%; }
   /* 320–767px：AI 浮钮收成纯图标圆钮、钉在右下安全角 —— 展台拍立得占满首屏，
      全宽浮条会压住图注（content-reachability 闸实测「清爽」被遮）；图标钮 44px 触控达标 */
@@ -826,6 +847,8 @@
   .receipt-stamp { opacity: 1; }
   .button::before { display: none; }
   .market-exhibit img, .service-directory-item, .button, .workspace-nav-item, .brand-fruit { transition: none; }
+  /* 飞点：JS 侧已按 pointer/reduced 决定是否挂载，这条兜「挂载后用户改系统偏好」的窗口 */
+  .fly-dot { display: none; }
 }
 
 /* ══ 柜台台账（CategoryPage · 2026-10-26 第二轮八维打磨）══
@@ -854,6 +877,308 @@
 @media (prefers-reduced-motion: reduce) {
   .counter-stage, .counter-arrow, .counter-exit-link, .counter-exit-link > span:last-child, .counter-row::before { transition: none; }
   .counter-row:hover .counter-stage { transform: none; }
+}
+
+/* 详情页口味行（第 91 轮层级归位）：原来是 text-base font-bold（16px/700），比 20px 的 h1
+   只小一档、又与下方「已选口味」重复播报同一事实 —— 副信息压过主标题是层级倒挂。
+   降到 meta 档（12px / mute）：仍是完整一句「口味：xxx」，**必须保持单个文本节点**
+   —— 三处用例（productDetailPage:136、productDetailVariants:173、e2e product-detail:107）
+   按整串 getByText 定位，拆成子元素它们当场读不到（本仓踩过同形坑）。 */
+.detail-flavor { margin: 0; font-size: 12px; line-height: 1.6; letter-spacing: 0.02em; color: rgb(var(--t-mute)); }
+
+/* ══ 收银台三件（PaymentPage · 第 91 轮）══
+   ① 问店心跳：本站每 5s 真的去问一次店里到账没有，但这件事**以前只发生在代码里** ——
+      用户站在二维码前分不清这页是在等还是已经死了。把轮询次数与「最近几秒前」摆出来，
+      等待从空白变成「有人在替你跑」。数字是真数（refs 记实际发起的轮次 + 秒针推进），
+      不伪造倒计时、不伪造进度百分比。
+   ② 到账章：用本站的「章」语言（与成功页 receipt-stamp 同族），不用 emoji ✅ ——
+      系统色图形由 OS 决定长相，与「三色锚点唯一色相来源」冲突，也是通用完成态的典型形。
+   ③ 提示牌：警示换自绘 IconAlert（描边继承 currentColor，由对比度闸按 3:1 量）。 */
+.pay-heartbeat { display: flex; align-items: baseline; gap: 6px; margin: 10px 0 0; font-size: 11px; letter-spacing: 0.04em; color: rgb(var(--t-mute)); }
+.pay-heartbeat-label { font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif; font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase; color: rgb(var(--t-mute-dim)); }
+.pay-heartbeat-num { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; color: rgb(var(--t-brand-300)); }
+.pay-heartbeat-unit { font-size: 11px; color: rgb(var(--t-mute)); }
+.pay-heartbeat-dot { color: rgb(var(--t-brand-500)); }
+.pay-heartbeat-ago { font-variant-numeric: tabular-nums; }
+/* 到账章：铜印压在暗底上（与 .receipt-stamp-on-dark 同一材质，收一档尺寸） */
+.paid-seal {
+  width: 78px; height: 78px; margin: 0 auto 16px; border-radius: 50%; display: grid; place-content: center;
+  text-align: center; font-weight: 900; font-size: 15px; letter-spacing: 0.06em; line-height: 1.3;
+  color: rgb(var(--t-espresso)); background: rgb(217 177 102 / 0.95); border: 2.5px solid #b18739;
+  box-shadow: inset 0 0 0 1.5px rgb(42 34 29 / 0.3), 0 10px 28px -14px rgb(177 135 57 / 0.65);
+  transform: rotate(-13deg);
+  animation: receipt-stamp 350ms cubic-bezier(0.16, 1, 0.3, 1) 100ms both;
+  position: relative;
+}
+.paid-seal::after { content: ''; position: absolute; inset: 5px; border: 1px solid rgb(42 34 29 / 0.35); border-radius: 50%; }
+/* 温馨提示的牌托：与空态暖台同一块台面（不再是一个 emoji 悬在 brand-50 灰块上） */
+.tip-plate {
+  width: 56px; height: 56px; display: grid; place-items: center; color: rgb(var(--t-brand-300));
+  background: linear-gradient(180deg, rgb(var(--t-brand-50) / 0.9), rgb(var(--t-panel) / 0.9));
+  box-shadow: inset 0 0 0 1px rgb(217 177 102 / 0.4); border-radius: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .paid-seal { animation: none; opacity: 1; }
+}
+
+/* ══ 今日货架（HomePage 第四带 · 第 91 轮）══
+   首页原来三带就结束，而承诺带里写着「真实商品」，全站却没有一屏把真实商品摆给新访客。
+   这一带把货架抬进首页：一条柜台横轨（铜线 + 木纹），商品立在轨上、每件挂一枚价签，
+   形状沿用商城卡与详情页灯箱那套「暖台 + multiply + 直角」，不引入新形。
+   窄档横向可滑（overflow-x-auto 而非 hidden：可达闸按「存在一个可见位置」判定，
+   横滑容器里每件都可到达），宽档铺成一轨。整件是一个链接，不内嵌加购钮 ——
+   一屏八个钮会把「逛」变成「操作」，且触控/按压两条判据的取样面翻倍。 */
+.home-shelf { padding: clamp(56px, 6.5vw, 92px) clamp(20px, 4vw, 64px) clamp(48px, 5.5vw, 78px); background: rgb(var(--t-surface-warm)); border-top: 1px solid rgb(var(--line)); border-bottom: 1px solid rgb(var(--line)); position: relative; }
+.home-shelf::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 2px; background: var(--t-brand-bar); opacity: 0.55; }
+.home-shelf-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; max-width: 1240px; margin: 0 auto 26px; }
+.home-shelf-title { margin: 10px 0 0; font-size: clamp(28px, 3.4vw, 46px); line-height: 1.28; font-weight: 900; letter-spacing: 0.01em; color: rgb(var(--t-ink)); }
+.home-shelf-note { margin: 0; font-size: 12px; line-height: 1.8; letter-spacing: 0.02em; color: rgb(var(--t-mute)); }
+.home-shelf-note b { font-weight: 700; color: rgb(var(--t-brand-300)); font-variant-numeric: tabular-nums; }
+/* 一轨铺得下就一轨，铺不下就**换行** —— 不用横向滚动。
+   第一版这里写的是 grid-auto-flow:column + overflow-x:auto（窄档横滑），
+   reduced-motion 闸当场判红：.home-page 是 overflow:clip 容器，横滑内容落在容器可视区之外
+   ⇒ 被判「靠位移露出内容、动画被压制后就停在视野外」。这条判据的口径是
+   「动效不适 ≠ 可以少看信息」，而它**只纵向滚动、不横向滚动**（横向由 content-reachability
+   那条腿负责），所以横滑在这把尺下永远等于丢内容。
+   正解不是给判据加豁免，是换成 auto-fill 网格：任何视口下八件全在流内。 */
+.home-shelf-rail {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: clamp(12px, 1.6vw, 26px);
+  max-width: 1240px; margin: 0 auto; padding: 22px 4px 26px;
+  /* 柜台面：一条铜线当货架前沿，商品「立」在它上面 */
+  background: linear-gradient(180deg, transparent 0 calc(100% - 26px), rgb(var(--t-brand-500) / 0.28) calc(100% - 26px) calc(100% - 25px), transparent calc(100% - 25px));
+}
+.home-shelf-photo {
+  position: relative;
+  transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+/* 条目本体只负责**入场**（animate-fade-in-up，填充 both）；位移反馈挂在 .home-shelf-photo。
+   这不是风格选择而是层叠事实：animation-fill-mode: both 会一直保持最后一帧的 transform，
+   于是同一元素上的 :hover transform 永远不生效（写了等于没写 —— 本轮正在修的那一族，
+   自己差点再写一遍）。站内 .counter-row 也是同一分工：入场在行上、位移在 .counter-stage 上。 */
+.home-shelf-item {
+  position: relative; display: flex; flex-direction: column; gap: 7px; min-width: 0; padding: 0 2px 18px;
+  text-decoration: none; color: inherit;
+}
+.home-shelf-item:hover .home-shelf-photo { transform: translateY(-4px); }
+.home-shelf-item:active .home-shelf-photo { transform: translateY(-1px) scale(0.99); }
+.home-shelf-item:focus-visible { outline: 2px solid rgb(var(--focus-ring)); outline-offset: 6px; }
+.home-shelf-photo {
+  display: block; overflow: hidden; aspect-ratio: 1; background-color: rgb(var(--t-stage)); border-radius: 2px;
+  box-shadow: inset 0 0 0 1px rgb(217 177 102 / 0.2), 0 12px 26px -18px rgb(0 0 0 / 0.85);
+  transition: box-shadow 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.home-shelf-photo > img { width: 100%; height: 100%; object-fit: contain; mix-blend-mode: multiply; transition: transform 500ms cubic-bezier(0.16, 1, 0.3, 1); }
+.home-shelf-item:hover .home-shelf-photo { box-shadow: inset 0 0 0 1px rgb(var(--t-brand-500)), 0 18px 30px -18px rgb(0 0 0 / 0.9); }
+.home-shelf-item:hover .home-shelf-photo > img { transform: scale(1.05); }
+.home-shelf-name { font-size: 12.5px; font-weight: 700; line-height: 1.5; letter-spacing: -0.01em; color: rgb(var(--t-ink)); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* 价签：奶油纸 + 铜顶齿（与详情页 .stage-tag 同一枚牌子，尺寸收一档）。
+   钉在**照片右下角**而不是条目底部 —— 第一版挂在条目 bottom，压住了两行商品名
+   （目检截图实测「康师傅冰糖雪梨」被盖住半行）。价的载体是货架上的牌，
+   牌就该挂在货上，不是挂在文字上。 */
+.home-shelf-tag {
+  position: absolute; right: 5px; bottom: 5px; z-index: 2;
+  display: inline-flex; align-items: baseline; gap: 1px;
+  padding: 3px 7px; background: rgb(var(--t-paper)); color: rgb(var(--t-espresso));
+  font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
+  box-shadow: 0 4px 12px -6px rgb(0 0 0 / 0.6), 0 0 0 1px rgb(217 177 102 / 0.35);
+}
+.home-shelf-yuan { font-size: 10px; font-weight: 700; opacity: 0.72; }
+.home-shelf-exit { margin: 26px auto 0; display: inline-flex; }
+.home-shelf > .home-shelf-exit { display: flex; justify-content: center; }
+@media (max-width: 767px) {
+  .home-shelf { padding-left: 16px; padding-right: 16px; }
+  /* 窄档两列（358px 可用宽 ÷ 2 = 173px/件，仍在 140px 下限之上）；换行不是横滑 */
+  .home-shelf-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; }
+  .home-shelf-title { font-size: 28px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-shelf-item, .home-shelf-photo, .home-shelf-photo > img { transition: none; }
+  .home-shelf-item:hover .home-shelf-photo, .home-shelf-item:active .home-shelf-photo { transform: none; }
+  .home-shelf-item:hover .home-shelf-photo > img { transform: none; }
+  /* 入场动画在 reduce 面直接不跑（全局把时长压到 0.01ms 会让它「瞬间播完停在起点」，
+     而 both 填充下停在 from = opacity:0 ⇒ 内容看不见）。显式关掉最稳。 */
+  .home-shelf-item { animation: none; opacity: 1; }
+}
+
+/* ══ 自绘线稿图标的托位（GlyphIcon 接入点 · 第 91 轮）══
+   这些类只负责「把线稿摆正 + 给一个本站的色」，图形本体在 GlyphIcon.tsx。
+   颜色一律走语义槽（currentColor 继承），所以对比度闸按 3:1 的功能图形线量得到它们 ——
+   emoji 那一层是 OS 上色，判据根本管不着（这正是换线稿的核心理由，不只是审美）。 */
+.hint-plate { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 2px; color: rgb(var(--t-brand-300)); background: rgb(var(--t-brand-500) / 0.12); box-shadow: inset 0 0 0 1px rgb(var(--t-brand-500) / 0.34); }
+.hint-plate svg { width: 15px; height: 15px; }
+.hint-plate-large { width: 56px; height: 56px; }
+.hint-plate-large svg { width: 30px; height: 30px; }
+.counter-exit-glyph { display: inline-grid; place-items: center; width: 18px; height: 18px; color: rgb(var(--t-brand-300)); }
+.counter-exit-glyph svg { width: 16px; height: 16px; }
+.related-glyph { display: inline-grid; place-items: center; width: 32px; height: 32px; color: rgb(var(--t-mute)); }
+.gallery-fallback-glyph { display: grid; place-items: center; width: 72px; height: 72px; color: rgb(var(--t-mute)); }
+.gallery-fallback-glyph svg { width: 56px; height: 56px; }
+.upload-glyph { display: inline-grid; place-items: center; width: 24px; height: 24px; color: rgb(var(--t-brand-300)); }
+.thumb-fallback { display: inline-grid; place-items: center; width: 22px; height: 22px; }
+.shop-error-glyph { display: inline-grid; place-items: center; width: 34px; height: 34px; color: rgb(var(--t-brand-500)); }
+.empty-stage svg { width: 24px; height: 24px; }
+
+/* ══ 口碑账本（ReviewList · 第 91 轮）══
+   星级分布做成五条铜轨 + 逐行记档（点一行 = 只看该档，再点取消）。
+   为什么不是通用「4.5 分 + 一排星」：分数把 N 条评价压成一个数，读者**看不出这是一家
+   稳店还是一家赌店** —— 4.5 可以是「全 4-5 星」也可以是「一半 5 星一半 1 星」，
+   两种情况的决策含义相反，分布才是信息。纯 CSS 条（5 个分类不值得引图表库），
+   色走本站铜轨语言：亮金 = 未筛、森林绿 = 当前筛中的那一档；时长与曲线在册。
+   占比条 aria-hidden，真实数字在「N」这个文字叶上（读屏不靠百分比条取数）。 */
+.review-ledger-split { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: center; padding-bottom: 14px; margin-bottom: 4px; border-bottom: 1px solid rgb(var(--line)); }
+.rating-ledger { display: grid; gap: 3px; min-width: 0; }
+.rating-ledger-row {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 26px; padding: 2px 6px 2px 2px;
+  border: 0; background: none; cursor: pointer; text-align: left; border-radius: 2px;
+  transition: background-color 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.rating-ledger-row:hover { background: rgb(var(--t-brand-500) / 0.08); }
+.rating-ledger-row:active { transform: scale(0.99); }
+.rating-ledger-row.is-active { background: rgb(var(--t-brand-500) / 0.14); }
+.rating-ledger-row.is-empty { opacity: 0.55; }
+.rating-ledger-star {
+  flex: 0 0 auto; width: 30px; font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
+  font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; color: rgb(var(--t-mute));
+}
+.rating-ledger-row.is-active .rating-ledger-star { color: rgb(var(--t-brand-300)); }
+.rating-ledger-rail { position: relative; flex: 1 1 auto; min-width: 0; height: 6px; background: rgb(var(--t-brand-500) / 0.14); box-shadow: inset 0 0 0 1px rgb(var(--t-brand-500) / 0.2); overflow: hidden; }
+.rating-ledger-rail > i {
+  display: block; height: 100%; background: linear-gradient(90deg, rgb(var(--t-brand-500) / 0.6), rgb(var(--t-brand-300)));
+  transition: width 400ms cubic-bezier(0.16, 1, 0.3, 1), background-color 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.rating-ledger-row.is-active .rating-ledger-rail > i { background: linear-gradient(90deg, rgb(var(--t-forest) / 0.7), rgb(var(--t-forest-soft))); }
+.rating-ledger-num { flex: 0 0 auto; min-width: 22px; text-align: right; font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums; color: rgb(var(--t-mute)); }
+.rating-ledger-row.is-active .rating-ledger-num { color: rgb(var(--t-brand-300)); }
+.review-ledger-side { display: grid; justify-items: end; gap: 2px; position: relative; }
+.review-ledger-avg { font-size: 30px; font-weight: 800; line-height: 1.05; letter-spacing: -0.02em; color: rgb(var(--t-brand-300)); }
+.review-ledger-cap { font-size: 11px; letter-spacing: 0.06em; color: rgb(var(--t-mute)); }
+.review-ledger-clear {
+  margin-top: 6px; min-height: 26px; padding: 2px 8px; border: 1px solid rgb(var(--t-brand-500) / 0.45);
+  background: none; border-radius: 2px; font-size: 11px; color: rgb(var(--t-brand-300)); cursor: pointer;
+  transition: border-color 200ms cubic-bezier(0.4, 0, 0.2, 1), background-color 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.review-ledger-clear:hover { border-color: rgb(var(--t-brand-500)); background: rgb(var(--t-brand-500) / 0.1); }
+.review-ledger-clear:active { transform: scale(0.97); }
+@media (max-width: 639px) {
+  .review-ledger-split { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .review-ledger-side { justify-items: start; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rating-ledger-row, .rating-ledger-rail > i, .review-ledger-clear { transition: none; }
+}
+
+/* ══ 凑单铜轨（CartPage · 第 91 轮）══
+   「还差多少起送」原来是两句字，读者要在脑子里做减法；画成一根差一截就满的轨，
+   眼睛一次读完。刻度 12.5% 一格 = 门槛八分之一（¥0.75 一档），是「钱」的刻度而不是装饰。
+   达标整条转森林绿 = 状态变了（与确认页那张票的铜轨同一套状态语言、同一组色）。 */
+.rail-meter { position: relative; height: 10px; margin: 2px 0 8px; overflow: hidden; background: rgb(var(--t-brand-500) / 0.14); box-shadow: inset 0 0 0 1px rgb(var(--t-brand-500) / 0.3); }
+.rail-meter-ticks { position: absolute; inset: 0; background: repeating-linear-gradient(90deg, rgb(var(--t-brand-500) / 0.4) 0 1px, transparent 1px 12.5%); }
+.rail-meter-fill { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, rgb(var(--t-brand-500) / 0.55), rgb(var(--t-brand-300))); transition: width 400ms cubic-bezier(0.16, 1, 0.3, 1); }
+.rail-meter-knot { position: absolute; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: rgb(var(--t-brand-500)); box-shadow: 0 0 0 2px rgb(var(--t-surface)), 0 1px 4px rgb(0 0 0 / 0.5); transition: left 400ms cubic-bezier(0.16, 1, 0.3, 1); }
+.rail-meter[data-ready='true'] { background: rgb(var(--t-forest) / 0.16); box-shadow: inset 0 0 0 1px rgb(var(--t-forest) / 0.4); }
+.rail-meter[data-ready='true'] .rail-meter-ticks { background: repeating-linear-gradient(90deg, rgb(var(--t-forest-soft) / 0.45) 0 1px, transparent 1px 12.5%); }
+.rail-meter[data-ready='true'] .rail-meter-fill { background: linear-gradient(90deg, rgb(var(--t-forest) / 0.7), rgb(var(--t-forest-soft))); }
+.rail-meter[data-ready='true'] .rail-meter-knot { background: rgb(var(--t-forest-soft)); }
+.rail-meter-note { margin: 0 0 12px; font-size: 12px; line-height: 1.7; color: rgb(var(--t-mute)); }
+.rail-meter-note b { font-weight: 700; color: rgb(var(--t-brand-300)); font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) {
+  .rail-meter-fill, .rail-meter-knot { transition: none; }
+}
+
+/* ══ 购物袋的一行（CartItem · 第 91 轮）══
+   与票脚、确认页实时票据同一套：名称在左、算式在中（¥单价 × 件数）、小计压右，
+   行间虚线而不是卡片描边。金额档沿用 .cart-ticket-amount 的等宽铜字。 */
+.cart-line { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 0; border-bottom: 1px dashed rgb(var(--line)); }
+.cart-line:last-child { border-bottom: 0; }
+.cart-line-main { min-width: 0; flex: 1 1 auto; display: flex; flex-direction: column; gap: 3px; }
+.cart-line-name { font-size: 13px; font-weight: 700; line-height: 1.5; letter-spacing: -0.01em; color: rgb(var(--t-ink)); }
+.cart-line-formula { font-size: 11.5px; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; color: rgb(var(--t-mute)); }
+.cart-line-side { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; gap: 7px; }
+.cart-line-amount { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; color: rgb(var(--t-brand-300)); }
+.cart-step { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 14px; line-height: 1; border: 0; cursor: pointer; }
+.cart-remove { min-height: 30px; padding: 4px 9px; border-radius: 2px; background: none; cursor: pointer; color: rgb(var(--t-red-700)); }
+.cart-remove:active { transform: scale(0.96); }
+
+/* ══ 空态图标托（EmptyState · 第 91 轮）══
+   与柜台台账 .counter-stage、详情页 .stage-frame 同一块台面（--t-stage 暖台 + 铜发丝）。
+   旧写法是 bg-gray-50 + text-stone-400 的通用灰方块，被全站 6 处空态共用 —— 模板感最重
+   的一处残留。图标取 mute 档（压暖台实测 5.4:1，过 WCAG 1.4.11 的 3:1 功能图形线）。 */
+.empty-stage {
+  width: 52px; height: 52px; flex: 0 0 auto; display: grid; place-items: center; color: rgb(var(--t-mute));
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgb(var(--t-stage) / 0.94), rgb(var(--t-stage) / 0.8));
+  box-shadow: inset 0 0 0 1px rgb(217 177 102 / 0.24), 0 10px 22px -14px rgb(0 0 0 / 0.75);
+}
+
+/* ══ 实时票据双栏（OrderConfirmPage · 第 91 轮）══
+   确认页此前是一列通用表单（五个 label + 五个输入框 + 虚线上传框），与站内「出票」
+   语言脱节 —— 而它是出票前最后一屏。现在左填右印：每填一项，右栏那张票多出一行，
+   商品与金额当场结算，起送线做成一根铜轨（刻度=门槛、填充=已选、结=当前量）。
+   色全部取现有令牌：纸 = --t-paper、墨 = espresso、轨 = 铜、达标 = 森林绿；
+   曲线与时长用在册两条 + 50ms 网格（motion-consistency 闸）。
+   窄档单列堆叠、票据不隐藏（零面积文字叶会被可达闸判红）。 */
+.confirm-desk { display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; }
+@media (min-width: 1024px) { .confirm-desk { grid-template-columns: minmax(0, 1fr) minmax(340px, 400px); gap: 34px; align-items: start; } }
+.confirm-desk-form { min-width: 0; }
+.confirm-desk-ticket { min-width: 0; display: flex; justify-content: center; }
+/* 票据限宽沿用 .receipt-paper 的 400px；这里只把「随填写长出来」的节奏接上 */
+.confirm-ticket { width: 100%; }
+/* 票据行在本页要**允许换行**：商品名 + 规格 + 件数是一整串，旧版 .receipt-row > span 是
+   flex:0 0 auto（不缩不换），长名会把纸面撑出横向溢出。这里放开收缩并把字号提到 12px
+   / 行高 1.6 —— 11px 是「栏目名」档，一旦真换两行就落进 prose-readability 闸的
+   「会换行的中文正文必须 ≥12px 且行高 ≥1.5」判据（本仓立过的同族红）。 */
+.confirm-ticket .receipt-row > span { flex: 1 1 auto; min-width: 0; font-size: 12px; line-height: 1.6; letter-spacing: 0.02em; }
+.confirm-ticket .receipt-row > strong { font-size: 14px; }
+/* 侧轨吸附：sticky 必须挂在**网格项本身**（.confirm-desk-ticket）而不是里面的纸面 ——
+   配合 align-items:start 让该项短于其网格区域，才有可滑动的余量；
+   挂在子元素上时父项与子项等高，sticky 永远不动（本站双栏第一次踩）。 */
+@media (min-width: 1024px) { .confirm-desk-ticket { position: sticky; top: 4px; } }
+.confirm-ticket-title {
+  margin: 6px 0 0; font-size: 19px; font-weight: 900; letter-spacing: -0.01em;
+  font-family: 'CS Display Serif', 'Source Han Serif SC', 'Songti SC', STSong, 'Noto Serif CJK SC', SimSun, NSimSun, serif;
+  color: #2a221d;
+}
+.confirm-ticket .receipt-headline > p { margin: 6px 0 0; font-size: 12px; line-height: 1.7; color: rgb(42 34 29 / 0.72); }
+/* 分区题：票据纸面上的小标 —— **不能复用 .section-title**，那是语义墨（--t-ink=米白），
+   压奶油纸面等于白字白纸（对比度当场塌）。纸上的字一律走 espresso 族。 */
+.ticket-section { margin: 14px 0 6px; font-size: 12.5px; font-weight: 800; letter-spacing: 0.1em; color: rgb(42 34 29 / 0.78); }
+/* 空车一行：底稿还没写内容时给一句人话，而不是留一块空白（留白读起来像缺内容） */
+.ticket-empty { margin: 2px 0 0; font-size: 12px; line-height: 1.7; color: rgb(42 34 29 / 0.72); }
+/* 待填 / 未贴：占位是「还没写的字」，比栏目名淡一档但仍过 AA（0.72 压纸面实测 5.5:1） */
+.ticket-blank { font-style: normal; font-weight: 600; font-size: 12px; letter-spacing: 0.04em; color: rgb(42 34 29 / 0.72); }
+.ticket-note { margin: 8px 0 0; font-size: 12px; line-height: 1.7; color: rgb(42 34 29 / 0.72); }
+/* 起送铜轨：底槽 = 未达部分的铜暗阶，填充 = 亮金，结 = 已选那一档的铜钉；
+   达标后整条换森林绿（与 .step-done 同一状态语言），不是再引入第四色。 */
+.ticket-rail { position: relative; height: 10px; margin-top: 12px; overflow: hidden; background: rgb(177 135 57 / 0.16); box-shadow: inset 0 0 0 1px rgb(177 135 57 / 0.3); }
+.ticket-rail-ticks {
+  position: absolute; inset: 0;
+  background: repeating-linear-gradient(90deg, rgb(177 135 57 / 0.42) 0 1px, transparent 1px 12.5%);
+}
+.ticket-rail-fill {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  background: linear-gradient(90deg, rgb(177 135 57 / 0.55), rgb(217 177 102 / 0.9));
+  transition: width 400ms cubic-bezier(0.16, 1, 0.3, 1), background-color 250ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.ticket-rail-knot {
+  position: absolute; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%;
+  background: #b18739; box-shadow: 0 0 0 2px rgb(242 236 223), 0 1px 4px rgb(0 0 0 / 0.25);
+  transition: left 400ms cubic-bezier(0.16, 1, 0.3, 1), background-color 250ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+/* 达标态：整条转森林绿（够一趟配送 = 状态变了，颜色跟着变；不是装饰） */
+.confirm-ticket[data-ready='true'] .ticket-rail { background: rgb(31 74 57 / 0.14); box-shadow: inset 0 0 0 1px rgb(31 74 57 / 0.34); }
+.confirm-ticket[data-ready='true'] .ticket-rail-ticks { background: repeating-linear-gradient(90deg, rgb(31 74 57 / 0.4) 0 1px, transparent 1px 12.5%); }
+.confirm-ticket[data-ready='true'] .ticket-rail-fill { background: linear-gradient(90deg, rgb(31 74 57 / 0.55), rgb(79 143 109 / 0.95)); }
+.confirm-ticket[data-ready='true'] .ticket-rail-knot { background: #1f4a39; }
+/* 章：底稿阶段的「待出票」章（比成功页那枚轻一档 —— 它还没盖章，只是压在那儿的铜印） */
+.confirm-ticket-foot { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgb(42 34 29 / 0.18); }
+.confirm-ticket-stamp {
+  flex: 0 0 auto; width: 62px; height: 62px; border-radius: 50%; display: grid; place-content: center;
+  text-align: center; font-weight: 900; font-size: 11.5px; line-height: 1.35; letter-spacing: 0.06em;
+  color: #1f4a39; border: 2px dashed rgb(31 74 57 / 0.65); background: rgb(31 74 57 / 0.04);
+  transform: rotate(-11deg); mix-blend-mode: multiply;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ticket-rail-fill, .ticket-rail-knot { transition: none; }
 }
 
 /* ══ 查询工单双栏（OrderQueryPage · 2026-10-26）══

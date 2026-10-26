@@ -9,25 +9,30 @@ import { products } from '../../data/products-seed'
 
 /** 开屏三件每次随机：模块加载时抽一次（一次页面会话内稳定，刷新/再开屏换新）。
  *  池子 = seed 全量零食（subcategories 含 snacks 的在售面），图源 /images/{order}.webp 全量在册。
- *  窄档（<768px）拍立得两件并排是设计定式 ⇒ 抽 5 件，桌面用前 3、窄档用前 2（同一次随机源，
- *  刷新前两边看到的组合同源不同数，避免 CSS 藏卡片造成「内容存在但不可见」的判红）。 */
+ *  窄档（≤900px，与 CSS 藏卡片的断点同一个数）拍立得两件并排是设计定式 ⇒ 抽 5 件，
+ *  宽档用前 3、窄档用前 2（同一次随机源，刷新前两边看到的组合同源不同数，
+ *  避免 CSS 藏卡片造成「内容存在但不可见」的判红）。 */
 const allExhibits = pickExhibits(
   products.filter((p) => (p.subcategories || []).includes('snacks')),
 )
 
 export default function MarketHero({ open }: { open: boolean }) {
   const visualRef = useRef<HTMLDivElement>(null)
-  const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 767px)').matches)
+  /* 件数判定必须与 redesign.css 里 `.exhibit-side { display: none }` 的断点**同一个数**。
+     旧写法两处都是 767，而 CSS 那条挂在 @media (max-width: 900px) 块里 ⇒ 768–900px 之间
+     JS 渲染三件、CSS 把第三件藏掉 —— 内容存在而不可见（本仓明令禁止的形态，
+     「零面积叶会被可达闸判红」的同族）。这里把 JS 侧对齐到 900，两边同判两件。 */
+  const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 900px)').matches)
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return
-    const mq = window.matchMedia('(max-width: 767px)')
+    const mq = window.matchMedia('(max-width: 900px)')
     const onChange = () => setNarrow(mq.matches)
     mq.addEventListener('change', onChange)
     return () => mq.removeEventListener('change', onChange)
   }, [])
   const exhibits = narrow ? allExhibits.slice(0, 2) : allExhibits.slice(0, 3)
   useEffect(() => {
-    if (typeof window.matchMedia !== 'function' || window.matchMedia('(prefers-reduced-motion: reduce), (max-width: 767px)').matches) return
+    if (typeof window.matchMedia !== 'function' || window.matchMedia('(prefers-reduced-motion: reduce), (max-width: 900px)').matches) return
     let frame = 0
     const move = () => {
       if (frame) return

@@ -1,5 +1,6 @@
 
 import Overlay from '../Overlay'
+import GlyphIcon from '../brand/GlyphIcon'
 
 // 服务表单页弹窗（M6 拆分自 ServiceFormPage，2026-09-05）
 // 2026-09-23：改用统一 Overlay —— 保留 dialog + aria-modal + Esc 关闭语义，
@@ -9,8 +10,9 @@ export default function ServicePopup({ popup, onClose }: { popup: string; onClos
   return (
     <Overlay open onClose={onClose} label="温馨提示" className="rounded-3xl p-7">
       <div className="text-center">
-        <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-brand-50 flex items-center justify-center">
-          <span className="text-3xl" aria-hidden="true">📋</span>
+        {/* 牌托换成暖台 + 自绘线稿（旧版 = brand-50 灰块里悬一枚 emoji） */}
+        <div className="hint-plate hint-plate-large mx-auto mb-4">
+          <GlyphIcon glyph="📋" />
         </div>
         <h2 className="font-bold text-ink text-lg">温馨提示</h2>
         <p className="text-stone-500 text-sm mt-3 leading-relaxed">{popup}</p>

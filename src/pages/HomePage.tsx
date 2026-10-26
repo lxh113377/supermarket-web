@@ -2,12 +2,25 @@ import { Link } from 'react-router-dom'
 import { IconRobot } from '../components/Icons'
 import { CATEGORIES } from '../data/categories'
 import { MIN_DELIVERY_AMOUNT } from '../data/deliveryLimits'
-import { formatYuan } from '../utils/format'
+import { formatPrice, formatYuan } from '../utils/format'
+import { products } from '../data/products-seed'
 import { getClosedMessage } from '../utils/businessHours'
 import { useBusinessHours } from '../hooks/useBusinessHours'
 import { prefetchRoute } from '../prefetchBus'
 import CustomerHeader from '../components/brand/CustomerHeader'
 import MarketHero from '../components/brand/MarketHero'
+
+/** 今日货架取数：在售面（enabled !== false）按目录序号升序取头八件。
+ *  模块级常量 = 一次求值（seed 是静态数据，不需要 effect 与状态）；
+ *  不编销量、不编评分 —— 这一屏只摆**真在卖**的东西，与承诺带那句「真实商品」对齐。
+ *  地址用 'p_' + order：与 localStore 补 _id 的同一规则（'p_' + p.order），
+ *  所以首页这一件点进去就是商城里那一条记录，不是另造一套 id 口径。 */
+const onSale = products.filter((p) => p.enabled !== false && typeof p.order === 'number')
+const onSaleCount = onSale.length
+const shelf = [...onSale]
+  .sort((a, b) => (a.order as number) - (b.order as number))
+  .slice(0, 8)
+  .map((p) => ({ ...p, order: p.order as number, id: 'p_' + (p.order as number) }))
 
 const categoryNotes: Record<string, { subtitle: string; action: string }> = {
   life: { subtitle: '零食、日常与代拿', action: '照顾日常' },
@@ -44,6 +57,64 @@ export default function HomePage() {
               </Link>
             })}
           </nav>
+        </section>
+        {/* ── 第四带：今日货架（2026-10-26 第 91 轮）──
+            首页原来三带就结束：色块横带 → 服务目录 → 承诺带 → 页脚。而承诺带里写着
+            「真实商品」，全站却没有任何一屏把**真实商品**摆给新访客看 —— 想看货必须先进
+            商城，等于把最强的资产（65 件实拍在售）藏在一次点击之后。
+            这一带把货架抬到首页：一条柜台横轨，商品立在轨上，每件挂一枚价签。
+            数据 = products-seed 在售面（enabled !== false）按 order 升序取前 8 件，
+            **不编销量、不编库存**（本站口径：屏上每个数字都要有出处）。
+            窄档横向可滑（overflow-x-auto，不是 hidden —— 可达闸按「存在一个可见位置」判，
+            横滑容器里的件全部可达）；宽档铺成一轨。整件是可点的链接，不内嵌按钮：
+            一屏 8 个加购钮会把「逛」变成「操作」，且触控/按压两条判据的面翻倍。 */}
+        <section className="home-shelf" aria-labelledby="shelf-title">
+          <div className="home-shelf-head">
+            <div>
+              <p className="eyebrow">TODAY ON THE SHELF</p>
+              <h2 id="shelf-title" className="home-shelf-title">今日货架</h2>
+            </div>
+            <p className="home-shelf-note">
+              在售 <b className="price-num">{onSaleCount}</b> 件 · 这里是刚上到的头八件
+              <span aria-hidden="true"> →</span>
+            </p>
+          </div>
+          <div className="home-shelf-rail">
+            {shelf.map((p, i) => (
+              <Link
+                key={p.id}
+                to={'/product/' + p.id}
+                onMouseEnter={() => prefetchRoute('product')}
+                onFocus={() => prefetchRoute('product')}
+                /* animate-fade-in-up 不能省：stagger-N 只写 animation-delay，
+                   元素本体没有 animation 时那个 delay 是**惰性的**（本轮一直在修的
+                   「写了等于没写」那一族，自己差点又写一遍）。 */
+                className={'home-shelf-item animate-fade-in-up stagger-' + Math.min(i + 1, 8)}
+                aria-label={'看 ' + p.name + ' 详情，' + formatYuan(p.price)}
+              >
+                <span aria-hidden="true" className="counter-no">{String(p.order).padStart(2, '0')}</span>
+                {/* 价签挂在**照片**右下角（第一版挂在条目底部，两行商品名被压住半行 ——
+                    目检截图实测）。牌是货架上的牌，它属于货，不属于文字。 */}
+                <span className="home-shelf-photo">
+                  <img
+                    src={'/images/sm/' + p.order + '.webp'}
+                    srcSet={'/images/sm/' + p.order + '.webp 400w, /images/' + p.order + '.webp 800w'}
+                    sizes="(max-width: 639px) 42vw, 168px"
+                    width={400}
+                    height={400}
+                    loading="lazy"
+                    decoding="async"
+                    alt={p.name + ' 商品摄影'}
+                  />
+                  <span className="home-shelf-tag price-num">
+                    <span className="home-shelf-yuan" aria-hidden="true">¥</span>{formatPrice(p.price)}
+                  </span>
+                </span>
+                <span className="home-shelf-name">{p.name}</span>
+              </Link>
+            ))}
+          </div>
+          <Link to="/shop" className="home-shelf-exit text-link">看完整货架 <span aria-hidden="true">↗</span></Link>
         </section>
         <section className="home-promise" aria-label="服务承诺">
           <p className="eyebrow">FROM OUR SHELF TO YOUR DOOR</p>

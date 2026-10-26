@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import type { Product } from '../../types'
 import { productThumbUrl, productSrcSet } from '../../utils/images'
 import { formatYuan } from '../../utils/format'
+import GlyphIcon from '../brand/GlyphIcon'
 
 // 相关推荐 —— 只从**真实商品目录**里取同类目（共享 subcategory）的商品，
 // 不含任何"热销/爆款/编辑推荐"式措辞：那些需要销量或人工背书，而目录里没有这些数据。
@@ -61,7 +62,7 @@ export default function RelatedProducts({ current, products, limit = 8 }: Props)
                       className="h-full w-full object-contain"
                     />
                   ) : (
-                    <span className="text-2xl" aria-hidden="true">🛒</span>
+                    <span className="related-glyph" aria-hidden="true"><GlyphIcon glyph="🛒" /></span>
                   )}
                 </div>
                 <p className="text-sm text-ink mt-2 line-clamp-2 leading-snug">{p.name}</p>
