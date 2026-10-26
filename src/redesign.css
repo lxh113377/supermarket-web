@@ -943,10 +943,13 @@
    正解不是给判据加豁免，是换成 auto-fill 网格：任何视口下八件全在流内。 */
 .home-shelf-rail {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: clamp(12px, 1.6vw, 26px);
-  max-width: 1240px; margin: 0 auto; padding: 22px 4px 26px;
-  /* 柜台面：一条铜线当货架前沿，商品「立」在它上面 */
-  background: linear-gradient(180deg, transparent 0 calc(100% - 26px), rgb(var(--t-brand-500) / 0.28) calc(100% - 26px) calc(100% - 25px), transparent calc(100% - 25px));
+  max-width: 1240px; margin: 0 auto; padding: 22px 4px 4px;
 }
+/* 分层线挂在**分区头**下沿而不是货架容器底部：第一版把铜线画在 rail 的 background 上
+   （意图 = 一条「货架前沿」，商品立在它上面）。但本带是 auto-fill 换行网格 —— 一旦换成两行，
+   那条线就落在两行**中间**（平板 768 目检实测），前沿语义当场失效，读起来像渲染错位。
+   单行才成立的装饰，在换行布局里必须换成与行数无关的位置。 */
+.home-shelf-head { border-bottom: 1px solid rgb(var(--t-brand-500) / 0.32); padding-bottom: 18px; }
 .home-shelf-photo {
   position: relative;
   transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 300ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -1090,6 +1093,14 @@
    行间虚线而不是卡片描边。金额档沿用 .cart-ticket-amount 的等宽铜字。 */
 .cart-line { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 0; border-bottom: 1px dashed rgb(var(--line)); }
 .cart-line:last-child { border-bottom: 0; }
+/* 缩略图立在**同一块暖台**上（--t-stage，与商城卡 / 首页货架 / 空态图标托同源）：
+   购物袋不再是全站唯一「看不见货」的商品列表。multiply 让白底抠图融进台面而不是悬个白方块。 */
+.cart-line-photo {
+  flex: 0 0 auto; width: 56px; height: 56px; overflow: hidden; border-radius: 2px;
+  background-color: rgb(var(--t-stage));
+  box-shadow: inset 0 0 0 1px rgb(217 177 102 / 0.22), 0 8px 18px -14px rgb(0 0 0 / 0.8);
+}
+.cart-line-photo > img { width: 100%; height: 100%; object-fit: contain; mix-blend-mode: multiply; }
 .cart-line-main { min-width: 0; flex: 1 1 auto; display: flex; flex-direction: column; gap: 3px; }
 .cart-line-name { font-size: 13px; font-weight: 700; line-height: 1.5; letter-spacing: -0.01em; color: rgb(var(--t-ink)); }
 .cart-line-formula { font-size: var(--t-fs-meta); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; color: rgb(var(--t-mute)); }

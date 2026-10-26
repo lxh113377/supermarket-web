@@ -23,12 +23,24 @@ export default function CartPage() {
   // 清空购物车走内联两步确认（arm → 再点一次 = 确认），替代原生 confirm()：见 hooks/useInlineConfirm
   const { arm: armClear, disarm: disarmClear, isArmed: clearArmed } = useInlineConfirm()
 
+  /* 目录序号表（productId -> order）：购物袋那一行的缩略图靠它挂图。
+     取数**复用下面那次 getProducts()**（价格漂移检测本来就要拉目录）=> 零额外请求。
+     刻意不从 productId 反推序号：实测购物车里的 id 形如 p006（补零三位），
+     与 localStore 给 seed 补的 'p_' + order 不同形，猜形态会静默取不到图。 */
+  const [orderMap, setOrderMap] = React.useState<Record<string, number | string>>({})
   // 检测价格变动并同步刷新购物车显示价格（仅在页面打开时同步一次）
   const initialCartRef = React.useRef<Cart>(cart)
   React.useEffect(() => {
     const cart = initialCartRef.current
     if (cart.items.length === 0) return
     getProducts().then((products: Product[]) => {
+      // 显式建表而不是 Object.fromEntries：p.order 的类型是 number | string | undefined，
+      // fromEntries 会把值类型推成含 undefined（与 state 的 Record<string, number|string> 不合）。
+      const map: Record<string, number | string> = {}
+      for (const p of products) {
+        if (p.order !== undefined && p.order !== null && p.order !== '') map[p._id] = p.order
+      }
+      setOrderMap(map)
       const changes: PriceChange[] = []
       let needUpdate = false
       const updatedItems = cart.items.map(item => {
@@ -170,6 +182,7 @@ export default function CartPage() {
                   onAdd={handleAdd}
                   onRemove={handleRemove}
                   onDelete={handleDelete}
+                  order={orderMap[item.productId]}
                 />
               </div>
             ))}
