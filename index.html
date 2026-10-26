@@ -10,7 +10,10 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https:; connect-src 'self' https://supermarket-web.pages.dev; font-src 'self' data:; manifest-src 'self';" />
     <!-- 展示体预载（v3）：首屏刊头/价格即用，font-display:swap 兜底；crossorigin 与字体请求的 CORS 模式对齐防双取 -->
     <link rel="preload" href="/fonts/bricolage-latin-wght.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="preload" href="/fonts/display-serif-cjk.woff2" as="font" type="font/woff2" crossorigin />
+    <!-- 展示体中文字体已按用量分包（见 src/index.css 的分包说明）：首屏只 preload
+         「-a」包（60 字形 / 11,604 B），其余 6 个包由 unicode-range 按需拉起 ——
+         原来这里 preload 的是 215,580 B 的单文件，占整页传输 45.4%，是首屏最大单项。 -->
+    <link rel="preload" href="/fonts/display-serif-cjk-a.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="manifest" href="./manifest.json" />
     <link rel="apple-touch-icon" href="./icon-192.png" />
     <title>江科一站通</title>

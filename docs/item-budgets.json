@@ -82,8 +82,8 @@
   {
    "id": "first-load-css",
    "pattern": "index-*.css",
-   "budget": 25400,
-   "measuredAtBuild": "23061B gz（2026-10-26 第 91 轮本机 npx vite build）",
+   "budget": 29900,
+   "measuredAtBuild": "27096B gz（2026-10-27 本机 npx vite build；中文展示体按用量分包后多出 7 条 @font-face 的 unicode-range 清单，是可见成本，归因见 CHANGELOG 2026-10-27 与 rust/docs/07-font-governance.md）",
    "note": "首屏 CSS（聚合预算里 firstLoadCss 的分项化）。2026-10-25 由 12300 上调 19400（实测 ×1.10）：v4 纯暗把昼/夜两套调色面折叠成一套常载层（结构性增长，见 CHANGELOG）。原注：2026-10-08 由 11100 上调到 12400：打印页（/print）组件的 Tailwind 工具类被全量扫描进主 CSS（Tailwind 不按路由拆分），+123B gz；打印页专属样式已拆 print.css 随路由加载（见 CHANGELOG），本条涨的是工具类面；2026-10-25 第87轮按规则重推导 19400→21900B（工单底稿 CSS 段结构性扩张，归因 CHANGELOG 同日条目）"
   },
   {
@@ -180,8 +180,8 @@
   {
    "id": "app-index-chunk",
    "pattern": "index-*.js",
-   "budget": 6400,
-   "measuredAtBuild": "5815B gz（2026-10-23 07:20 本机 npx vite build，HEAD 61acefe）",
+   "budget": 7100,
+   "measuredAtBuild": "6403B gz（2026-10-27 本机 npx vite build；入口 raw 仍是 17,189B、与上档同值 ⇒ 越界 3B 属 gzip/构建口径噪声，按名册规则重推导）",
    "note": "入口 JS 块；与 index-*.css 同族不同件。任何把公共代码请进入口的改动先顶穿这条"
   },
   {

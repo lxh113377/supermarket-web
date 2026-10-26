@@ -1,17 +1,17 @@
 {
   "label": "edge",
   "base": "http://127.0.0.1:5192",
-  "at": "2026-10-26T15:31:15.791Z",
+  "at": "2026-10-26T17:23:04.695Z",
   "shell": {
     "status": 200,
     "headers": {
       "cache-control": "public, max-age=0, must-revalidate",
       "content-encoding": "br",
-      "content-length": "20727",
+      "content-length": "22432",
       "content-type": "text/html; charset=utf-8",
-      "date": "Mon, 26 Oct 2026 15:31:15 GMT",
-      "etag": "\"239926a1530160e5\"",
-      "link": "</assets/index-BIoJHo8Q.js>; rel=preload; as=script; crossorigin, </assets/HomePage-W7CkpB2H.js>; rel=preload; as=script; crossorigin, </fonts/bricolage-latin-wght.woff2>; rel=preload; as=font; type=font/woff2; crossorigin, </fonts/display-serif-cjk.woff2>; rel=preload; as=font; type=font/woff2; crossorigin",
+      "date": "Mon, 26 Oct 2026 17:23:04 GMT",
+      "etag": "\"672aa819f9ceda3d\"",
+      "link": "</assets/index-C1YmgGos.js>; rel=preload; as=script; crossorigin, </assets/HomePage-CemAieX6.js>; rel=preload; as=script; crossorigin, <./fonts/bricolage-latin-wght.woff2>; rel=preload; as=font; crossorigin, <./fonts/display-serif-cjk-a.woff2>; rel=preload; as=font; crossorigin",
       "permissions-policy": "geolocation=(), microphone=(), camera=(), geolocation=(), microphone=(), camera=()",
       "referrer-policy": "strict-origin-when-cross-origin, strict-origin-when-cross-origin",
       "server": "supermarket-edge/0.1",
@@ -21,19 +21,19 @@
       "x-edge-shell": "inline-css",
       "x-frame-options": "DENY, DENY"
     },
-    "decodedBytes": 133703,
-    "transferBytes": 20727,
-    "ttfbMs": 1.9363,
-    "totalMs": 3.1096,
+    "decodedBytes": 141100,
+    "transferBytes": 22432,
+    "ttfbMs": 1.5408,
+    "totalMs": 2.7312,
     "samples": 5
   },
   "shell304": {
     "status": 304,
     "headers": {
       "cache-control": "public, max-age=0, must-revalidate",
-      "date": "Mon, 26 Oct 2026 15:31:15 GMT",
-      "etag": "\"239926a1530160e5\"",
-      "link": "</assets/index-BIoJHo8Q.js>; rel=preload; as=script; crossorigin, </assets/HomePage-W7CkpB2H.js>; rel=preload; as=script; crossorigin, </fonts/bricolage-latin-wght.woff2>; rel=preload; as=font; type=font/woff2; crossorigin, </fonts/display-serif-cjk.woff2>; rel=preload; as=font; type=font/woff2; crossorigin",
+      "date": "Mon, 26 Oct 2026 17:23:04 GMT",
+      "etag": "\"672aa819f9ceda3d\"",
+      "link": "</assets/index-C1YmgGos.js>; rel=preload; as=script; crossorigin, </assets/HomePage-CemAieX6.js>; rel=preload; as=script; crossorigin, <./fonts/bricolage-latin-wght.woff2>; rel=preload; as=font; crossorigin, <./fonts/display-serif-cjk-a.woff2>; rel=preload; as=font; crossorigin",
       "permissions-policy": "geolocation=(), microphone=(), camera=(), geolocation=(), microphone=(), camera=()",
       "referrer-policy": "strict-origin-when-cross-origin, strict-origin-when-cross-origin",
       "server": "supermarket-edge/0.1",
@@ -45,20 +45,20 @@
     },
     "decodedBytes": 0,
     "transferBytes": 0,
-    "ttfbMs": 0.7835,
-    "totalMs": 0.7918,
+    "ttfbMs": 0.6232,
+    "totalMs": 0.659,
     "samples": 5
   },
   "entryChunk": {
-    "path": "assets/index-BIoJHo8Q.js",
+    "path": "assets/index-C1YmgGos.js",
     "status": 200,
     "headers": {
       "cache-control": "public, max-age=31536000, immutable",
       "content-encoding": "br",
-      "content-length": "5429",
+      "content-length": "5421",
       "content-type": "text/javascript; charset=utf-8",
-      "date": "Mon, 26 Oct 2026 15:31:15 GMT",
-      "etag": "\"522a4da0670cedad\"",
+      "date": "Mon, 26 Oct 2026 17:23:04 GMT",
+      "etag": "\"5e6f5ba82365d9ee\"",
       "permissions-policy": "geolocation=(), microphone=(), camera=(), geolocation=(), microphone=(), camera=()",
       "referrer-policy": "strict-origin-when-cross-origin, strict-origin-when-cross-origin",
       "server": "supermarket-edge/0.1",
@@ -68,21 +68,21 @@
       "x-frame-options": "DENY, DENY"
     },
     "decodedBytes": 17189,
-    "transferBytes": 5429,
-    "ttfbMs": 1.1195,
-    "totalMs": 1.3729,
+    "transferBytes": 5421,
+    "ttfbMs": 0.9524,
+    "totalMs": 1.5816,
     "samples": 5
   },
   "shellGzipOnly": {
-    "bytes": 25274,
+    "bytes": 28552,
     "encoding": "gzip"
   },
   "shellIdentity": {
-    "bytes": 133703,
+    "bytes": 141100,
     "encoding": "identity"
   },
   "health": {
     "status": 200,
-    "body": "{\"status\":\"ok\",\"db\":\"unknown\",\"ts\":\"2026-10-26T15:31:15.791Z\",\"ai\":{\"configured\":false,\"source\":\"rule\"},\"deploy\":null,\"edge\":{\"uptimeSeconds\":4,\"assets\":252,\"cacheHits\":0,\"cacheMisses\":0,\"inlineCss\":130973,\"routePreload\":\"assets/HomePage-W7CkpB2H.js\"}}"
+    "body": "{\"status\":\"ok\",\"db\":\"unknown\",\"ts\":\"2026-10-26T17:23:04.695Z\",\"ai\":{\"configured\":false,\"source\":\"rule\"},\"deploy\":null,\"edge\":{\"uptimeSeconds\":4,\"assets\":258,\"cacheHits\":0,\"cacheMisses\":0,\"inlineCss\":138068,\"routePreload\":\"assets/HomePage-CemAieX6.js\"}}"
   }
 }

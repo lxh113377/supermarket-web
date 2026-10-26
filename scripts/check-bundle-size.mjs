@@ -27,7 +27,11 @@ const dist = join(root, 'dist')
 // 改这里前请先跑 --baseline 复核，并在 CHANGELOG 写清归因。
 const BUDGET = {
   firstLoadJs: 95 * 1024,    // 首屏 JS（2026-09-24 实测 86.4）
-  firstLoadCss: 25 * 1024, // 首屏 CSS（2026-10-26 第 91 轮实测 22.5KB：确认页实时票据双栏 + 口碑账本 + 凑单铜轨 + 今日货架带 + 空态暖台五段**结构性**新语言，按名册规则 22.5×1.10≈24.8 ⇒ 取整数乘法 25×1024=25600。上一档 22×1024 的归因见 CHANGELOG 2026-10-25）
+  // 首屏 CSS（2026-10-27 实测 26.5KB：中文展示体按用量分包 ⇒ 一个 @font-face 变七个，
+  //   多出 7 条 unicode-range 清单（+3.2KB gz）。这是**可见成本**，换来 LCP −17.3% /
+  //   整页传输 −40% / 首屏字体字节 −204KB ⇒ 按名册规则 26.5×1.10≈29.15 ⇒ 整数乘法 30×1024。
+  //   上一档 25×1024 的归因见 CHANGELOG 2026-10-26；本档见 CHANGELOG 2026-10-27 与 rust/docs/07）
+  firstLoadCss: 30 * 1024,
   // 单个 chunk 上限。**2026-10-07 由 90KB 抬到 300KB**，归因（不抬就是必红）：
   //   打印页引入 three + @react-three/fiber 做滚动驱动的 3D 实景导航，
   //   three-vendor 单块实测 gzip 245.6KB（raw 953KB）—— 这是 WebGL 引擎本身的体积，

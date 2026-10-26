@@ -128,10 +128,17 @@ pub fn build(cfg: &Config, assets: &AssetStore) -> Result<Shell, String> {
     if let Some(rel) = &preloaded_route {
         links.push(format!("</{}>; rel=preload; as=script; crossorigin", rel));
     }
-    for font in ["fonts/bricolage-latin-wght.woff2", "fonts/display-serif-cjk.woff2"] {
-        if assets.get(&format!("/{}", font)).is_some() {
-            links.push(format!("</{}>; rel=preload; as=font; type=font/woff2; crossorigin", font));
+    // 字体等 preload 一律**从产物自己的 <link rel=preload> 里取**，不再硬编码文件名。
+    // 这条规则是被一次真实漂移逼出来的：字体分包把 display-serif-cjk.woff2 换成了
+    // display-serif-cjk-a.woff2，而这里硬编码着旧名 ⇒ Link 头静默少了一条（页面自身的
+    // preload 还在，但 103 Early Hints 里没了）。从 HTML 取就不会再有第二份真相。
+    for (href, kind, crossorigin) in collect_preloads(&html) {
+        // 样式表已内联，不必再提示；脚本与字体保留。
+        if kind == "style" {
+            continue;
         }
+        let suffix = if crossorigin { "; crossorigin" } else { "" };
+        links.push(format!("<{}>; rel=preload; as={}{}", href, kind, suffix));
     }
 
     Ok(Shell {
@@ -220,6 +227,32 @@ fn find_asset_prefix<'a>(assets: &'a AssetStore, prefix: &str, ext: &str) -> Opt
 
 /// 把 `style-src 'self'` 放宽成 `style-src 'self' 'sha256-...'`。
 ///
+/// 从产物 HTML 里取所有 `<link rel="preload">`（返回 (href, as, crossorigin)）。
+///
+/// 为什么从 HTML 取而不是在 Rust 里列一遍：preload 清单是**构建产物的一部分**，
+/// 在这里再写一份就是第二份真相（本次字体分包改名 display-serif-cjk.woff2 →
+/// display-serif-cjk-a.woff2 已经让硬编码的那份漂过一次：Link 头静默少了一条）。
+/// 取不到就返回空（退化成「没有 Early Hints」，不是错误）。
+fn collect_preloads(html: &str) -> Vec<(String, String, bool)> {
+    let mut out = Vec::new();
+    let mut from = 0usize;
+    while let Some(rel) = html[from..].find("<link") {
+        let start = from + rel;
+        let Some(end_rel) = html[start..].find('>') else { break };
+        let end = start + end_rel + 1;
+        let tag = &html[start..end];
+        from = end;
+        if !tag.contains("rel=\"preload\"") {
+            continue;
+        }
+        let (Some(href), Some(kind)) = (attr(tag, "href"), attr(tag, "as")) else {
+            continue;
+        };
+        out.push((href, kind, tag.contains("crossorigin")));
+    }
+    out
+}
+
 /// 只在原 CSP 里确实有 `style-src 'self'` 时替换（找不到就原样返回）——
 /// 宁可内联样式被 CSP 拦掉（浏览器行为退化成「无样式但结构完整」），
 /// 也不要为了让样式生效而写成 `'unsafe-inline'`（那是永久性放宽）。

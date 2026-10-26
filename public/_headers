@@ -15,6 +15,13 @@
 /images/*
   Cache-Control: public, max-age=600, stale-while-revalidate=86400
 
+# 字体：文件名是稳定的（display-serif-cjk-a/s1..s6、bricolage-latin-wght），
+# **同名会换内容**（第 92 轮的中文展示体分包就是「同名重切」：932 字形拆成 7 个包）。
+# 所以与商品图同口径：10 分钟强缓存 + 后台复验（stale-while-revalidate），
+# 换字体最多 10 分钟两端可见；命中 ETag 时只有 304 不传 body，代价接近零。
+/fonts/*
+  Cache-Control: public, max-age=600, stale-while-revalidate=86400
+
 # ── 长缓存面（第七十五轮 I-75-3）────────────────────────────────────────────────
 # 一手读数（@2026-10-17 实测，改前）：线上 /assets/AdminPage-B6sCkBCL.js 回
 #   Cache-Control: public, max-age=0, must-revalidate

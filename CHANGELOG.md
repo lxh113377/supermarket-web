@@ -1,4 +1,34 @@
 ## [未发布]
+### 2026-10-27 中文展示体按用量分包：首屏字体 215,580 B → 11,604 B（LCP −17.3%）
+
+- **做了什么**：把 `public/fonts/display-serif-cjk.woff2`（215,580 B / 932 字形，挂在一条宽
+  `unicode-range` 上并被 `index.html` preload）拆成 **7 个包**：
+  `display-serif-cjk-a.woff2`（60 字形 / 11,604 B，首屏 preload）+ `-s1..s6`（142~146 字形/包，
+  按需）。`src/index.css` 的一个 `@font-face` 变成 7 个（family/weight/display 全不变，
+  各自带精确 `unicode-range`）；源文件移到 `rust/fonts/display-serif-cjk.source.woff2`
+  不再随站点发布；`public/_headers` 新增 `/fonts/*` 的 10 分钟强缓存 + 后台复验
+  （与 `/images/*` 同口径：**同名会换内容**，本轮分包本身就是同名重切）。
+- **为什么**：第 1 轮的 LCP 归因（`rust/docs/05-performance.md` §4）指出 LCP 元素是头部品牌字
+  /hero 标题，等的是这个 215 KB 文件；而**首屏真正用到的展示体字符只有 14 种**。
+  字节面：字体占 baseline 整页传输的 45.4%（257,396 B），是首屏最大单项。
+- **实测**（四条臂交错采样 5 轮取中位，`rust/docs/perf-local-font.json`）：
+  **LCP 4,665 → 3,861 ms（−17.3%）**；整页传输 566,886 → 340,067 B（−40.0%）；
+  字体传输 257,396 → 53,418 B（−79.2%）；CLS 全程 0；FCP 不变（−0.2%，FCP 本就不是字体绑定的）。
+  分包总成本 +14,920 B 落在懒加载面（只在用户真走到那些字形时才付）。
+- **等价性证据（视觉呈现不变）**：`node rust/scripts/check-font-split.mjs` 七项全过
+  （**分包并集 == 源字体 932 字形**、两两不重叠、A 包覆盖全部首屏字符、CSS 与分包一一对应、
+  体积预算）；`node rust/scripts/font-render-parity.mjs --old … --new …` 五个样本串的
+  `TextMetrics` 逐位相同，`.market-hero-copy` 像素比 **0/260,538 不同**；
+  仓内 `npm run test:visual` **225 passed / 1 skipped / 0 failed**。
+- **预算面**：首屏 CSS gzip 26.5 KB（+3.2 KB = 7 条 @font-face 的 unicode-range 清单，是本改动的
+  **可见成本**，相对省的 204 KB 字体字节可忽略）；按名册规则（实测 ×1.10 上取整）重推导
+  `docs/item-budgets.json` 的 `first-load-css` 25,400 → 29,900 B 与
+  `scripts/check-bundle-size.mjs` 的 `firstLoadCss` 25 → 30 KB；
+  `app-index-chunk` 6,400 → 7,100 B（本轮实测 6,403 B 越界 3 B，但入口 chunk **raw 字节未变**
+  （17,189 B），是构建/gzip 口径噪声 ⇒ 一并按名册规则重推导，让这条预算继续管「真增长」）。
+- **未解决**：原字体只覆盖 932 字形，而产物里出现的 CJK 字符有 1,489 种 —— 557 种缺字
+  **本来就在走系统回退字体**，分包不改变这个覆盖缺口（要补齐需用完整字库重新子集化，
+  体积回到 MB 级，应沿用同一套 `unicode-range` 多片按需）。详见 `rust/docs/07-font-governance.md`。
 ### 2026-10-26 新增商品：小样软糖 ¥0.49、话梅糖软糖 ¥0.09
 
 - **新增 2 件商品**：小样软糖（order 66，好采头「小样」酸Q糖）与话梅糖软糖（order 67），均分类「零食」(snacks)，

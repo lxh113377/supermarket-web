@@ -30,6 +30,7 @@ if (!skipBuild) {
 }
 step('WASM ↔ JS 对账 + 微基准', process.execPath, [path.join(here, 'wasm-host-test.mjs')])
 step('复刻 class 面不漂移', process.execPath, [path.join(here, 'check-shell-parity.mjs')])
+step('字体分包完整性（并集/不重叠/A 包覆盖/预算）', process.execPath, [path.join(here, 'check-font-split.mjs')])
 
 let failed = 0
 for (const s of steps) {

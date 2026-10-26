@@ -1,0 +1,203 @@
+{
+  "base": "http://127.0.0.1:5182",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "routes": [
+    "/",
+    "/shop",
+    "/shop/food",
+    "/product/p_1",
+    "/cart",
+    "/order-query",
+    "/order-confirm",
+    "/assistant",
+    "/category/life",
+    "/service/print"
+  ],
+  "perRoute": {
+    "/": {
+      "firstScreen": [
+        "。",
+        "味",
+        "常",
+        "得",
+        "把",
+        "日",
+        "有",
+        "柿",
+        "滋",
+        "超",
+        "过",
+        "，"
+      ],
+      "wholePage": [
+        "。",
+        "一",
+        "不",
+        "专",
+        "事",
+        "单",
+        "味",
+        "园",
+        "大",
+        "小",
+        "就",
+        "常",
+        "得",
+        "把",
+        "日",
+        "有",
+        "柿",
+        "校",
+        "滋",
+        "点",
+        "用",
+        "站",
+        "简",
+        "超",
+        "趟",
+        "跑",
+        "过",
+        "近",
+        "门",
+        "，"
+      ],
+      "hits": [
+        "h1.market-title",
+        "h2.",
+        "span.",
+        "span.showcase-word"
+      ]
+    },
+    "/shop": {
+      "firstScreen": [],
+      "wholePage": [],
+      "hits": []
+    },
+    "/shop/food": {
+      "firstScreen": [],
+      "wholePage": [],
+      "hits": []
+    },
+    "/product/p_1": {
+      "firstScreen": [],
+      "wholePage": [],
+      "hits": []
+    },
+    "/cart": {
+      "firstScreen": [],
+      "wholePage": [],
+      "hits": []
+    },
+    "/order-query": {
+      "firstScreen": [],
+      "wholePage": [],
+      "hits": []
+    },
+    "/order-confirm": {
+      "firstScreen": [],
+      "wholePage": [
+        "先",
+        "打",
+        "据",
+        "收",
+        "时",
+        "柿",
+        "段",
+        "烊",
+        "着",
+        "记",
+        "超",
+        "，"
+      ],
+      "hits": [
+        "h2.confirm-ticket-title",
+        "strong."
+      ]
+    },
+    "/assistant": {
+      "firstScreen": [],
+      "wholePage": [],
+      "hits": []
+    },
+    "/category/life": {
+      "firstScreen": [
+        "活",
+        "生"
+      ],
+      "wholePage": [
+        "活",
+        "生"
+      ],
+      "hits": [
+        "h1.flex"
+      ]
+    },
+    "/service/print": {
+      "firstScreen": [],
+      "wholePage": [],
+      "hits": []
+    }
+  },
+  "firstScreenUnion": [
+    "。",
+    "味",
+    "常",
+    "得",
+    "把",
+    "日",
+    "有",
+    "柿",
+    "活",
+    "滋",
+    "生",
+    "超",
+    "过",
+    "，"
+  ],
+  "wholePageUnion": [
+    "。",
+    "一",
+    "不",
+    "专",
+    "事",
+    "先",
+    "单",
+    "味",
+    "园",
+    "大",
+    "小",
+    "就",
+    "常",
+    "得",
+    "打",
+    "把",
+    "据",
+    "收",
+    "日",
+    "时",
+    "有",
+    "柿",
+    "校",
+    "段",
+    "活",
+    "滋",
+    "点",
+    "烊",
+    "生",
+    "用",
+    "着",
+    "站",
+    "简",
+    "记",
+    "超",
+    "趟",
+    "跑",
+    "过",
+    "近",
+    "门",
+    "，"
+  ]
+}

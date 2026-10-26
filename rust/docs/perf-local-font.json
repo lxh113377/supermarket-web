@@ -1,0 +1,793 @@
+{
+  "at": "2026-10-26T16:48:45.798Z",
+  "lighthouse": {
+    "cli": "D:\\app-cache\\npm-cache\\_npx\\325431a8ccff5984\\node_modules\\lighthouse\\cli\\index.js",
+    "version": "12.6.0"
+  },
+  "browser": "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
+  "config": {
+    "formFactor": "mobile",
+    "throttlingMethod": "simulate"
+  },
+  "samples": 5,
+  "arms": [
+    "baseline",
+    "font",
+    "edge",
+    "replica"
+  ],
+  "results": {
+    "baseline": {
+      "url": "http://127.0.0.1:5181/",
+      "runs": [
+        {
+          "fcp": 1623.9056,
+          "lcp": 4892.270400000001,
+          "si": 1921.4575799854465,
+          "tbt": 0,
+          "ttfb": 0.991,
+          "cls": 0,
+          "bytes": 566886,
+          "requests": 51,
+          "docBytes": 1600,
+          "scriptBytes": 108320,
+          "cssBytes": 24156,
+          "fontBytes": 257396,
+          "unusedJs": 300,
+          "renderBlocking": 150,
+          "lcpElement": "<span>"
+        },
+        {
+          "fcp": 1772.40915,
+          "lcp": 4666.6061,
+          "si": 2305.0608220148133,
+          "tbt": 0,
+          "ttfb": 0.8440000000000001,
+          "cls": 0,
+          "bytes": 655799,
+          "requests": 49,
+          "docBytes": 1600,
+          "scriptBytes": 121940,
+          "cssBytes": 24156,
+          "fontBytes": 257396,
+          "unusedJs": 150,
+          "renderBlocking": 150,
+          "lcpElement": "<span>"
+        },
+        {
+          "fcp": 1635.6646500000002,
+          "lcp": 4665.4431,
+          "si": 1956.1711060200746,
+          "tbt": 3,
+          "ttfb": 0.7660000000000001,
+          "cls": 0,
+          "bytes": 514005,
+          "requests": 51,
+          "docBytes": 1600,
+          "scriptBytes": 108320,
+          "cssBytes": 24156,
+          "fontBytes": 257396,
+          "unusedJs": 150,
+          "renderBlocking": 150,
+          "lcpElement": "<span>"
+        },
+        {
+          "fcp": 1715.0267,
+          "lcp": 4422.0178,
+          "si": 2294.45845998024,
+          "tbt": 2,
+          "ttfb": 0.8520000000000001,
+          "cls": 0,
+          "bytes": 552733,
+          "requests": 49,
+          "docBytes": 1600,
+          "scriptBytes": 108320,
+          "cssBytes": 24156,
+          "fontBytes": 257396,
+          "unusedJs": 150,
+          "renderBlocking": 150,
+          "lcpElement": "<span>"
+        },
+        {
+          "fcp": 1629.21115,
+          "lcp": 4662.474100000001,
+          "si": 1915.1086160065222,
+          "tbt": 3,
+          "ttfb": 0.8370000000000001,
+          "cls": 0,
+          "bytes": 579167,
+          "requests": 51,
+          "docBytes": 1600,
+          "scriptBytes": 108320,
+          "cssBytes": 24156,
+          "fontBytes": 257396,
+          "unusedJs": 150,
+          "renderBlocking": 150,
+          "lcpElement": "<span>"
+        }
+      ],
+      "stats": {
+        "fcp": {
+          "median": 1635.6646500000002,
+          "min": 1623.9056,
+          "max": 1772.40915,
+          "n": 5
+        },
+        "lcp": {
+          "median": 4665.4431,
+          "min": 4422.0178,
+          "max": 4892.270400000001,
+          "n": 5
+        },
+        "si": {
+          "median": 1956.1711060200746,
+          "min": 1915.1086160065222,
+          "max": 2305.0608220148133,
+          "n": 5
+        },
+        "tbt": {
+          "median": 2,
+          "min": 0,
+          "max": 3,
+          "n": 5
+        },
+        "ttfb": {
+          "median": 0.8440000000000001,
+          "min": 0.7660000000000001,
+          "max": 0.991,
+          "n": 5
+        },
+        "cls": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "n": 5
+        },
+        "bytes": {
+          "median": 566886,
+          "min": 514005,
+          "max": 655799,
+          "n": 5
+        },
+        "requests": {
+          "median": 51,
+          "min": 49,
+          "max": 51,
+          "n": 5
+        },
+        "docBytes": {
+          "median": 1600,
+          "min": 1600,
+          "max": 1600,
+          "n": 5
+        },
+        "scriptBytes": {
+          "median": 108320,
+          "min": 108320,
+          "max": 121940,
+          "n": 5
+        },
+        "cssBytes": {
+          "median": 24156,
+          "min": 24156,
+          "max": 24156,
+          "n": 5
+        },
+        "fontBytes": {
+          "median": 257396,
+          "min": 257396,
+          "max": 257396,
+          "n": 5
+        },
+        "unusedJs": {
+          "median": 150,
+          "min": 150,
+          "max": 300,
+          "n": 5
+        },
+        "renderBlocking": {
+          "median": 150,
+          "min": 150,
+          "max": 150,
+          "n": 5
+        }
+      },
+      "median": {
+        "fcp": 1635.6646500000002,
+        "lcp": 4665.4431,
+        "si": 1956.1711060200746,
+        "tbt": 2,
+        "ttfb": 0.8440000000000001,
+        "cls": 0,
+        "bytes": 566886,
+        "requests": 51,
+        "docBytes": 1600,
+        "scriptBytes": 108320,
+        "cssBytes": 24156,
+        "fontBytes": 257396,
+        "unusedJs": 150,
+        "renderBlocking": 150
+      },
+      "lcpElement": "<span>"
+    },
+    "font": {
+      "url": "http://127.0.0.1:5184/",
+      "runs": [
+        {
+          "fcp": 1632.6106999999997,
+          "lcp": 3721.1476000000002,
+          "si": 1820.2957820505285,
+          "tbt": 0,
+          "ttfb": 1.349,
+          "cls": 0,
+          "bytes": 316655,
+          "requests": 51,
+          "docBytes": 1793,
+          "scriptBytes": 108324,
+          "cssBytes": 27368,
+          "fontBytes": 53418,
+          "unusedJs": 300,
+          "renderBlocking": 150,
+          "lcpElement": "<span>"
+        },
+        {
+          "fcp": 1622.0989,
+          "lcp": 3860.4652000000006,
+          "si": 1824.1602699704936,
+          "tbt": 0,
+          "ttfb": 0.696,
+          "cls": 0,
+          "bytes": 333887,
+          "requests": 51,
+          "docBytes": 1793,
+          "scriptBytes": 108324,
+          "cssBytes": 27368,
+          "fontBytes": 53418,
+          "unusedJs": 450,
+          "renderBlocking": 150,
+          "lcpElement": "<span>"
+        },
+        {
+          "fcp": 1621.2611500000003,
+          "lcp": 4066.3482000000004,
+          "si": 1964.4410780064156,
+          "tbt": 8.456475000000012,
+          "ttfb": 1.069,
+          "cls": 0,
+          "bytes": 377909,
+          "requests": 51,
+          "docBytes": 1793,
+          "scriptBytes": 101487,
+          "cssBytes": 27368,
+          "fontBytes": 53418,
+          "unusedJs": 300,
+          "renderBlocking": 150,
+          "lcpElement": "<span>"
+        },
+        {
+          "fcp": 1635.8919,
+          "lcp": 3860.1892,
+          "si": 2322.6562060179035,
+          "tbt": 1,
+          "ttfb": 0.7739999999999999,
+          "cls": 0,
+          "bytes": 340067,
+          "requests": 51,
+          "docBytes": 1793,
+          "scriptBytes": 108324,
+          "cssBytes": 27368,
+          "fontBytes": 53418,
+          "unusedJs": 450,
+          "renderBlocking": 150,
+          "lcpElement": "<span>"
+        },
+        {
+          "fcp": 1636.7638,
+          "lcp": 3864.0184000000004,
+          "si": 2059.292910019026,
+          "tbt": 0,
+          "ttfb": 1.1300000000000001,
+          "cls": 0,
+          "bytes": 341536,
+          "requests": 51,
+          "docBytes": 1793,
+          "scriptBytes": 108324,
+          "cssBytes": 27368,
+          "fontBytes": 53418,
+          "unusedJs": 300,
+          "renderBlocking": 150,
+          "lcpElement": "<span>"
+        }
+      ],
+      "stats": {
+        "fcp": {
+          "median": 1632.6106999999997,
+          "min": 1621.2611500000003,
+          "max": 1636.7638,
+          "n": 5
+        },
+        "lcp": {
+          "median": 3860.4652000000006,
+          "min": 3721.1476000000002,
+          "max": 4066.3482000000004,
+          "n": 5
+        },
+        "si": {
+          "median": 1964.4410780064156,
+          "min": 1820.2957820505285,
+          "max": 2322.6562060179035,
+          "n": 5
+        },
+        "tbt": {
+          "median": 0,
+          "min": 0,
+          "max": 8.456475000000012,
+          "n": 5
+        },
+        "ttfb": {
+          "median": 1.069,
+          "min": 0.696,
+          "max": 1.349,
+          "n": 5
+        },
+        "cls": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "n": 5
+        },
+        "bytes": {
+          "median": 340067,
+          "min": 316655,
+          "max": 377909,
+          "n": 5
+        },
+        "requests": {
+          "median": 51,
+          "min": 51,
+          "max": 51,
+          "n": 5
+        },
+        "docBytes": {
+          "median": 1793,
+          "min": 1793,
+          "max": 1793,
+          "n": 5
+        },
+        "scriptBytes": {
+          "median": 108324,
+          "min": 101487,
+          "max": 108324,
+          "n": 5
+        },
+        "cssBytes": {
+          "median": 27368,
+          "min": 27368,
+          "max": 27368,
+          "n": 5
+        },
+        "fontBytes": {
+          "median": 53418,
+          "min": 53418,
+          "max": 53418,
+          "n": 5
+        },
+        "unusedJs": {
+          "median": 300,
+          "min": 300,
+          "max": 450,
+          "n": 5
+        },
+        "renderBlocking": {
+          "median": 150,
+          "min": 150,
+          "max": 150,
+          "n": 5
+        }
+      },
+      "median": {
+        "fcp": 1632.6106999999997,
+        "lcp": 3860.4652000000006,
+        "si": 1964.4410780064156,
+        "tbt": 0,
+        "ttfb": 1.069,
+        "cls": 0,
+        "bytes": 340067,
+        "requests": 51,
+        "docBytes": 1793,
+        "scriptBytes": 108324,
+        "cssBytes": 27368,
+        "fontBytes": 53418,
+        "unusedJs": 300,
+        "renderBlocking": 150
+      },
+      "lcpElement": "<span>"
+    },
+    "edge": {
+      "url": "http://127.0.0.1:5182/",
+      "runs": [
+        {
+          "fcp": 1774.44275,
+          "lcp": 3685.3084,
+          "si": 1807.2211378373202,
+          "tbt": 0,
+          "ttfb": 0.24,
+          "cls": 0,
+          "bytes": 305359,
+          "requests": 50,
+          "docBytes": 23441,
+          "scriptBytes": 104340,
+          "cssBytes": 0,
+          "fontBytes": 54280,
+          "unusedJs": 440,
+          "renderBlocking": 0,
+          "lcpElement": "<span>"
+        },
+        {
+          "fcp": 1616.23375,
+          "lcp": 3550.174,
+          "si": 2031.848723956895,
+          "tbt": 0,
+          "ttfb": 0.46399999999999997,
+          "cls": 0,
+          "bytes": 299989,
+          "requests": 50,
+          "docBytes": 23441,
+          "scriptBytes": 104340,
+          "cssBytes": 0,
+          "fontBytes": 54280,
+          "unusedJs": 450,
+          "renderBlocking": 0,
+          "lcpElement": "<span>"
+        },
+        {
+          "fcp": 1624.950125,
+          "lcp": 3984.5201999999995,
+          "si": 1924.903945981322,
+          "tbt": 3.0000000000004547,
+          "ttfb": 0.238,
+          "cls": 0,
+          "bytes": 465592,
+          "requests": 48,
+          "docBytes": 23441,
+          "scriptBytes": 104340,
+          "cssBytes": 0,
+          "fontBytes": 54280,
+          "unusedJs": 300,
+          "renderBlocking": 0,
+          "lcpElement": "<span>"
+        },
+        {
+          "fcp": 1639.3315,
+          "lcp": 3408.3304000000007,
+          "si": 1849.050646006221,
+          "tbt": 14.833700000000022,
+          "ttfb": 0.26299999999999996,
+          "cls": 0,
+          "bytes": 262297,
+          "requests": 50,
+          "docBytes": 23441,
+          "scriptBytes": 104340,
+          "cssBytes": 0,
+          "fontBytes": 54280,
+          "unusedJs": 450,
+          "renderBlocking": 0,
+          "lcpElement": "<span>"
+        },
+        {
+          "fcp": 1624.6281250000002,
+          "lcp": 3685.604999999999,
+          "si": 1839.2691359938372,
+          "tbt": 2,
+          "ttfb": 0.236,
+          "cls": 0,
+          "bytes": 309991,
+          "requests": 50,
+          "docBytes": 23441,
+          "scriptBytes": 104340,
+          "cssBytes": 0,
+          "fontBytes": 54280,
+          "unusedJs": 440,
+          "renderBlocking": 0,
+          "lcpElement": "<span>"
+        }
+      ],
+      "stats": {
+        "fcp": {
+          "median": 1624.950125,
+          "min": 1616.23375,
+          "max": 1774.44275,
+          "n": 5
+        },
+        "lcp": {
+          "median": 3685.3084,
+          "min": 3408.3304000000007,
+          "max": 3984.5201999999995,
+          "n": 5
+        },
+        "si": {
+          "median": 1849.050646006221,
+          "min": 1807.2211378373202,
+          "max": 2031.848723956895,
+          "n": 5
+        },
+        "tbt": {
+          "median": 2,
+          "min": 0,
+          "max": 14.833700000000022,
+          "n": 5
+        },
+        "ttfb": {
+          "median": 0.24,
+          "min": 0.236,
+          "max": 0.46399999999999997,
+          "n": 5
+        },
+        "cls": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "n": 5
+        },
+        "bytes": {
+          "median": 305359,
+          "min": 262297,
+          "max": 465592,
+          "n": 5
+        },
+        "requests": {
+          "median": 50,
+          "min": 48,
+          "max": 50,
+          "n": 5
+        },
+        "docBytes": {
+          "median": 23441,
+          "min": 23441,
+          "max": 23441,
+          "n": 5
+        },
+        "scriptBytes": {
+          "median": 104340,
+          "min": 104340,
+          "max": 104340,
+          "n": 5
+        },
+        "cssBytes": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "n": 5
+        },
+        "fontBytes": {
+          "median": 54280,
+          "min": 54280,
+          "max": 54280,
+          "n": 5
+        },
+        "unusedJs": {
+          "median": 440,
+          "min": 300,
+          "max": 450,
+          "n": 5
+        },
+        "renderBlocking": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "n": 5
+        }
+      },
+      "median": {
+        "fcp": 1624.950125,
+        "lcp": 3685.3084,
+        "si": 1849.050646006221,
+        "tbt": 2,
+        "ttfb": 0.24,
+        "cls": 0,
+        "bytes": 305359,
+        "requests": 50,
+        "docBytes": 23441,
+        "scriptBytes": 104340,
+        "cssBytes": 0,
+        "fontBytes": 54280,
+        "unusedJs": 440,
+        "renderBlocking": 0
+      },
+      "lcpElement": "<span>"
+    },
+    "replica": {
+      "url": "http://127.0.0.1:5183/",
+      "runs": [
+        {
+          "fcp": 1533.4709500000001,
+          "lcp": 3768.5892000000003,
+          "si": 2127.194295982089,
+          "tbt": 0,
+          "ttfb": 0.279,
+          "cls": 0,
+          "bytes": 354977,
+          "requests": 50,
+          "docBytes": 24159,
+          "scriptBytes": 104340,
+          "cssBytes": 0,
+          "fontBytes": 54280,
+          "unusedJs": 300,
+          "renderBlocking": 0,
+          "lcpElement": "<span>"
+        },
+        {
+          "fcp": 1366.552,
+          "lcp": 3687.1039999999994,
+          "si": 1633.2324180046799,
+          "tbt": 0,
+          "ttfb": 0.374,
+          "cls": 0,
+          "bytes": 287913,
+          "requests": 50,
+          "docBytes": 24159,
+          "scriptBytes": 104340,
+          "cssBytes": 0,
+          "fontBytes": 54280,
+          "unusedJs": 450,
+          "renderBlocking": 0,
+          "lcpElement": "<span>"
+        },
+        {
+          "fcp": 1375.6667000000002,
+          "lcp": 4291.3333999999995,
+          "si": 1714.3337600179243,
+          "tbt": 2,
+          "ttfb": 0.26399999999999996,
+          "cls": 0,
+          "bytes": 408250,
+          "requests": 50,
+          "docBytes": 24159,
+          "scriptBytes": 104340,
+          "cssBytes": 0,
+          "fontBytes": 54280,
+          "unusedJs": 590,
+          "renderBlocking": 0,
+          "lcpElement": "<span>"
+        },
+        {
+          "fcp": 1408.9230000000002,
+          "lcp": 2238.8459999999995,
+          "si": 1990.8600744711557,
+          "tbt": 0,
+          "ttfb": 0.307,
+          "cls": 0,
+          "bytes": 500150,
+          "requests": 48,
+          "docBytes": 24159,
+          "scriptBytes": 120356,
+          "cssBytes": 0,
+          "fontBytes": 54280,
+          "unusedJs": 150,
+          "renderBlocking": 0,
+          "lcpElement": "<span>"
+        },
+        {
+          "fcp": 1370.1814,
+          "lcp": 3686.3628,
+          "si": 1882.5690419841394,
+          "tbt": 2.579650000000015,
+          "ttfb": 0.307,
+          "cls": 0,
+          "bytes": 287595,
+          "requests": 50,
+          "docBytes": 24159,
+          "scriptBytes": 104340,
+          "cssBytes": 0,
+          "fontBytes": 54280,
+          "unusedJs": 450,
+          "renderBlocking": 0,
+          "lcpElement": "<span>"
+        }
+      ],
+      "stats": {
+        "fcp": {
+          "median": 1375.6667000000002,
+          "min": 1366.552,
+          "max": 1533.4709500000001,
+          "n": 5
+        },
+        "lcp": {
+          "median": 3687.1039999999994,
+          "min": 2238.8459999999995,
+          "max": 4291.3333999999995,
+          "n": 5
+        },
+        "si": {
+          "median": 1882.5690419841394,
+          "min": 1633.2324180046799,
+          "max": 2127.194295982089,
+          "n": 5
+        },
+        "tbt": {
+          "median": 0,
+          "min": 0,
+          "max": 2.579650000000015,
+          "n": 5
+        },
+        "ttfb": {
+          "median": 0.307,
+          "min": 0.26399999999999996,
+          "max": 0.374,
+          "n": 5
+        },
+        "cls": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "n": 5
+        },
+        "bytes": {
+          "median": 354977,
+          "min": 287595,
+          "max": 500150,
+          "n": 5
+        },
+        "requests": {
+          "median": 50,
+          "min": 48,
+          "max": 50,
+          "n": 5
+        },
+        "docBytes": {
+          "median": 24159,
+          "min": 24159,
+          "max": 24159,
+          "n": 5
+        },
+        "scriptBytes": {
+          "median": 104340,
+          "min": 104340,
+          "max": 120356,
+          "n": 5
+        },
+        "cssBytes": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "n": 5
+        },
+        "fontBytes": {
+          "median": 54280,
+          "min": 54280,
+          "max": 54280,
+          "n": 5
+        },
+        "unusedJs": {
+          "median": 450,
+          "min": 150,
+          "max": 590,
+          "n": 5
+        },
+        "renderBlocking": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "n": 5
+        }
+      },
+      "median": {
+        "fcp": 1375.6667000000002,
+        "lcp": 3687.1039999999994,
+        "si": 1882.5690419841394,
+        "tbt": 0,
+        "ttfb": 0.307,
+        "cls": 0,
+        "bytes": 354977,
+        "requests": 50,
+        "docBytes": 24159,
+        "scriptBytes": 104340,
+        "cssBytes": 0,
+        "fontBytes": 54280,
+        "unusedJs": 450,
+        "renderBlocking": 0
+      },
+      "lcpElement": "<span>"
+    }
+  }
+}

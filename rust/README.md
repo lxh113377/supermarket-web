@@ -13,7 +13,9 @@
 | [docs/04-build-run-migrate.md](docs/04-build-run-migrate.md) | 本地构建、运行、压测、接入与分阶段迁移 |
 | [docs/05-performance.md](docs/05-performance.md) | 可量化指标、前后对比、压测数据校对方法 |
 | [docs/06-edge-cases-rollback.md](docs/06-edge-cases-rollback.md) | 边界情况、边界之外清单、分级回滚方案 |
-| [docs/perf-local.json](docs/perf-local.json) | 本机 A/B 的原始逐次读数（Lighthouse 三臂 × 3 次） |
+| [docs/07-font-governance.md](docs/07-font-governance.md) | 中文展示体分包：首屏最大单项（215,580 B → 11,604 B）的治理与等价性证明 |
+| [docs/perf-local.json](docs/perf-local.json) | 本机 A/B 的原始逐次读数（Lighthouse 交错采样） |
+| [docs/perf-local-font.json](docs/perf-local-font.json) | 字体分包的四臂对照读数（baseline / font / edge / replica） |
 
 ## 三分钟跑通
 
@@ -46,6 +48,8 @@ node scripts/wasm-host-test.mjs
 | 首屏三臂对照 | `node scripts/measure-local.mjs --arms baseline,edge,replica` | 见 docs/05 §2（Lighthouse 12.6.0 / mobile / simulate / 3 次取中位） |
 | HTTP 层 | `node scripts/measure-http.mjs --base <url>` | 见 docs/05 §3（TTFB/传输体积/编码/304/Link） |
 | WASM 值不值得用 | 同上 `wasm-host-test` 的微基准表 | 见 docs/05 §4：**只有常驻目录索引 2.47× 胜出**，其余三条被数据否掉 |
+| 字体分包完整性 | `node scripts/check-font-split.mjs` | 7 项全过（并集=源字体 932 字形、两两不重叠、A 覆盖首屏、预算） |
+| 字体分包渲染等价 | `node scripts/font-render-parity.mjs --old … --new …` | 5 个样本串 `TextMetrics` 逐位相同；像素比 **0/260,538 不同** |
 
 ## 边界（本次刻意没做，理由见 docs/06 §2）
 
@@ -53,8 +57,8 @@ node scripts/wasm-host-test.mjs
   已原生的只有 `/_health` 与公开读的边缘微缓存。
 - WASM 加速器**没有**接进 React（默认关）。接入步骤与开关见 docs/04 §5、docs/06 §3。
 - 未实现 HTTP/2（生产形态由 Cloudflare 终止 h2/h3 回源 h1）；未实现增量压缩流式（取舍见 docs/03 §1.2）。
-- 首屏真正的字节大头是 **215 KB 的中文展示体**（`fonts/display-serif-cjk.woff2`），
-  它不属于本次重写范围，但已在 docs/05 §2 量化并列进建议项。
+- 首屏真正的字节大头（215 KB 中文展示体）已在第 92 轮处理：按用量分包后首屏只下 **11.6 KB**
+  （见 docs/07）；原字体的字形覆盖缺口（557 种 CJK 缺字本就走系统回退）**未改变**。
 
 ## 与仓内体系的关系
 

@@ -27,12 +27,17 @@ const argOf = (name, fallback) => {
 const samples = Number(argOf('--samples', '3'))
 const arms = argOf('--arms', 'baseline,edge').split(',').map((s) => s.trim()).filter(Boolean)
 const distSource = path.resolve(argOf('--dist', path.join(repoRoot, 'dist')))
+// 第二条对照轴：**改动前的同一份产物**。baseline 臂发它，font 臂发新产物 ——
+// 两条臂共用同一个静态服务器实现，于是差值只能归因给「产物里的那一处改动」。
+const distOldSource = path.resolve(argOf('--dist-old', path.join(rustRoot, '.cache', 'dist-old')))
 const distWork = path.join(rustRoot, '.cache', 'dist')
+const distOldWork = path.join(rustRoot, '.cache', 'dist-old')
 const keepDist = args.includes('--keep-dist')
 const outJson = path.resolve(argOf('--json', path.join(rustRoot, 'docs', 'perf-local.json')))
 const baselinePort = Number(argOf('--baseline-port', '5181'))
 const edgePort = Number(argOf('--edge-port', '5182'))
 const replicaPort = Number(argOf('--replica-port', '5183'))
+const fontPort = Number(argOf('--font-port', '5184'))
 const edgeBin = path.resolve(argOf('--edge-bin', path.join(rustRoot, 'target', 'release', 'supermarket-edge.exe')))
 const lhConfig = { formFactor: 'mobile', throttlingMethod: 'simulate' }
 
@@ -57,15 +62,27 @@ if (args.includes('--refresh-dist') || !existsSync(distWork)) {
   mkdirSync(path.dirname(distWork), { recursive: true })
   cpSync(distSource, distWork, { recursive: true })
 }
-console.log('工作副本 ' + distWork + '（源 ' + distSource + '）')
-const pre = spawnSync(edgeBin, ['precompress', '--dist', distWork, '--quality', '11', '--min-bytes', '1024'], { encoding: 'utf8' })
-console.log(pre.stdout ? pre.stdout.trim() : pre.stderr.trim())
+console.log('工作副本（新）' + distWork + '（源 ' + distSource + '）')
+// 旧产物副本要**保留**：它就是「改动前」的那一份，不许被新构建覆盖（否则对照轴消失）。
+if (!existsSync(distOldWork)) {
+  if (!existsSync(distOldSource)) {
+    console.error('找不到旧产物副本：' + distOldSource + '（--arms 里含 baseline/font 时需要它）')
+    process.exit(2)
+  }
+  mkdirSync(path.dirname(distOldWork), { recursive: true })
+  cpSync(distOldSource, distOldWork, { recursive: true })
+}
+console.log('工作副本（旧）' + distOldWork)
+for (const dir of [distWork, distOldWork]) {
+  const pre = spawnSync(edgeBin, ['precompress', '--dist', dir, '--quality', '11', '--min-bytes', '1024'], { encoding: 'utf8' })
+  if (pre.stdout && pre.stdout.trim()) console.log('  ' + path.basename(dir) + '：' + pre.stdout.trim())
+}
 
 const servers = []
-const startBaseline = () => {
-  const child = spawn(process.execPath, [path.join(here, 'static-baseline-server.mjs'), '--dir', distWork, '--port', String(baselinePort)], { stdio: ['ignore', 'pipe', 'pipe'] })
-  child.stdout.on('data', (d) => process.stdout.write('[baseline] ' + d))
-  child.stderr.on('data', (d) => process.stderr.write('[baseline:err] ' + d))
+const startBaseline = (dir = distOldWork, port = baselinePort, tag = 'baseline') => {
+  const child = spawn(process.execPath, [path.join(here, 'static-baseline-server.mjs'), '--dir', dir, '--port', String(port)], { stdio: ['ignore', 'pipe', 'pipe'] })
+  child.stdout.on('data', (d) => process.stdout.write('[' + tag + '] ' + d))
+  child.stderr.on('data', (d) => process.stderr.write('[' + tag + ':err] ' + d))
   servers.push(child)
   return child
 }
@@ -78,8 +95,11 @@ const startEdge = (port, replica) => {
   servers.push(child)
   return child
 }
-const portOf = { baseline: baselinePort, edge: edgePort, replica: replicaPort }
-if (arms.includes('baseline')) startBaseline()
+const portOf = { baseline: baselinePort, font: fontPort, edge: edgePort, replica: replicaPort }
+if (arms.includes('baseline')) startBaseline(distOldWork, baselinePort, 'baseline')
+// font 臂：**同一个静态服务器实现**，只把产物换成改动后的那一份 ⇒
+// 与 baseline 臂的差值只能归因给「产物里的那一处改动」（本次是字体分包）。
+if (arms.includes('font')) startBaseline(distWork, fontPort, 'font')
 if (arms.includes('edge')) startEdge(edgePort, false)
 // 第三条臂：开启静态首屏复刻（head+hero 静态标记）。它量的正是「首屏不再等 JS」那一步，
 // 与 edge 臂的唯一差别就是这个开关 —— 于是表里那两列的差值可以直接归因给它。
