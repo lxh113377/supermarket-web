@@ -66,7 +66,7 @@ export default function ServiceFormPage() {
     return (
       <div role="main" id="main-content" tabIndex={-1} className="page-container flex items-center justify-center">
         <div className="text-center animate-fade-in-up">
-          <span className="text-4xl block mb-3">🔍</span>
+          <span className="block mb-3" aria-hidden="true"><GlyphIcon glyph="🔍" className="mx-auto w-9 h-9 text-mute" /></span>
           <p className="text-stone-500 text-sm">服务不存在</p>
           <button onClick={() => navigate('/')} className="mt-4 text-brand-300 text-sm font-medium">
             返回首页
@@ -259,7 +259,7 @@ export default function ServiceFormPage() {
           <span className="done-stamp" aria-hidden="true">已收单<br />超柿服务台</span>
           <div className="text-center pt-6">
             <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[rgb(31_74_57/0.07)] border border-[rgb(31_74_57/0.4)] flex items-center justify-center">
-              <span className="text-3xl" aria-hidden="true">✅</span>
+              <GlyphIcon glyph="✅" className="w-8 h-8" />
             </div>
             <h1 className="text-xl font-bold text-[#2a221d]">提交成功</h1>
             <p className="text-[rgb(42_34_29/0.78)] text-sm mt-2 leading-relaxed">请耐心等待工作人员联系<br/>通常会在30分钟内回复</p>
@@ -313,7 +313,7 @@ export default function ServiceFormPage() {
         <div className="mx-5 -mt-6 relative z-10 max-w-lg md:mx-auto animate-fade-in-up stagger-1">
           <div className="bg-amber-50/95 backdrop-blur-sm border border-amber-200/80 rounded-2xl p-4 shadow-card">
             <p className="text-amber-800 text-xs flex items-center gap-2.5">
-              <span className="text-base">⚠️</span>
+              <GlyphIcon glyph="⚠️" className="w-4 h-4 shrink-0" />
               <span className="leading-relaxed">{getClosedMessage()}</span>
             </p>
           </div>
@@ -389,7 +389,7 @@ export default function ServiceFormPage() {
                       aria-describedby={[field.hint ? `sf-hint-${field.key}` : '', errorField === field.key ? 'sf-error' : ''].filter(Boolean).join(' ') || undefined}
                       className="paste-zone py-8 text-center text-stone-500 text-sm active:scale-[0.98]"
                     >
-                      <span className="block text-2xl mb-2" aria-hidden="true">📷</span>
+                      <span className="block mb-2" aria-hidden="true"><GlyphIcon glyph="📷" className="mx-auto w-6 h-6" /></span>
                       <span className="font-medium">点击上传截图</span>
                       <span className="block text-xs text-stone-500 mt-1">至少{field.minCount || 1}张，最多{MAX_SUBMISSION_FILES}张</span>
                     </button>
@@ -413,7 +413,7 @@ export default function ServiceFormPage() {
                       <ul className="mb-3 space-y-2">
                         {images.map((_, i) => (
                           <li key={i} className="clip-chip">
-                            <span className="text-base shrink-0" aria-hidden="true">📄</span>
+                            <span className="shrink-0" aria-hidden="true"><GlyphIcon glyph="📄" className="w-5 h-5" /></span>
                             {/* 名字来自上传结果，不是 img：img 里存的是 r2:<key> 或 data: URL，读不出文件名。
                                 「以内联方式提交（未走云存储）」这句是测试锚点+顾客知情权，原文保留 */}
                             <span className="clip-name">
@@ -441,7 +441,7 @@ export default function ServiceFormPage() {
                       aria-describedby={[field.hint ? `sf-hint-${field.key}` : '', errorField === field.key ? 'sf-error' : ''].filter(Boolean).join(' ') || undefined}
                       className="paste-zone py-8 text-center text-stone-500"
                     >
-                      <span className="block text-2xl mb-2" aria-hidden="true">🖨️</span>
+                      <span className="block mb-2" aria-hidden="true"><GlyphIcon glyph="🖨️" className="mx-auto w-6 h-6" /></span>
                       <span className="font-medium">点击选择要打印的文件</span>
                       <span className="block text-xs text-stone-500 mt-1">至少1个，最多{MAX_PRINT_FILES}个</span>
                     </button>
@@ -485,7 +485,7 @@ export default function ServiceFormPage() {
             {error && (
               <div className="mt-4 bg-red-50 border border-red-100 rounded-xl px-4 py-3 animate-slide-down">
                 <p className="text-red-700 text-xs flex items-center gap-2">
-                  <span aria-hidden="true">⚡</span> {error}
+                  <GlyphIcon glyph="⚡" className="w-4 h-4 shrink-0" /> {error}
                 </p>
               </div>
             )}
@@ -496,7 +496,7 @@ export default function ServiceFormPage() {
           {notice && (
             <div className="mt-3 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3" role="status" aria-live="polite">
               <p className="text-emerald-800 text-xs flex items-start gap-2">
-                <span aria-hidden="true">✅</span>
+                <GlyphIcon glyph="✅" className="w-4 h-4 shrink-0" />
                 <span className="leading-relaxed">{notice}</span>
               </p>
             </div>

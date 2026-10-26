@@ -5,6 +5,7 @@ import { productImageUrl, productSrcSet } from '../utils/images'
 import { formatPrice } from '../utils/format'
 import { enabledSpecOptions } from '../utils/spec-options'
 import { prefetchRoute } from '../prefetchBus'
+import GlyphIcon from './brand/GlyphIcon'
 
 interface ProductCardProps {
   product: Product
@@ -85,8 +86,13 @@ function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
           />
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center gap-1 bg-gradient-to-br from-brand-50 to-orange-50">
-            <span className="text-4xl" aria-hidden="true">
-              {product.subcategories?.includes('snacks') || product.subcategories?.includes('filling') ? '🍜' : '🥤'}
+            {/* 缺图兜底也走本站线稿（旧版是两枚 emoji：🍜 / 🥤）。这是**如实标注的占位**
+                —— 下面那行「示意图 · 非商品实拍」是测试锚点，一个字都不许动。 */}
+            <span aria-hidden="true">
+              {/* 描边色**显式给**（text-mute 压 brand-50 底板实测 4.9:1，过功能图形 3:1 线）——
+                  不靠继承：继承来的颜色随祖先变，对比度闸按元素 computed color 量，
+                  靠继承等于把这条图形交给「祖先恰好是什么色」这个偶然。 */}
+              <GlyphIcon glyph={product.subcategories?.includes('snacks') || product.subcategories?.includes('filling') ? '🍜' : '🥤'} className="mx-auto w-9 h-9 text-mute" />
             </span>
             <span className="text-3xs text-stone-500">示意图 · 非商品实拍</span>
           </div>

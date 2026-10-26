@@ -47,6 +47,13 @@ const GLYPHS: Record<string, ReactNode> = {
   "🖼": (<><rect x="3.5" y="5" width="17" height="14" rx="1.6" /><circle cx="9" cy="10" r="1.6" /><path d="M3.5 17l5.5-5 4 3.5 3-2.5 4.5 4" /></>),
   "📋": (<><rect x="5" y="4.5" width="14" height="16.5" rx="1.6" /><path d="M9 4.5V3h6v1.5" /><path d="M8.5 10h7" /><path d="M8.5 13.5h7" /><path d="M8.5 17h4" /></>),
   "💬": (<><path d="M4 5.5h16v10.5H12l-4.5 3.5V16H4Z" /><path d="M8.5 10h7" /><path d="M8.5 12.8h4" /></>),
+  // 状态与动作图形（警示 / 成功 / 错误 / 查找 / 文书 / 配送）
+  "✅": (<><circle cx="12" cy="12" r="8.6" /><path d="m8.2 12.4 2.6 2.6 5-5.4" /></>),
+  "⚠️": (<><path d="M12 3.5 2.6 20h18.8L12 3.5Z" /><path d="M12 9.5v4.6" /><circle cx="12" cy="17" r="0.7" fill="currentColor" stroke="none" /></>),
+  "⚡": (<><path d="M13.4 2.5 5 13.6h5.2L9.6 21.5 19 9.9h-5.4l-.2-7.4Z" /></>),
+  "🔍": (<><circle cx="10.6" cy="10.6" r="6.8" /><path d="m15.6 15.6 4.6 4.6" /></>),
+  "📄": (<><path d="M6 2.8h7.6L19 8.4V21H6Z" /><path d="M13.4 2.8v5.8H19" /><path d="M9 13h7" /><path d="M9 16.6h5" /></>),
+  "🛵": (<><circle cx="5.6" cy="17.4" r="3" /><circle cx="17.6" cy="17.4" r="3" /><path d="M8.6 17.4h6l2.4-6.6h-3.4" /><path d="M12.2 7.6h3" /><path d="M6.6 10.4h4.2l-2.4 7" /></>),
   // 分类封面
   "🏠": (<><path d="M3.5 10.5 12 3.5l8.5 7" /><path d="M5.5 12v8.5h13V12" /><path d="M10 20.5v-5h4v5" /></>),
   "📚": (<><path d="M4 4.5h5v15H4Z" /><path d="M9.5 4.5h5v15h-5Z" /><path d="M15 6l4.2 1.2 2.6 13.3-4.4-1Z" /><path d="M6 8h1" /><path d="M11.5 8h1" /></>),

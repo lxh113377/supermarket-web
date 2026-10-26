@@ -84,7 +84,9 @@ export default function CategoryPage() {
       {!open && (
         <div className="mx-5 -mt-6 relative z-10 max-w-3xl md:mx-auto animate-fade-in-up stagger-1">
           <p className="counter-sign">
-            <span aria-hidden="true">⚠️</span> {getClosedMessage()}
+            {/* 警示换本站线稿（描边继承 currentColor = 琥珀墨，与文字同档过 AA；
+                emoji ⚠️ 由 OS 上色，对比度闸量不到它 —— 这正是本轮换线稿的核心理由） */}
+            <GlyphIcon glyph="⚠️" className="w-4 h-4 shrink-0" /> {getClosedMessage()}
           </p>
         </div>
       )}

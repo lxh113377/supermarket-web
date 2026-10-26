@@ -9,6 +9,7 @@ import { useBusinessHours } from '../hooks/useBusinessHours'
 import { MIN_DELIVERY_AMOUNT, meetsMinDelivery, minDeliveryGap } from '../data/deliveryLimits'
 import { formatYuan } from '../utils/format'
 import { compressImageFile } from '../utils/imageCompress'
+import GlyphIcon from '../components/brand/GlyphIcon'
 
 /** 未达起送门槛的统一提示串（本页 setError 与顶部横幅共用一处措辞，避免两个地方各写一个数）。 */
 function minDeliveryBlockedText(totalAmount: number): string {
@@ -148,7 +149,7 @@ export default function OrderConfirmPage() {
             {!meetsMinDelivery(totalAmount) && (
               <div className="bg-amber-50/90 border border-amber-200/70 rounded-2xl p-4 animate-slide-down" role="status">
                 <p className="text-amber-800 text-sm font-semibold flex items-center gap-2">
-                  <span aria-hidden="true">🛵</span>不满 {formatYuan(MIN_DELIVERY_AMOUNT)} 不配送
+                  <GlyphIcon glyph="🛵" className="w-4 h-4 shrink-0" />不满 {formatYuan(MIN_DELIVERY_AMOUNT)} 不配送
                 </p>
                 <p className="text-amber-800 text-xs mt-1.5 leading-relaxed">
                   当前商品合计 {formatYuan(totalAmount)}，还差 {formatYuan(minDeliveryGap(totalAmount))} 起送。
@@ -241,7 +242,7 @@ export default function OrderConfirmPage() {
                   onClick={() => fileRef.current?.click()}
                   className="paste-zone py-8 text-center text-sm text-stone-500 hover:text-brand-300 transition duration-300 active:scale-[0.99]"
                 >
-                  <span className="block text-2xl mb-2" aria-hidden="true">📷</span>
+                  <span className="block mb-2" aria-hidden="true"><GlyphIcon glyph="📷" className="mx-auto w-6 h-6" /></span>
                   点击上传付款截图
                 </button>
               )}
