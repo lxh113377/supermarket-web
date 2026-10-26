@@ -1110,6 +1110,28 @@
 .cart-remove { min-height: 30px; padding: 4px 9px; border-radius: 2px; background: none; cursor: pointer; color: rgb(var(--t-red-700)); }
 .cart-remove:active { transform: scale(0.96); }
 
+/* ══ 看板台账化（DashboardTab · 第 91 轮）══
+   此前六张卡**同壳同高混档**（h-44 / h-56 / h-64 随手给），读者第一眼得不出「先看哪张」。
+   现在：主图 = 营收趋势（01，h-80），其余降为副册（02–06）；序号沿用全站那套铜序号，
+   空态图标托与 EmptyState / 柜台台账共用同一块暖台 —— 后台不再是「另一套 UI」。
+   刻意**不引新色、不改圆角档**：dash-card 只是把既有的 panel + 金发丝 + 铜左轨包成一个类。 */
+.dash-card {
+  background: rgb(var(--t-panel)); border: 1px solid rgb(var(--line)); border-radius: 0.75rem;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.35), 0 8px 24px -14px rgb(0 0 0 / 0.5);
+}
+.dash-card-primary {
+  position: relative; overflow: hidden; background: rgb(var(--t-panel));
+  border: 1px solid rgb(var(--t-brand-500) / 0.32); border-radius: 0.75rem;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 14px 34px -18px rgb(177 135 57 / 0.4);
+}
+.dash-card-primary::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 2px; background: var(--t-brand-bar); }
+.dash-empty-plate {
+  width: 46px; height: 46px; display: inline-grid; place-items: center; border-radius: 2px; color: rgb(var(--t-mute));
+  background: linear-gradient(180deg, rgb(var(--t-stage) / 0.94), rgb(var(--t-stage) / 0.8));
+  box-shadow: inset 0 0 0 1px rgb(217 177 102 / 0.22), 0 8px 18px -14px rgb(0 0 0 / 0.8);
+}
+@media (max-width: 767px) { .dash-card-primary { box-shadow: 0 1px 2px rgb(0 0 0 / 0.4); } }
+
 /* ══ 空态图标托（EmptyState · 第 91 轮）══
    与柜台台账 .counter-stage、详情页 .stage-frame 同一块台面（--t-stage 暖台 + 铜发丝）。
    旧写法是 bg-gray-50 + text-stone-400 的通用灰方块，被全站 6 处空态共用 —— 模板感最重
