@@ -166,4 +166,8 @@ export const products: SeedProduct[] = [
 
   // 新增商品（2026-10-24，用户提供实拍供货图；「正大」牌无花果干，归类零食，图上无净含量小字，spec 留空）
   { name: '正大无花果', spec: '', price: 0.5, subcategories: ['snacks'], order: 65 },
+
+  // 新增商品（2026-10-26，用户提供供货图；糖果类归零食，图上无净含量小字，spec 留空）
+  { name: '小样软糖', spec: '', price: 0.49, subcategories: ['snacks'], order: 66 },
+  { name: '话梅糖软糖', spec: '', price: 0.09, subcategories: ['snacks'], order: 67 },
 ]

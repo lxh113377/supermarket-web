@@ -1,4 +1,18 @@
 ## [未发布]
+### 2026-10-26 新增商品：小样软糖 ¥0.49、话梅糖软糖 ¥0.09
+
+- **新增 2 件商品**：小样软糖（order 66，好采头「小样」酸Q糖）与话梅糖软糖（order 67），均分类「零食」(snacks)，
+  `spec` 留空（供货图无净含量小字），已上架。真相源 `src/data/products-seed.ts` 增 2 条，
+  `db/seed.sql` 由 `node db/gen-seed.mjs` 同步生成（64→66 行商品）。
+- **生产库**：新增 `db/migrate-add-product-xiaoyang-huamei.sql`（仅 `INSERT OR IGNORE` 两个新行，不触碰既有列——
+  线上与 seed 存在系统性价格漂移，禁 seed 覆盖）+ 配对回滚件 `db/rollback-add-product-xiaoyang-huamei.sql`，
+  并把该回滚件登记进 `scripts/verify-migrate-replay.mjs` 的 `ROLLBACK_INSERT` 具名清单（行集轨，`tables: ['products']`）。
+  两件合一个迁移件：同日同批上架，回滚整批走。
+- **图片**：用户提供的两张供货图按既有流水线入库 `public/images/66.webp`（800w q80，1200×1200 源图下采）与
+  `sm/66.webp`（400w q75）、`67.webp` + `sm/67.webp`（800×800 源图），零代码改动 —— 商品 `image` 为空 ⇒
+  四个调用点都走 `productImageUrl(order)` 派生 URL（`src/utils/images.ts:21`）。
+- **登记面**：`docs/governance/registry.json` 的 `facts.seedCatalog` 64→66 与 `bl-sku` 指标 evidence 同日复算；
+  `docs/doc-commands.json` 由 `node scripts/check-doc-commands.mjs --update` 重生（先写本条再重生，顺序不可倒）。
 ### 2026-10-26 行尾腿的分母改与 verify:eol 同源（第 91 轮第八笔 · 自己差点埋下一个新盲区）
 
 - 上一笔那条腿**用了一张硬编码的 15 项扩展名表**。本轮实测它与 .gitattributes 的文本面差
