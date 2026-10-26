@@ -1,5 +1,12 @@
 // 第七十五轮 I-75-5：可访问性静态判据的常驻夹具。
-// 分工写死在这里：本文件只测**静态规则**；浏览器里的可见性/可聚焦性在 tests/e2e-visual/a11y.spec.ts。
+// 分工写死在这里：本文件只测**静态规则**；浏览器里的可见性/可聚焦性由三条渲染面判据分管：
+//   · 键盘焦点环真实可见 → tests/e2e-visual/focus-ring.spec.ts（第 91 轮：沿 Tab 序列逐站量，
+//     取代此前只测单个按钮的形态）+ layout.spec.ts 那条单点断言（保留，钉详情页加购钮）
+//   · 跳过导航链接可达 → tests/e2e-visual/skip-link.spec.ts
+//   · 触控目标尺寸与间距 → tests/e2e-visual/touch-targets.spec.ts
+// ⚠️ 本行原写「在 tests/e2e-visual/a11y.spec.ts」，而那个文件**从未存在**（第 91 轮实测：
+//    该目录 17 个 spec 里没有它）。与本轮修的四处「写了不生效」同族，只是发生在注释里：
+//    一个指向幻影文件的分工声明，会让下一个人以为可聚焦性已被覆盖而不再补判据。
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
 import { spawnSync } from 'node:child_process'
