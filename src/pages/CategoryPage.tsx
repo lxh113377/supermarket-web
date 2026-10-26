@@ -91,7 +91,11 @@ export default function CategoryPage() {
 
       {/* 服务台账行：铜序号 + 发光暖台图标 + 金线左轨；桌面两列、手机单列 */}
       <div className={`px-5 max-w-3xl mx-auto pb-12 ${open ? '-mt-6' : 'mt-4'}`}>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {/* items-start 不能省：网格默认 align-items:stretch 会把短条目拉到与同行最长条目等高
+            —— 于是「没有 hint 的那张柜台」自己变成一个下面空一大截的框（目检截图实测 03 行），
+            读起来像坏掉的卡片而不是「这条柜台本来就事少」。改成各自按内容起高之后，
+            空白回到**条目之间**（节奏）而不是条目**内部**（缺陷）。 */}
+        <div className="grid grid-cols-1 items-start md:grid-cols-2 gap-3">
           {services.map((service, i) => (
             <button
               key={service.id}
