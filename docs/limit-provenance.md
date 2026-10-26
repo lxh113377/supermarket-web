@@ -123,6 +123,9 @@
 | src/cart.ts | 常量 | MAX_QTY_PER_LINE=99 | product | 前端加购封顶，与 `orders.js` 的 `MAX_QUANTITY_PER_LINE` 同值（等号由 `tests/limitCapParity.test.ts` 钉）；选封顶而非"拒绝加购"：本地状态出现一个下单必被拒的形状更难解释 |
 | src/utils/imageCompress.ts | 常量 | MAX_IMAGE_DATAURL_CHARS=90000 | platform | 前端图片 dataUrl 预算，与 shared.js 那把尺同值（两条构建链物理上共享不了模块 ⇒ 由契约测试钉等号，先例见 `src/auth.ts` 的 BATCH_UPDATE_CHUNK）；出处 = 平台事实 `d1_statement_bytes = 100000 bytes/语句`（与 shared.js 那行同值） |
 | src/components/product/ReviewForm.tsx | 常量上限 | MAX_IMAGE_DATAURL_CHARS | platform | 压缩后按同一预算过滤，并把"跳过"提示改成带数字的可核对文案（改前文案只说"部分图片过大"，没说多大）；出处 = 平台事实 `d1_statement_bytes = 100000 bytes/语句`（经 `MAX_STATEMENT_PAYLOAD_CHARS` 派生，见 shared.js 那行） |
+| src/components/service/AnswerShelf.tsx | 常量 | MAX_HITS=3 | product | 「答案里长出货架」的件数上限：聊天气泡里排一排卡片，超过三件就把对话本身挤没了（注释原文口径）。普查器把三种形状各报一行（常量定义 / 常量上限引用 / 拒绝型比较），登记同值的三行使 C2 的三类形状各自闭合 |
+| src/components/service/AnswerShelf.tsx | 常量上限 | MAX_HITS | product | 同上上限的**引用侧**（`hits.length >= MAX_HITS` 为停止条件）：不是业务容量而是展示上限，超过就把对话挤没了；与常量定义行同值由同一处代码天然保证（同一文件同一常量） |
+| src/components/service/AnswerShelf.tsx | 拒绝型 | 3 | product | 同上上限的反向写法来源：普查器把 `hits.length >= MAX_HITS` 也按「拒绝型 + 字面值 3」归档（Babel 对常量折叠的读法），登记它只为让普查面不留洞 —— 三个形状是同一件事的三次观测，不是三个独立上限 |
 ## 平台档位假设（C6 读取本节）
 
 - 当前档位登记：**Free** ⇒ D1「每调用查询数」预算取 `d1_queries_per_invocation_free = 50`。

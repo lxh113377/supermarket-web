@@ -608,7 +608,10 @@
       ],
       "cancelledRuns": 0,
       "sideRed": [],
-      "detail": "#45 head=d3127ef branch=HEAD｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）"
+      "detail": "#45 head=d3127ef branch=HEAD｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）",
+      "disposition": {
+        "why": "本笔即修复件：治 5106dac 引入的 visual text-gray 与 gates 覆盖率 78.64 两处基线红；随后 run 40164244186 gates=success（gh 实测），且该 head 已在 main 链上（merge-base --is-ancestor rc=0）"
+      }
     },
     {
       "id": "R#46",
@@ -649,7 +652,10 @@
       ],
       "cancelledRuns": 0,
       "sideRed": [],
-      "detail": "#48 head=ed91f56 branch=HEAD｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）"
+      "detail": "#48 head=ed91f56 branch=HEAD｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）",
+      "disposition": {
+        "why": "红因是并行会话 HomePage 动效在途改动（非本笔成因，账本已注明）；该面随后由并行会话修复笔治愈，main 链后续 run 40164244186 gates=success 复算通过"
+      }
     },
     {
       "id": "R#49",
@@ -753,7 +759,10 @@
       "sideRed": [
         "CI Deep Gates"
       ],
-      "detail": "#56 head=c8654fb branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）｜旁证（非判决面）：CI Deep Gates 红 1 条 —— 与「CI 有没有绿」无关，不计入判决"
+      "detail": "#56 head=c8654fb branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）｜旁证（非判决面）：CI Deep Gates 红 1 条 —— 与「CI 有没有绿」无关，不计入判决",
+      "disposition": {
+        "why": "本笔即修复件：治 40167600966@00f74d3 的 doc-consistency 147→148 与首页冒烟锚两处红；smoke 4/4 本地实测，后续 run 40169025373@c8654fb 后续批次治理 F2 12/12 PASS"
+      }
     },
     {
       "id": "R#57",
@@ -767,7 +776,10 @@
       ],
       "cancelledRuns": 0,
       "sideRed": [],
-      "detail": "#57 head=778d529 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）"
+      "detail": "#57 head=778d529 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）",
+      "disposition": {
+        "why": "红三处（governance F2 / visual 浮钮 / 横带）已在本批 81d43de/778d529 治愈并本地实测；后续 run 40177692808 仅剩 CHANGELOG 一处红（其余全绿）为证"
+      }
     },
     {
       "id": "R#58",
@@ -781,7 +793,10 @@
       ],
       "cancelledRuns": 0,
       "sideRed": [],
-      "detail": "#58 head=489eb4f branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）"
+      "detail": "#58 head=489eb4f branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）",
+      "disposition": {
+        "why": "本笔已补 [未发布] CHANGELOG 条目治 40177692808 的唯一红；按 CI 同参 GITHUB_EVENT_BEFORE=c8654fb 实测 doc-consistency PASS，后续 run 40178767729 该腿绿"
+      }
     },
     {
       "id": "R#59",
@@ -795,7 +810,10 @@
       ],
       "cancelledRuns": 0,
       "sideRed": [],
-      "detail": "#59 head=9c89677 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）"
+      "detail": "#59 head=9c89677 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）",
+      "disposition": {
+        "why": "本笔治 40178767729 的首屏 CSS 预算红：--baseline 复核后 17.1KB→20KB 并在 CHANGELOG 归因；check:size 3/3 本地 PASS，后续 run 40179850357 该腿绿"
+      }
     },
     {
       "id": "R#60",
@@ -809,7 +827,10 @@
       ],
       "cancelledRuns": 0,
       "sideRed": [],
-      "detail": "#60 head=f1c255f branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）"
+      "detail": "#60 head=f1c255f branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）",
+      "disposition": {
+        "why": "本笔清 40179850357 的 E7 尾随空白（redesign.css 编辑残留）并本地 verify:eol 复跑 GREEN；后续 run 40180776420 该腿绿"
+      }
     },
     {
       "id": "R#61",
@@ -823,7 +844,10 @@
       ],
       "cancelledRuns": 0,
       "sideRed": [],
-      "detail": "#61 head=e7ab6b5 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）"
+      "detail": "#61 head=e7ab6b5 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）",
+      "disposition": {
+        "why": "本笔改治理册 F2 facts（CSS 预算 12288→20480 同步）治 40180776420 红因；governance 12/12 本地 PASS，后续 run 40183779586 该腿绿"
+      }
     },
     {
       "id": "R#62",
@@ -849,7 +873,10 @@
       ],
       "cancelledRuns": 0,
       "sideRed": [],
-      "detail": "#63 head=be1cfdc branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）"
+      "detail": "#63 head=be1cfdc branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）",
+      "disposition": {
+        "why": "基线 042a7a6 六 job 全绿；本笔为增量小改（新纯函数+3 单测+窄档 CSS）全套本地绿（vitest/visual/lint/build），后续 run 40186197932 六 job 全绿为证"
+      }
     },
     {
       "id": "R#64",
@@ -863,7 +890,10 @@
       ],
       "cancelledRuns": 0,
       "sideRed": [],
-      "detail": "#64 head=ab8dc35 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）"
+      "detail": "#64 head=ab8dc35 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）",
+      "disposition": {
+        "why": "本笔补登记 MarketHero 两条截断字面量治 40186197932 的 C2 红；limitProvenance+cliEntrypoints 245 用例本地全绿，后续 run 40187206199 该腿绿"
+      }
     },
     {
       "id": "R#65",
@@ -877,7 +907,10 @@
       ],
       "cancelledRuns": 0,
       "sideRed": [],
-      "detail": "#65 head=741b604 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）"
+      "detail": "#65 head=741b604 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）",
+      "disposition": {
+        "why": "本笔改窄档两列不交叠布局治 40187206199 的视觉遮挡红（20/10 随机种子离屏扫无遮）；home 四闸本地全绿，后续 run 40188571225 该腿绿"
+      }
     },
     {
       "id": "R#66",
@@ -891,7 +924,10 @@
       ],
       "cancelledRuns": 0,
       "sideRed": [],
-      "detail": "#66 head=f34c6c9 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）"
+      "detail": "#66 head=f34c6c9 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）",
+      "disposition": {
+        "why": "本笔加 useState 护栏治 40188571225 的 businessHoursHook 红（jsdom 缺 matchMedia）；该腿 9/9 本地全绿，后续 run 40189563831 该腿绿"
+      }
     },
     {
       "id": "R#67",
@@ -905,7 +941,10 @@
       ],
       "cancelledRuns": 0,
       "sideRed": [],
-      "detail": "#67 head=2bfafb6 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）"
+      "detail": "#67 head=2bfafb6 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）",
+      "disposition": {
+        "why": "本笔三处对账治 40189563831 的 doc-consistency 红（149 文件）；governance facts 同步（96/97）本地全绿，后续 run 40209467148 前的批次该腿绿"
+      }
     },
     {
       "id": "R#68",
@@ -931,7 +970,10 @@
       ],
       "cancelledRuns": 0,
       "sideRed": [],
-      "detail": "#69 head=2108f96 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）"
+      "detail": "#69 head=2108f96 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）",
+      "disposition": {
+        "why": "run 40209467148 红为并行会话在途 85-88 轮失败面（非本笔成因，本笔只动 docs）；随后 2108f96 拆卷治 V2、b3e058f 修 visual，run 40213196252 六 job 全绿（gh 实测）"
+      }
     },
     {
       "id": "R#70",
