@@ -1,7 +1,7 @@
 {
   "schema": "chaoshi-escape-hatch-remote-v1",
   "note": "`node scripts/check-escape-hatch-log.mjs --update-remote` 生成；联网取数（gh api），**永不进阻断链**（网络不通时它会把一次正常提交判红而本地无可自愈处置，户内规⑩）。判决面 = `.ci/contract.json` 的 `workflow` 字段（当前 CI）；别的 workflow 的红只作旁证印出、不进判决（C9 判覆盖：账本有而读数无 = 未覆盖，读数有而账本无 = 死读数；C10 判结论：判决面 RED 且无 `disposition.why` = 待处置）。",
-  "generatedUtc": "2026-10-22T22:38:05.799Z",
+  "generatedUtc": "2026-10-26T05:25:49.130Z",
   "scopeWorkflow": "CI",
   "repository": "https://github.com/lxh113377/supermarket-web.git",
   "rows": [
@@ -571,6 +571,415 @@
       "cancelledRuns": 0,
       "sideRed": [],
       "detail": "#42 head=915afba branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
+    },
+    {
+      "id": "R#43",
+      "head": "73b87402e553b5810002ce63daafe606c2d17acd",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#43 head=73b8740 branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
+    },
+    {
+      "id": "R#44",
+      "head": "b2d688bd930d63554c1c01d3df2e8e16df2316bc",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#44 head=b2d688b branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
+    },
+    {
+      "id": "R#45",
+      "head": "d3127efc6564f2af532fb223dbdea158e7f81dfa",
+      "state": "RED",
+      "ok": false,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [
+        "CI"
+      ],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#45 head=d3127ef branch=HEAD｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）"
+    },
+    {
+      "id": "R#46",
+      "head": "eb281069f578badebb475a54c476b5e8fb067b65",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#46 head=eb28106 branch=HEAD｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
+    },
+    {
+      "id": "R#47",
+      "head": "e830844c194d51d48ca5254e1e05e8e1a103c249",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [
+        "Release parity (pages.dev vs github.io)",
+        "CI Deep Gates"
+      ],
+      "detail": "#47 head=e830844 branch=HEAD｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0｜旁证（非判决面）：Release parity (pages.dev vs github.io)、CI Deep Gates 红 2 条 —— 与「CI 有没有绿」无关，不计入判决"
+    },
+    {
+      "id": "R#48",
+      "head": "ed91f56506ca37741de89cfcac753b272159a0f2",
+      "state": "RED",
+      "ok": false,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [
+        "CI"
+      ],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#48 head=ed91f56 branch=HEAD｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）"
+    },
+    {
+      "id": "R#49",
+      "head": "f473efa860a561ea5ceee8586164fd837f50d9a5",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#49 head=f473efa branch=HEAD｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
+    },
+    {
+      "id": "R#50",
+      "head": "514343791f68832b7b60c5beb86f40b285c92dae",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#50 head=5143437 branch=HEAD｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
+    },
+    {
+      "id": "R#51",
+      "head": "10a74422041c7e654d49aaf70b7520280fa3868b",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#51 head=10a7442 branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
+    },
+    {
+      "id": "R#52",
+      "head": "8fbf1c3bdd374bbb486e3f497c48e6655bfae25b",
+      "state": "CANCELLED",
+      "ok": false,
+      "unverified": true,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 1,
+      "sideRed": [
+        "CI Deep Gates"
+      ],
+      "detail": "#52 head=8fbf1c3 branch=main｜判决面「CI」1 条：success 0／failure 0／cancelled 1／未结束 0｜**CI 从来没给出结论**（被平台作业上限掐断）⇒ 不算绿也不算红，不据此记谁欠账｜旁证（非判决面）：CI Deep Gates 红 1 条 —— 与「CI 有没有绿」无关，不计入判决"
+    },
+    {
+      "id": "R#53",
+      "head": "8fbf1c3bdd374bbb486e3f497c48e6655bfae25b",
+      "state": "CANCELLED",
+      "ok": false,
+      "unverified": true,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 1,
+      "sideRed": [
+        "CI Deep Gates"
+      ],
+      "detail": "#53 head=8fbf1c3 branch=main｜判决面「CI」1 条：success 0／failure 0／cancelled 1／未结束 0｜**CI 从来没给出结论**（被平台作业上限掐断）⇒ 不算绿也不算红，不据此记谁欠账｜旁证（非判决面）：CI Deep Gates 红 1 条 —— 与「CI 有没有绿」无关，不计入判决"
+    },
+    {
+      "id": "R#54",
+      "head": "9e3ead04f8785a61038525b032a09f4197e0af05",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#54 head=9e3ead0 branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
+    },
+    {
+      "id": "R#55",
+      "head": "04e3c443d20288b15b26e5472a8cc9570e2f85da",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#55 head=04e3c44 branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
+    },
+    {
+      "id": "R#56",
+      "head": "c8654fbfe648c84f586716cb5fb6aae6df43af48",
+      "state": "RED",
+      "ok": false,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [
+        "CI"
+      ],
+      "cancelledRuns": 0,
+      "sideRed": [
+        "CI Deep Gates"
+      ],
+      "detail": "#56 head=c8654fb branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）｜旁证（非判决面）：CI Deep Gates 红 1 条 —— 与「CI 有没有绿」无关，不计入判决"
+    },
+    {
+      "id": "R#57",
+      "head": "778d5292e6b4711ba4aa1e1b31145c7311ffc485",
+      "state": "RED",
+      "ok": false,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [
+        "CI"
+      ],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#57 head=778d529 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）"
+    },
+    {
+      "id": "R#58",
+      "head": "489eb4f91d1bb97b911dc535a198c32bbb987bf4",
+      "state": "RED",
+      "ok": false,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [
+        "CI"
+      ],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#58 head=489eb4f branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）"
+    },
+    {
+      "id": "R#59",
+      "head": "9c8967709eeb5945cb145957e9e7f1738590252c",
+      "state": "RED",
+      "ok": false,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [
+        "CI"
+      ],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#59 head=9c89677 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）"
+    },
+    {
+      "id": "R#60",
+      "head": "f1c255f08e6ebf8702a1ee8a68cfa5bb2de84fa2",
+      "state": "RED",
+      "ok": false,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [
+        "CI"
+      ],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#60 head=f1c255f branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）"
+    },
+    {
+      "id": "R#61",
+      "head": "e7ab6b56fe051bfdb1e4261a2204329c04638a89",
+      "state": "RED",
+      "ok": false,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [
+        "CI"
+      ],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#61 head=e7ab6b5 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）"
+    },
+    {
+      "id": "R#62",
+      "head": "042a7a689082b1185cf75fb0871779066b562c5e",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#62 head=042a7a6 branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
+    },
+    {
+      "id": "R#63",
+      "head": "be1cfdc9f0716857f5f3eb1ed996d177b001ed86",
+      "state": "RED",
+      "ok": false,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [
+        "CI"
+      ],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#63 head=be1cfdc branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）"
+    },
+    {
+      "id": "R#64",
+      "head": "ab8dc3544f8b039bda7d9795fb96ac0e596eb519",
+      "state": "RED",
+      "ok": false,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [
+        "CI"
+      ],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#64 head=ab8dc35 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）"
+    },
+    {
+      "id": "R#65",
+      "head": "741b6048dece7d57051bd45266df951b42b4ff17",
+      "state": "RED",
+      "ok": false,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [
+        "CI"
+      ],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#65 head=741b604 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）"
+    },
+    {
+      "id": "R#66",
+      "head": "f34c6c935085b2e749dcd4761eddf095f6fc02ef",
+      "state": "RED",
+      "ok": false,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [
+        "CI"
+      ],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#66 head=f34c6c9 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）"
+    },
+    {
+      "id": "R#67",
+      "head": "2bfafb6890904fa99d81bab0400301c24ba2d7f7",
+      "state": "RED",
+      "ok": false,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [
+        "CI"
+      ],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#67 head=2bfafb6 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）"
+    },
+    {
+      "id": "R#68",
+      "head": "15b0046838568e3f6e718fe4eb21c0ae98562eca",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#68 head=15b0046 branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
+    },
+    {
+      "id": "R#69",
+      "head": "2108f960ff3508125f84b80ac20d84764cf854c7",
+      "state": "RED",
+      "ok": false,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [
+        "CI"
+      ],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#69 head=2108f96 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）"
+    },
+    {
+      "id": "R#70",
+      "head": "b3e058f14474bd3a006d68998944f6cb46bcc7c5",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#70 head=b3e058f branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
+    },
+    {
+      "id": "R#71",
+      "head": "b277a938e43bda6c21dac4d78a3263cf9cb23493",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#71 head=b277a93 branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
+    },
+    {
+      "id": "R#72",
+      "head": "967a6d818adc265b32eb40002efc6bda72f0ce64",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#72 head=967a6d8 branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
+    },
+    {
+      "id": "R#73",
+      "head": "029357a27d337a7d8f34742d7cbc21ac14974389",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#73 head=029357a branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
     }
   ]
 }
