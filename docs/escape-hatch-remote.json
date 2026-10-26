@@ -1,7 +1,7 @@
 {
   "schema": "chaoshi-escape-hatch-remote-v1",
   "note": "`node scripts/check-escape-hatch-log.mjs --update-remote` 生成；联网取数（gh api），**永不进阻断链**（网络不通时它会把一次正常提交判红而本地无可自愈处置，户内规⑩）。判决面 = `.ci/contract.json` 的 `workflow` 字段（当前 CI）；别的 workflow 的红只作旁证印出、不进判决（C9 判覆盖：账本有而读数无 = 未覆盖，读数有而账本无 = 死读数；C10 判结论：判决面 RED 且无 `disposition.why` = 待处置）。",
-  "generatedUtc": "2026-10-26T05:25:49.130Z",
+  "generatedUtc": "2026-10-26T12:31:50.491Z",
   "scopeWorkflow": "CI",
   "repository": "https://github.com/lxh113377/supermarket-web.git",
   "rows": [
@@ -1022,6 +1022,93 @@
       "cancelledRuns": 0,
       "sideRed": [],
       "detail": "#73 head=029357a branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
+    },
+    {
+      "id": "R#74",
+      "head": "098b47810a5eb05f9ddbb4d7dcae27922ca93194",
+      "state": "RED",
+      "ok": false,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [
+        "CI"
+      ],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#74 head=098b478 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）",
+      "disposition": {
+        "why": "run 40274400358 红为 vitest 13 条 limitProvenance/escapeHatch 用例缺输入面登记——修复件 3ba19cd+098b478 本体已入册，台账 #66 记 bypass 后 47135fb 推上，后续 run 回绿（40316391810 gates 除 F2 外全绿）。"
+      }
+    },
+    {
+      "id": "R#75",
+      "head": "47135fb90115e293c1d4bf3eaad25b2d082fd3c4",
+      "state": "RED",
+      "ok": false,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [
+        "CI"
+      ],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#75 head=47135fb branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）",
+      "disposition": {
+        "why": "run 40316391810 红 = governance F2 两值过期（limitRosterRows/codeFace.src）——修复件 80cba5f 本体已入库并推送，台账 #67 计量，80cba5f 上 F2 除 seedCatalog 外全绿。"
+      }
+    },
+    {
+      "id": "R#76",
+      "head": "80cba5f2263c26a78953549be29f1d799e859eb2",
+      "state": "RED",
+      "ok": false,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [
+        "CI"
+      ],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#76 head=80cba5f branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）",
+      "disposition": {
+        "why": "run 40319691545 红 = governance F2 seedCatalog 册 66⇄实测 64（提交顺序倒置：registry 补账被本笔抢先入库而 seed 真相源在 3af05ec）——修复件即 3af05ec 本体，台账 #68 计量 bypass 后已推送，3af05ec 上 F2 12/0 实测全过（本机 node:sqlite 复算）。"
+      }
+    },
+    {
+      "id": "R#77",
+      "head": "3af05ecbbf6af8f8699a2f577d1457c893be93b3",
+      "state": "CANCELLED",
+      "ok": false,
+      "unverified": true,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 1,
+      "sideRed": [],
+      "detail": "#77 head=3af05ec branch=main｜判决面「CI」1 条：success 0／failure 0／cancelled 1／未结束 0｜**CI 从来没给出结论**（被平台作业上限掐断）⇒ 不算绿也不算红，不据此记谁欠账"
+    },
+    {
+      "id": "R#78",
+      "head": "60214bdefd9cd18a60a8a06b5b6942c02b871256",
+      "state": "CANCELLED",
+      "ok": false,
+      "unverified": true,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 1,
+      "sideRed": [],
+      "detail": "#78 head=60214bd branch=main｜判决面「CI」1 条：success 0／failure 0／cancelled 1／未结束 0｜**CI 从来没给出结论**（被平台作业上限掐断）⇒ 不算绿也不算红，不据此记谁欠账"
+    },
+    {
+      "id": "R#79",
+      "head": "266687ddd886ebbfaaf2bd171f29aa6c874b9c68",
+      "state": "PENDING",
+      "ok": false,
+      "unverified": true,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#79 head=266687d branch=main｜判决面「CI」1 条：success 0／failure 0／cancelled 0／未结束 1"
     }
   ]
 }
