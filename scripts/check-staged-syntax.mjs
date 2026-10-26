@@ -22,6 +22,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, extname, basename, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { textFaceOfIndex } from './lib/textFace.mjs'
 
 const JS_EXTS = new Set(['.js', '.cjs', '.mjs'])
 const BLIND_EXTS = new Set(['.ts', '.tsx', '.jsx'])
@@ -34,13 +35,12 @@ const PY_EXTS = new Set(['.py'])
  * E7 判的是**已提交的 blob** ⇒ 它只能在提交后或 CI 上现形，时机永远晚一步；本闸判的正是暂存区 blob，
  * 于是把时机挪回 git commit 那一刻。这是「机制而非措辞」：不靠我记得每次补换行。
  *
- * 扩展名面取自 .gitattributes 里被钉成 text 的那些（不含 binary 件：它们的字节里出现 0A 是巧合，
- * 判它们等于把内容当行尾）。空件豁免 —— 与 verify:eol E7 同口径：空文件没有最后一行可言。
+ * 哪些件算文本**不自己列扩展名表** —— 第一版列了一张 15 项的表，实测与 .gitattributes 的文本面
+ * 差 **15 类 / 45 件**（.sql 28 件、.jsonl 3 件、两个无扩展名的 git hooks 脚本、.editorconfig 等
+ * 全在表外）：硬编码表会随仓库演化**静默漏面**，正是本仓反复抓的「只有措辞在守的账」。
+ * 现在与 verify:eol 共用同一个取数器（scripts/lib/textFace.mjs：问 git 的结论，不自己猜属性表），
+ * 两条判据同一个分母（实测同为 778 件），不会再各说各话。空件豁免 —— 与 E7 同口径。
  */
-const TEXT_EXTS = new Set([
-  '.sh', '.md', '.json', '.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx',
-  '.css', '.html', '.svg', '.py', '.yml', '.yaml',
-])
 
 /** 暂存面：NUL 分隔取路径（文件名可含空格/中文；按行取会截断 —— 实测过的坑）。 */
 export function stagedFiles(cwd = process.cwd()) {
@@ -61,13 +61,16 @@ const firstLine = (s) => String(s || '').trim().split(/\r?\n/).find((l) => l.tri
 export function check({ cwd = process.cwd(), scratch = mkdtempSync(join(tmpdir(), 'staged-syntax-')) } = {}) {
   const face = stagedFiles(cwd)
   if (face.err) return { verdict: 'UNVERIFIED', rc: 2, rows: [], reason: face.err }
+  // 文本面与 verify:eol 同源；取不到就是未验证（不许读成「没有文本件 ⇒ 行尾腿没问题」）
+  const textFace = textFaceOfIndex(cwd)
+  if (textFace === null) return { verdict: 'UNVERIFIED', rc: 2, rows: [], reason: 'git ls-files --eol 取不到 ⇒ 文本面无从判定' }
   const rows = []
   let blind = 0
   let pySkipped = 0
   for (const p of face.list) {
     const ext = extname(p)
     // 末行换行腿：独立于语法腿 —— .ts/.tsx 是语法盲区，但末行换行照样能判（本轮那四件正是 .tsx）
-    if (TEXT_EXTS.has(ext)) {
+    if (textFace.has(p)) {
       const nb = indexBlob(p, cwd)
       if (nb && nb.length > 0 && nb[nb.length - 1] !== 0x0a) {
         rows.push({ path: p, ok: false, why: 'insert_final_newline：暂存 blob 末字节不是 LF（' + nb.length + 'B 缺末行换行；与 verify:eol E7 同口径，本闸把它挪到提交前）' })
@@ -104,7 +107,7 @@ export function check({ cwd = process.cwd(), scratch = mkdtempSync(join(tmpdir()
     verdict: bad.length ? 'RED' : 'GREEN',
     rc: bad.length ? 1 : 0,
     rows: bad,
-    counts: { staged: face.list.length, checked: face.list.length - blind - pySkipped, blind, pySkipped, nlChecked: face.list.filter((p) => TEXT_EXTS.has(extname(p))).length },
+    counts: { staged: face.list.length, checked: face.list.length - blind - pySkipped, blind, pySkipped, nlChecked: face.list.filter((p) => textFace.has(p)).length },
   }
 }
 

@@ -1,4 +1,26 @@
 ## [未发布]
+### 2026-10-26 行尾腿的分母改与 verify:eol 同源（第 91 轮第八笔 · 自己差点埋下一个新盲区）
+
+- 上一笔那条腿**用了一张硬编码的 15 项扩展名表**。本轮实测它与 .gitattributes 的文本面差
+  **15 类 / 45 件**：`.sql` 28 件、`.jsonl` 3 件（含 .ci/escape-hatch.jsonl
+  与 hooks 自己）、两个无扩展名的 git hooks 脚本、.editorconfig 等全在表外 ⇒ 那些件缺末行
+  换行时本腿**不报**。也就是说：我为了消灭「第五次」而加的腿，自己就是下一个静默漏面 ——
+  正是本仓反复抓的「只有措辞在守的账」，只不过这次守账的东西是一张表。
+- 修法不是把表补全（下次加 .toml 又会漏），而是**问 git**：新增 `scripts/lib/textFace.mjs`
+  （读 `git ls-files --eol` 的 attr/i 两栏，binary 与 -text 一律跳过），`verify:eol` 与
+  `staged-syntax` 共用同一个取数器。实测两边分母同为 **778 件** ⇒ 两条判据不再各说各话。
+  这条范式本来就写在 verify:eol 的头注里（「用 git 的结论而不是自己读 .gitattributes 猜」），
+  我抄了近道，绕回来才发现。
+- 顺带抓到一处**夹具假红**（不是判据坏）：`stagedSyntax` 的变异体腿是九条里唯一
+  「把脚本拷进合成仓、用相对路径跑」的，脚本每多一个 import 就必须同步多拷一个依赖 ——
+  加了 `./lib/textFace.mjs` 后它 ERR_MODULE_NOT_FOUND ⇒ rc=1，被读成
+  「摘掉判定仍判红 ⇒ 这条腿没打在被告分支上」。补拷依赖后 9/9 绿，并把这条口径写进注释。
+- 另一处一手小坑：`/i``/``-text/` 多转义了一个 `-`，被 oxlint 的 no-useless-escape 在
+  `--max-warnings 0` 下判红 —— 提交前四连跑这次真的拦住了东西（不是我又漏跑）。
+- 口径：取不到 git ⇒ UNVERIFIED / rc=2（不许把「没取到」读成「没有文本件 ⇒ 行尾腿没问题」）。
+- 本机：oxlint 0/0、tsc 零错、stagedSyntax 夹具 9/9、verify:entrypoints 14/14（新增 lib 模块
+  没造出入口缺口）、verify:cli-legs 绿、check-css-tokens GATE-PASS（引用 82 全有定义）。
+
 ### 2026-10-26 末行换行接进 pre-commit（第 91 轮第七笔 · 同类第四次之后的机制收口）
 
 - 计数（全部一手）：同一个动作「read 全文 → `join('\n')` → write 全文」本轮**四次**丢掉文件末尾

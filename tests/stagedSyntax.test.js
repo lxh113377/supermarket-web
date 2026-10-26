@@ -94,6 +94,14 @@ describe('check-staged-syntax：暂存区语法闸', () => {
     const dir = gitRepo({ 'hurt.mjs': 'const a = 1\n))(\n' })
     const inRepo = join(dir, 'scripts', 'check-staged-syntax.mjs')
     mkdirSync(join(dir, 'scripts'), { recursive: true })
+    // 本腿是九条里唯一「把脚本拷进合成仓、用相对路径跑」的（其余走绝对路径读真仓），
+    // 所以脚本每多一个 import，这里就必须同步多拷一个依赖 —— 少拷一个就是
+    // ERR_MODULE_NOT_FOUND ⇒ rc=1，会被读成「摘掉判定仍判红 ⇒ 这条腿没打在被告分支上」。
+    // 第 91 轮一手：加末行换行腿（import ./lib/textFace.mjs）后本腿正是这样**假红**的，
+    // 不是判据坏，是夹具的拷贝面过期了。口径：脚本 import 什么就拷什么。
+    mkdirSync(join(dir, 'scripts', 'lib'), { recursive: true })
+    writeFileSync(join(dir, 'scripts', 'lib', 'textFace.mjs'),
+      readFileSync(join(REPO, 'scripts', 'lib', 'textFace.mjs'), 'utf8'), 'utf8')
     const src = readFileSync(SCRIPT, 'utf8')
     const mutated = src.replace('if (runner.status !== 0) {', 'if (false) {')
     expect(mutated, '变异锚点已失效（脚本改形，夹具必须同步）').not.toBe(src)
