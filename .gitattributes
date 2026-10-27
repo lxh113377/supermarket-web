@@ -29,6 +29,10 @@
 *.woff2 binary
 *.ttf binary
 *.otf binary
+# wasm 产物（2026-10-27 第 93 轮引入 public/wasm/，CI 首跑红在 verify:eol 后补 —— 与上面 glTF 同一课）：
+#   70 KB 的二进制里必然含 0D0A 字节对，按文本对待会被 E2/E7 判成「带 CRLF 的文本件」，
+#   且任何行尾归一化都会**改字节** ⇒ 判据本就要求它按资产对待。
+*.wasm binary
 *.eot binary
 *.mp3 binary
 *.mp4 binary
