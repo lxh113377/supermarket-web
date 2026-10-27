@@ -1,4 +1,23 @@
 ## [未发布]
+### 2026-10-27 WASM 商城索引接入（灰度开关 + 动态 chunk）与端到端实测：**量不出来，故默认关**
+
+- **做了什么**：新增 `src/wasmFlag.ts`（开关判定，静态、几十字节）与 `src/wasmAccelerator.ts`
+  （常驻索引 + loader 胶水，**dynamic import**）；`CustomerPage` 在开关打开时装载索引、用
+  「命中下标」替代整表 `filter+sort`，未就绪/失败一律走原 JS 路径。产物入库：
+  `public/wasm/supermarket_wasm.wasm`（69,629 B，wasm-opt 后）+ `manifest.json`（sha256/ABI/crate 源码 sha），
+  工具 `rust/scripts/build-wasm.mjs` 与判据 `rust/scripts/check-wasm-artifact.mjs`（三方一致）。
+- **为什么默认关（一手读数）**：`rust/scripts/measure-shop-filter.mjs` 在**真实商品表（45 件）**
+  与**放大 900 件**两档、五个查询各 5 次采样下：两臂结果**逐条等价**（✅ 含 200 件的结果集），
+  而「击键 → 新列表稳定」耗时两臂都是 **~50 ms**（3 帧的地板），差值 ±0.6 ms 在噪声内
+  ⇒ **端到端量不出收益**。原因是纯计算那 11 µs → 5 µs 的差被 React 渲染与帧同步淹没
+  （纯计算对比见 `rust/docs/05` §4：常驻索引 2.47×）。读数：`rust/docs/shop-filter-wasm.json`、
+  `shop-filter-wasm-scale20.json`。
+- **处置**：开关默认关 ⇒ 默认路径零字节成本。**第一版写成静态 import** 时把 CustomerPage
+  顶到 9,171 B > 6,900 B 页预算、当场判红 —— 这是「重活必须 dynamic chunk」的必要性证据；
+  改为动态后新 chunk 上名册（`docs/item-budgets.json` 新增 `wasm-accelerator` 3,100 B，
+  登记 34→35；`docs/governance/registry.json` 同步 `registered` 35 与 `codeFace.files.src` 99→101）。
+- **验证**：`tests/customerPage.test.tsx` + `tests/shopFilters.test.tsx` **34 条全过**；
+  `oxlint --max-warnings 0` 0/0；`tsc --noEmit` 干净；`check-wasm-artifact` 通过（产物 ⇄ manifest ⇄ ABI v2）。
 ### 2026-10-27 中文展示体按用量分包：首屏字体 215,580 B → 11,604 B（LCP −17.3%）
 
 - **做了什么**：把 `public/fonts/display-serif-cjk.woff2`（215,580 B / 932 字形，挂在一条宽

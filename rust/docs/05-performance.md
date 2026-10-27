@@ -148,6 +148,35 @@ replica 让首屏标记不等 JS ⇒ FCP/SI 明显动（FCP −21.4%、SI −19.
 - edge 臂再叠一层：渲染阻塞 150 → 0、CSS 请求归零、文档由 gzip 转 br。
 - 原始读数：[`docs/perf-local-font.json`](perf-local-font.json)。
 
+## 4c. WASM 商城索引的**端到端**实测（第 93 轮）：结论是「量不出来」，故默认关
+
+第 4 节的 2.47× 是**纯计算**（常驻索引把每按键的 toLowerCase + 拼搜文挪到加载时）。
+用户感知的却是「击键 → 新列表画出来」，于是按开关做了端到端对照
+（`rust/scripts/measure-shop-filter.mjs`：同一份产物、同一份商品表，只切开关）：
+
+| 商品规模 | 查询 | 关（中位 ms） | 开（中位 ms） | 差值 | 结果等价 |
+|---|---|---|---|---|---|
+| 45（真实在售面） | 糖 / 水 / 味 / 面 / 纸 | 49.7 / 50.6 / 50.0 / 50.6 / 50.5 | 49.8 / 50.4 / 50.2 / 50.1 / 50.2 | ±0.5 ms | ✅ 全部逐条相同（含 0 件的查询） |
+| 900（`--scale 20` 合成放大） | 同上 | 50.2 / 50.2 / 50.3 / 50.5 / 50.5 | 50.4 / 50.1 / 50.6 / 50.4 / 49.9 | ±0.6 ms | ✅ 全部逐条相同（含 200 件的结果集） |
+
+**这张表的价值在于它否掉了一个假设**：
+
+- 两臂都是 **~50 ms**，那是「等 3 帧」的地板（60 Hz）⇒ 端到端由**帧同步与 React 渲染**主导，不是计算；
+- 纯计算省的 ~6 µs/次，在 900 件时总量也只有个位数毫秒，且被 `useDeferredValue` 的调度吞掉
+  ⇒ **端到端差值落在噪声内（±0.6 ms）**；
+- 处置：**开关默认关**（关着时连 chunk 都不下载），加速器留在代码里，等「商品表涨到几千件」
+  或「低端机 + 大表」再开；
+- 它**不影响**第 4 节 2.47× 的成立（那量的是纯函数），但提醒：**纯函数快 ≠ 用户体验快**，两张表要一起读。
+
+复算：
+```bash
+cd supermarket-web
+node rust/scripts/static-baseline-server.mjs --dir dist --port 5185 &
+node rust/scripts/measure-shop-filter.mjs --base http://127.0.0.1:5185 --scale 1  --repeats 5
+node rust/scripts/measure-shop-filter.mjs --base http://127.0.0.1:5185 --scale 20 --repeats 5
+```
+原始读数：[`shop-filter-wasm.json`](shop-filter-wasm.json)、[`shop-filter-wasm-scale20.json`](shop-filter-wasm-scale20.json)。
+
 ## 5. 与线上真值的对照方式（压测数据校对）
 
 线上有两份 2026-10-24 的历史回执（`.lighthouse/receipt-t0240.json` + 同名 JSON）：

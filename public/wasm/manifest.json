@@ -1,0 +1,10 @@
+{
+  "file": "supermarket_wasm.wasm",
+  "bytes": 69629,
+  "sha256": "44a3f84574e46bc9e8ad58aa4bca9aa4011a5fc922df3e07ec532cf3a160133e",
+  "abiVersion": 2,
+  "optimized": true,
+  "sourceCrateSha256": "7881204f87e9e1761b384ee2cc49215901a79f7eec796789fab577ac64db5a49",
+  "generatedAt": "2026-10-27T02:47:50.456Z",
+  "note": "由 rust/scripts/build-wasm.mjs 生成；判据 = rust/scripts/check-wasm-artifact.mjs（盘上产物 ⇄ 本 manifest ⇄ 源码 ABI）"
+}

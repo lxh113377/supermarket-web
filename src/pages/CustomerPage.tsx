@@ -13,6 +13,7 @@ import { useIsNarrow } from '../hooks/useMediaQuery'
 import { formatYuan } from '../utils/format'
 import { meetsMinDelivery, minDeliveryGap } from '../data/deliveryLimits'
 import { specSearchText } from '../utils/spec-options'
+import { wasmCatalogEnabled } from '../wasmFlag'
 import { prefetchRoute } from '../prefetchBus'
 import CustomerHeader from '../components/brand/CustomerHeader'
 import type { Product } from '../types'
@@ -62,7 +63,30 @@ export default function CustomerPage() {
     return new Set(category.subcategories.map(s => s.id))
   }, [category])
 
+  // WASM 常驻索引（灰度开关，默认关）：**dynamic import**，开关关着时一个字节都不加载
+  // （重活放在 src/wasmAccelerator.ts，静态 import 会把 loader 拉进本页 chunk ⇒ 顶穿页体积门禁）。
+  // 商品表到手后装一次索引；之后每次按键只送「查询串 + 筛选条件」，回来的正是**原数组下标**。
+  // 两条路径必须给出一模一样的结果：由 rust/scripts/measure-shop-filter.mjs 在真实商品表上逐条对账。
+  const topSubIds = useMemo(() => [...currentTopSubIds], [currentTopSubIds])
+  const [accel, setAccel] = useState<{ query: (input: { topSubIds: string[]; subId?: string | null; q?: string | null; sort?: string }) => number[] | null } | null>(null)
+  useEffect(() => {
+    if (!wasmCatalogEnabled() || products.length === 0) {
+      setAccel(null)
+      return
+    }
+    let alive = true
+    import('../wasmAccelerator')
+      .then(m => m.loadCatalogAccel(products))
+      .then(api => { if (alive) setAccel(api.ready ? api : null) })
+      .catch(() => { if (alive) setAccel(null) })
+    return () => { alive = false }
+  }, [products])
+
   const filteredProducts = useMemo(() => {
+    // 快路：常驻索引命中下标（结果与下面慢路逐条相同；不同即由对账判据判红）
+    const idx = accel ? accel.query({ topSubIds, subId: subId || null, q: deferredQ || null, sort }) : null
+    if (idx) return idx.map(i => products[i]).filter(Boolean)
+
     let list
     if (subId) {
       // 选了具体子分类：按子分类过滤
@@ -85,7 +109,7 @@ export default function CustomerPage() {
     if (sort === 'price-asc') list = [...list].sort((a, b) => a.price - b.price)
     else if (sort === 'price-desc') list = [...list].sort((a, b) => b.price - a.price)
     return list
-  }, [products, subId, currentTopSubIds, deferredQ, sort])
+  }, [products, subId, currentTopSubIds, topSubIds, deferredQ, sort, accel])
 
   // 搜索建议
   const suggestions = useMemo(() => {

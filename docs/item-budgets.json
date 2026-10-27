@@ -246,6 +246,13 @@
    "budget": 500,
    "measuredAtBuild": "401B gz（2026-10-24 本机 npm run build，HEAD 5e2b3e3 之后重跑；预算按本名册既有机械规则现算 401×1.10=441.1 ⇒ 500）",
    "note": "内联两步确认 hook（arm → 再点一次 = 确认，替代原生 confirm()）的独立块：被 5 个管理端/顾客端组件共享，Vite 因此把它从各页面块里提到共享块。**登记它而不是放宽 noBudgetMax** —— 2026-10-24 一手：新增这个 hook 把未登记件数从 36 顶到 37，当场撞破地板（CI gates step 40 verdict=RED「地板 37/36」）。地板的语义是「最多允许 36 个没人管的产物」，新造一个 chunk 的正确反应是给它上名册，不是允许更多漏网件；本文件 noBudgetMaxNote 的历史（52→45→39→36）走的正是「补件 ⇒ 上限下降」这条路。这块一旦明显变大（比如有人往里塞业务逻辑而非状态机），就该红。"
+  },
+  {
+   "id": "wasm-accelerator",
+   "pattern": "wasmAccelerator-*.js",
+   "budget": 3100,
+   "measuredAtBuild": "2795B gz（2026-10-27 本机 npm run build；动态 chunk，开关关着时不下载）",
+   "note": "商城页 WASM 常驻索引（src/wasmAccelerator.ts + rust/web/wasm-loader.js）。**动态 import**：只有灰度开关打开（window.__SM_WASM__=1 / localStorage.sm_wasm=1 / ?wasm=1）才会下载它 —— 默认路径零字节成本；第一版写成静态 import 时本门禁当场判红（CustomerPage 顶到 9171B > 6900B）。登记它而不是抬地板（与 inline-confirm-hook 同一处置）：新 chunk 家族不进名册=允许一件没人管的产物。预算按既有机械规则现算 2795×1.10=3074.5 ⇒ 3100。"
   }
  ],
  "noBudgetMax": 38,

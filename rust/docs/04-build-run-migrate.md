@@ -80,16 +80,36 @@ node scripts/wasm-host-test.mjs
 `resolveLighthouse`/`resolveBrowser` —— 于是**本机对照与线上回执用的是同一套 Lighthouse 与浏览器载体**，
 两张表可以直接并排看（docs/05 §2 就是这么放的）。
 
-## 5. 接入方式（前端如何使用 WASM 加速器）
+## 5. 接入方式（已实装：开关 + 动态 chunk；默认关）
 
-1. 把 `rust/web/wasm-loader.js` 复制/软链到前端可 import 的位置（或经构建别名指向 `rust/web/`）；
-2. 商品表到手后调一次 `catalogLoad(products)`（索引常驻 wasm 内存）；
-3. 每次筛选/按键用 `catalogQuery({ topSubIds, subId, q, sort })`，拿到的是**原数组下标**，
-   用下标取自己的对象（字段一个都不动）；
-4. 任何一步拿到 `{ via: 'js' }` 就说明回落到了原实现 —— **行为不变，只是不快**。
+实装形态（第 93 轮）比最初的设想更严格，因为**体积门禁当场否掉了「静态接入」**：
 
-> 当前仓内**尚未**把加速器接进 React（默认关闭）。理由是它必须先过老大的两个门：
-> ① `report:item-budgets`（每页产出体积门禁）② 路由级测试/视觉回归。接入步骤与回退开关见 docs/06 §3。
+| 件 | 文件 | 说明 |
+|---|---|---|
+| 开关判定 | `src/wasmFlag.ts` | 静态引用、几十字节。三处入口任一：`window.__SM_WASM__=1`、`localStorage.sm_wasm='1'`、`?wasm=1`（search 或 hash） |
+| 重活 | `src/wasmAccelerator.ts` | 门面 + loader 胶水；由商城页 **`import('../wasmAccelerator')` 动态加载** |
+| 消费点 | `src/pages/CustomerPage.tsx` | 开关开时装载常驻索引，用「命中下标」取商品；未就绪/失败一律走原 JS 路径 |
+| 产物 | `public/wasm/supermarket_wasm.wasm` + `manifest.json` | 入库（Pages/GH Pages 都不带 Rust 工具链）；由 `rust/scripts/build-wasm.mjs` 生成 |
+| 判据 | `rust/scripts/check-wasm-artifact.mjs` | 产物 ⇄ manifest ⇄ ABI 三方一致；`verify-all` 已接入 |
+
+```bash
+# 重新生成产物（改了 crates/wasm 之后必须跑）
+export PATH=<cargo bin>:$PATH; export WASM_OPT=<binaryen>/wasm-opt.exe
+node rust/scripts/build-wasm.mjs        # cargo → wasm-opt → public/wasm/ + manifest
+node rust/scripts/check-wasm-artifact.mjs   # 判据（也会被 node rust/scripts/verify-all.mjs 串跑）
+```
+
+**为什么必须动态 import**：第一版把门面静态 import 进 CustomerPage，页产出从 6.2 KB 顶到
+**9,171 B > 6,900 B 预算**，`report:item-budgets` 当场判红。改成动态后：默认路径零字节成本，
+新 chunk 单独上名册（`docs/item-budgets.json` 的 `wasm-accelerator`，2,795 B gz → 预算 3,100 B）。
+
+**开关默认关的依据是实测**：端到端量不出收益（击键 → 新列表两臂都是 ~50 ms，帧同步主导；
+真实 45 件与放大 900 件两档、五个查询均如此，结果逐条等价）——
+读数与解释见 [docs/05 §4c](05-performance.md)。要开的时候按下面三步，随时可关：
+
+1. 商城页带上开关（`?wasm=1` 或 localStorage/全局变量）；
+2. 观察 `X-Edge`/`/wasm/*` 的 200 与体积 69,629 B（gzip 27,342 B / brotli 23,360 B）；
+3. 若出现结果不一致或异常，**把开关关掉即可整条回退**（零残留：索引与 wasm 实例都是内存态）。
 
 ## 6. 迁移步骤（分阶段，每阶段可独立回滚）
 

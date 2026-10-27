@@ -49,6 +49,8 @@ node scripts/wasm-host-test.mjs
 | HTTP 层 | `node scripts/measure-http.mjs --base <url>` | 见 docs/05 §3（TTFB/传输体积/编码/304/Link） |
 | WASM 值不值得用 | 同上 `wasm-host-test` 的微基准表 | 见 docs/05 §4：**只有常驻目录索引 2.47× 胜出**，其余三条被数据否掉 |
 | 字体分包完整性 | `node scripts/check-font-split.mjs` | 7 项全过（并集=源字体 932 字形、两两不重叠、A 覆盖首屏、预算） |
+| WASM 产物一致 | `node scripts/check-wasm-artifact.mjs` | 产物 ⇄ manifest ⇄ ABI v2 三方一致（69,629 B） |
+| WASM 商城索引端到端 | `node scripts/measure-shop-filter.mjs --scale 1\|20` | 见 docs/05 §4c：**结果逐条等价，但端到端量不出收益**（~50 ms 帧地板）⇒ 开关默认关 |
 | 字体分包渲染等价 | `node scripts/font-render-parity.mjs --old … --new …` | 5 个样本串 `TextMetrics` 逐位相同；像素比 **0/260,538 不同** |
 | 仓内视觉门禁（geometries/contrast/触控目标） | `npm run test:visual` | **225 passed / 1 skipped / 0 failed** |
 | 线上（顾客端） | 见 docs/07 §6 | `-a.woff2` → 200 / 11,604 B；旧单文件 → **404** |
