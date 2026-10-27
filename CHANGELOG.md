@@ -1,4 +1,23 @@
 ## [未发布]
+### 2026-10-27 管理端第五批：verifyKey / stalePendingReport（端到端 33 用例全绿）
+- **新增 2 个原生动作**（进度 **15 / 37**，剩余 22）：
+  · `verifyKey`：鉴权闭环 —— 两档密钥各自取回自己的角色（`{code:0,role}`，现网 backend.js:109）；
+  · `stalePendingReport`：超时 pending 单盘点（orders.js:369 + :378 两条查询；空结果早退；`IN` 占位符动态）。
+- **唯一依赖当前时间的读动作** ⇒ 抽 `crates/core/src/stale.rs`（7 条用例）：固定宽度 ISO 双向解析（含闰年/跨世纪）、
+  days_from_civil 逆算法、窗口钳制（`Number(x)||60` 在 clamp 之内）、`ageMinutes` 的四舍五入与「未来时间落 0」、
+  占用聚合（`stock<0` 不计、缺商品跳过、按首次出现顺序保序）。**epoch 参考值全部先用 JS `Date.parse` 现算再写进用例**，不手算。
+- **端点 33 用例全绿**（公开面 8 + 管理面 25）：新增 verifyKey 两档 + `stalePendingReport（minutes=10080，非空窗）`；
+  后者是 **96 条真实超时单 + 50 个商品 id** 的逐字节对比 —— 靠「换个取数面」拿到原始行：
+  现网响应只有 `ageMinutes`（没有 `createdAt`/`items`），所以改从 `getOrders` 取回同一条单的原始行，
+  再按现网同样的 `status`/`createdAt < cutoff`/升序/`LIMIT 200` 筛一遍喂给 mock。
+- **夹具纪律（同类第二次）**：登记行集必须在 `rows.json` **落盘之前** —— 第一版写在用例段里（落盘之后），
+  于是键没进文件 → mock 回 400 → 边缘查询失败 → 回落透传 → 现象是 **HTTP 500**，看着像实现缺陷。处置：登记行集与登记用例分开写。
+- **夹具加固**：统一带退避重试的 `fetch`，且网络不可达时判 **UNVERIFIED（退出码 2）** 而不是抛栈崩掉 —— 
+  「没跑成」必须是可分辨的结果（本轮实测代理 socket 断 5 次、恢复后一次跑通）。
+- **顺带记录的上游缺陷（未在本仓修）**：`getDashboardStats` 的写失效只删 9 个整数区间键
+  （`DASHBOARD_RANGES=[1,3,7,14,30,60,90,180,365]`）⇒ 非表内区间（5、7.5）最长脏 60s。下一批必须显式决定「复刻还是修正」，不许默默改语义。
+- **一处已知差异**（写进文件头）：现网 `Date.parse` 遇坏时间串 → 字段为 `null`；Rust 侧落 0（没有 NaN 这种 JSON 值）。
+- **没做的（点名）**：`getDashboardStats` / `getPromotions`（委派侦察件已入库，含 SQL 逐字与缓存语义）；全部写动作与 `login`/两个 AI 动作。
 ### 2026-10-27 管理端第四批：getOrders / getOrder 原生化（端到端 30 用例全绿）
 - **新增 2 个原生动作**：getOrders（orders.js:533，orders LEFT JOIN order_discounts）与 getOrder（orders.js:546，o.* + 两列）；进度 **13 / 37**（剩余 24）。
 - **四处派生同源**：getOrders 的 whereClause / orderByCol / 排序方向 / 参数前缀都由同一个 since 判定派生

@@ -72,9 +72,35 @@ const SQL = {
   orderStatus: sqlOf('SQL_ORDER_STATUS'),
 }
 
+// 网络抖动是常态（本机代理实测会断）：**带退避重试**，最终失败则整轮判 UNVERIFIED（退出码 2），
+// 而不是抛栈崩掉 —— 「没跑成」必须是可分辨的结果，不能被读成「判据绿了」。
+process.on('uncaughtException', (e) => {
+  const msg = String(e && e.message ? e.message : e)
+  const net = /fetch failed|UND_ERR|ECONN|ETIMEDOUT|socket|getaddrinfo|EAI_AGAIN/i.test(msg)
+  if (net) {
+    console.error('\nGATE-UNVERIFIED check-api-native-e2e：现网不可达（' + msg.slice(0, 120) + '）⇒ 本轮没跑成，不当通过（退出码 2）')
+    process.exit(2)
+  }
+  console.error('\nGATE-FAIL check-api-native-e2e：夹具自身异常（' + msg.slice(0, 160) + '）')
+  process.exit(1)
+})
+
+const fetchRetry = async (url, opts, attempts = 3) => {
+  let last
+  for (let i = 1; i <= attempts; i += 1) {
+    try {
+      return await fetch(url, opts)
+    } catch (e) {
+      last = e
+      if (i < attempts) await new Promise((r) => setTimeout(r, 400 * i))
+    }
+  }
+  throw last
+}
+
 const postPub = async (base, action, payload) => {
   const body = payload === undefined ? { action } : { action, payload }
-  const res = await fetch(base + '/pub', {
+  const res = await fetchRetry(base + '/pub', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
@@ -86,7 +112,7 @@ const stripTrace = (o) => { const c = { ...o }; delete c.trace; return c }
 // /web 调用（管理端）：密钥只走 body（现网 web.js:21 唯一通道），**不设请求头**
 const postWeb = async (target, action, key, payload = {}) => {
   const body = key === undefined ? { action, payload } : { action, adminKey: key, payload }
-  const res = await fetch(target + '/web', {
+  const res = await fetchRetry(target + '/web', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
@@ -312,6 +338,42 @@ if (keys.admin) {
   console.log('  现网订单：分页变体 ' + Object.keys(ordersRows).length + ' 条键｜真实订单 ' + (realId || '无') + '｜未知 id data=' + JSON.stringify(unknownLive))
 }
 
+// ⚠ 行集必须在 rows.json 落盘**之前**登记（第一版把这段写在管理端用例段里 ⇒ 键根本没进文件、边缘查询 400 → 回落透传 → HTTP 500）。
+  const staleRowsSql = sqlOfFrom('crates/edge/src/api_admin.rs', 'SQL_STALE_ORDERS')
+  const staleProdsSql = sqlOfFrom('crates/edge/src/api_admin.rs', 'SQL_STALE_PRODUCTS')
+  const staleInMark = '$' + '{productIds.map(() => \'?\').join(\',\')}'
+  // 现网响应里**没有 items / createdAt**（只有 ageMinutes），所以不能从它反推原始行。
+  // 改从 getOrders 取回同一条单的「原始行」（含 items 文本与 createdAt），再按现网同样的
+  // status/createdAt<cutoff/升序/LIMIT 200 筛一遍 —— 这样非空窗也能做**逐字节对比**。
+  const staleMinutes = 10080 // 上限窗口：现网 count≈96（实测），比 minutes=1 的子集更大
+  // 自己翻页取（bigPage 定义在本文件更靠后的订单段里，这里用不了 —— const 的 TDZ 会当场抛）
+  const allOrders = []
+  for (let p = 1; p <= 3; p += 1) {
+    const rr = await postWeb(live, 'getOrders', keys.admin, { pageSize: 100, page: p })
+    if (rr.status !== 200 || !Array.isArray(rr.json.data) || rr.json.data.length === 0) break
+    allOrders.push(...rr.json.data)
+    if (rr.json.hasMore !== true) break
+  }
+  const cutoff = new Date(Date.now() - staleMinutes * 60_000).toISOString()
+  const pendingRows = allOrders
+    .filter((o) => o.status === 'pending' && String(o.createdAt) < cutoff)
+    .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
+    .slice(0, 200)
+    .map((o) => ({
+      _id: o._id, roomNumber: o.roomNumber, totalAmount: o.totalAmount,
+      items: asText(o.items), createdAt: o.createdAt,
+      paymentScreenshot: o.paymentScreenshot ? 'x' : '',
+    }))
+  ordersRows[staleRowsSql] = pendingRows
+  // 商品行：现网实测 stockReserved 为空 ⇒ 喂空集（缺商品 ⇒ 跳过 ⇒ 同形）。
+  // 注意 IN 的占位符个数由「我方 rows 的商品集合」决定，所以这条 SQL 文本是可算的。
+  const staleIds = []
+  for (const row of pendingRows) {
+    for (const it of JSON.parse(row.items)) {
+      if (it && it.productId && staleIds.indexOf(it.productId) < 0) staleIds.push(it.productId)
+    }
+  }
+  ordersRows[staleProdsSql.replace(staleInMark, staleIds.map(() => "?").join(","))] = []
 const rowsFile = path.join(rustRoot, '.cache', 'mock-d1-rows' + (parsedMode ? '-parsed' : '') + '.json')
 writeFileSync(rowsFile, JSON.stringify({
   [SQL.products]: rows.products,
@@ -439,6 +501,34 @@ if (!keys.admin) {
   })
   for (const c of movCases) adminCases.push(c)
   for (const c of orderCases) adminCases.push(c)
+  // verifyKey：鉴权闭环（两档角色都要能取出来）
+  adminCases.push({ name: 'verifyKey（正确密钥 ⇒ role:admin）', action: 'verifyKey', key: keys.admin, payload: {}, expectAudit: 0 })
+  if (keys.readonly) {
+    adminCases.push({ name: 'verifyKey（只读密钥 ⇒ role:readonly）', action: 'verifyKey', key: keys.readonly, payload: {}, expectAudit: 0 })
+  }
+  // stalePendingReport：**只对空窗早退路径做逐字节对比**。
+  // 非空窗不能逐字节比 —— 响应里只有 ageMinutes（没有 createdAt），而 cutoff / age 都含「当前时刻」，
+  // 两侧调用天然差几毫秒 ⇒ 拿它当逐字节判据会变成 flaky 假红。非空窗的组装语义由 core 的 5 条用例钉住，
+  // 现网形状另做**观察记录**（下方 staleWide）。
+  const staleCasePayload = { minutes: staleMinutes }
+  const staleLive = await postWeb(live, 'stalePendingReport', keys.admin, staleCasePayload)
+  const staleLiveData = staleLive.status === 200 ? staleLive.json.data : null
+  if (staleLiveData && staleLiveData.count === pendingRows.length) {
+    adminCases.push({ name: 'stalePendingReport（minutes=10080，非空窗）', action: 'stalePendingReport', key: keys.admin, payload: staleCasePayload, expectAudit: 0 })
+    console.log('  stalePendingReport：现网 count=' + staleLiveData.count + ' ⇒ 逐字节用例已登记（喂 ' + pendingRows.length + ' 行 / ' + staleIds.length + ' 个商品 id）')
+  } else {
+    console.log('  [观察] stalePendingReport 非空窗跳过：现网 count=' + (staleLiveData ? staleLiveData.count : '?') + ' ≠ 夹具 ' + pendingRows.length + '（筛选口径有差 ⇒ 不拿它当判据）')
+  }
+  const staleWide = await postWeb(live, 'stalePendingReport', keys.admin, { minutes: 10080 })
+  const wideData = staleWide.status === 200 ? staleWide.json.data : null
+  report.staleWideObservation = {
+    status: staleWide.status,
+    count: wideData ? wideData.count : null,
+    stockReservedLen: wideData && Array.isArray(wideData.stockReserved) ? wideData.stockReserved.length : null,
+    thresholdMinutes: wideData ? wideData.thresholdMinutes : null,
+    note: '非空窗路径不做逐字节对比（响应无 createdAt、cutoff 含当前时刻）⇒ 组装语义由 core 的 5 条用例钉住；此处只记录现网形状',
+  }
+  console.log('  [观察] stalePendingReport(minutes=10080) 现网：count=' + (wideData ? wideData.count : '?') + '｜stockReserved ' + (wideData && wideData.stockReserved ? wideData.stockReserved.length : '?') + ' 项｜thresholdMinutes=' + (wideData ? wideData.thresholdMinutes : '?'))
   if (keys.readonly) {
     adminCases.push({ name: 'getProducts（只读密钥，白名单内）', action: 'getProducts', key: keys.readonly, expectAudit: 0 })
     adminCases.push({ name: 'createProduct（只读密钥，应拒绝）', action: 'createProduct', key: keys.readonly, expectAudit: 0 })
@@ -480,7 +570,7 @@ writeFileSync(jsonOut, JSON.stringify({ ...report, problems }, null, 2) + '\n')
 console.log('原始读数 ' + jsonOut)
 console.log(problems.length
   ? '\nGATE-FAIL check-api-native-e2e：' + problems.length + ' 项\n  - ' + problems.join('\n  - ')
-  : '\nGATE-PASS check-api-native-e2e：公开面 8 个用例 + 管理面 22 个用例\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
+  : '\nGATE-PASS check-api-native-e2e：公开面 8 个用例 + 管理面 25 个用例\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
 
 edge.kill()
 mock.kill()

@@ -534,6 +534,17 @@ pub fn method_not_allowed_body() -> String {
     payload.to_string()
 }
 
+/// 当前时间的毫秒值（与 JS `Date.now()` 同义）。
+///
+/// 为什么单独一个函数：stalePendingReport 的 cutoff 与 ageMinutes 都要「同一个 now」——
+/// 一个动作里调两次 SystemTime::now() 会拿到两个略不同的时刻，cutoff 与 age 就会互相错位。
+pub fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+}
+
 /// ISO-8601 UTC（毫秒精度），与 JS `new Date().toISOString()` 的输出形状一致。
 pub fn iso_now() -> String {
     let now = std::time::SystemTime::now()

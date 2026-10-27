@@ -49,10 +49,16 @@ pub const SQL_ORDERS_PAGE: &str = r#"SELECT o._id, o.roomNumber, o.items, o.tota
 /// orders.js:546 —— 单订单详情（`o.*` + LEFT JOIN 的两列）。
 pub const SQL_ORDER_BY_ID: &str = r#"SELECT o.*, COALESCE(d.discountAmount, 0) AS discountAmount, COALESCE(d.promotionId, '') AS promotionId FROM orders o LEFT JOIN order_discounts d ON d.orderId = o._id WHERE o._id = ?"#;
 
+/// orders.js:369 —— 超时 pending 单（按 createdAt 升序，上限 200）。
+pub const SQL_STALE_ORDERS: &str = r#"SELECT _id, roomNumber, totalAmount, items, paymentScreenshot, createdAt FROM orders WHERE status = 'pending' AND createdAt < ? ORDER BY createdAt ASC LIMIT 200"#;
+/// orders.js:378 —— 相关商品库存（IN 的占位符个数由 pending 单的商品集合决定，标记与现网逐字一致）。
+pub const SQL_STALE_PRODUCTS: &str = r#"SELECT _id, name, stock FROM products WHERE _id IN (${productIds.map(() => '?').join(',')})"#;
+
 /// 三个派生标记（现网模板串里的原样文本；集中放这里，避免多处手写走样）。
 const MARK_WHERE: &str = "${whereClause}";
 const MARK_ORDER_COL: &str = "${orderByCol}";
 const MARK_DIR: &str = "${since ? 'ASC' : 'DESC'}";
+const MARK_STALE_IN: &str = "${productIds.map(() => '?').join(',')}";
 
 /// 审计表的写入语句（security.js:113 逐字）。
 pub const SQL_AUDIT_INSERT: &str =
@@ -71,7 +77,7 @@ pub const EVENT_LIMIT_DEFAULT: i64 = 50;
 pub const EVENT_LIMIT_MAX: i64 = 100;
 
 /// 在册的管理端原生动作（第 6 轮 getProducts；第 7 轮 4 个单表只读；第 8~9 轮 getStockMovements）。
-pub const ADMIN_NATIVE_ACTIONS: [&str; 8] = [
+pub const ADMIN_NATIVE_ACTIONS: [&str; 10] = [
     "getProducts",
     "getAllReviews",
     "getSubmissions",
@@ -80,6 +86,8 @@ pub const ADMIN_NATIVE_ACTIONS: [&str; 8] = [
     "getStockMovements",
     "getOrders",
     "getOrder",
+    "verifyKey",
+    "stalePendingReport",
 ];
 
 /// 开关：未设 ⇒ 全关；all 或逗号分隔的动作名（大小写无关）。
@@ -349,6 +357,46 @@ pub async fn call_admin(
                     "data": supermarket_core::orders_query::order_detail_row_to_json(row),
                 })),
             }
+        }
+        "verifyKey" => {
+            // 现网 backend.js:109：result = { code: 0, role }（角色由鉴权阶段解析出来）。
+            // 走到这里说明鉴权已通过 ⇒ role 必为 Some；None 只可能是逻辑错，落回透传。
+            let role_str = match role {
+                Some(supermarket_core::auth::Role::Admin) => "admin",
+                Some(supermarket_core::auth::Role::Readonly) => "readonly",
+                None => return None,
+            };
+            Some(json!({ "code": 0, "role": role_str }))
+        }
+        "stalePendingReport" => {
+            // 现网 orders.js:363：minutes 钳 [1, 7天] → cutoff = now - minutes*60000（ISO）
+            //   → 查 pending 单（createdAt 升序，上限 200）→ 空则**早退**（连商品查询都不做）
+            //   → 否则按商品集合查库存（IN 占位符个数动态）→ 组装 orders + stockReserved。
+            let minutes = supermarket_core::stale::stale_minutes(payload);
+            // 同一个 now 贯穿 cutoff 与 ageMinutes（现网也是同一个 Date.now() 语义）
+            let now_ms = crate::api::now_ms();
+            let cutoff = supermarket_core::stale::iso_from_ms(now_ms - minutes * 60_000);
+            let rows = d1.query_rows(SQL_STALE_ORDERS, &[json!(cutoff)]).await.ok()?;
+            if rows.is_empty() {
+                return Some(json!({
+                    "code": 0,
+                    "data": supermarket_core::stale::stale_report(&[], &[], now_ms, minutes),
+                }));
+            }
+            let ids = supermarket_core::stale::stale_product_ids(&rows);
+            if ids.is_empty() {
+                // 现网会拼出 IN () 这种非法 SQL（只有「有单但 items 全空」才可达）。
+                // 这里**不猜它会不会报错**：直接回落透传，让上游照旧处理。
+                return None;
+            }
+            let placeholders = vec!["?"; ids.len()].join(",");
+            let sql = SQL_STALE_PRODUCTS.replace(MARK_STALE_IN, &placeholders);
+            let params: Vec<Value> = ids.iter().map(|id| json!(id)).collect();
+            let prods = d1.query_rows(&sql, &params).await.ok()?;
+            Some(json!({
+                "code": 0,
+                "data": supermarket_core::stale::stale_report(&rows, &prods, now_ms, minutes),
+            }))
         }
         _ => None,
     }

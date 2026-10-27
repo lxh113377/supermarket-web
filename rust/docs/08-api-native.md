@@ -282,3 +282,49 @@ SQL 判据现覆盖 **15 条语句 / 7 个文件**；核心侧新增 `crates/cor
 - `getOrder` 的 **`orderId=undefined` 边界**：现网会把 undefined 直接绑进 SQL（仓内无测试），本实现**明确回落透传**而不是猜；
   这条要现网复核，已在 docs/09 登记为待办（子代理侦察时也点名过）。
 - 全部写动作与 `login`/两个 AI 动作仍未动。
+
+## 2g. 管理端第五批：verifyKey / stalePendingReport（第 11 轮）
+
+| 动作 | SQL 来源 | 形状要点 |
+|---|---|---|
+| verifyKey | 无 SQL（纯鉴权语义，backend.js:109） | `{ code: 0, role }` —— role 由鉴权阶段解析（`admin` / `readonly`）。这是**鉴权闭环**：两档密钥各自能取回自己的角色 |
+| stalePendingReport | orders.js:369 + :378（orders + products 两条查询） | `minutes` 钳 [1, 7 天]；`cutoff = now - minutes*60000`（ISO）；**空结果早退**（连商品查询都不做）；否则按商品集合查库存（`IN` 的占位符个数动态）→ 组装 `{thresholdMinutes, count, orders, stockReserved}` |
+
+### 2g.1 这个动作的时间面（为什么单独抽一层纯函数）
+
+它是唯一**依赖当前时间**的读动作：`cutoff` 与每单的 `ageMinutes` 都含 `now`。抽了 `crates/core/src/stale.rs`：
+
+| 纯函数 | 钉住什么 |
+|---|---|
+| `parse_iso_ms` / `iso_from_ms` | 固定宽度 ISO 双向可逆；**epoch 参考值不是手算的**，每个都先用 JS `Date.parse` 现算再写进用例（含闰年 2024-02-29、跨世纪 2000-01-01） |
+| `stale_minutes` | `Number(x)||60` 在 clamp 之内：0/"abc"/null 落 60、负数落 1、10081 落 10080、60.9 落 60 |
+| `age_minutes` | `Math.max(0, Math.round(...))`：未来时间落 0、29.5 分钟 → 30 |
+| `stale_product_ids` | 按**首次出现顺序**去重（对应 JS 的 `[...new Set(flatMap)]`） |
+| `stale_report` | 空行集早退（键序 `thresholdMinutes,count,orders,stockReserved`）、`stock<0` 不计占用、缺商品跳过、`hasPaymentProof` 的 falsy 判定、orders 元素键序 |
+
+**一处已知差异**（写在文件头，也在用例里点名）：现网用 `Date.parse`，时间串坏掉得 NaN → 该字段被序列化成 `null`；
+Rust 侧没有 NaN 这种 JSON 值 ⇒ **解析失败落 0**。差异只出现在「createdAt 坏掉」这一种输入上。
+
+### 2g.2 端到端读数（新增 3 条，总数 8 + 25 = 33）
+
+| 用例 | 原生 | 与现网 | HTTP |
+|---|---|---|---|
+| verifyKey（正确密钥 ⇒ role:admin） | ✅ | ✅ 逐字段相同 | 200 |
+| verifyKey（只读密钥 ⇒ role:readonly） | ✅ | ✅ | 200 |
+| stalePendingReport（minutes=10080，**非空窗**） | ✅ | ✅ **96 条真实超时单** + 50 个商品 id 的反推行集合 | 200 |
+
+非空窗能做逐字节对比，靠的是**换个取数面**：现网响应只有 `ageMinutes`（没有 `createdAt`、没有 `items`），
+所以改从 `getOrders` 取回同一条单的原始行（含 `items` 文本与 `createdAt`），再按现网同样的
+`status`/`createdAt < cutoff`/升序/`LIMIT 200` 筛一遍 ⇒ 喂给 mock 的就是 SQL 真正会返回的那 96 行。
+
+### 2g.3 夹具本轮又暴露一条纪律（第二次同类）
+
+行集必须在 `rows.json` **落盘之前**登记：第一版把这段写在管理端用例段里（落盘之后），
+于是键根本没进文件 → mock 按「未预期 SQL」回 400 → 边缘查询失败 → 回落透传 → 线上表现是 **HTTP 500**。
+从现象上看像实现缺陷，实际是夹具顺序错。**处置：登记行集的代码与用例登记分开写，前者必须在 mock 启动前。**
+
+### 2g.4 本轮顺带记下的上游缺陷（来自委派侦察，未在本仓修）
+
+`getDashboardStats` 的写失效只 `del` 了 9 个整数区间键（`DASHBOARD_RANGES = [1,3,7,14,30,60,90,180,365]`），
+**非表内区间（如 5、7.5）不会被失效** ⇒ 写操作后最长脏 60s。这是现网既有行为，不是本轮引入；
+原生化该动作时必须显式决定「复刻还是修正」，不能默默改语义（已登记进下一批的判据清单）。
