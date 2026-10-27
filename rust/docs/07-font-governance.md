@@ -108,6 +108,8 @@ SHA256 `a965146f…`）：它仍是分包的输入，但不再随站点发布 �
 | 线上验证（顾客端，GitHub Pages） | `GET /` HTML 只引用 `display-serif-cjk-a.woff2`；`HEAD /fonts/display-serif-cjk-a.woff2` → **200 / 11,604 B**；`HEAD /fonts/display-serif-cjk.woff2` → **404**（旧单文件已从发布面消失）；`-s1` 分片 → 200 / 29,660 B |
 | 线上验证（管理端，Cloudflare Pages） | 同一组 HEAD 请求 + `check:live-shape` 的 L3（`deploy` 字段 ⇄ 本地 HEAD） |
 | 探活 | `node scripts/uptime-check.mjs`：管理端/顾客端/静态后台/打印静态面全 200；唯一红项是**预先存在**的打印后端反代 530（外部 CampusPrint 服务不在线，与本次改动无关） |
+| CI 判据（第一笔） | `f8018d2` 的 `gates` 红：**Governance registry three-way sync gate** —— 登记册 `bundleBudget.firstLoadCssBytes=25600` 没随本笔抬到 30720。这是「本地绿 CI 红」的教科书形态：判据比的是**册 ⇄ 现值**，我改了现值却漏改册。处置按判据自己的规则「改册」⇒ `828f5aa` |
+| CI 判据（第二笔） | `828f5aa` 推送时基线（f8018d2）仍是红，pre-push 的 CI 全绿契约拒推 ⇒ 按仓纪律走**逃生门**（`CI_GREEN_SKIP=1` + `CI_GREEN_REASON`），计量自动落 `.ci/escape-hatch.jsonl`（base=f8018d2→head=828f5aa，703 B），记一行随下笔提交入库 |
 
 复算命令：
 ```bash

@@ -1,7 +1,7 @@
 {
   "schema": "chaoshi-escape-hatch-remote-v1",
   "note": "`node scripts/check-escape-hatch-log.mjs --update-remote` 生成；联网取数（gh api），**永不进阻断链**（网络不通时它会把一次正常提交判红而本地无可自愈处置，户内规⑩）。判决面 = `.ci/contract.json` 的 `workflow` 字段（当前 CI）；别的 workflow 的红只作旁证印出、不进判决（C9 判覆盖：账本有而读数无 = 未覆盖，读数有而账本无 = 死读数；C10 判结论：判决面 RED 且无 `disposition.why` = 待处置）。",
-  "generatedUtc": "2026-10-26T12:31:50.491Z",
+  "generatedUtc": "2026-10-27T02:35:55.280Z",
   "scopeWorkflow": "CI",
   "repository": "https://github.com/lxh113377/supermarket-web.git",
   "rows": [
@@ -1101,14 +1101,50 @@
     {
       "id": "R#79",
       "head": "266687ddd886ebbfaaf2bd171f29aa6c874b9c68",
-      "state": "PENDING",
+      "state": "CANCELLED",
       "ok": false,
       "unverified": true,
       "scope": "CI",
       "failingRuns": [],
+      "cancelledRuns": 1,
+      "sideRed": [],
+      "detail": "#79 head=266687d branch=main｜判决面「CI」1 条：success 0／failure 0／cancelled 1／未结束 0｜**CI 从来没给出结论**（被平台作业上限掐断）⇒ 不算绿也不算红，不据此记谁欠账"
+    },
+    {
+      "id": "R#80",
+      "head": "88229dea08a60d2409f5ce1afb19dc6e01992116",
+      "state": "CANCELLED",
+      "ok": false,
+      "unverified": true,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 1,
+      "sideRed": [],
+      "detail": "#80 head=88229de branch=main｜判决面「CI」1 条：success 0／failure 0／cancelled 1／未结束 0｜**CI 从来没给出结论**（被平台作业上限掐断）⇒ 不算绿也不算红，不据此记谁欠账"
+    },
+    {
+      "id": "R#81",
+      "head": "8c2bb2555336845f6eaa10ea572743a69a7392f3",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
       "cancelledRuns": 0,
       "sideRed": [],
-      "detail": "#79 head=266687d branch=main｜判决面「CI」1 条：success 0／failure 0／cancelled 0／未结束 1"
+      "detail": "#81 head=8c2bb25 branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
+    },
+    {
+      "id": "R#82",
+      "head": "828f5aa75af5d5ac0dd6fe2879349bacc438b8af",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#82 head=828f5aa branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
     }
   ]
 }
