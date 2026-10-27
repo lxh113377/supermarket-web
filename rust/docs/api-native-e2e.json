@@ -1,5 +1,5 @@
 {
-  "at": "2026-10-27T13:56:42.256Z",
+  "at": "2026-10-27T14:29:58.107Z",
   "live": "https://supermarket-web.pages.dev",
   "edge": "http://127.0.0.1:5198",
   "mode": "JSON 列=文本",
@@ -46,7 +46,7 @@
     "getOrderStatus（未知订单号：错误路径）": {
       "action": "getOrderStatus",
       "payload": {
-        "orderId": "o_not_exist_1793109382463"
+        "orderId": "o_not_exist_1793111378651"
       },
       "status": 404,
       "edge": "native",
@@ -263,6 +263,15 @@
     },
     "getPromotions（档位 + 命中统计）": {
       "action": "getPromotions",
+      "status": 200,
+      "liveStatus": 200,
+      "edge": "native",
+      "auditDelta": 0,
+      "expectAudit": 0,
+      "equal": true
+    },
+    "getDashboardStats（六聚合 + 缓存）": {
+      "action": "getDashboardStats",
       "status": 200,
       "liveStatus": 200,
       "edge": "native",

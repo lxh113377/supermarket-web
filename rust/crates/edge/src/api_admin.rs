@@ -49,6 +49,13 @@ pub const SQL_ORDERS_PAGE: &str = r#"SELECT o._id, o.roomNumber, o.items, o.tota
 /// orders.js:546 —— 单订单详情（`o.*` + LEFT JOIN 的两列）。
 pub const SQL_ORDER_BY_ID: &str = r#"SELECT o.*, COALESCE(d.discountAmount, 0) AS discountAmount, COALESCE(d.promotionId, '') AS promotionId FROM orders o LEFT JOIN order_discounts d ON d.orderId = o._id WHERE o._id = ?"#;
 
+/// stats.js:207 —— 看板用的订单快照（上限 5000，按 createdAt 倒序；聚合全在 JS/Rust 侧做）。
+pub const SQL_STATS_ORDERS: &str = r#"SELECT _id, roomNumber, items, totalAmount, status, createdAt FROM orders ORDER BY createdAt DESC LIMIT 5000"#;
+/// stats.js:212 —— 近 14 天评价（窗口边界仍由聚合函数按 UTC+8 重算）。
+pub const SQL_STATS_REVIEWS: &str = r#"SELECT createdAt FROM reviews WHERE createdAt >= ?"#;
+/// stats.js:216 —— 商品成本面（上限 1000）。
+pub const SQL_STATS_PRODUCTS: &str = r#"SELECT _id, name, spec, costPrice FROM products LIMIT 1000"#;
+
 /// orders.js:134 —— 促销档位定义（按 threshold 升序；无分页、无 WHERE）。
 pub const SQL_PROMOTIONS: &str = r#"SELECT _id, name, threshold, discount, enabled, updatedAt FROM promotions ORDER BY threshold ASC"#;
 /// orders.js:138 —— 每档命中统计（无 WHERE、无占位符；缺表时现网把整段 catch 掉 ⇒ 全零命中）。
@@ -82,7 +89,7 @@ pub const EVENT_LIMIT_DEFAULT: i64 = 50;
 pub const EVENT_LIMIT_MAX: i64 = 100;
 
 /// 在册的管理端原生动作（第 6 轮 getProducts；第 7 轮 4 个单表只读；第 8~9 轮 getStockMovements）。
-pub const ADMIN_NATIVE_ACTIONS: [&str; 11] = [
+pub const ADMIN_NATIVE_ACTIONS: [&str; 12] = [
     "getProducts",
     "getAllReviews",
     "getSubmissions",
@@ -94,6 +101,7 @@ pub const ADMIN_NATIVE_ACTIONS: [&str; 11] = [
     "verifyKey",
     "stalePendingReport",
     "getPromotions",
+    "getDashboardStats",
 ];
 
 /// 开关：未设 ⇒ 全关；all 或逗号分隔的动作名（大小写无关）。
@@ -416,6 +424,57 @@ pub async fn call_admin(
             Some(json!({
                 "code": 0,
                 "data": supermarket_core::api_shapes::promotion_tiers_to_json(&tiers, &hits),
+            }))
+        }
+        "getDashboardStats" => {
+            // 现网 backend.js:174-184：KV 缓存（键 cache:dashboard:stats:<rangeDays>，TTL 60s）包着这个动作；
+            // 边缘侧的对应物是同一套微缓存（在 api.rs 把本动作加进 cacheable 面，TTL 取 cfg.api_cache_ttl_ms）。
+            // 非整数的 rangeDays：现网会在 new Array(7.5) 抛 RangeError ⇒ 500；不猜，回落透传。
+            let Some(range_days) = supermarket_core::stats::stats_range_days(payload) else {
+                return None;
+            };
+            let now_ms = crate::api::now_ms();
+            let order_rows = d1.query_rows(SQL_STATS_ORDERS, &[]).await.ok()?;
+            // 现网这里又取了一次 Date.now()（与入口的 nowMs 不同刻）：14 天前那一刻由它决定，照抄。
+            let review_since =
+                supermarket_core::stale::iso_from_ms(crate::api::now_ms() - 14 * 86_400_000);
+            let review_rows = d1
+                .query_rows(SQL_STATS_REVIEWS, &[json!(review_since)])
+                .await
+                .ok()?;
+            let prod_rows = d1.query_rows(SQL_STATS_PRODUCTS, &[]).await.ok()?;
+            let products: Vec<Value> = prod_rows
+                .iter()
+                .map(|p| {
+                    let cost = match p.get("costPrice") {
+                        None | Some(Value::Null) => Value::Null,
+                        Some(v) => {
+                            let n = match v {
+                                Value::Number(n) => n.as_f64().unwrap_or(0.0),
+                                Value::String(s) => s.trim().parse::<f64>().unwrap_or(0.0),
+                                Value::Bool(b) => if *b { 1.0 } else { 0.0 },
+                                _ => 0.0,
+                            };
+                            if n.is_finite() { json!(n) } else { Value::Null }
+                        }
+                    };
+                    json!({
+                        "_id": p.get("_id").cloned().unwrap_or(Value::Null),
+                        "name": p.get("name").cloned().unwrap_or(Value::Null),
+                        "spec": p.get("spec").and_then(|v| v.as_str()).unwrap_or(""),
+                        "costPrice": cost,
+                    })
+                })
+                .collect();
+            Some(json!({
+                "code": 0,
+                "data": supermarket_core::stats::dashboard_data(
+                    &order_rows,
+                    &review_rows,
+                    &products,
+                    range_days,
+                    now_ms,
+                ),
             }))
         }
         _ => None,

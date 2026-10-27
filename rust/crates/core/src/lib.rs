@@ -37,6 +37,7 @@ pub mod errors;
 pub mod orders_query;
 pub mod sanitize;
 pub mod stale;
+pub mod stats;
 pub mod stock_query;
 pub mod format;
 

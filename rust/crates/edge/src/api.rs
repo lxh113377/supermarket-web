@@ -47,6 +47,10 @@ pub const PUBLIC_ACTIONS: [&str; 9] = [
 pub const PUBLIC_READ_CACHEABLE: [&str; 3] =
     ["getPublicProducts", "getPublicCategories", "getCatalogOrders"];
 
+/// /web 侧可微缓存的动作（现网用 KV 包着的那一个：getDashboardStats，TTL 60s）。
+/// 其余管理读**不进缓存**（现网也没缓存它们）。
+const ADMIN_READ_CACHEABLE: [&str; 1] = ["getDashboardStats"];
+
 /// 端点。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Endpoint {
@@ -226,12 +230,21 @@ pub async fn handle_gateway(
         }
     }
 
-    // ③ 公开读：边缘微缓存（只缓存上游原始字节）。
-    let cacheable = endpoint == Endpoint::Pub
+    // ③ 微缓存（只缓存「原始字节 / 原生结果」）。两处可缓存面：
+    //    · /pub 的三个公开读（对应上游 KV cache:public:*）；
+    //    · /web 的 getDashboardStats（对应上游 KV cache:dashboard:stats:<rangeDays>，TTL 60s）。
+    // 注意 admin 侧的键要带 payload（rangeDays 不同 ⇒ 结果不同）：cache_key 已经把请求体算进去了 ✓。
+    let admin_cacheable = endpoint == Endpoint::Web
+        && action
+            .as_deref()
+            .map(|a| ADMIN_READ_CACHEABLE.contains(&a))
+            .unwrap_or(false);
+    let cacheable = (endpoint == Endpoint::Pub
         && action
             .as_deref()
             .map(|a| PUBLIC_READ_CACHEABLE.contains(&a))
-            .unwrap_or(false)
+            .unwrap_or(false))
+        || admin_cacheable
         && app.cfg.api_cache_ttl_ms > 0;
     let key = cacheable.then(|| cache_key(endpoint, action.as_deref(), &body));
     if let Some(key) = &key {

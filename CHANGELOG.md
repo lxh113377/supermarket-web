@@ -1,4 +1,17 @@
 ## [未发布]
+### 2026-10-27 管理端第七批：getDashboardStats 原生化（端到端 34 用例全绿）
+- **新增 1 个原生动作**（进度 **17 / 37**，剩余 20）：三张表（orders LIMIT 5000 / reviews WHERE createdAt >= ? / products LIMIT 1000）
+  + 六个聚合（rangeData / delta / reviewTrend / margin / pieSegments / topRevenue）+ UTC+8 分桶；抽 `crates/core/src/stats.rs`（10 条用例）。
+- **期望值来自另一路独立侦察**（逐行读 stats.js + 手算例子），与我自己的读数逐字一致，写进 Rust 用例后全部逐字节吻合 ——
+  这是交叉验证，不是「我写实现我写期望我通过」。时间参考值用 node `Date.parse` 现算。
+- **被独立例子逼出的一处修正**：我的 `parse_iso_ms` 原先只认带毫秒的形态（独立例子用秒级时间戳 ⇒ 4 条日期用例全红）；
+  JS 的 `Date.parse` 两种都吃 ⇒ 修解析器（小数秒可选、必须带 Z），并改正 `tests/stale.rs` 里那条「把秒级当坏输入」的断言 ——
+  **判据红了不是实现错，是我的假设错**。
+- **刻意照抄的上游缺陷**：`localDayLabel` 让标签比桶的 UTC+8 日历日早一天，而现网测试用的是同一个式子（实现与测试同错）；
+  本实现照抄并用 `h_label_is_one_day_earlier_than_the_bucket` 把「早一天」写成断言；修不修由独立工单决定（docs/08 §2i.2）。
+- **端到端 34 用例全绿**（公开面 8 + 管理面 26）：新增 getDashboardStats **逐字节相同**（116 真实订单 + 67 商品，含 labels/delta/margin/pie/topRevenue）；
+  缓存语义对齐（现网 KV 60s ⇒ 边缘同一套微缓存，`ADMIN_READ_CACHEABLE`，用例断言第二发命中）。SQL 判据 **22 条语句 / 8 个文件**。
+- 门禁：cargo 68 条全绿；oxlint 0/0；eol **提交面判定后才推**；changelog/governance/doc-commands/check:size 全 rc=0。
 ### 2026-10-27 管理端第六批：getPromotions 原生化（端到端 33 用例全绿 × 两模式）
 - **新增 1 个原生动作**（进度 **16 / 37**，剩余 21）：getPromotions —— 档位定义（orders.js:134）+ 每档命中（:138）两条 SQL；
   纯映射抽 `core::api_shapes::promotion_tiers_to_json`（1 条用例覆盖 `enabled` 的 6 种形态：1 / "1" / true ✓，而 "true" / 2 / 0 ✗）。

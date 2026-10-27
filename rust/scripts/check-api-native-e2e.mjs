@@ -364,6 +364,46 @@ if (keys.admin) {
     }
   }
 
+  // getDashboardStats：三张表都要喂原始行。
+  //  · orders：从 getOrders 翻页取全量（D1 现有 ~116 条，2 页足够）——stats 的 SQL 是 LIMIT 5000，
+  //    喂得比现网少会让 totalOrders/rangeData 对不上，所以必须取全；
+  //  · reviews：从 getAllReviews 取，再按「我方 cutoff」筛一遍（现网也是服务端筛同一口径）；
+  //  · products：从 getProducts 取（含 spec/costPrice）。
+  const statsOrdersSql = sqlOfFrom('crates/edge/src/api_admin.rs', 'SQL_STATS_ORDERS')
+  const statsReviewsSql = sqlOfFrom('crates/edge/src/api_admin.rs', 'SQL_STATS_REVIEWS')
+  const statsProductsSql = sqlOfFrom('crates/edge/src/api_admin.rs', 'SQL_STATS_PRODUCTS')
+  let statsRowsReady = false
+  {
+    const allOrdersForStats = []
+    for (let p = 1; p <= 3; p += 1) {
+      const rr = await postWeb(live, 'getOrders', keys.admin, { pageSize: 100, page: p })
+      if (rr.status !== 200 || !Array.isArray(rr.json.data) || rr.json.data.length === 0) break
+      allOrdersForStats.push(...rr.json.data)
+      if (rr.json.hasMore !== true) break
+    }
+    const liveReviews = await postWeb(live, 'getAllReviews', keys.admin, {})
+    const reviewCutoff = new Date(Date.now() - 14 * 86400000).toISOString()
+    const reviewsForStats = liveReviews.status === 200 && Array.isArray(liveReviews.json.data)
+      ? liveReviews.json.data.filter((r) => String(r.createdAt) >= reviewCutoff).map((r) => ({ createdAt: r.createdAt }))
+      : []
+    const liveProducts = await postWeb(live, 'getProducts', keys.admin, {})
+    const productsForStats = liveProducts.status === 200 && Array.isArray(liveProducts.json.data)
+      ? liveProducts.json.data.map((p) => ({ _id: p._id, name: p.name, spec: p.spec, costPrice: p.costPrice == null ? null : Number(p.costPrice) }))
+      : []
+    if (allOrdersForStats.length && productsForStats.length) {
+      ordersRows[statsOrdersSql] = allOrdersForStats.map((o) => ({
+        _id: o._id, roomNumber: o.roomNumber, items: asText(o.items),
+        totalAmount: o.totalAmount, status: o.status, createdAt: o.createdAt,
+      }))
+      ordersRows[statsReviewsSql] = reviewsForStats
+      ordersRows[statsProductsSql] = productsForStats
+      statsRowsReady = true
+      console.log('  getDashboardStats：喂 ' + allOrdersForStats.length + ' 单 / ' + reviewsForStats.length + ' 评价 / ' + productsForStats.length + ' 商品 ⇒ 行集已登记')
+    } else {
+      console.log('  [观察] getDashboardStats 行集准备不足（订单 ' + allOrdersForStats.length + ' / 商品 ' + productsForStats.length + '）⇒ 跳过')
+    }
+  }
+
   const staleRowsSql = sqlOfFrom('crates/edge/src/api_admin.rs', 'SQL_STALE_ORDERS')
   const staleProdsSql = sqlOfFrom('crates/edge/src/api_admin.rs', 'SQL_STALE_PRODUCTS')
   const staleInMark = '$' + '{productIds.map(() => \'?\').join(\',\')}'
@@ -531,6 +571,10 @@ if (!keys.admin) {
   if (promoRowsReady) {
     adminCases.push({ name: 'getPromotions（档位 + 命中统计）', action: 'getPromotions', key: keys.admin, payload: {}, expectAudit: 0 })
   }
+  if (statsRowsReady) {
+    // cacheable: true —— 现网用 KV 60s 包着这个动作，边缘侧对应同一套微缓存；第二发必须命中
+    adminCases.push({ name: 'getDashboardStats（六聚合 + 缓存）', action: 'getDashboardStats', key: keys.admin, payload: {}, expectAudit: 0, cacheable: true })
+  }
   // verifyKey：鉴权闭环（两档角色都要能取出来）
   adminCases.push({ name: 'verifyKey（正确密钥 ⇒ role:admin）', action: 'verifyKey', key: keys.admin, payload: {}, expectAudit: 0 })
   if (keys.readonly) {
@@ -600,7 +644,7 @@ writeFileSync(jsonOut, JSON.stringify({ ...report, problems }, null, 2) + '\n')
 console.log('原始读数 ' + jsonOut)
 console.log(problems.length
   ? '\nGATE-FAIL check-api-native-e2e：' + problems.length + ' 项\n  - ' + problems.join('\n  - ')
-  : '\nGATE-PASS check-api-native-e2e：公开面 8 个用例 + 管理面 25 个用例\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
+  : '\nGATE-PASS check-api-native-e2e：公开面 8 个用例 + 管理面 26 个用例\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
 
 edge.kill()
 mock.kill()

@@ -366,3 +366,44 @@ SQL 判据现覆盖 **19 条语句 / 7 个文件**。
 2. **以注释为准修 bug**：同时改 `stats.js:32` 与 `tests/stats.test.js:20`（行为=所有标签 +1 天，前端会看到日期变化）。
 
 我倾向 **1**（原生化不允许顺带改线上行为），并把 2 作为独立工单登记 —— 但这条要等 `getDashboardStats` 真正原生化时按当时证据复核。
+
+## 2j. 管理端第七批：getDashboardStats（六聚合 + UTC+8 分桶 + 缓存，第 13 轮）
+
+这是剩余只读里最大的一块：三张表 + 六个聚合。抽了 `crates/core/src/stats.rs`（**10 条用例**）。
+
+### 2j.1 期望值不是我自己算的
+
+六段聚合的期望值来自**另一路独立侦察**（逐行读 stats.js + 手算例子），与我自己的读数逐字一致；
+把它们写进 Rust 用例后**全部逐字节吻合** —— 这才是交叉验证，而不是「我写实现、我写期望、我通过」。
+时间参考值也用 node 的 `Date.parse` 现算（不做手算）。
+
+### 2j.2 被独立例子逼出来的一处修正（我原先的假设是错的）
+
+第一版 `parse_iso_ms` **只认带毫秒的形态**；而独立例子里用的是秒级时间戳（`...T02:00:00Z`）⇒ 4 条日期用例全红。
+JS 的 `Date.parse` 两种都吃 ⇒ 修解析器（小数秒可选、必须带 Z 后缀），并把 `tests/stale.rs` 里
+原先「把秒级串当坏输入」的那条断言改正 —— **判据红了不是实现错，是我的假设错**。
+
+### 2j.3 一处**刻意照抄的上游缺陷**
+
+`localDayLabel(k)` 取的是 `new Date(k*DAY - TZ)` 那一刻的 UTC 日期 ⇒ **比桶的 UTC+8 日历日早一天**；
+`tests/stats.test.js:20` 用了**同一个式子** ⇒ 实现与测试同错、判据永远抓不到漂移。
+本实现**照抄**（原生化不允许顺带改线上行为），并用 `h_label_is_one_day_earlier_than_the_bucket` 把「早一天」写成**断言**。
+修不修由独立工单决定（见 §2i.2）。
+
+### 2j.4 与 JS 的几处易错对齐（都写进了注释）
+
+· `Math.round` 是向 +∞ 取整（Rust 的 `f64::round` 是远离 0）⇒ 用 `js_round(x) = floor(x+0.5)`；
+· `buildPieSegments` 的 quantity **不做 Number 强转**（与 `computeGrossMargin` 不同）⇒ 非数字让该桶变 NaN，`NaN > 0` 为假 → 该段被过滤（Rust 用 `f64::NAN` 复现同结果）；
+· `buildTopRevenue` 用**稳定**排序（同营收保持首次插入序）；
+· `computeGrossMargin` 的 `costPrice == null` 要**跳过**（不是当 0），而 `totalItems` 已经先加过 qty；
+· `rangeDays` 非整数：现网会在 `new Array(7.5)` 抛 RangeError ⇒ 500，本实现交回落透传（不猜）。
+
+### 2j.5 端到端读数（新增 1 条，总数 8 + 26 = 34）
+
+| 用例 | 原生 | 与现网 | 数据 |
+|---|---|---|---|
+| getDashboardStats（六聚合 + 缓存） | ✅ | ✅ **逐字节相同**（含 labels/delta/margin/pie/topRevenue） | **116 真实订单 + 67 商品**（评价 0 条：现网近 14 天无新评价） |
+
+缓存语义：现网用 KV（键 `cache:dashboard:stats:<rangeDays>`，TTL 60s）包着这个动作；
+边缘侧把它加进**同一套微缓存**（`ADMIN_READ_CACHEABLE`，TTL 取 `cfg.api_cache_ttl_ms`），用例断言第二发命中。
+SQL 判据现覆盖 **22 条语句 / 8 个文件**。

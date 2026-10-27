@@ -58,20 +58,43 @@ pub fn stale_minutes(payload: Option<&Value>) -> i64 {
 /// 手写解析 20 行、可被用例逐条钉住；引 chrono/time 只为这一处不值得（依赖精简是明确选择）。
 pub fn parse_iso_ms(ts: &str) -> Option<i64> {
     let b = ts.as_bytes();
-    if b.len() < 20
+    // 前 19 字符是固定的 YYYY-MM-DDTHH:MM:SS；小数秒**可选**（JS 的 Date.parse 两种都吃，
+    // 而第一版只认带毫秒的形态 —— 于是秒级时间戳（例如用例里那批）全被判成坏值。
+    if b.len() < 19
         || b[4] != b'-'
         || b[7] != b'-'
         || b[10] != b'T'
         || b[13] != b':'
         || b[16] != b':'
-        || b[19] != b'.'
     {
+        return None;
+    }
+    // 必须带 Z 后缀：无后缀在 JS 里按**运行环境本地时区**解释，跨机器会算出不同的毫秒值；
+    // 本实现不猜时区，直接判无法解析（调用方按「坏时间串」跳过，与 JS 的 NaN 分支同形）。
+    let mut idx = 19;
+    let mut ms: i64 = 0;
+    if b.get(19) == Some(&b'.') {
+        idx = 20;
+        let digits: String = ts
+            .get(20..)?
+            .chars()
+            .take_while(|c| c.is_ascii_digit())
+            .collect();
+        if digits.is_empty() {
+            return None;
+        }
+        // 取前 3 位、右侧补零（toISOString 恒为 3 位；多于 3 位按毫秒截断）
+        let take: String = digits.chars().take(3).collect();
+        let padded = format!("{take:0<3}");
+        ms = padded.parse::<i64>().ok()?;
+        idx = 20 + digits.len();
+    }
+    if ts.as_bytes().get(idx) != Some(&b'Z') {
         return None;
     }
     let num = |a: usize, z: usize| -> Option<i64> { ts.get(a..z)?.parse::<i64>().ok() };
     let (y, mo, d) = (num(0, 4)?, num(5, 7)?, num(8, 10)?);
     let (h, mi, s) = (num(11, 13)?, num(14, 16)?, num(17, 19)?);
-    let ms = num(20, 23)?;
     if !(1970..=9999).contains(&y) || !(1..=12).contains(&mo) || !(1..=31).contains(&d) {
         return None;
     }
@@ -106,7 +129,8 @@ pub fn iso_from_ms(ms: i64) -> String {
 }
 
 /// `days_from_civil` 的逆（Howard Hinnant 同一套算法）。
-fn civil_from_days(z: i64) -> (i64, u32, u32) {
+/// `days_from_civil` 的逆（Howard Hinnant 同一套算法）——对 stats 与 iso_from_ms 都公开复用。
+pub fn civil_from_days(z: i64) -> (i64, u32, u32) {
     let z = z + 719_468;
     let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
     let doe = (z - era * 146_097) as u64;
