@@ -160,13 +160,31 @@ mod tests {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         // rust/crates/edge → 三级上一级 = 仓根（supermarket-web）
         let repo = root.join("..").join("..").join("..");
-        let norm = |s: &str| s.split_whitespace().collect::<Vec<_>>().join(" ");
+        // 归一化：折叠空白，**并剥掉 JS 的字符串拼接胶水** —— 现网有些 SQL 是用 + 拼出来的
+        //（events.js:31：模板串 + 单引号串）。不剥的话「Rust 侧整串」在 JS 文件里永远找不到，
+        // 判据会红得没道理。只剥胶水，不碰 SQL 记号本身（引号、逗号、关键字一律保留）。
+        let bt = '\u{60}';
+        let sq = '\'';
+        let dq = '"';
+        let glue = |s: &str| {
+            s.replace(&format!("{sq} + {bt}"), " ")
+                .replace(&format!("{bt} + {sq}"), " ")
+                .replace(&format!("{sq} + {sq}"), " ")
+                .replace(&format!("{sq} + {dq}"), " ")
+                .replace(&format!("{dq} + {sq}"), " ")
+        };
+        let norm = |s: &str| {
+            // 先**折叠**成单空格再剥胶水：第一版按字符逐个换成空格，于是换行+缩进变成
+            // 一串空格，胶水模式（单空格）匹配不上 —— 判据红得对，是我的归一化写错了。
+            let flat = s.split_whitespace().collect::<Vec<_>>().join(" ");
+            glue(&flat).split_whitespace().collect::<Vec<_>>().join(" ")
+        };
         // 每条 SQL 坐在哪个 JS 文件里。2026-10-27 扩到 5 条 SQL 时才发现：
         // 三条在 products.js，而 getReviews 在 reviews.js、getOrderStatus 在 orders.js ——
         // 只读一个文件的写法会让后两条「验了个空」（判据绿着，其实没比过）。
         // 扩到 7 条：管理端第一条（SELECT *）与审计 INSERT 也进判据 ——
         // 语句抄错时判据要在**落地前**红，而不是等线上审计表少几行才发现。
-        let sources: [(&str, &str, &str); 7] = [
+        let sources: [(&str, &str, &str); 11] = [
             (SQL_PUBLIC_PRODUCTS, "SQL_PUBLIC_PRODUCTS", "functions/lib/actions/products.js"),
             (SQL_PUBLIC_CATEGORIES, "SQL_PUBLIC_CATEGORIES", "functions/lib/actions/products.js"),
             (SQL_CATALOG_ORDERS, "SQL_CATALOG_ORDERS", "functions/lib/actions/products.js"),
@@ -174,6 +192,11 @@ mod tests {
             (SQL_ORDER_STATUS, "SQL_ORDER_STATUS", "functions/lib/actions/orders.js"),
             (crate::api_admin::SQL_GET_PRODUCTS, "SQL_GET_PRODUCTS", "functions/lib/actions/products.js"),
             (crate::api_admin::SQL_AUDIT_INSERT, "SQL_AUDIT_INSERT", "functions/lib/security.js"),
+            // 第 7 轮批量的 4 个管理只读
+            (crate::api_admin::SQL_ALL_REVIEWS, "SQL_ALL_REVIEWS", "functions/lib/actions/reviews.js"),
+            (crate::api_admin::SQL_SUBMISSIONS, "SQL_SUBMISSIONS", "functions/lib/actions/submissions.js"),
+            (crate::api_admin::SQL_SUBMISSION_IMAGES, "SQL_SUBMISSION_IMAGES", "functions/lib/actions/submissions.js"),
+            (crate::api_admin::SQL_EVENT_TIMELINE, "SQL_EVENT_TIMELINE", "functions/lib/actions/events.js"),
         ];
         for (sql, name, rel) in sources {
             let js_path = repo.join(rel);

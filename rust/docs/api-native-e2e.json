@@ -1,5 +1,5 @@
 {
-  "at": "2026-10-27T07:37:57.745Z",
+  "at": "2026-10-27T08:43:54.807Z",
   "live": "https://supermarket-web.pages.dev",
   "edge": "http://127.0.0.1:5198",
   "mode": "JSON 列=文本",
@@ -46,7 +46,7 @@
     "getOrderStatus（未知订单号：错误路径）": {
       "action": "getOrderStatus",
       "payload": {
-        "orderId": "o_not_exist_1793086671738"
+        "orderId": "o_not_exist_1793090626142"
       },
       "status": 404,
       "edge": "native",
@@ -106,6 +106,60 @@
       "edge": "native",
       "auditDelta": 1,
       "expectAudit": 1,
+      "equal": true
+    },
+    "getAllReviews": {
+      "action": "getAllReviews",
+      "status": 200,
+      "liveStatus": 200,
+      "edge": "native",
+      "auditDelta": 0,
+      "expectAudit": 0,
+      "equal": true
+    },
+    "getSubmissions": {
+      "action": "getSubmissions",
+      "status": 200,
+      "liveStatus": 200,
+      "edge": "native",
+      "auditDelta": 0,
+      "expectAudit": 0,
+      "equal": true
+    },
+    "getSubmissionImages（真实 id 或错误路径）": {
+      "action": "getSubmissionImages",
+      "status": 200,
+      "liveStatus": 200,
+      "edge": "native",
+      "auditDelta": 0,
+      "expectAudit": 0,
+      "equal": true
+    },
+    "getSubmissionImages（缺 submissionId）": {
+      "action": "getSubmissionImages",
+      "status": 400,
+      "liveStatus": 400,
+      "edge": "native",
+      "auditDelta": 0,
+      "expectAudit": 0,
+      "equal": true
+    },
+    "getEventLog（未知订单号 ⇒ 空事件）": {
+      "action": "getEventLog",
+      "status": 200,
+      "liveStatus": 200,
+      "edge": "native",
+      "auditDelta": 0,
+      "expectAudit": 0,
+      "equal": true
+    },
+    "getEventLog（缺 orderId）": {
+      "action": "getEventLog",
+      "status": 400,
+      "liveStatus": 400,
+      "edge": "native",
+      "auditDelta": 0,
+      "expectAudit": 0,
       "equal": true
     },
     "getProducts（只读密钥，白名单内）": {

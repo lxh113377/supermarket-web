@@ -153,3 +153,43 @@ NATIVE_PUBLIC_ACTIONS=all          # 或在册动作名的逗号列表
 - `login` 的登录限流（`rate:login`，在鉴权**之前**执行）与写动作的审计（`ok`/`fail`）都没做 ——
   `login` 与两个 AI 动作按 [docs/09](09-api-inventory.md) §3 归入写动作档（它们有 D1 写副作用）。
 - 管理端只读的其余 8 个动作尚未端口，但**它们的鉴权与只读判定已经生效**（开关打开时先过本层）。
+
+## 2d. 管理端第二批：4 个单表只读（2026-10-27 第 7 轮）
+
+鉴权层（§2c）就位后，这批只差「SQL + 映射」。一次加 4 个：
+
+| 动作 | SQL 来源 | 形状要点 |
+|---|---|---|
+| getAllReviews | reviews.js:50 | **直接回原始行**（不映射、不裁剪），只回 6 列（不含 images） |
+| getSubmissions | submissions.js:77 | spread + formData 走 jparse（**缺省是对象 {}，不是数组**）+ imageCount = Number(..) \|\| 0；SQL 里的 imageCount 是 json_array_length 算出来的 |
+| getSubmissionImages | submissions.js:93 | payload.submissionId **真值判定**（空串/0 都算缺）⇒ 缺则 400 missing_submission_id；查不到 ⇒ 404 submission_not_found；形状 { code:0, data:{ images } } |
+| getEventLog（= getEventTimeline） | events.js:31 | orderId 先 sanitizeTrace 清洗；limit 默认 50、钳 [1,100]；形状 { code:0, data:{ orderId, events } } |
+
+### 2d.1 这条批里两处「我修的是判据、不是实现」
+
+1. **SQL 判据不会读拼接串**：events.js:31 的 SQL 是「模板串 + 单引号串」拼出来的，判据原先拿整串去 JS 文件里找，永远找不到 ⇒ 判据红得没道理。
+   修法：归一化时**先折叠空白、再剥掉 JS 的字符串拼接胶水**（反引号 / 单引号 / 双引号 与 + 的组合），只剥胶水、不碰 SQL 记号。
+   顺带记一笔踩坑：第一版按字符逐个把空白换成空格（没先折叠），于是换行+缩进变成一串空格，胶水模式匹配不上 —— **判据红得对，是我的归一化写错了**。
+2. **sanitizeTrace 只实现可证的那段**：现网那一段背后是 IP 正则脱敏（logger.js:52 的 IP_PATTERNS）。Rust 侧没有 regex 依赖、也不打算猜正则语义 ⇒
+   本实现只做「白名单 + 截断 64」，并且**一旦输入看起来像 IP 就回落透传**（4 段点分十进制 / 含 :: / 3 段以上冒号分隔的十六进制组）。
+   宁可不原生，也不猜脱敏结果。这条边界由 core 单测 `looks_like_ip` 钉住。
+
+### 2d.2 端到端读数（19 个用例全绿：公开面 8 + 管理面 11）
+
+| 新增用例 | 原生 | 与现网 | HTTP | 数据 |
+|---|---|---|---|---|
+| getAllReviews | ✅ | ✅ 逐字段相同 | 200 | 真实 20 条评价 |
+| getSubmissions | ✅ | ✅ | 200 | 真实 22 条提交 |
+| getSubmissionImages（真实 id） | ✅ | ✅ | 200 | 真图集 |
+| getSubmissionImages（缺 submissionId） | ✅ | ✅ | 400 / 400 | — |
+| getEventLog（未知订单号） | ✅ | ✅ | 200 | 空事件数组 |
+| getEventLog（缺 orderId） | ✅ | ✅ | 400 / 400 | — |
+
+审计写入条数依旧逐条对齐（读动作**全部 +0**：现网只对登录与写动作留痕）。
+SQL 判据现已覆盖 **11 条语句 / 6 个文件**（products.js、reviews.js、orders.js、security.js、submissions.js、events.js）。
+
+### 2d.3 还没做的（点名）
+
+- **getStockMovements**：动态 WHERE（productId/kind）+ LEFT JOIN products + **第二条 COUNT 查询**，还有 kind 白名单与分页钳制；
+  它值得单独一批（判据要能验「两条查询的参数一致」），本批不赶。
+- 其余带依赖的读（getOrders/getOrder 的 LEFT JOIN、getDashboardStats 的 KV 分键缓存、getPromotions 的聚合）与全部写动作仍未动。

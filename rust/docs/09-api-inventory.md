@@ -9,8 +9,8 @@
 |---|---|---|
 | 端点槽位 | **44** | `/web 35` + `/pub 9`（同一动作可同时挂在两端） |
 | 去重后的动作名 | **37** | 7 个名字双端同源（如 createOrder / getReviews / getOrderStatus / addPublicReview / createSubmission 等） |
-| 已原生化 | **6** | getPublicProducts / getPublicCategories / getCatalogOrders（第 3 轮）+ getReviews / getOrderStatus（第 5 轮）+ **getProducts（第 6 轮，管理端第一条）**——均见 docs/08 |
-| **剩余** | **31** | 委派审计清单 34 条 − 第 5 轮 2 条 − 第 6 轮 getProducts 1 条（**鉴权层已就绪**，其余 8 个管理只读可批量推进） |
+| 已原生化 | **10** | 公开面 5：getPublicProducts / getPublicCategories / getCatalogOrders / getReviews / getOrderStatus；管理面 5：getProducts（第 6 轮）+ getAllReviews / getSubmissions / getSubmissionImages / getEventLog（第 7 轮）——均见 docs/08 |
+| **剩余** | **27** | 34 − 第 5 轮 2 条 − 第 6 轮 1 条 − 第 7 轮 4 条；其中 `getStockMovements`（动态 WHERE + LEFT JOIN + COUNT 双查询）与带依赖的读/写动作仍在后 |
 
 **结论**：目标里的「45」应按 **44 槽 / 37 名** 执行；写代码前先对齐数字，免得后面按错误分母报进度。
 

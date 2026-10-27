@@ -84,8 +84,8 @@ const postPub = async (base, action, payload) => {
 const stripTrace = (o) => { const c = { ...o }; delete c.trace; return c }
 
 // /web 调用（管理端）：密钥只走 body（现网 web.js:21 唯一通道），**不设请求头**
-const postWeb = async (target, action, key) => {
-  const body = key === undefined ? { action, payload: {} } : { action, adminKey: key, payload: {} }
+const postWeb = async (target, action, key, payload = {}) => {
+  const body = key === undefined ? { action, payload } : { action, adminKey: key, payload }
   const res = await fetch(target + '/web', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -183,6 +183,41 @@ if (keys.admin) {
   }
 }
 
+// 第 7 轮批量的 4 个管理只读：也走「现网真值 → 反推行」这套（没密钥就整段跳过）
+const adminExtra = {}
+let submissionIdForImages = ''
+if (keys.admin) {
+  const callLive = async (action, payload) => {
+    const r = await postWeb(live, action, keys.admin, payload)
+    return r.status === 200 ? r.json : null
+  }
+  const reviews = await callLive('getAllReviews', {})
+  if (reviews && Array.isArray(reviews.data)) {
+    // getSubmissions 的映射用不到 images 列，但 SELECT 里有 json_valid(images) —— mock 只回我喂的行，
+    // 所以这里只需要把 SQL 选中的列给全（imageCount 是 SQL 算出来的，直接抄现网值）
+  }
+  const submissions = await callLive('getSubmissions', {})
+  const submissionsRows = submissions && Array.isArray(submissions.data)
+    ? submissions.data.map((s) => ({
+        _id: s._id, serviceId: s.serviceId, serviceName: s.serviceName,
+        categoryId: s.categoryId, categoryName: s.categoryName,
+        formData: asText(s.formData), status: s.status, createdAt: s.createdAt,
+        updatedAt: s.updatedAt, imageCount: s.imageCount,
+      }))
+    : []
+  if (submissionsRows.length) submissionIdForImages = submissionsRows[0]._id
+  const imagesLive = submissionIdForImages
+    ? await callLive('getSubmissionImages', { submissionId: submissionIdForImages })
+    : null
+  const eventLive = await callLive('getEventLog', { orderId: 'o_probe_nonexistent_2026' })
+  adminExtra.allReviews = reviews && Array.isArray(reviews.data) ? reviews.data : []
+  adminExtra.submissions = submissionsRows
+  adminExtra.submissionImages = imagesLive && imagesLive.data ? [{ images: asText(imagesLive.data.images) }] : []
+  adminExtra.events = eventLive && eventLive.data && Array.isArray(eventLive.data.events) ? eventLive.data.events : []
+  console.log('  现网管理端：getAllReviews ' + adminExtra.allReviews.length + ' 条｜getSubmissions ' + submissionsRows.length + ' 条'
+    + '｜getSubmissionImages ' + (imagesLive ? '可查' : '跳过') + '｜getEventLog ' + adminExtra.events.length + ' 事件')
+}
+
 const rowsFile = path.join(rustRoot, '.cache', 'mock-d1-rows' + (parsedMode ? '-parsed' : '') + '.json')
 writeFileSync(rowsFile, JSON.stringify({
   [SQL.products]: rows.products,
@@ -192,6 +227,10 @@ writeFileSync(rowsFile, JSON.stringify({
   [SQL.orderStatus]: rows.orderStatus,
   // SELECT * 那条：SQL 从 api_admin.rs 读（它在管理端模块里，不在 api_native.rs）
   [sqlOfFrom('crates/edge/src/api_admin.rs', 'SQL_GET_PRODUCTS')]: adminProducts || [],
+  [sqlOfFrom('crates/edge/src/api_admin.rs', 'SQL_ALL_REVIEWS')]: adminExtra.allReviews || [],
+  [sqlOfFrom('crates/edge/src/api_admin.rs', 'SQL_SUBMISSIONS')]: adminExtra.submissions || [],
+  [sqlOfFrom('crates/edge/src/api_admin.rs', 'SQL_SUBMISSION_IMAGES')]: adminExtra.submissionImages || [],
+  [sqlOfFrom('crates/edge/src/api_admin.rs', 'SQL_EVENT_TIMELINE')]: adminExtra.events || [],
 }, null, 1) + '\n')
 
 // ── ③ 起 mock D1 + 真边缘 ──
@@ -282,6 +321,25 @@ if (!keys.admin) {
     { name: 'getProducts（错密钥）', action: 'getProducts', key: 'wrong-key-not-in-env-2026', expectAudit: 1 },
     { name: 'getProducts（无密钥）', action: 'getProducts', key: undefined, expectAudit: 1 },
   ]
+  // 第 7 轮批量的 4 个管理只读（payload 与现网调用逐字一致）
+  adminCases.push({ name: 'getAllReviews', action: 'getAllReviews', key: keys.admin, payload: {}, expectAudit: 0 })
+  adminCases.push({ name: 'getSubmissions', action: 'getSubmissions', key: keys.admin, payload: {}, expectAudit: 0 })
+  adminCases.push({
+    name: 'getSubmissionImages（真实 id 或错误路径）', action: 'getSubmissionImages', key: keys.admin,
+    payload: { submissionId: submissionIdForImages || 'sub_not_exist_2026' }, expectAudit: 0,
+  })
+  adminCases.push({
+    name: 'getSubmissionImages（缺 submissionId）', action: 'getSubmissionImages', key: keys.admin,
+    payload: {}, expectAudit: 0,
+  })
+  adminCases.push({
+    name: 'getEventLog（未知订单号 ⇒ 空事件）', action: 'getEventLog', key: keys.admin,
+    payload: { orderId: 'o_probe_nonexistent_2026' }, expectAudit: 0,
+  })
+  adminCases.push({
+    name: 'getEventLog（缺 orderId）', action: 'getEventLog', key: keys.admin,
+    payload: {}, expectAudit: 0,
+  })
   if (keys.readonly) {
     adminCases.push({ name: 'getProducts（只读密钥，白名单内）', action: 'getProducts', key: keys.readonly, expectAudit: 0 })
     adminCases.push({ name: 'createProduct（只读密钥，应拒绝）', action: 'createProduct', key: keys.readonly, expectAudit: 0 })
@@ -293,8 +351,8 @@ if (!keys.admin) {
     // （第一版就是这么把「正确密钥」算成 +1 的，误报成「读动作也写审计」）
     const auditCount = () => auditRoster().filter((r) => r.isWrite && /INSERT INTO security_events/.test(r.sql)).length
     const before = auditCount()
-    const liveR = await postWeb(live, c.action, c.key)
-    const nativeR = await postWeb(base, c.action, c.key)
+    const liveR = await postWeb(live, c.action, c.key, c.payload || {})
+    const nativeR = await postWeb(base, c.action, c.key, c.payload || {})
     const auditDelta = auditCount() - before
     const entry = { action: c.action, status: nativeR.status, liveStatus: liveR.status, edge: nativeR.edge, auditDelta, expectAudit: c.expectAudit, equal: false }
     if (nativeR.edge !== 'native') problems.push(c.name + '：x-edge=' + nativeR.edge + '（不是原生分支）')
@@ -323,7 +381,7 @@ writeFileSync(jsonOut, JSON.stringify({ ...report, problems }, null, 2) + '\n')
 console.log('原始读数 ' + jsonOut)
 console.log(problems.length
   ? '\nGATE-FAIL check-api-native-e2e：' + problems.length + ' 项\n  - ' + problems.join('\n  - ')
-  : '\nGATE-PASS check-api-native-e2e：公开面 5 个动作（含错误路径与「不给 payload」边界）+ 管理面 5 个用例（正确/错/无/只读密钥 × getProducts、只读密钥 × createProduct）\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
+  : '\nGATE-PASS check-api-native-e2e：公开面 8 个用例 + 管理面 11 个用例（含 4 个单表只读与两条错误路径）\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
 
 edge.kill()
 mock.kill()

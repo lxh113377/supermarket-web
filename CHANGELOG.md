@@ -1,4 +1,19 @@
 ## [未发布]
+### 2026-10-27 管理端第二批：4 个单表只读原生化（端到端 19 用例全绿）
+- **新增 4 个原生动作**：getAllReviews（reviews.js:50）、getSubmissions（submissions.js:77）、
+  getSubmissionImages（submissions.js:93）、getEventLog（events.js:31 的 getEventTimeline）。
+  鉴权层就位后这批只差「SQL + 映射」；进度 **10 / 37**（剩余 27，含 getStockMovements 与写动作档）。
+- **端到端 19 个用例全绿**（公开面 8 + 管理面 11），全部与现网**逐字段相同**（含键序）：
+  其中 getSubmissionImages 覆盖「真实 id / 缺 id（400）」两条、getEventLog 覆盖「未知订单号（200 空事件）/ 缺 orderId（400）」两条；
+  审计写入条数逐条对齐（读动作全部 +0）。SQL 判据扩到 **11 条语句 / 6 个文件**。
+- **修的是判据不是实现（两处，都在本批暴露）**：
+  ① events.js:31 的 SQL 是「模板串 + 单引号串」拼出来的，判据原先拿整串去 JS 里找 ⇒ 红得没道理；
+     修法 = 归一化时**先折叠空白、再剥 JS 拼接胶水**（只剥胶水、不碰 SQL 记号）。踩坑记一笔：
+     第一版按字符逐个替换空白（没先折叠），换行+缩进成了一串空格，胶水匹配不上 —— **判据红得对，是我写错了归一化**。
+  ② sanitizeTrace 背后的 IP 正则脱敏**不复刻**：本实现只做「白名单 + 截断 64」，且**一旦输入像 IP 就回落透传**
+     （4 段点分十进制 / 含 :: / 3 段以上冒号十六进制）；边界由 core 单测 looks_like_ip 钉住。宁可不原生，也不猜脱敏结果。
+- **没做的（点名）**：getStockMovements（动态 WHERE + LEFT JOIN + COUNT 双查询）单独留下一批；
+  getOrders/getOrder/getDashboardStats/getPromotions 与全部写动作仍未动。
 ### 2026-10-27 管理端第一批：鉴权层 + getProducts + 审计（端到端 13 用例全绿）
 - **鉴权层做成独立一批**（一次解锁 9 个只读动作）：`crates/core/src/auth.rs` 逐条对齐现网 ——
   密钥**只走 body**（`web.js:21`；全仓无 x-admin-key/Authorization 通道）、常时比较（`security.js:17`）、

@@ -1,5 +1,5 @@
 {
-  "at": "2026-10-27T07:11:51.247Z",
+  "at": "2026-10-27T08:44:19.375Z",
   "live": "https://supermarket-web.pages.dev",
   "edge": "http://127.0.0.1:5198",
   "mode": "JSON 列=已解析",
@@ -46,7 +46,7 @@
     "getOrderStatus（未知订单号：错误路径）": {
       "action": "getOrderStatus",
       "payload": {
-        "orderId": "o_not_exist_1793085107590"
+        "orderId": "o_not_exist_1793090652903"
       },
       "status": 404,
       "edge": "native",
@@ -80,6 +80,105 @@
       "cacheFirst": null,
       "cacheSecond": null,
       "equal": true
+    },
+    "getProducts（正确密钥）": {
+      "action": "getProducts",
+      "status": 200,
+      "liveStatus": 200,
+      "edge": "native",
+      "auditDelta": 0,
+      "expectAudit": 0,
+      "equal": true
+    },
+    "getProducts（错密钥）": {
+      "action": "getProducts",
+      "status": 401,
+      "liveStatus": 401,
+      "edge": "native",
+      "auditDelta": 1,
+      "expectAudit": 1,
+      "equal": true
+    },
+    "getProducts（无密钥）": {
+      "action": "getProducts",
+      "status": 401,
+      "liveStatus": 401,
+      "edge": "native",
+      "auditDelta": 1,
+      "expectAudit": 1,
+      "equal": true
+    },
+    "getAllReviews": {
+      "action": "getAllReviews",
+      "status": 200,
+      "liveStatus": 200,
+      "edge": "native",
+      "auditDelta": 0,
+      "expectAudit": 0,
+      "equal": true
+    },
+    "getSubmissions": {
+      "action": "getSubmissions",
+      "status": 200,
+      "liveStatus": 200,
+      "edge": "native",
+      "auditDelta": 0,
+      "expectAudit": 0,
+      "equal": true
+    },
+    "getSubmissionImages（真实 id 或错误路径）": {
+      "action": "getSubmissionImages",
+      "status": 200,
+      "liveStatus": 200,
+      "edge": "native",
+      "auditDelta": 0,
+      "expectAudit": 0,
+      "equal": true
+    },
+    "getSubmissionImages（缺 submissionId）": {
+      "action": "getSubmissionImages",
+      "status": 400,
+      "liveStatus": 400,
+      "edge": "native",
+      "auditDelta": 0,
+      "expectAudit": 0,
+      "equal": true
+    },
+    "getEventLog（未知订单号 ⇒ 空事件）": {
+      "action": "getEventLog",
+      "status": 200,
+      "liveStatus": 200,
+      "edge": "native",
+      "auditDelta": 0,
+      "expectAudit": 0,
+      "equal": true
+    },
+    "getEventLog（缺 orderId）": {
+      "action": "getEventLog",
+      "status": 400,
+      "liveStatus": 400,
+      "edge": "native",
+      "auditDelta": 0,
+      "expectAudit": 0,
+      "equal": true
+    },
+    "getProducts（只读密钥，白名单内）": {
+      "action": "getProducts",
+      "status": 200,
+      "liveStatus": 200,
+      "edge": "native",
+      "auditDelta": 0,
+      "expectAudit": 0,
+      "equal": true
+    },
+    "createProduct（只读密钥，应拒绝）": {
+      "action": "createProduct",
+      "status": 403,
+      "liveStatus": 403,
+      "edge": "native",
+      "auditDelta": 0,
+      "expectAudit": 0,
+      "equal": true
     }
   },
   "rowsFed": {
@@ -88,6 +187,50 @@
     "catalogOrders": 70,
     "reviews": 1,
     "orderStatus": 0
+  },
+  "auditInserts": [
+    {
+      "paramCount": 6,
+      "paramTypes": [
+        "string",
+        "string",
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "paramLengths": [
+        24,
+        0,
+        11,
+        11,
+        8,
+        0
+      ]
+    },
+    {
+      "paramCount": 6,
+      "paramTypes": [
+        "string",
+        "string",
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "paramLengths": [
+        24,
+        0,
+        11,
+        11,
+        8,
+        0
+      ]
+    }
+  ],
+  "keysPresent": {
+    "admin": true,
+    "readonly": true
   },
   "problems": []
 }

@@ -163,6 +163,25 @@ pub fn review_row_to_json(row: &Value) -> Value {
     Value::Object(out)
 }
 
+/// `functions/lib/actions/submissions.js:76` 的 `getSubmissions` 映射：
+/// `rows.map((r) => ({ ...r, formData: jparse(r.formData, {}), imageCount: Number(r.imageCount) || 0 }))`。
+///
+/// 两个细节别抄漏：**formData 的 fallback 是对象 {} 而不是数组**；`imageCount` 是 SQL 里
+/// `CASE WHEN json_valid(images) ... AS imageCount` 算出来的字符串/数字，必须 `Number(...) || 0`。
+pub fn submission_row_to_json(row: &Value) -> Value {
+    let mut out = Map::new();
+    if let Value::Object(obj) = row {
+        for (k, v) in obj {
+            out.insert(k.clone(), v.clone());
+        }
+    }
+    out.insert("formData".into(), jparse(row.get("formData"), json!({})));
+    out.insert(
+        "imageCount".into(),
+        number_or_zero(row.get("imageCount")),
+    );
+    Value::Object(out)
+}
 /// `functions/lib/actions/orders.js:438` 的 `getOrderStatus` 成功响应：
 /// `{ code: 0, data: { orderId, status: row.status, updatedAt: row.updatedAt } }`。
 ///
