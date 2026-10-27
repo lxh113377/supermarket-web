@@ -1,7 +1,7 @@
 {
   "schema": "chaoshi-escape-hatch-remote-v1",
   "note": "`node scripts/check-escape-hatch-log.mjs --update-remote` 生成；联网取数（gh api），**永不进阻断链**（网络不通时它会把一次正常提交判红而本地无可自愈处置，户内规⑩）。判决面 = `.ci/contract.json` 的 `workflow` 字段（当前 CI）；别的 workflow 的红只作旁证印出、不进判决（C9 判覆盖：账本有而读数无 = 未覆盖，读数有而账本无 = 死读数；C10 判结论：判决面 RED 且无 `disposition.why` = 待处置）。",
-  "generatedUtc": "2026-10-27T02:35:55.280Z",
+  "generatedUtc": "2026-10-27T04:51:57.425Z",
   "scopeWorkflow": "CI",
   "repository": "https://github.com/lxh113377/supermarket-web.git",
   "rows": [
@@ -1145,6 +1145,18 @@
       "cancelledRuns": 0,
       "sideRed": [],
       "detail": "#82 head=828f5aa branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
+    },
+    {
+      "id": "R#83",
+      "head": "c43a5cb0e7574bc1b042039c6ff76bfbbafef661",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#83 head=c43a5cb branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
     }
   ]
 }

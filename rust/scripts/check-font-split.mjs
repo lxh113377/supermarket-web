@@ -26,8 +26,11 @@ const ok = (msg) => console.log('  PASS ' + msg)
 const bad = (msg) => { problems.push(msg); console.log('  FAIL ' + msg) }
 
 // ── 1. 文件面：存在 / 哈希 / 两两不重叠 / A 包覆盖首屏 ──
+// 补包（ext）与主分包同列为「必须校验的产物」：它同样是发布面的一份 woff2，
+// 只查主分包等于给补包留了一个没人管的角落。
+const allPackages = manifest.packages.concat(manifest.ext ? [manifest.ext] : [])
 const seen = new Map()
-for (const pkg of manifest.packages) {
+for (const pkg of allPackages) {
   const file = path.join(repoRoot, 'public', 'fonts', pkg.file)
   if (!existsSync(file)) { bad('缺文件 ' + pkg.file); continue }
   const bytes = readFileSync(file)
@@ -39,7 +42,7 @@ for (const pkg of manifest.packages) {
     seen.set(cp, pkg.name)
   }
 }
-if (!problems.length) ok(manifest.packages.length + ' 个分包：文件、sha256、体积与 manifest 一致')
+if (!problems.length) ok(allPackages.length + ' 个包（含补包）：文件、sha256、体积与 manifest 一致')
 
 const pkgA = manifest.packages.find((p) => p.name === 'a')
 // manifest 里 firstScreenUnion 是码点数组（charset.json 里是字符数组）——两种都吃，
@@ -69,11 +72,38 @@ else ok('A 包覆盖全部首屏展示体字符（' + firstScreen.size + ' 种�
   }
 }
 
+// ── 2b. 补包面：并集 == 补包源 cmap；且「站内用到的 CJK 字形」一个不缺 ──
+// 这两条就是本轮的目标断言：「557 个缺字的回退缺口」必须被补包结构性填上，
+// 而不是靠「补包存在」这种弱判据（存在≠覆盖，覆盖≠不重叠）。
+if (manifest.ext) {
+  const extSource = path.join(rustRoot, 'fonts', manifest.extSource ? manifest.extSource : 'display-serif-cjk-ext.source.woff2')
+  const py = 'import json,sys;from fontTools.ttLib import TTFont;print(json.dumps(sorted(TTFont(sys.argv[1]).getBestCmap().keys())))'
+  const res = spawnSync('python', ['-c', py, extSource], { encoding: 'utf8' })
+  if (res.status !== 0) {
+    bad('取补包源 cmap 失败：' + (res.stderr || '').slice(-200))
+  } else {
+    const srcCps = JSON.parse(res.stdout.trim().split('\n').pop())
+    const lost = srcCps.filter((cp) => !seen.has(cp))
+    if (lost.length) bad('补包源有 ' + lost.length + ' 个字形没被任何包覆盖：' + lost.slice(0, 12).map((c) => String.fromCodePoint(c)).join(''))
+    else ok('全部包并集 == 补包源 cmap（' + srcCps.length + ' 字形，一个不漏）')
+  }
+  const extCharset = JSON.parse(readFileSync(path.join(rustRoot, 'fonts', 'display-charset-ext.json'), 'utf8'))
+  // 白名单只有两个「不是字形需求」的码点：U+FE0F（变体选择符，跟在前一个字符后面生效）
+  // 与 U+FEFF（零宽不换行空格/BOM）。它们本来就不该有字形。
+  const NOT_GLYPHS = new Set([0xfe0f, 0xfeff])
+  const stillMissing = extCharset.usedCjk.filter((cp) => !seen.has(cp) && !NOT_GLYPHS.has(cp))
+  if (stillMissing.length) {
+    bad('站内用到的 ' + stillMissing.length + ' 个 CJK 字形仍无包覆盖（回退缺口没补上）：' + stillMissing.slice(0, 12).map((c) => String.fromCodePoint(c)).join(''))
+  } else {
+    ok('站内用到的 CJK 字形已全覆盖（' + extCharset.usedCjk.length + ' 种；仅剩 ' + (extCharset.usedCjk.length - extCharset.usedCjk.filter((cp) => seen.has(cp)).length) + ' 个非字形码点走回退）')
+  }
+}
+
 // ── 3. CSS 面：src/index.css 必须为每个分包给出同名的 @font-face + 同 unicode-range ──
 {
   const css = readFileSync(path.join(repoRoot, 'src', 'index.css'), 'utf8')
   const blocks = [...css.matchAll(/@font-face\s*\{([^}]*)\}/g)].map((m) => m[1])
-  for (const pkg of manifest.packages) {
+  for (const pkg of allPackages) {
     const hit = blocks.filter((b) => b.includes(pkg.file))
     if (!hit.length) { bad('src/index.css 缺少 ' + pkg.file + ' 的 @font-face'); continue }
     const block = hit[0]
@@ -83,7 +113,7 @@ else ok('A 包覆盖全部首屏展示体字符（' + firstScreen.size + ' 种�
     if (norm(range) !== norm(pkg.unicodeRange)) bad(pkg.file + ' 的 unicode-range 与分包内容不符')
     if (!/font-display:\s*swap/.test(block)) bad(pkg.file + ' 的 @font-face 少了 font-display: swap')
   }
-  if (!problems.length) ok('src/index.css 的 ' + manifest.packages.length + ' 条 @font-face 与分包一一对应')
+  if (!problems.length) ok('src/index.css 的 ' + allPackages.length + ' 条 @font-face 与分包一一对应')
 }
 
 // ── 4. 入口面：index.html 只 preload A 包；旧单文件不许再出现 ──
@@ -107,8 +137,14 @@ else ok('A 包覆盖全部首屏展示体字符（' + firstScreen.size + ' 种�
   // 这样首屏加载不会因为折叠下内容再连锁拉起分片。源文件 215,580 B，16 KB 是它的 7.4%。
   if (pkgA.bytes > 16 * 1024) bad('A 包超过 16 KB 预算（' + pkgA.bytes + ' B）')
   else ok('A 包 ' + pkgA.bytes + ' B ≤ 16 KB 预算（源文件的 ' + ((pkgA.bytes / manifest.sourceBytes) * 100).toFixed(1) + '%）')
-  if (total > manifest.sourceBytes * 1.12) bad('分包合计 ' + total + ' B 超过源文件 112%（' + manifest.sourceBytes + ' B）')
-  else ok('分包合计 ' + total + ' B（源 ' + manifest.sourceBytes + ' B，切分总成本 +' + (total - manifest.sourceBytes) + ' B）')
+  if (total > manifest.sourceBytes * 1.12) bad('主分包合计 ' + total + ' B 超过源文件 112%（' + manifest.sourceBytes + ' B）')
+  else ok('主分包合计 ' + total + ' B（源 ' + manifest.sourceBytes + ' B，切分总成本 +' + (total - manifest.sourceBytes) + ' B）')
+  if (manifest.ext) {
+    // 补包预算 150 KB：它是懒加载面（只有页面上真出现那 562 个字之一才会下），
+    // 换掉的是「564 个字走系统回退」这个已实测的视觉不一致。
+    if (manifest.ext.bytes > 150 * 1024) bad('补包超过 150 KB 预算（' + manifest.ext.bytes + ' B）')
+    else ok('补包 ' + manifest.ext.bytes + ' B ≤ 150 KB 预算（懒加载面；覆盖 ' + manifest.ext.glyphs + ' 个缺字）')
+  }
 }
 
 console.log(problems.length ? '\nGATE-FAIL check-font-split：' + problems.length + ' 项' : '\nGATE-PASS check-font-split：全部通过')

@@ -138,6 +138,46 @@ node rust/scripts/check-font-split.mjs
 node rust/scripts/font-render-parity.mjs --old rust/.cache/dist-old --new dist
 ```
 
+## 9. 缺字补包（第 93 轮）：把「564 个走系统回退的字」补上
+
+第 8 节记的缺口（原分包只覆盖 922 字形、站内用到的 CJK 面却有 1,486 种）在本轮补上了。
+
+### 9.1 事实与做法
+
+| 项 | 数值 |
+|---|---|
+| 站内用到的 CJK 码点（dist + src 扫描） | **1,486** |
+| 原 7 个包覆盖 | 922 |
+| 缺（走系统回退字体） | 564，其中全字库能补 **562**（另 2 个是 U+FE0F 变体选择符与 U+FEFF BOM，本就没有字形） |
+| 补包 | `display-serif-cjk-ext.woff2`，**562 字形 / 113,056 B**，懒加载 |
+| 补后覆盖 | **1,484 / 1,486** |
+
+做法上有一个刻意的选择：**不重切已上线的 7 个包，只加一个 unicode-range 不重叠的补包**。
+理由是「已覆盖字形的渲染逐像素不变」这条硬约束 —— 重切会让 7 个包的字节全变（fontTools 的
+CFF 子集化实测**不保证字节可复现**：同输入两次产出差 12~36 B），于是「这一笔到底改了什么」就说不清了。
+补包方案下：现有 7 个文件 **git 显示未修改**，新增的只有 ext 包与 CSS 里的第 8 条 @font-face。
+
+补包的源「思源宋体 CN Heavy」（14.85 MB，本机外部资产）按「用到且可补」的字形集切出
+**270,312 B** 的 `rust/fonts/display-serif-cjk-ext.source.woff2` **入仓** ⇒ 之后所有构建都从仓内源复现。
+为什么确认它就是原分包的母体：**932 个共有字形的推进宽度 932/932 完全一致**
+（含 `带/力/拒/纸/五/会` 抽样，本轮实测）—— 同型字体才会给出逐位相同的 hmtx。
+
+### 9.2 三条腿的验证
+
+| 腿 | 命令/做法 | 结果 |
+|---|---|---|
+| 静态映射（码点 ⇄ 包） | `node rust/scripts/check-font-split.mjs` | 8 个包的 sha/体积与 manifest 一致；**全部包并集 == 补包源 cmap（1,494 字形）**；**站内用到的 CJK 字形已全覆盖（1,486 种，仅剩 2 个非字形码点）**；A 包 11,604 B ≤ 16 KB；补包 113,056 B ≤ 150 KB |
+| 行为（浏览器真的去取补包） | `node rust/scripts/probe-font-requests.mjs <url>` | 首页/商城/订单查询**首屏只取 A 包**（补包零首屏成本）；随后用 `document.fonts.load(…, '丁』')` 逼一次缺字 ⇒ **display-serif-cjk-ext.woff2 200 到达**（三条路由一致） |
+| 回归（已覆盖字形不动） | 7 个包 git 未修改 + `npm run test:visual` | **225 passed / 1 skipped / 0 failed**（几何/对比度/触控目标/暖色前沿全绿） |
+
+### 9.3 本轮暴露的一个工具链盲区（值得记）
+
+`check-font-split` 曾判红一处，而且**红得对**：CSS 里 ext 包的 unicode-range 与 manifest 不符。
+根因不是字体，是**我的工具链**：`rust/fonts/font-face.generated.css` 的单行有 3,864 字符，
+而 read 工具对超长行会截断并留下「… (line truncated to 2000 chars)」标记，我把它当 edit 的输入写回去 ⇒ 那一行被截断。
+修法两条，都在本轮落地：① CSS 改为 `--css-only` **从 manifest 生成**（一份事实一个出口，不再有两条产出路径）；
+② 写回改走脚本 fs（不经任何会截断的通道）。
+
 ## 8. 没有解决的部分（照实写）
 
 - 原字体只覆盖 932 个字形，而产物里出现的 CJK 字符有 **1,489 种**（含 557 种缺字）——

@@ -1,4 +1,22 @@
 ## [未发布]
+### 2026-10-27 中文展示体补上 564 个缺字（回退缺口）：922 → 1,484 / 1,486
+
+- **一手读数**：站内用到的 CJK 码点 **1,486 种**，原分包只覆盖 922 ⇒ 564 种走系统回退字体
+  （同一个标题里两种宋体，肉眼可见）；全字库能补 562 种（另 2 个是 U+FE0F/U+FEFF，本就没有字形）。
+- **做法**：新增补包 `public/fonts/display-serif-cjk-ext.woff2`（**562 字形 / 113,056 B**，懒加载），
+  与现有 7 个包的 unicode-range **不重叠**；**已有 7 个包一个字节都不动**（git 显示未修改）——
+  因为 fontTools 的 CFF 子集化不保证字节可复现（同输入两次差 12~36 B），重切会让「改了什么」说不清。
+  补包源 = 本机全字库「思源宋体 CN Heavy」，按用到且可补的字形集切出 **270,312 B** 的
+  `rust/fonts/display-serif-cjk-ext.source.woff2` 入仓 ⇒ 构建不再依赖那台机器上的字体文件。
+  确认它是母体：932 个共有字形的推进宽度 **932/932 完全一致**。
+- **验证（三条腿）**：① `check-font-split`：8 包 sha/体积一致、并集 == 补包源 cmap（1,494）、
+  **站内用到的 CJK 字形已全覆盖**、A 包 11,604 B ≤ 16 KB、补包 113,056 B ≤ 150 KB；
+  ② `probe-font-requests`：首页/商城/订单查询首屏只取 A 包（补包零首屏成本），
+  而 `document.fonts.load(…, '丁』')` 时补包 **200 到达**（三条路由一致）；
+  ③ `npm run test:visual` **225 passed / 1 skipped / 0 failed**。
+- **顺带修的判据盲区**：CSS 与 manifest 原是两条产出路径（ext 的 unicode-range 差了几个码点被判红）；
+  改为 `split-display-font.py --css-only` **从 manifest 生成**，且写回改走脚本 fs
+  （read 工具对 3,864 字符的长行会截断，第一版把它当 edit 输入导致 CSS 被截断 —— 判据抓的正是这一处）。
 ### 2026-10-27 WASM 商城索引接入（灰度开关 + 动态 chunk）与端到端实测：**量不出来，故默认关**
 
 - **做了什么**：新增 `src/wasmFlag.ts`（开关判定，静态、几十字节）与 `src/wasmAccelerator.ts`
