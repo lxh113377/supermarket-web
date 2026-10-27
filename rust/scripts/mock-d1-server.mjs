@@ -11,13 +11,18 @@
 // 用法：node rust/scripts/mock-d1-server.mjs --rows <rows.json> --port 5199
 
 import http from 'node:http'
-import { readFileSync } from 'node:fs'
+import { appendFileSync, readFileSync, writeFileSync } from 'node:fs'
 
 const args = process.argv.slice(2)
 const argOf = (n, d) => { const i = args.indexOf(n); return i >= 0 && args[i + 1] ? args[i + 1] : d }
 const rowsFile = argOf('--rows', '')
 const port = Number(argOf('--port', '5199'))
 const token = argOf('--token', 'mock-token')
+// --record <file>：把收到的每条语句按形状追加成 JSONL。
+// 为什么需要它：原生管理路径要写**审计**（security_events INSERT）——本机没有真 D1，
+// 唯一能证明「审计真的发生了」的判据就是「mock 收到了那条 INSERT，且参数形状对」。
+// 只记形状与参数类型/长度，**不记参数原值**（审计参数含 IP 与密钥指纹，不该落到读数文件里）。
+const recordFile = argOf('--record', '')
 if (!rowsFile) { console.error('需要 --rows <json>'); process.exit(2) }
 
 // rows.json 形状：{ "<归一化后的 SQL>": [ {列:值}, … ], … }
@@ -35,6 +40,22 @@ const server = http.createServer((req, res) => {
     let parsed
     try { parsed = JSON.parse(body) } catch { res.writeHead(400).end(JSON.stringify({ success: false, errors: [{ message: 'mock: body 不是 JSON' }] })); return }
     const sql = norm(parsed.sql)
+    if (recordFile) {
+      appendFileSync(recordFile, JSON.stringify({
+        sql: norm(parsed.sql).slice(0, 120),
+        isWrite: /^(INSERT|UPDATE|DELETE)/i.test(parsed.sql.trim()),
+        paramCount: Array.isArray(parsed.params) ? parsed.params.length : 0,
+        paramTypes: Array.isArray(parsed.params) ? parsed.params.map((x) => (x === null ? 'null' : typeof x)) : [],
+        paramLengths: Array.isArray(parsed.params) ? parsed.params.map((x) => (typeof x === 'string' ? x.length : null)) : [],
+      }) + '\n')
+    }
+    // 写语句：**原样接受**并回空结果集 —— mock 不做 SQL 引擎，但不能挡写路径
+    //（挡住会让审计静默丢失，而现网恰恰吞掉审计错误 ⇒ 那会变成「看着一切正常、其实没留痕」）
+    if (/^(INSERT|UPDATE|DELETE)/i.test(parsed.sql.trim())) {
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ success: true, result: [{ results: [], success: true, meta: { changes: 1, rows_read: 0 } }] }))
+      return
+    }
     const rows = normTable[sql]
     if (!rows) {
       // 不认识的 SQL **不回空表**：空表会被读成「库里没有行」，那是假绿
@@ -46,4 +67,5 @@ const server = http.createServer((req, res) => {
     res.end(JSON.stringify({ success: true, result: [{ results: rows, success: true, meta: { changes: 0, rows_read: rows.length } }] }))
   })
 })
-server.listen(port, '127.0.0.1', () => console.log('mock D1 监听 http://127.0.0.1:' + port + '｜预设 SQL ' + Object.keys(normTable).length + ' 条'))
+if (recordFile) writeFileSync(recordFile, '') // 每轮清账：避免上一轮的语句混进本轮读数
+server.listen(port, '127.0.0.1', () => console.log('mock D1 监听 http://127.0.0.1:' + port + '｜预设 SQL ' + Object.keys(normTable).length + ' 条' + (recordFile ? '｜记录 ' + recordFile : '')))

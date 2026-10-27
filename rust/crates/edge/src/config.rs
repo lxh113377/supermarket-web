@@ -46,6 +46,8 @@ pub struct Config {
     pub d1: Option<D1Config>,
     /// 现网 admin 密钥：本地原生化鉴权要用；不配置时 `login` 一律透传上游。
     pub admin_key: Option<String>,
+    /// 只读密钥（可选）：未配置时行为与单密钥完全一致（现网 security.js:201 的同义实现）。
+    pub admin_readonly_key: Option<String>,
     /// `/_health` 的 ai.configured 判据（与现网同源：两个 Dify 变量同时存在）。
     pub ai_configured: bool,
     /// `/_health` 的 deploy 字段（CF Pages 注入的 commit sha）。
@@ -101,6 +103,7 @@ pub fn parse_args(args: &[String]) -> Result<Command, String> {
             _ => None,
         },
         admin_key: env_opt("ADMIN_KEY"),
+        admin_readonly_key: env_opt("ADMIN_READONLY_KEY"),
         ai_configured: env_opt("DIFY_BASE_URL").is_some() && env_opt("DIFY_CHAT_APP_KEY").is_some(),
         deploy_sha: env_opt("CF_PAGES_COMMIT_SHA"),
         precompressed: Vec::new(),
@@ -164,7 +167,9 @@ pub const USAGE: &str = r#"supermarket-edge —— 江科一站通 Rust 边缘�
   ALLOWED_ORIGINS     追加 CORS 白名单（逗号分隔）
   D1_ACCOUNT_ID / D1_DATABASE_ID / D1_API_TOKEN   D1 HTTP API（/_health 探活等）
   D1_API_BASE          D1 HTTP API 基址覆盖（**仅供本机 mock 链路测试**，不设即官方端点）
-  ADMIN_KEY           本地原生鉴权用（不配则 login 一律透传）
+  ADMIN_KEY           管理端原生动作的鉴权密钥（不配 ⇒ 原生管理路径一律拒绝，回落透传）
+  ADMIN_READONLY_KEY  只读密钥（可选；只放行 ADMIN_READ_ACTIONS 白名单内的动作，默认拒绝）
+  NATIVE_ADMIN_ACTIONS 管理端原生动作开关（未设=全关；all 或逗号分隔动作名）
   DIFY_BASE_URL / DIFY_CHAT_APP_KEY  /_health 的 ai.configured 判据
   CF_PAGES_COMMIT_SHA  /_health 的 deploy 字段
 "#;

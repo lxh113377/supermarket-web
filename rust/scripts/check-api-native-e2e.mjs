@@ -54,6 +54,16 @@ const sqlOf = (name) => {
   if (to < 0) throw new Error(name + ' 的原始字符串没闭合')
   return src.slice(from, to)
 }
+/** 从任意 Rust 文件里取一条原始字符串常量（管理端的 SQL 在 api_admin.rs）。 */
+const sqlOfFrom = (rel, name) => {
+  const src2 = readFileSync(path.join(rustRoot, rel), 'utf8')
+  const head = 'pub const ' + name + ': &str = r#"'
+  const at = src2.indexOf(head)
+  if (at < 0) throw new Error('读不到 ' + name + ' @ ' + rel)
+  const from = at + head.length
+  const to = src2.indexOf('"#', from)
+  return src2.slice(from, to)
+}
 const SQL = {
   products: sqlOf('SQL_PUBLIC_PRODUCTS'),
   categories: sqlOf('SQL_PUBLIC_CATEGORIES'),
@@ -72,6 +82,26 @@ const postPub = async (base, action, payload) => {
   return { status: res.status, edge: res.headers.get('x-edge'), edgeCache: res.headers.get('x-edge-cache'), json: await res.json() }
 }
 const stripTrace = (o) => { const c = { ...o }; delete c.trace; return c }
+
+// /web 调用（管理端）：密钥只走 body（现网 web.js:21 唯一通道），**不设请求头**
+const postWeb = async (target, action, key) => {
+  const body = key === undefined ? { action, payload: {} } : { action, adminKey: key, payload: {} }
+  const res = await fetch(target + '/web', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  return { status: res.status, edge: res.headers.get('x-edge'), json: await res.json() }
+}
+
+// ── ⓪ 管理端密钥（从 .dev.vars 现读现用；只进环境变量，不进读数）──
+const keys = (() => {
+  try {
+    const txt = readFileSync(path.join(repoRoot, '.dev.vars'), 'utf8')
+    const pick = (k) => { const m = txt.match(new RegExp('^' + k + '=(.*)$', 'm')); return m ? m[1].trim() : '' }
+    return { admin: pick('ADMIN_KEY'), readonly: pick('ADMIN_READONLY_KEY') }
+  } catch { return { admin: '', readonly: '' } }
+})()
 
 // ── ① 取现网响应（真值面）。getReviews 需要一个真实 productOrder：从目录里的 order 号扫一遍 ──
 console.log('取现网 ' + live + ' …')
@@ -135,6 +165,24 @@ rows.catalogOrders.push({ order: rows.catalogOrders[0].order, image: 'dup.webp' 
 rows.catalogOrders.push({ order: 0, image: '' })
 rows.catalogOrders.push({ order: -5, image: '' })
 
+// 管理端 SELECT *：反推行必须**保留全部 14 列**（公共读那套只留 SQL 选中的列，用在这里会丢
+// costPrice/images/reviews ⇒ 原生输出与现网必然不同）。没密钥就跳过（明说，不静默少测）。
+let adminProducts = null
+if (keys.admin) {
+  const liveAdmin = await postWeb(live, 'getProducts', keys.admin)
+  if (liveAdmin.status === 200 && Array.isArray(liveAdmin.json.data)) {
+    adminProducts = liveAdmin.json.data.map((p) => ({
+      _id: p._id, name: p.name, spec: p.spec, price: p.price, costPrice: p.costPrice,
+      subcategories: asText(p.subcategories), enabled: p.enabled ? 1 : 0, order: p.order,
+      image: p.image, images: asText(p.images), description: p.description,
+      specOptions: asText(p.specOptions), reviews: asText(p.reviews), stock: p.stock,
+    }))
+    console.log('  现网 getProducts：' + adminProducts.length + ' 件（管理端真值面）')
+  } else {
+    console.log('  现网 getProducts 取不到（status=' + liveAdmin.status + '）⇒ 管理端用例会退化')
+  }
+}
+
 const rowsFile = path.join(rustRoot, '.cache', 'mock-d1-rows' + (parsedMode ? '-parsed' : '') + '.json')
 writeFileSync(rowsFile, JSON.stringify({
   [SQL.products]: rows.products,
@@ -142,20 +190,54 @@ writeFileSync(rowsFile, JSON.stringify({
   [SQL.catalogOrders]: rows.catalogOrders,
   [SQL.reviews]: rows.reviews,
   [SQL.orderStatus]: rows.orderStatus,
+  // SELECT * 那条：SQL 从 api_admin.rs 读（它在管理端模块里，不在 api_native.rs）
+  [sqlOfFrom('crates/edge/src/api_admin.rs', 'SQL_GET_PRODUCTS')]: adminProducts || [],
 }, null, 1) + '\n')
 
 // ── ③ 起 mock D1 + 真边缘 ──
-const mock = spawn(process.execPath, [path.join(here, 'mock-d1-server.mjs'), '--rows', rowsFile, '--port', String(mockPort), '--token', token], { stdio: ['ignore', 'pipe', 'pipe'] })
+const recordFile = path.join(rustRoot, '.cache', 'mock-d1-record' + (parsedMode ? '-parsed' : '') + '.jsonl')
+const mock = spawn(process.execPath, [path.join(here, 'mock-d1-server.mjs'), '--rows', rowsFile, '--port', String(mockPort), '--token', token, '--record', recordFile], { stdio: ['ignore', 'pipe', 'pipe'] })
 mock.stderr.on('data', (d) => process.stderr.write('[mock-d1] ' + d))
 await new Promise((r) => setTimeout(r, 600))
 
 const bin = path.join(rustRoot, 'target', 'release', 'supermarket-edge' + (process.platform === 'win32' ? '.exe' : ''))
 if (!existsSync(bin)) { console.error('缺边缘二进制 ' + bin + '（先 cargo build -p supermarket-edge --release）'); mock.kill(); process.exit(2) }
 const edge = spawn(bin, ['serve', '--dist', path.join(repoRoot, 'dist'), '--port', String(edgePort)], {
-  env: { ...process.env, NATIVE_PUBLIC_ACTIONS: 'all', D1_ACCOUNT_ID: 'mock-account', D1_DATABASE_ID: 'mock-db', D1_API_TOKEN: token, D1_API_BASE: 'http://127.0.0.1:' + mockPort },
+  env: {
+    ...process.env,
+    NATIVE_PUBLIC_ACTIONS: 'all',
+    // 管理端走独立开关（爆炸半径不同）；密钥从 .dev.vars 现读现用，**绝不写入读数文件**
+    NATIVE_ADMIN_ACTIONS: 'all',
+    ...adminEnv(),
+    D1_ACCOUNT_ID: 'mock-account',
+    D1_DATABASE_ID: 'mock-db',
+    D1_API_TOKEN: token,
+    D1_API_BASE: 'http://127.0.0.1:' + mockPort,
+  },
   stdio: ['ignore', 'pipe', 'pipe'],
 })
 edge.stderr.on('data', (d) => process.stderr.write('[edge] ' + d))
+
+// 管理端密钥：从本仓 gitignore 的 .dev.vars 现读（与 scripts/uptime-check.mjs 的日常用法一致）。
+// **只进环境变量，不进任何打印/读数文件**（读数里只记长度与指纹是否非空）。
+function adminEnv() {
+  try {
+    const txt = readFileSync(path.join(repoRoot, '.dev.vars'), 'utf8')
+    const pick = (k) => {
+      const m = txt.match(new RegExp('^' + k + '=(.*)$', 'm'))
+      return m ? m[1].trim() : ''
+    }
+    const out = {}
+    const a = pick('ADMIN_KEY')
+    const r = pick('ADMIN_READONLY_KEY')
+    if (a) out.ADMIN_KEY = a
+    if (r) out.ADMIN_READONLY_KEY = r
+    return out
+  } catch {
+    return {}
+  }
+}
+// keys 已在 ⓪ 段定义（那时就把 .dev.vars 读了；这里不再重复读，也不打印）
 
 const base = 'http://127.0.0.1:' + edgePort
 let healthy = false
@@ -188,9 +270,60 @@ for (const c of CASES) {
   console.log(c.name + '：原生=' + (first.edge === 'native') + '｜与现网相同=' + entry.equal + '｜缓存第二发=' + (second.edgeCache || '无头') + '｜HTTP ' + first.status)
 }
 
+// ── ⑤ 管理端原生路径：鉴权层 + getProducts + 审计（有 .dev.vars 才比现网，没有就明说 SKIP）──
+const auditRoster = () => (existsSync(recordFile) ? readFileSync(recordFile, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)) : [])
+
+if (!keys.admin) {
+  console.log('管理端：**SKIP**（本机 .dev.vars 没有 ADMIN_KEY）⇒ 管理端鉴权/审计路径本轮未验，不当通过')
+  report.adminSkipped = 'no ADMIN_KEY in .dev.vars'
+} else {
+  const adminCases = [
+    { name: 'getProducts（正确密钥）', action: 'getProducts', key: keys.admin, expectAudit: 0 },
+    { name: 'getProducts（错密钥）', action: 'getProducts', key: 'wrong-key-not-in-env-2026', expectAudit: 1 },
+    { name: 'getProducts（无密钥）', action: 'getProducts', key: undefined, expectAudit: 1 },
+  ]
+  if (keys.readonly) {
+    adminCases.push({ name: 'getProducts（只读密钥，白名单内）', action: 'getProducts', key: keys.readonly, expectAudit: 0 })
+    adminCases.push({ name: 'createProduct（只读密钥，应拒绝）', action: 'createProduct', key: keys.readonly, expectAudit: 0 })
+  } else {
+    console.log('  （.dev.vars 没有 ADMIN_READONLY_KEY ⇒ 只读档两条用例跳过）')
+  }
+  for (const c of adminCases) {
+    // 只数 security_events 的 INSERT：把「收到过任何语句」当审计会把一条普通 SELECT 也算进去
+    // （第一版就是这么把「正确密钥」算成 +1 的，误报成「读动作也写审计」）
+    const auditCount = () => auditRoster().filter((r) => r.isWrite && /INSERT INTO security_events/.test(r.sql)).length
+    const before = auditCount()
+    const liveR = await postWeb(live, c.action, c.key)
+    const nativeR = await postWeb(base, c.action, c.key)
+    const auditDelta = auditCount() - before
+    const entry = { action: c.action, status: nativeR.status, liveStatus: liveR.status, edge: nativeR.edge, auditDelta, expectAudit: c.expectAudit, equal: false }
+    if (nativeR.edge !== 'native') problems.push(c.name + '：x-edge=' + nativeR.edge + '（不是原生分支）')
+    if (nativeR.status !== liveR.status) problems.push(c.name + '：HTTP 状态与现网不同（现网 ' + liveR.status + ' / 边缘 ' + nativeR.status + '）')
+    const want = JSON.stringify(stripTrace(liveR.json))
+    const got = JSON.stringify(stripTrace(nativeR.json))
+    entry.equal = want === got
+    if (!entry.equal) {
+      entry.liveJson = stripTrace(liveR.json)
+      entry.edgeJson = stripTrace(nativeR.json)
+      problems.push(c.name + '：与现网不同（现网 ' + want.slice(0, 140) + '… / 边缘 ' + got.slice(0, 140) + '…）')
+    }
+    if (auditDelta !== c.expectAudit) problems.push(c.name + '：审计写入条数不符（实测 ' + auditDelta + ' / 期望 ' + c.expectAudit + '）')
+    report.cases[c.name] = entry
+    console.log(c.name + '：原生=' + (nativeR.edge === 'native') + '｜与现网相同=' + entry.equal + '｜HTTP ' + nativeR.status + '/' + liveR.status + '｜审计 +' + auditDelta)
+  }
+  // 审计行的形状断言（不判参数原值：那里面有 IP 与密钥指纹）
+  const inserts = auditRoster().filter((r) => r.isWrite && /INSERT INTO security_events/.test(r.sql))
+  report.auditInserts = inserts.map((r) => ({ paramCount: r.paramCount, paramTypes: r.paramTypes, paramLengths: r.paramLengths }))
+  if (inserts.length && inserts.some((r) => r.paramCount !== 6)) {
+    problems.push('审计语句参数个数不是 6（现网 INSERT 是 6 列）')
+  }
+  report.keysPresent = { admin: keys.admin.length > 0, readonly: keys.readonly.length > 0 }
+}
 writeFileSync(jsonOut, JSON.stringify({ ...report, problems }, null, 2) + '\n')
 console.log('原始读数 ' + jsonOut)
-console.log(problems.length ? '\nGATE-FAIL check-api-native-e2e：' + problems.length + ' 项\n  - ' + problems.join('\n  - ') : '\nGATE-PASS check-api-native-e2e：五个动作（含两条错误路径与「不给 payload」边界）与现网**逐字段相同**，缓存语义一致（可缓存的 hit、不可缓存的未 hit）')
+console.log(problems.length
+  ? '\nGATE-FAIL check-api-native-e2e：' + problems.length + ' 项\n  - ' + problems.join('\n  - ')
+  : '\nGATE-PASS check-api-native-e2e：公开面 5 个动作（含错误路径与「不给 payload」边界）+ 管理面 5 个用例（正确/错/无/只读密钥 × getProducts、只读密钥 × createProduct）\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
 
 edge.kill()
 mock.kill()

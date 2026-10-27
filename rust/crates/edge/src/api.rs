@@ -17,6 +17,7 @@
 //!     命中时不再回源。注意缓存的是**上游响应的原始字节**，不是重新拼的 JSON ——
 //!     于是「缓存命中」与「回源」在任何字段、任何顺序上都不可能不同。
 
+use crate::api_admin;
 use crate::api_native;
 use crate::config::Config;
 use crate::cors::cors_headers;
@@ -256,6 +257,27 @@ pub async fn handle_gateway(
     //   · 在缓存之后 —— 原生命中同样吃 60s 微缓存（对应上游 KV 的 cache:public:*）；
     //   · 在透传之前 —— 这样即使没配 FUNCTIONS_ORIGIN，原生动作也能独立服务；
     //   · 取不到（D1 未配/查询失败）就**掉到透传**，客户端拿到的仍是正确数据。
+    // ④c 管理端原生实现（默认关，见 api_admin.rs 的文件头）。
+    //     顺序与现网一致：**先鉴权、再只读档、最后派发**；审计只写「鉴权失败」与「登录/写动作」。
+    //     开关独立于 /pub（NATIVE_ADMIN_ACTIONS）：管理端的爆炸半径更大，不该被公开读的开关带上。
+    if endpoint == Endpoint::Web {
+        if let Some(a) = action.as_deref() {
+            if api_admin::admin_native_enabled(a) {
+                let admin_key = parsed.get("adminKey").and_then(|k| k.as_str());
+                let payload = parsed.get("payload");
+                let ip = api_admin::client_ip(headers);
+                if let Some(value) = api_admin::call_admin(app, a, admin_key, payload, &ip).await {
+                    let bytes = Bytes::from(value.to_string());
+                    let status = StatusCode::from_u16(supermarket_core::contract::status_of(&value))
+                        .unwrap_or(StatusCode::OK);
+                    let mut out_headers: Vec<(String, String)> = cors.clone();
+                    out_headers.push(("x-edge".to_string(), "native".to_string()));
+                    return json_response(status, bytes, out_headers);
+                }
+            }
+        }
+    }
+
     if endpoint == Endpoint::Pub {
         if let Some(a) = action.as_deref() {
             if api_native::native_enabled(a) {

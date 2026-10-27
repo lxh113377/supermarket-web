@@ -159,18 +159,21 @@ mod tests {
     fn sql_matches_js_source() {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         // rust/crates/edge → 三级上一级 = 仓根（supermarket-web）
-        // rust/crates/edge → 三级上一级 = 仓根（supermarket-web）
         let repo = root.join("..").join("..").join("..");
         let norm = |s: &str| s.split_whitespace().collect::<Vec<_>>().join(" ");
         // 每条 SQL 坐在哪个 JS 文件里。2026-10-27 扩到 5 条 SQL 时才发现：
         // 三条在 products.js，而 getReviews 在 reviews.js、getOrderStatus 在 orders.js ——
         // 只读一个文件的写法会让后两条「验了个空」（判据绿着，其实没比过）。
-        let sources: [(&str, &str, &str); 5] = [
+        // 扩到 7 条：管理端第一条（SELECT *）与审计 INSERT 也进判据 ——
+        // 语句抄错时判据要在**落地前**红，而不是等线上审计表少几行才发现。
+        let sources: [(&str, &str, &str); 7] = [
             (SQL_PUBLIC_PRODUCTS, "SQL_PUBLIC_PRODUCTS", "functions/lib/actions/products.js"),
             (SQL_PUBLIC_CATEGORIES, "SQL_PUBLIC_CATEGORIES", "functions/lib/actions/products.js"),
             (SQL_CATALOG_ORDERS, "SQL_CATALOG_ORDERS", "functions/lib/actions/products.js"),
             (SQL_GET_REVIEWS, "SQL_GET_REVIEWS", "functions/lib/actions/reviews.js"),
             (SQL_ORDER_STATUS, "SQL_ORDER_STATUS", "functions/lib/actions/orders.js"),
+            (crate::api_admin::SQL_GET_PRODUCTS, "SQL_GET_PRODUCTS", "functions/lib/actions/products.js"),
+            (crate::api_admin::SQL_AUDIT_INSERT, "SQL_AUDIT_INSERT", "functions/lib/security.js"),
         ];
         for (sql, name, rel) in sources {
             let js_path = repo.join(rel);

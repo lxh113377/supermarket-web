@@ -106,3 +106,50 @@ NATIVE_PUBLIC_ACTIONS=all          # 或在册动作名的逗号列表
 1. 其余公开读：`getReviews` / `getOrderStatus`（读、可缓存）；
 2. 管理端只读：`getAdminProducts` / `getOrders` / `getOrder` / `getDashboardStats`（后者现网有 60s KV 缓存，需同步 `DASHBOARD_WRITE_ACTIONS` 语义）；
 3. 写动作：`createOrder`（幂等指纹 + 库存占用 + 并发校验）——**这批必须逐动作带值级对账与回滚演练**，不能靠本次的键序判据。
+
+## 2c. 管理端第一批：鉴权层 + getProducts + 审计（2026-10-27 第 6 轮）
+
+公开读那两条路（§2b）免鉴权；管理端不一样：**先鉴权、再只读档、最后派发**。这层一次解锁 9 个只读动作，
+所以值得单独一批做，而不是捆在某个具体动作上。
+
+| 件 | 位置 | 与现网的对齐点 |
+|---|---|---|
+| 鉴权语义（纯函数） | `crates/core/src/auth.rs` | 密钥**只走 body**（`web.js:21`；全仓无 `x-admin-key` / `Authorization` 通道）；常时比较（`security.js:17`：长度不等即 false、逐字节 XOR 累加）；角色解析（`security.js:201`：先全权限、再只读、否则 None）；只读档**白名单默认拒**（`backend.js:91`） |
+| 三张动作表 | 同文件（PUBLIC 9 / ADMIN_READ 18 / ADMIN_WRITE 17） | 逐字抄自 `security.js:9` 与 `backend.js:39,56`；**同步性由用例钉住**（见下） |
+| 管理端实现 | `crates/edge/src/api_admin.rs` | `SQL_GET_PRODUCTS`（products.js:88 的 `SELECT *`）；审计 INSERT（security.js:113 逐字）+ sha256 前 8 hex 指纹（security.js:98） |
+| 网关接线 | `crates/edge/src/api.rs` | 位置在微缓存之后、透传之前；开关**独立**（`NATIVE_ADMIN_ACTIONS`，默认关）——管理端爆炸半径更大，不该被公开读的开关带上 |
+
+### 2c.1 判据
+
+| 判据 | 命令 | 读数 |
+|---|---|---|
+| 鉴权语义 + 信封 | `cargo test -p supermarket-core --test auth` | 5 条：常时比较（长度不等 / 空串 / 中文）、角色优先级、`auth_failed` 封套**逐字节**、只读白名单「未登记即拒」（含一个假想的未来动作）、只读拒绝文案 |
+| **动作表与现网同步** | 同上（`b_action_sets_match_js_source`） | 去读 `security.js` / `backend.js`，把三张 `new Set([...])` 解出来与 Rust 常量逐条比 —— 现网增删一个动作而边缘没跟，当场判红 |
+| SQL 逐字一致 | `cargo test -p supermarket-edge` | 判据从 5 条扩到 **7 条 / 4 个文件**（新增管理端 `SELECT *` 与审计 INSERT） |
+| 端到端（含审计） | `node rust/scripts/check-api-native-e2e.mjs` | 管理面 5 个用例全绿（见 2c.2） |
+
+### 2c.2 端到端读数（管理面 5 个用例）
+
+| 用例 | 原生分支 | 与现网 | HTTP | 审计写入 |
+|---|---|---|---|---|
+| getProducts（正确密钥） | ✅ | ✅ 逐字段相同（67 件） | 200 / 200 | **+0**（读动作不写审计，与现网一致） |
+| getProducts（错密钥） | ✅ | ✅ | 401 / 401 | **+1**（auth_failed） |
+| getProducts（无密钥） | ✅ | ✅ | 401 / 401 | **+1** |
+| getProducts（只读密钥，白名单内） | ✅ | ✅ | 200 / 200 | +0 |
+| createProduct（只读密钥，应拒） | ✅ | ✅ | 403 / 403 | **+0**（只读拒绝在写审计之前早退，且**根本没有尝试写库**） |
+
+审计条数不是靠「看日志」断言的：mock D1 新增 `--record`，把收到的每条语句按**形状**记下来
+（只记 SQL 前缀、参数个数/类型/长度，**不记参数原值** —— 审计参数里有 IP 与密钥指纹）。
+另外 mock 现在对写语句（INSERT/UPDATE/DELETE）**原样接受**：挡写路径会让审计静默丢失，
+而现网恰恰吞掉审计错误 ⇒ 那会变成「看着一切正常、其实没留痕」。
+
+管理端密钥从本仓 gitignore 的 `.dev.vars` **现读现用**（与 `scripts/uptime-check.mjs` 的日常用法一致），
+只进环境变量，**不写进任何打印或读数文件**；读数里只记「密钥是否存在」。
+
+### 2c.3 本轮没做的（点名）
+
+- **审计的 5% 采样清理**（`security.js:118`：每次写入 5% 概率删 90 天前记录）**没有复刻**：
+  它是随机数驱动的表体积管理、不是契约；原生路径只写不裁。必须记住，否则长期跑审计表会长大。
+- `login` 的登录限流（`rate:login`，在鉴权**之前**执行）与写动作的审计（`ok`/`fail`）都没做 ——
+  `login` 与两个 AI 动作按 [docs/09](09-api-inventory.md) §3 归入写动作档（它们有 D1 写副作用）。
+- 管理端只读的其余 8 个动作尚未端口，但**它们的鉴权与只读判定已经生效**（开关打开时先过本层）。

@@ -1,5 +1,5 @@
 {
-  "at": "2026-10-27T07:15:24.204Z",
+  "at": "2026-10-27T07:37:57.745Z",
   "live": "https://supermarket-web.pages.dev",
   "edge": "http://127.0.0.1:5198",
   "mode": "JSON 列=文本",
@@ -46,7 +46,7 @@
     "getOrderStatus（未知订单号：错误路径）": {
       "action": "getOrderStatus",
       "payload": {
-        "orderId": "o_not_exist_1793085317717"
+        "orderId": "o_not_exist_1793086671738"
       },
       "status": 404,
       "edge": "native",
@@ -80,6 +80,51 @@
       "cacheFirst": null,
       "cacheSecond": null,
       "equal": true
+    },
+    "getProducts（正确密钥）": {
+      "action": "getProducts",
+      "status": 200,
+      "liveStatus": 200,
+      "edge": "native",
+      "auditDelta": 0,
+      "expectAudit": 0,
+      "equal": true
+    },
+    "getProducts（错密钥）": {
+      "action": "getProducts",
+      "status": 401,
+      "liveStatus": 401,
+      "edge": "native",
+      "auditDelta": 1,
+      "expectAudit": 1,
+      "equal": true
+    },
+    "getProducts（无密钥）": {
+      "action": "getProducts",
+      "status": 401,
+      "liveStatus": 401,
+      "edge": "native",
+      "auditDelta": 1,
+      "expectAudit": 1,
+      "equal": true
+    },
+    "getProducts（只读密钥，白名单内）": {
+      "action": "getProducts",
+      "status": 200,
+      "liveStatus": 200,
+      "edge": "native",
+      "auditDelta": 0,
+      "expectAudit": 0,
+      "equal": true
+    },
+    "createProduct（只读密钥，应拒绝）": {
+      "action": "createProduct",
+      "status": 403,
+      "liveStatus": 403,
+      "edge": "native",
+      "auditDelta": 0,
+      "expectAudit": 0,
+      "equal": true
     }
   },
   "rowsFed": {
@@ -88,6 +133,50 @@
     "catalogOrders": 70,
     "reviews": 1,
     "orderStatus": 0
+  },
+  "auditInserts": [
+    {
+      "paramCount": 6,
+      "paramTypes": [
+        "string",
+        "string",
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "paramLengths": [
+        24,
+        0,
+        11,
+        11,
+        8,
+        0
+      ]
+    },
+    {
+      "paramCount": 6,
+      "paramTypes": [
+        "string",
+        "string",
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "paramLengths": [
+        24,
+        0,
+        11,
+        11,
+        8,
+        0
+      ]
+    }
+  ],
+  "keysPresent": {
+    "admin": true,
+    "readonly": true
   },
   "problems": []
 }

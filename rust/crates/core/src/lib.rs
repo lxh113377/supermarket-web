@@ -28,6 +28,7 @@
 //!   这一族差异收口在 [csv::js_number_to_string] 一个函数里，别在别处再写一遍。
 
 pub mod api_shapes;
+pub mod auth;
 pub mod cart;
 pub mod catalog;
 pub mod contract;

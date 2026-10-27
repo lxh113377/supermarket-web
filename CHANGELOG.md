@@ -1,4 +1,18 @@
 ## [未发布]
+### 2026-10-27 管理端第一批：鉴权层 + getProducts + 审计（端到端 13 用例全绿）
+- **鉴权层做成独立一批**（一次解锁 9 个只读动作）：`crates/core/src/auth.rs` 逐条对齐现网 ——
+  密钥**只走 body**（`web.js:21`；全仓无 x-admin-key/Authorization 通道）、常时比较（`security.js:17`）、
+  角色解析（`security.js:201`）、只读档**白名单默认拒**（`backend.js:91`）；三张动作表（PUBLIC 9 / ADMIN_READ 18 / ADMIN_WRITE 17）
+  由**用例去读 JS 源码逐条比对**（现网增删动作而边缘没跟 ⇒ 当场判红）。
+- **管理端第一条**：`crates/edge/src/api_admin.rs` 的 `getProducts`（products.js:88 的 `SELECT *`）+ 审计 INSERT
+  （security.js:113 逐字）+ sha256 前 8 hex 指纹；开关**独立**（`NATIVE_ADMIN_ACTIONS`，默认关）。
+- **端到端 13 用例全绿**（公开面 8 + 管理面 5）：管理面覆盖正确/错/无/只读密钥 × getProducts 与只读密钥 × createProduct，
+  全部与现网**逐字段相同**（含键序），**审计条数**也一致（读动作 +0、鉴权失败 +1、只读拒绝 +0 且根本没尝试写库）。
+- **夹具也加了两条腿**：mock D1 新增 `--record`（按形状记录收到的语句，**不记参数原值** —— 审计参数含 IP 与指纹）
+  与写语句原样接受（挡写路径会让审计静默丢失，而现网恰恰吞掉审计错误）。
+- SQL 判据扩到 **7 条 / 4 个文件**（新增管理端 SELECT 与审计 INSERT）。
+- **没做的（点名）**：审计的 5% 采样清理未复刻（随机数驱动的表体积管理，不是契约）；
+  login 限流与写动作审计未做；其余 8 个管理只读未端口（但鉴权与只读判定已生效）。
 ### 2026-10-27 公开读续做：getReviews / getOrderStatus 原生化（端到端 8 用例全绿，含一条实测纠正）
 
 - **做了什么**：`core::api_shapes` 新增 `review_row_to_json`（**照搬 JS 的 spread 语义**：按行自己的键序原样拷再覆盖 images —— 不写死字段清单，SQL 加列时不会静默漏字段）

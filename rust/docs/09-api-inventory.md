@@ -9,8 +9,8 @@
 |---|---|---|
 | 端点槽位 | **44** | `/web 35` + `/pub 9`（同一动作可同时挂在两端） |
 | 去重后的动作名 | **37** | 7 个名字双端同源（如 createOrder / getReviews / getOrderStatus / addPublicReview / createSubmission 等） |
-| 已原生化 | **5** | getPublicProducts / getPublicCategories / getCatalogOrders（第 3 轮）+ getReviews / getOrderStatus（第 5 轮）——均见 docs/08 |
-| **剩余** | **32** | 委派审计清单 34 条 − 第 5 轮完成的 getReviews/getOrderStatus 两条 |
+| 已原生化 | **6** | getPublicProducts / getPublicCategories / getCatalogOrders（第 3 轮）+ getReviews / getOrderStatus（第 5 轮）+ **getProducts（第 6 轮，管理端第一条）**——均见 docs/08 |
+| **剩余** | **31** | 委派审计清单 34 条 − 第 5 轮 2 条 − 第 6 轮 getProducts 1 条（**鉴权层已就绪**，其余 8 个管理只读可批量推进） |
 
 **结论**：目标里的「45」应按 **44 槽 / 37 名** 执行；写代码前先对齐数字，免得后面按错误分母报进度。
 
@@ -68,8 +68,8 @@
 
 1. ~~公开读的剩余两个~~ **已于第 5 轮完成**（docs/08 §2b：8 个端到端用例全绿）；**注意实况纠正**——这两个动作现网**没有** KV 缓存，
    原生化时它们**不能**进微缓存（多缓存一次就是行为改变），判据里已按「不可缓存必须不 hit」钉住；
-2. **管理端只读 + 鉴权**：getProducts / getStockMovements / getEventLog ——
-   先落 ADMIN_KEY 鉴权（含 401 形状与 role 判定）并配**鉴权对账**（错值必须 401、对值必须 200），再谈数据；
+2. ~~管理端只读 + 鉴权~~ **第 6 轮已完成鉴权层与第一条 getProducts**（docs/08 §2c：鉴权语义 + 三张动作表同步 + 审计写入条数全绿）；
+   其余 8 个管理只读（getStockMovements / getEventLog / getOrders / getOrder / getStalePendingReport / getDashboardStats / getPromotions / aiAdvice）**可直接沿用**，只差各自的 SQL 与映射；
 3. **带依赖的读**：getDashboardStats（KV 分键缓存语义要抄准）、getOrders（LEFT JOIN）；
 4. **写动作**：createOrder 先行，但必须带幂等指纹、库存占用与并发校验的值级对账；
    login / aiAdvice / aiChat 按 §3 的结论**并入写动作档**。
