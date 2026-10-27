@@ -9,8 +9,8 @@
 |---|---|---|
 | 端点槽位 | **44** | `/web 35` + `/pub 9`（同一动作可同时挂在两端） |
 | 去重后的动作名 | **37** | 7 个名字双端同源（如 createOrder / getReviews / getOrderStatus / addPublicReview / createSubmission 等） |
-| 已原生化 | **17** | 公开面 5：getPublicProducts / getPublicCategories / getCatalogOrders / getReviews / getOrderStatus；管理面 8：getProducts（第 6 轮）、getAllReviews / getSubmissions / getSubmissionImages / getEventLog（第 7 轮）、getStockMovements（第 8~9 轮）、**getOrders / getOrder（第 10 轮）**、**verifyKey / stalePendingReport（第 11 轮）**、**getPromotions（第 12 轮）**、**getDashboardStats（第 13 轮）** ——均见 docs/08 |
-| **剩余** | **20** | 34 − 第 5 轮 2 − 第 6 轮 1 − 第 7 轮 4 − 第 9 轮 1 − 第 10 轮 2（剩 getDashboardStats 的 KV 分键缓存、getPromotions 聚合、stalePendingReport、verifyKey，以及全部写动作与 login/两个 AI 动作） |
+| 已原生化 | **18** | 公开面 5：getPublicProducts / getPublicCategories / getCatalogOrders / getReviews / getOrderStatus；管理面 8：getProducts（第 6 轮）、getAllReviews / getSubmissions / getSubmissionImages / getEventLog（第 7 轮）、getStockMovements（第 8~9 轮）、**getOrders / getOrder（第 10 轮）**、**verifyKey / stalePendingReport（第 11 轮）**、**getPromotions（第 12 轮）**、**getDashboardStats（第 13 轮）**、**deleteReview（第 14~15 轮，写动作第一条）** ——均见 docs/08 |
+| **剩余** | **19** | 34 − 第 5 轮 2 − 第 6 轮 1 − 第 7 轮 4 − 第 9 轮 1 − 第 10 轮 2（剩 getDashboardStats 的 KV 分键缓存、getPromotions 聚合、stalePendingReport、verifyKey，以及全部写动作与 login/两个 AI 动作） |
 
 **结论**：目标里的「45」应按 **44 槽 / 37 名** 执行；写代码前先对齐数字，免得后面按错误分母报进度。
 

@@ -1,5 +1,5 @@
 {
-  "at": "2026-10-27T14:35:11.182Z",
+  "at": "2026-10-27T15:29:32.165Z",
   "live": "https://supermarket-web.pages.dev",
   "edge": "http://127.0.0.1:5198",
   "mode": "JSON 列=已解析",
@@ -46,7 +46,7 @@
     "getOrderStatus（未知订单号：错误路径）": {
       "action": "getOrderStatus",
       "payload": {
-        "orderId": "o_not_exist_1793111692714"
+        "orderId": "o_not_exist_1793114951783"
       },
       "status": 404,
       "edge": "native",
@@ -323,6 +323,25 @@
       "auditDelta": 0,
       "expectAudit": 0,
       "equal": true
+    },
+    "deleteReview（成功形态）": {
+      "action": "deleteReview",
+      "status": 200,
+      "edge": "native",
+      "statements": [
+        "DELETE FROM reviews WHERE _id = ?",
+        "INSERT INTO security_events (ts, ip, act"
+      ],
+      "ok": true
+    },
+    "deleteReview（缺 reviewId ⇒ 400）": {
+      "action": "deleteReview",
+      "status": 400,
+      "edge": "native",
+      "statements": [
+        "INSERT INTO security_events (ts, ip, act"
+      ],
+      "ok": true
     }
   },
   "rowsFed": {
@@ -334,7 +353,7 @@
   },
   "staleWideObservation": {
     "status": 200,
-    "count": 96,
+    "count": 99,
     "stockReservedLen": 0,
     "thresholdMinutes": 10080,
     "note": "非空窗路径不做逐字节对比（响应无 createdAt、cutoff 含当前时刻）⇒ 组装语义由 core 的 5 条用例钉住；此处只记录现网形状"
@@ -374,6 +393,44 @@
         0,
         11,
         11,
+        8,
+        0
+      ]
+    },
+    {
+      "paramCount": 6,
+      "paramTypes": [
+        "string",
+        "string",
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "paramLengths": [
+        24,
+        0,
+        12,
+        2,
+        8,
+        0
+      ]
+    },
+    {
+      "paramCount": 6,
+      "paramTypes": [
+        "string",
+        "string",
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "paramLengths": [
+        24,
+        0,
+        12,
+        4,
         8,
         0
       ]

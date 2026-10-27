@@ -632,6 +632,53 @@ if (!keys.admin) {
     report.cases[c.name] = entry
     console.log(c.name + '：原生=' + (nativeR.edge === 'native') + '｜与现网相同=' + entry.equal + '｜HTTP ' + nativeR.status + '/' + liveR.status + '｜审计 +' + auditDelta)
   }
+  // ── ⑥ 写动作（**只对本地边缘**）────────────────────────────────────────────
+  // 硬边界：**绝不对现网发写请求** —— 那会真改生产数据（真实订单/评价/库存）。
+  // 所以写动作的判据是「语句序列 + 参数形状 + 响应封套 + 审计条数」，而不是与现网逐字节比。
+  // 这也意味着：写动作的**值级**等价性只由 core 单测与 SQL 逐字判据保证，不靠线上对账（已写进 docs/08 §2k）。
+  const writeCases = []
+  if (keys.admin) {
+    // 用一个**不存在**的 reviewId：现网 deleteReview 不看影响行数，恒回 {code:0}（所以线上也不会被这次调用改变状态）
+    writeCases.push({
+      name: "deleteReview（成功形态）", action: "deleteReview", payload: { reviewId: "r_write_probe_2026" },
+      expect: { code: 0 },
+      expectStatements: [{ prefix: "DELETE FROM reviews", params: 1 }, { prefix: "INSERT INTO security_events", params: 6, resultLen: 2 }],
+    })
+    writeCases.push({
+      name: "deleteReview（缺 reviewId ⇒ 400）", action: "deleteReview", payload: {},
+      expect: { code: -1, errorCode: "missing_review_id" },
+      // 失败也审计（现网 backend.js:204 对写动作无论成败都落 ok/fail；fail 的长度是 4）
+      expectStatements: [{ prefix: "INSERT INTO security_events", params: 6, resultLen: 4 }],
+    })
+  }
+  for (const c of writeCases) {
+    const before = auditRoster().length
+    const nativeR = await postWeb(base, c.action, keys.admin, c.payload) // ← 本地边缘；现网一次都不打
+    const added = auditRoster().slice(before)
+    const entry = { action: c.action, status: nativeR.status, edge: nativeR.edge, statements: added.map((s) => s.sql.slice(0, 40)), ok: true }
+    if (nativeR.edge !== "native") problems.push(c.name + "：x-edge=" + nativeR.edge + "（不是原生分支）")
+    for (const [k, v] of Object.entries(c.expect)) {
+      if (nativeR.json[k] !== v) { entry.ok = false; problems.push(c.name + "：响应字段 " + k + "=" + nativeR.json[k] + "，期望 " + v) }
+    }
+    if (added.length !== c.expectStatements.length) {
+      entry.ok = false
+      problems.push(c.name + "：语句条数 " + added.length + "，期望 " + c.expectStatements.length + "（" + added.map((s) => s.sql.slice(0, 30)).join(" | ") + "）")
+    } else {
+      c.expectStatements.forEach((want, i) => {
+        const got = added[i]
+        if (!got.sql.startsWith(want.prefix) || got.paramCount !== want.params) {
+          entry.ok = false
+          problems.push(c.name + "：第 " + (i + 1) + " 条语句形状不符（" + got.sql.slice(0, 30) + " / params=" + got.paramCount + "）")
+        }
+        if (want.resultLen !== undefined && got.paramLengths[3] !== want.resultLen) {
+          entry.ok = false
+          problems.push(c.name + "：审计 result 长度 " + got.paramLengths[3] + "，期望 " + want.resultLen + "（2=ok / 4=fail）")
+        }
+      })
+    }
+    report.cases[c.name] = entry
+    console.log(c.name + "：原生=" + (nativeR.edge === "native") + "｜HTTP " + nativeR.status + "｜语句 " + added.map((s) => s.sql.slice(0, 24)).join(" → "))
+  }
   // 审计行的形状断言（不判参数原值：那里面有 IP 与密钥指纹）
   const inserts = auditRoster().filter((r) => r.isWrite && /INSERT INTO security_events/.test(r.sql))
   report.auditInserts = inserts.map((r) => ({ paramCount: r.paramCount, paramTypes: r.paramTypes, paramLengths: r.paramLengths }))
@@ -644,7 +691,7 @@ writeFileSync(jsonOut, JSON.stringify({ ...report, problems }, null, 2) + '\n')
 console.log('原始读数 ' + jsonOut)
 console.log(problems.length
   ? '\nGATE-FAIL check-api-native-e2e：' + problems.length + ' 项\n  - ' + problems.join('\n  - ')
-  : '\nGATE-PASS check-api-native-e2e：公开面 8 个用例 + 管理面 26 个用例\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
+  : '\nGATE-PASS check-api-native-e2e：公开面 8 + 管理读 26 + 写 2（写入只打本地边缘）= 36 个用例\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
 
 edge.kill()
 mock.kill()

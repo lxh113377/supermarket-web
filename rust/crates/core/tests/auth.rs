@@ -1,4 +1,4 @@
-//! 鉴权层的用例：语义 + **三张动作表与现网 JS 的同步性**。
+//! 鉴权层的用例：语义 + **四张动作表与现网 JS 的同步性**。
 //!
 //! 最后一条（action_sets_match_js_source）是这套判据里最值钱的一条：
 //! 它去读现网源码、把 new Set([...]) 块解出来与 Rust 常量逐条比 ——
@@ -8,8 +8,9 @@ use serde_json::json;
 use std::fs;
 use std::path::PathBuf;
 use supermarket_core::auth::{
-    check_auth, check_readonly, constant_time_equal, is_public_action, resolve_role, Role,
-    ADMIN_READ_ACTIONS, ADMIN_WRITE_ACTIONS, PUBLIC_ACTIONS,
+    check_auth, check_readonly, constant_time_equal, is_dashboard_write_action,
+    is_public_action, resolve_role, Role, ADMIN_READ_ACTIONS, ADMIN_WRITE_ACTIONS,
+    DASHBOARD_WRITE_ACTIONS, PUBLIC_ACTIONS,
 };
 
 #[test]
@@ -92,11 +93,16 @@ fn b_action_sets_match_js_source() {
         .expect("读不到 backend.js");
 
     let mut problems = Vec::new();
-    let checks: [(&str, Vec<String>, Vec<&str>); 3] = [
+    let checks: [(&str, Vec<String>, Vec<&str>); 4] = [
         ("PUBLIC_ACTIONS", js_set(&security, "export const PUBLIC_ACTIONS = new Set(["), PUBLIC_ACTIONS.to_vec()),
         ("ADMIN_READ_ACTIONS", js_set(&backend, "const ADMIN_READ_ACTIONS = new Set(["), ADMIN_READ_ACTIONS.to_vec()),
         ("ADMIN_WRITE_ACTIONS", js_set(&backend, "const ADMIN_WRITE_ACTIONS = new Set(["), ADMIN_WRITE_ACTIONS.to_vec()),
+        // 第 14 轮补的第 4 张表：看板失效面（现网 backend.js:65）
+        ("DASHBOARD_WRITE_ACTIONS", js_set(&backend, "const DASHBOARD_WRITE_ACTIONS = new Set(["), DASHBOARD_WRITE_ACTIONS.to_vec()),
     ];
+    // 顺手验两个判定函数与表一致（表对了、判定写错也是事故）
+    assert!(is_dashboard_write_action("deleteReview"));
+    assert!(!is_dashboard_write_action("getProducts"));
     for (name, js, rust) in checks {
         let mut js_sorted = js.clone();
         js_sorted.sort();

@@ -84,6 +84,22 @@ pub fn resolve_role(
     None
 }
 
+/// `backend.js:65` —— **会影响看板聚合**的写动作：成功后必须让看板缓存即时失效，
+/// 否则「提交后立即可见」的语义被 60s 缓存破坏（现网注释原话）。
+pub const DASHBOARD_WRITE_ACTIONS: [&str; 16] = [
+    "createProduct", "updateProduct", "deleteProduct", "batchUpdateProducts", "batchDeleteProducts",
+    "createOrder", "deleteOrder", "updateOrderStatus", "recalculateOrders",
+    "addReview", "addPublicReview", "deleteReview", "seedReviews",
+    "createSubmission", "updateSubmissionStatus", "deleteSubmission",
+];
+
+pub fn is_admin_write_action(action: &str) -> bool {
+    ADMIN_WRITE_ACTIONS.contains(&action)
+}
+
+pub fn is_dashboard_write_action(action: &str) -> bool {
+    DASHBOARD_WRITE_ACTIONS.contains(&action)
+}
 pub fn is_public_action(action: &str) -> bool {
     PUBLIC_ACTIONS.contains(&action)
 }

@@ -49,6 +49,10 @@ pub const SQL_ORDERS_PAGE: &str = r#"SELECT o._id, o.roomNumber, o.items, o.tota
 /// orders.js:546 —— 单订单详情（`o.*` + LEFT JOIN 的两列）。
 pub const SQL_ORDER_BY_ID: &str = r#"SELECT o.*, COALESCE(d.discountAmount, 0) AS discountAmount, COALESCE(d.promotionId, '') AS promotionId FROM orders o LEFT JOIN order_discounts d ON d.orderId = o._id WHERE o._id = ?"#;
 
+// ── 写动作（第 14 轮起）────────────────────────────────────────────
+/// reviews.js:57 —— 删除一条评价（单语句；没有库存/订单那种多语句的中间态风险）。
+pub const SQL_DELETE_REVIEW: &str = r#"DELETE FROM reviews WHERE _id = ?"#;
+
 /// stats.js:207 —— 看板用的订单快照（上限 5000，按 createdAt 倒序；聚合全在 JS/Rust 侧做）。
 pub const SQL_STATS_ORDERS: &str = r#"SELECT _id, roomNumber, items, totalAmount, status, createdAt FROM orders ORDER BY createdAt DESC LIMIT 5000"#;
 /// stats.js:212 —— 近 14 天评价（窗口边界仍由聚合函数按 UTC+8 重算）。
@@ -89,7 +93,7 @@ pub const EVENT_LIMIT_DEFAULT: i64 = 50;
 pub const EVENT_LIMIT_MAX: i64 = 100;
 
 /// 在册的管理端原生动作（第 6 轮 getProducts；第 7 轮 4 个单表只读；第 8~9 轮 getStockMovements）。
-pub const ADMIN_NATIVE_ACTIONS: [&str; 12] = [
+pub const ADMIN_NATIVE_ACTIONS: [&str; 13] = [
     "getProducts",
     "getAllReviews",
     "getSubmissions",
@@ -102,6 +106,7 @@ pub const ADMIN_NATIVE_ACTIONS: [&str; 12] = [
     "stalePendingReport",
     "getPromotions",
     "getDashboardStats",
+    "deleteReview",
 ];
 
 /// 开关：未设 ⇒ 全关；all 或逗号分隔的动作名（大小写无关）。
@@ -205,7 +210,10 @@ pub async fn call_admin(
     }
     // ③ 派发（只服务已实现的动作；未实现 ⇒ None ⇒ 透传，且不重复鉴权）
     let d1 = app.d1.as_ref()?;
-    match action {
+    // 把结果接住再统一做写动作后处理（现网 backend.js:196-206 的顺序：**先失效、后审计**）。
+    // 另一条纪律：**多语句写动作不许走「失败即回落透传」** —— 第一条语句已生效时回落会让上游重放；
+    // 目前只有单语句写（deleteReview），所以 `.ok()?` 回落是安全的；下一批 createOrder 必须改成显式错误。
+    let result = match action {
         "getProducts" => {
             let rows = d1.query_rows(SQL_GET_PRODUCTS, &[]).await.ok()?;
             let data: Vec<Value> = rows
@@ -477,8 +485,53 @@ pub async fn call_admin(
                 ),
             }))
         }
+        "deleteReview" => {
+            // 现网 reviews.js:55：const { reviewId } = payload; if (!reviewId) return fail(...)（真值判定）
+            let raw = payload.and_then(|p| p.get("reviewId"));
+            let truthy = match raw {
+                Some(Value::String(s)) => !s.is_empty(),
+                Some(Value::Number(n)) => n.as_f64().map(|x| x != 0.0).unwrap_or(false),
+                Some(Value::Bool(b)) => *b,
+                _ => false,
+            };
+            if !truthy {
+                // **不能提前 return**：现网是把 fail 封套交给统一的写后处理（因此失败也会审计）。
+                // 第一版写成 early return，判据当场抓到「缺 reviewId 时语句条数 0、期望 1」。
+                Some(supermarket_core::errors::fail(
+                    "missing_review_id",
+                    "缺少 reviewId",
+                    Default::default(),
+                ))
+            } else {
+                let id = match raw {
+                    Some(Value::String(s)) => s.clone(),
+                    Some(Value::Number(n)) => n.to_string(),
+                    Some(Value::Bool(b)) => b.to_string(),
+                    _ => return None,
+                };
+                // 现网 deleteReview 不看影响行数（删不存在的 id 也回 code 0）
+                let _affected = d1.query(SQL_DELETE_REVIEW, &[json!(id)]).await.ok()?;
+                Some(json!({ "code": 0 }))
+            }
+        }
         _ => None,
+    };
+
+    // ④ 写动作后处理（现网 backend.js:196-206 同义顺序）
+    if let Some(value) = &result {
+        let ok = supermarket_core::contract::is_success(value);
+        if ok && supermarket_core::auth::is_dashboard_write_action(action) {
+            // 看板/aiAdvice 同层失效：现网 invalidateDashboard 删 KV 的 9 个区间键；
+            // 边缘侧的微缓存键里带动作名 ⇒ 按动作名清理即可（语义等价：写后不再命中旧快照）。
+            let mut guard = app.cache.lock().await;
+            guard.retain(|k, _| !k.contains(":getDashboardStats:"));
+        }
+        if supermarket_core::auth::is_admin_write_action(action) {
+            // 现网：写动作**无论成败**都审计（result = ok / fail）
+            audit(app, action, if ok { "ok" } else { "fail" }, admin_key, ip).await;
+        }
     }
+    result
 }
 
 /// 把 D1 回的值当数字读（COUNT(*) 可能是数字，也可能是数字字符串 —— 现网走 Number(x)）。

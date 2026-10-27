@@ -1,4 +1,17 @@
 ## [未发布]
+### 2026-10-27 写动作第一条：deleteReview + 写路径机器（端到端 36 用例全绿）
+- **进度 18 / 37**（剩余 19）：新增 `deleteReview`（单语句写）+ 写路径机器（失效 → 审计）。
+- **硬边界**：写动作**绝不对现网做对账**（会真改生产数据）⇒ 判据换成「SQL 逐字 + 语句序列/参数形状（mock `--record`）+ core 单测」，
+  并明确记录「不做的腿」是什么。写用例在夹具里只对本地边缘发请求。
+- **写路径机器的三条要点**（照抄现网 backend.js:196-206）：① **先失效、后审计**；② 审计对全部 `ADMIN_WRITE_ACTIONS` **无论成败**落 ok/fail；
+  ③ **两套失效面不是一套**（目录面 3 键 vs 看板面 9 键 + aiAdvice，`adjustStock` 只在目录面）；/pub 写路径**零审计**且有自己的 `rate:write:<ip>` 限流。
+- **判据抓出的一处真实偏离**：第一版在「缺 reviewId」时提前 return，绕过统一后处理 ⇒ 失败没审计（现网「失败也审计」）；
+  判据当场报 `语句条数 0，期望 1`，改成把失败封套交给后处理。**读动作里同样的提前 return 暂时无害，但下一批写动作必须小心同一个坑**。
+- **给多语句写的纪律**（`createOrder` 之前必读）：现在的 D1 失败走 `.ok()?` 回落透传，只对单语句写安全；
+  多语句写必须改成**显式错误路径**（不回落），并写清每一步的失败补偿（`releaseStock`）。
+- **端到端 36 用例全绿**（公开面 8 + 管理读 26 + 写 2）：写用例断言语句序列与审计参数形状
+  （`DELETE FROM reviews` → `INSERT security_events`；result 长度 2=ok / 4=fail）；SQL 判据 **23 条语句 / 8 个文件**。
+- 四张动作表的同步判据扩到 4 张（新增 `DASHBOARD_WRITE_ACTIONS`，现网 backend.js:65）。
 ### 2026-10-27 管理端第七批：getDashboardStats 原生化（端到端 34 用例全绿）
 - **新增 1 个原生动作**（进度 **17 / 37**，剩余 20）：三张表（orders LIMIT 5000 / reviews WHERE createdAt >= ? / products LIMIT 1000）
   + 六个聚合（rangeData / delta / reviewTrend / margin / pieSegments / topRevenue）+ UTC+8 分桶；抽 `crates/core/src/stats.rs`（10 条用例）。
