@@ -1,5 +1,5 @@
 {
-  "at": "2026-10-27T12:53:12.147Z",
+  "at": "2026-10-27T13:41:29.868Z",
   "live": "https://supermarket-web.pages.dev",
   "edge": "http://127.0.0.1:5198",
   "mode": "JSON 列=已解析",
@@ -46,7 +46,7 @@
     "getOrderStatus（未知订单号：错误路径）": {
       "action": "getOrderStatus",
       "payload": {
-        "orderId": "o_not_exist_1793105576552"
+        "orderId": "o_not_exist_1793108471540"
       },
       "status": 404,
       "edge": "native",
@@ -261,6 +261,33 @@
       "expectAudit": 0,
       "equal": true
     },
+    "verifyKey（正确密钥 ⇒ role:admin）": {
+      "action": "verifyKey",
+      "status": 200,
+      "liveStatus": 200,
+      "edge": "native",
+      "auditDelta": 0,
+      "expectAudit": 0,
+      "equal": true
+    },
+    "verifyKey（只读密钥 ⇒ role:readonly）": {
+      "action": "verifyKey",
+      "status": 200,
+      "liveStatus": 200,
+      "edge": "native",
+      "auditDelta": 0,
+      "expectAudit": 0,
+      "equal": true
+    },
+    "stalePendingReport（minutes=10080，非空窗）": {
+      "action": "stalePendingReport",
+      "status": 200,
+      "liveStatus": 200,
+      "edge": "native",
+      "auditDelta": 0,
+      "expectAudit": 0,
+      "equal": true
+    },
     "getProducts（只读密钥，白名单内）": {
       "action": "getProducts",
       "status": 200,
@@ -286,6 +313,13 @@
     "catalogOrders": 70,
     "reviews": 1,
     "orderStatus": 0
+  },
+  "staleWideObservation": {
+    "status": 200,
+    "count": 96,
+    "stockReservedLen": 0,
+    "thresholdMinutes": 10080,
+    "note": "非空窗路径不做逐字节对比（响应无 createdAt、cutoff 含当前时刻）⇒ 组装语义由 core 的 5 条用例钉住；此处只记录现网形状"
   },
   "auditInserts": [
     {

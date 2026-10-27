@@ -369,7 +369,9 @@ if (keys.admin) {
   // 注意 IN 的占位符个数由「我方 rows 的商品集合」决定，所以这条 SQL 文本是可算的。
   const staleIds = []
   for (const row of pendingRows) {
-    for (const it of JSON.parse(row.items)) {
+    // parsed 模式下 items 本身就是数组（asText 没做 stringify）⇒ 无条件 JSON.parse 会炸在 "[object Object]"
+    const items = typeof row.items === 'string' ? JSON.parse(row.items) : row.items
+    for (const it of items) {
       if (it && it.productId && staleIds.indexOf(it.productId) < 0) staleIds.push(it.productId)
     }
   }
