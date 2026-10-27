@@ -245,3 +245,40 @@ SQL 判据现覆盖 **13 条语句 / 7 个文件**（新增两条流水查询）
 
 - `getOrders` / `getOrder`（orders LEFT JOIN order_discounts）、`getDashboardStats`（KV 分键缓存）、
   `getPromotions`（按档聚合）、`stalePendingReport`（双表读）仍未端口；全部写动作与 `login`/两个 AI 动作也未动。
+
+## 2f. 管理端第四批：getOrders / getOrder（第 10 轮）
+
+| 动作 | SQL 来源 | 形状要点 |
+|---|---|---|
+| getOrders | orders.js:533（orders LEFT JOIN order_discounts） | **四处派生同源**：`whereClause` / `orderByCol` / 方向 / 参数前缀都由同一个 `since` 判定派生；响应是 `{code,data,hasMore,page,pageSize}`，**data 是数组、无 total**；`LIMIT = pageSize+1`（多取一条判 hasMore），`hasMore = rows.length > pageSize`，`data = hasMore ? rows.slice(0,pageSize) : rows` |
+| getOrder | orders.js:546（`o.*` + LEFT JOIN 两列） | 查不到 ⇒ **`{code:0,data:null}`**（不是 404：`order_not_found` 只用于别的动作）；`data` 是**对象或 null**；行映射 `{...row, items: jparse, paymentScreenshot: row.paymentScreenshot || ''}` |
+
+### 2f.1 新增的两条判据腿（都是被红逼出来的）
+
+1. **mock 改成参数感知**（键 = `SQL|params`，回落纯 SQL 键）：同一条 SQL 在不同分页参数下会回不同的行
+   （LIMIT/OFFSET 在参数里），只用 SQL 当键会让两个分页用例互相覆盖 ⇒ 判据变成假绿/假红。
+2. **夹具喂「原始行窗口」而不是现网的已裁切视图**：现网 `data` 已被 `slice(0,pageSize)` 裁到 50 条（多余那条被丢去判 hasMore），
+   而 Rust 侧 SQL 的 LIMIT 是 `pageSize+1` ⇒ 直接喂现网 data 会让两边在 `hasMore` 上**天然不同**（第一版 4 条 getOrders 全红就是这个原因）。
+   正确做法：先取同排序的大页（`pageSize=100`，需要时拼两页凑够 101 条原始行），再按 offset/fetch 切出 SQL 真正会返回的那几行。
+   这两条都不是实现缺陷 —— 是**夹具在说谎**，而判据把它抓了出来。
+
+### 2f.2 端到端读数（新增 6 条，总数 8 + 22 = 30）
+
+| 用例 | 原生 | 与现网 | HTTP |
+|---|---|---|---|
+| getOrders（默认分页 50） | ✅ | ✅ 逐字段相同（含 hasMore/page/pageSize） | 200 |
+| getOrders（page=2 & pageSize=5） | ✅ | ✅ | 200 |
+| getOrders（pageSize=101 ⇒ 钳 100） | ✅ | ✅ | 200 |
+| getOrders（since 增量：updatedAt ASC） | ✅ | ✅ | 200 |
+| getOrder（未知 id ⇒ data:null） | ✅ | ✅ | 200 / 200 |
+| getOrder（真实 id） | ✅ | ✅ | 200 / 200 |
+
+SQL 判据现覆盖 **15 条语句 / 7 个文件**；核心侧新增 `crates/core/src/orders_query.rs`（5 条用例钉住分页归一、since 真值判定、
+四处派生同源、`hasMore`/slice 语义、两处行映射）。
+
+### 2f.3 还没做的（点名）
+
+- `getDashboardStats`（KV 分键缓存 + 三表聚合）、`getPromotions`（按档聚合）、`stalePendingReport`（双表读）、`verifyKey`（纯鉴权语义，可并入鉴权层）；
+- `getOrder` 的 **`orderId=undefined` 边界**：现网会把 undefined 直接绑进 SQL（仓内无测试），本实现**明确回落透传**而不是猜；
+  这条要现网复核，已在 docs/09 登记为待办（子代理侦察时也点名过）。
+- 全部写动作与 `login`/两个 AI 动作仍未动。

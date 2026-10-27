@@ -56,7 +56,11 @@ const server = http.createServer((req, res) => {
       res.end(JSON.stringify({ success: true, result: [{ results: [], success: true, meta: { changes: 1, rows_read: 0 } }] }))
       return
     }
-    const rows = normTable[sql]
+    // 参数感知：先查「SQL|params」复合键，再回落纯 SQL 键。
+    // 为什么需要：同一条 SQL 在**不同分页参数**下会回不同的行（LIMIT/OFFSET 在参数里），
+    // 只用 SQL 当键的话，两个分页用例会互相覆盖、判据变成假绿/假红。
+    const paramKey = sql + '|' + JSON.stringify(Array.isArray(parsed.params) ? parsed.params : [])
+    const rows = normTable[paramKey] || normTable[sql]
     if (!rows) {
       // 不认识的 SQL **不回空表**：空表会被读成「库里没有行」，那是假绿
       res.writeHead(400, { 'content-type': 'application/json' })

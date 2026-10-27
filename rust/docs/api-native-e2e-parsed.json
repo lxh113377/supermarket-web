@@ -1,5 +1,5 @@
 {
-  "at": "2026-10-27T12:12:50.674Z",
+  "at": "2026-10-27T12:53:12.147Z",
   "live": "https://supermarket-web.pages.dev",
   "edge": "http://127.0.0.1:5198",
   "mode": "JSON 列=已解析",
@@ -46,7 +46,7 @@
     "getOrderStatus（未知订单号：错误路径）": {
       "action": "getOrderStatus",
       "payload": {
-        "orderId": "o_not_exist_1793103157305"
+        "orderId": "o_not_exist_1793105576552"
       },
       "status": 404,
       "edge": "native",
@@ -200,6 +200,60 @@
     },
     "getStockMovements（limit/offset 钳制）": {
       "action": "getStockMovements",
+      "status": 200,
+      "liveStatus": 200,
+      "edge": "native",
+      "auditDelta": 0,
+      "expectAudit": 0,
+      "equal": true
+    },
+    "getOrders（默认分页 50）": {
+      "action": "getOrders",
+      "status": 200,
+      "liveStatus": 200,
+      "edge": "native",
+      "auditDelta": 0,
+      "expectAudit": 0,
+      "equal": true
+    },
+    "getOrders（page=2&pageSize=5）": {
+      "action": "getOrders",
+      "status": 200,
+      "liveStatus": 200,
+      "edge": "native",
+      "auditDelta": 0,
+      "expectAudit": 0,
+      "equal": true
+    },
+    "getOrders（pageSize=101 ⇒ 钳 100）": {
+      "action": "getOrders",
+      "status": 200,
+      "liveStatus": 200,
+      "edge": "native",
+      "auditDelta": 0,
+      "expectAudit": 0,
+      "equal": true
+    },
+    "getOrders（since 增量：updatedAt ASC）": {
+      "action": "getOrders",
+      "status": 200,
+      "liveStatus": 200,
+      "edge": "native",
+      "auditDelta": 0,
+      "expectAudit": 0,
+      "equal": true
+    },
+    "getOrder（未知 id ⇒ data:null）": {
+      "action": "getOrder",
+      "status": 200,
+      "liveStatus": 200,
+      "edge": "native",
+      "auditDelta": 0,
+      "expectAudit": 0,
+      "equal": true
+    },
+    "getOrder（真实 id）": {
+      "action": "getOrder",
       "status": 200,
       "liveStatus": 200,
       "edge": "native",

@@ -1,4 +1,18 @@
 ## [未发布]
+### 2026-10-27 管理端第四批：getOrders / getOrder 原生化（端到端 30 用例全绿）
+- **新增 2 个原生动作**：getOrders（orders.js:533，orders LEFT JOIN order_discounts）与 getOrder（orders.js:546，o.* + 两列）；进度 **13 / 37**（剩余 24）。
+- **四处派生同源**：getOrders 的 whereClause / orderByCol / 排序方向 / 参数前缀都由同一个 since 判定派生
+  （抽 `crates/core/src/orders_query.rs`，纯函数 + 5 条用例）。手写四遍最易犯的错是「WHERE 用了 since 但排序没用」——那会让增量游标永远推不动，而列表看起来有数据。
+- **形状细节照实抄**：getOrders 回 `{code,data,hasMore,page,pageSize}`（data 是数组、**无 total**；LIMIT=pageSize+1、hasMore=rows.length>pageSize、data=hasMore?slice:rows）；
+  getOrder 查不到回 **`{code:0,data:null}`**（不是 404）、data 是对象或 null、paymentScreenshot 走 falsy 归一成空串。
+- **两条夹具缺陷被判据抓出（都不是实现缺陷）**：
+  ① mock 原是「只用 SQL 当键」⇒ 同 SQL 不同分页参数的两个用例互相覆盖；改成 **参数感知**（键 = SQL|params）；
+  ② 夹具原把**现网已裁切的 data** 当原始行喂进去，而 Rust 侧 SQL 的 LIMIT 是 pageSize+1 ⇒ 两边 hasMore 天然不同
+  （第一版 4 条 getOrders 全红）；改成取同排序大页（需要时拼两页凑够 101 条）再按 offset/fetch 切窗口。
+- **端到端 30 个用例全绿**（公开面 8 + 管理面 22）：新增 6 条（getOrders 四个分页/增量变体 + getOrder 未知 id 与真实 id），
+  全部与现网**逐字段相同**（含 hasMore/page/pageSize）。SQL 判据扩到 **15 条语句 / 7 个文件**。
+- **没做的（点名）**：getDashboardStats（KV 分键缓存 + 三表聚合）、getPromotions（聚合）、stalePendingReport、verifyKey；
+  getOrder 的 `orderId=undefined` 边界现网行为仓内无测试 ⇒ 本实现明确回落透传（登记待办）；全部写动作与 login/两个 AI 动作仍未动。
 ### 2026-10-27 管理端第三批：getStockMovements 原生化（双查询 + 动态 WHERE；端到端 24 用例全绿）
 - **新增 1 个原生动作**（这批刻意留到最后做）：getStockMovements —— 现网要跑**两条查询**（主查询 + COUNT），
   两条必须共用同一 WHERE 与参数；进度 **11 / 37**（剩余 26）。

@@ -44,6 +44,16 @@ pub const SQL_SUBMISSION_IMAGES: &str = r#"SELECT images FROM submissions WHERE 
 /// events.js:31 —— 事件时间线（按 at 升序、同刻按 id 升序；limit 钳 [1,100]）。
 pub const SQL_EVENT_TIMELINE: &str = r#"SELECT type, at, orderId, status, totalAmount, discountAmount, createdAt FROM event_log WHERE orderId = ? ORDER BY at ASC, id ASC LIMIT ?"#;
 
+/// orders.js:533 —— 订单分页（三处派生标记与现网模板串**逐字一致**，判据据此比对；运行时 replace 注入）。
+pub const SQL_ORDERS_PAGE: &str = r#"SELECT o._id, o.roomNumber, o.items, o.totalAmount, o.status, o.createdAt, o.wechat, o.remark, o.updatedAt, COALESCE(d.discountAmount, 0) AS discountAmount, COALESCE(d.promotionId, '') AS promotionId FROM orders o LEFT JOIN order_discounts d ON d.orderId = o._id ${whereClause} ORDER BY ${orderByCol} ${since ? 'ASC' : 'DESC'} LIMIT ? OFFSET ?"#;
+/// orders.js:546 —— 单订单详情（`o.*` + LEFT JOIN 的两列）。
+pub const SQL_ORDER_BY_ID: &str = r#"SELECT o.*, COALESCE(d.discountAmount, 0) AS discountAmount, COALESCE(d.promotionId, '') AS promotionId FROM orders o LEFT JOIN order_discounts d ON d.orderId = o._id WHERE o._id = ?"#;
+
+/// 三个派生标记（现网模板串里的原样文本；集中放这里，避免多处手写走样）。
+const MARK_WHERE: &str = "${whereClause}";
+const MARK_ORDER_COL: &str = "${orderByCol}";
+const MARK_DIR: &str = "${since ? 'ASC' : 'DESC'}";
+
 /// 审计表的写入语句（security.js:113 逐字）。
 pub const SQL_AUDIT_INSERT: &str =
     r#"INSERT INTO security_events (ts, ip, action, result, keyFingerprint, detail) VALUES (?, ?, ?, ?, ?, ?)"#;
@@ -61,13 +71,15 @@ pub const EVENT_LIMIT_DEFAULT: i64 = 50;
 pub const EVENT_LIMIT_MAX: i64 = 100;
 
 /// 在册的管理端原生动作（第 6 轮 getProducts；第 7 轮 4 个单表只读；第 8~9 轮 getStockMovements）。
-pub const ADMIN_NATIVE_ACTIONS: [&str; 6] = [
+pub const ADMIN_NATIVE_ACTIONS: [&str; 8] = [
     "getProducts",
     "getAllReviews",
     "getSubmissions",
     "getSubmissionImages",
     "getEventLog",
     "getStockMovements",
+    "getOrders",
+    "getOrder",
 ];
 
 /// 开关：未设 ⇒ 全关；all 或逗号分隔的动作名（大小写无关）。
@@ -292,6 +304,51 @@ pub async fn call_admin(
                 "code": 0,
                 "data": { "items": items, "total": total_v, "limit": q.limit, "offset": q.offset },
             }))
+        }
+        "getOrders" => {
+            // 现网 orders.js:524：分页归一 + **四处派生同源**（WHERE / ORDER BY 列 / 方向 / 参数前缀），
+            // 四处都由 core::orders_query 一次构造 —— 手写四遍最易犯的错是「WHERE 用 since 但排序没用」，
+            // 那会让增量游标永远推不动（列表却看起来有数据）。
+            let q = supermarket_core::orders_query::orders_query(payload);
+            let sql = SQL_ORDERS_PAGE
+                .replace(MARK_WHERE, q.where_clause)
+                .replace(MARK_ORDER_COL, q.order_by_col)
+                .replace(MARK_DIR, q.dir);
+            let mut params = q.params_prefix.clone();
+            params.push(json!(q.fetch));
+            params.push(json!(q.offset));
+            let rows = d1.query_rows(&sql, &params).await.ok()?;
+            let (visible, has_more) = supermarket_core::orders_query::visible_rows(rows, q.page_size);
+            let data: Vec<Value> = visible
+                .iter()
+                .map(supermarket_core::orders_query::order_row_to_json)
+                .collect();
+            Some(json!({
+                "code": 0,
+                "data": data,
+                "hasMore": has_more,
+                "page": q.page,
+                "pageSize": q.page_size,
+            }))
+        }
+        "getOrder" => {
+            // 现网 backend.js:129 是内联包装：result = { code:0, data: await getOrderById(DB, payload.orderId) }。
+            // getOrderById 查不到 ⇒ 返回 null ⇒ 响应 **{code:0, data:null}**（不是 404；那两码只用于别的动作）。
+            let order_id = match payload.and_then(|p| p.get("orderId")) {
+                Some(Value::String(s)) => s.clone(),
+                Some(Value::Number(n)) => n.to_string(),
+                Some(Value::Bool(b)) => b.to_string(),
+                // undefined/null/对象：现网会把该值直接绑进 SQL，行为仓内无测试 ⇒ 不猜，回落透传
+                _ => return None,
+            };
+            let rows = d1.query_rows(SQL_ORDER_BY_ID, &[json!(order_id)]).await.ok()?;
+            match rows.first() {
+                None => Some(json!({ "code": 0, "data": Value::Null })),
+                Some(row) => Some(json!({
+                    "code": 0,
+                    "data": supermarket_core::orders_query::order_detail_row_to_json(row),
+                })),
+            }
         }
         _ => None,
     }

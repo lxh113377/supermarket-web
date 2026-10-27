@@ -244,6 +244,74 @@ if (keys.admin) {
   console.log('  现网 getStockMovements：默认 ' + (firstData ? firstData.items.length + ' 条 / total ' + firstData.total : '取不到') + '（clause 变体 ' + Object.keys(movRows).length + ' 条 SQL）')
 }
 
+// 订单两个动作：分页参数不同 ⇒ 同一 SQL 的不同行；用「SQL|params」复合键登记（mock 支持参数感知）。
+const ordersPageSql = sqlOfFrom('crates/edge/src/api_admin.rs', 'SQL_ORDERS_PAGE')
+const orderByIdSql = sqlOfFrom('crates/edge/src/api_admin.rs', 'SQL_ORDER_BY_ID')
+const ordersRows = {}
+const orderCases = []
+if (keys.admin) {
+  const mk = (q) => ordersPageSql
+    .replace('${whereClause}', q.where)
+    .replace('${orderByCol}', q.col)
+    .replace('${since ? \'ASC\' : \'DESC\'}', q.dir)
+  const reg = (key, params, rows) => { ordersRows[key + '|' + JSON.stringify(params)] = rows }
+  const pageCases = [
+    { name: 'getOrders（默认分页 50）', payload: {}, col: 'o.createdAt', dir: 'DESC', where: '', params: [51, 0] },
+    { name: 'getOrders（page=2&pageSize=5）', payload: { page: 2, pageSize: 5 }, col: 'o.createdAt', dir: 'DESC', where: '', params: [6, 5] },
+    { name: 'getOrders（pageSize=101 ⇒ 钳 100）', payload: { pageSize: 101 }, col: 'o.createdAt', dir: 'DESC', where: '', params: [101, 0] },
+  ]
+  const since = '2026-01-01T00:00:00.000Z'
+  pageCases.push({ name: 'getOrders（since 增量：updatedAt ASC）', payload: { since }, col: 'o.updatedAt', dir: 'ASC', where: 'WHERE o.updatedAt > ?', params: [since, 51, 0] })
+  // **喂原始行窗口，而不是现网的已裁切视图**：现网 data 已被 slice 到 pageSize（多余那条被丢掉判 hasMore），
+  // 而 Rust 侧 SQL 的 LIMIT 是 pageSize+1 —— 直接喂现网 data 会让两边在 hasMore 上天然不同（第一版就这么红的）。
+  // 正确做法：先取一份「同排序的大页」（pageSize=100 ⇒ LIMIT 101），再按 offset/fetch 切出 SQL 真正会返回的那几行。
+  // 单页最多回 100 条（pageSize 上限），而 pageSize=101 那条用例的 SQL 要 **101** 条原始行
+  // （LIMIT = pageSize+1）⇒ 拼两页凑够，否则那条用例永远对不上（第一版就卡在这）。
+  const bigPage = async (extra, pages = 2) => {
+    const out = []
+    for (let p = 1; p <= pages; p += 1) {
+      const r = await postWeb(live, 'getOrders', keys.admin, { pageSize: 100, page: p, ...extra })
+      if (r.status !== 200 || !Array.isArray(r.json.data) || r.json.data.length === 0) break
+      out.push(...r.json.data)
+      if (r.json.hasMore !== true) break
+    }
+    return out
+  }
+  const baseDesc = await bigPage({})
+  const baseAsc = await bigPage({ since })
+  const rawRows = (list) => list.map((o) => ({ ...o, items: asText(o.items) }))
+  for (const c of pageCases) {
+    const base = c.dir === "ASC" ? baseAsc : baseDesc
+    const fetch = c.params[c.params.length - 2]
+    const offset = c.params[c.params.length - 1]
+    reg(mk(c), c.params, rawRows(base.slice(offset, offset + fetch)))
+    orderCases.push({ name: c.name, action: 'getOrders', key: keys.admin, payload: c.payload, expectAudit: 0 })
+  }
+  console.log('  现网订单：大页 DESC ' + baseDesc.length + ' 条 / ASC ' + baseAsc.length + ' 条（用作原始行窗口）')
+  // getOrder：真实 id 与未知 id（现网查不到 ⇒ {code:0,data:null}，**不是 404**）
+  const firstOrders = await postWeb(live, 'getOrders', keys.admin, { page: 1, pageSize: 1 })
+  const realId = firstOrders.status === 200 && firstOrders.json.data && firstOrders.json.data.length
+    ? firstOrders.json.data[0]._id : null
+  const unknownId = 'o_not_exist_2026'
+  const probeDetail = async (id) => {
+    const r = await postWeb(live, 'getOrder', keys.admin, { orderId: id })
+    return r.status === 200 ? r.json.data : null
+  }
+  const unknownLive = await probeDetail(unknownId)
+  reg(orderByIdSql, [unknownId], [])
+  orderCases.push({ name: 'getOrder（未知 id ⇒ data:null）', action: 'getOrder', key: keys.admin, payload: { orderId: unknownId }, expectAudit: 0 })
+  if (realId) {
+    const detail = await probeDetail(realId)
+    if (detail) {
+      // 反推成「D1 行」形态：items 是 JSON 文本列；COALESCE 出来的两列照抄
+      const row = { ...detail, items: asText(detail.items) }
+      reg(orderByIdSql, [realId], [row])
+      orderCases.push({ name: 'getOrder（真实 id）', action: 'getOrder', key: keys.admin, payload: { orderId: realId }, expectAudit: 0 })
+    }
+  }
+  console.log('  现网订单：分页变体 ' + Object.keys(ordersRows).length + ' 条键｜真实订单 ' + (realId || '无') + '｜未知 id data=' + JSON.stringify(unknownLive))
+}
+
 const rowsFile = path.join(rustRoot, '.cache', 'mock-d1-rows' + (parsedMode ? '-parsed' : '') + '.json')
 writeFileSync(rowsFile, JSON.stringify({
   [SQL.products]: rows.products,
@@ -259,6 +327,7 @@ writeFileSync(rowsFile, JSON.stringify({
   [sqlOfFrom('crates/edge/src/api_admin.rs', 'SQL_EVENT_TIMELINE')]: adminExtra.events || [],
   // 流水：主查询与 COUNT 的每个 clause 变体（键就是替换后的完整 SQL —— 与边缘真正发出的字节一致）
   ...movRows,
+  ...ordersRows,
 }, null, 1) + '\n')
 
 // ── ③ 起 mock D1 + 真边缘 ──
@@ -369,6 +438,7 @@ if (!keys.admin) {
     payload: {}, expectAudit: 0,
   })
   for (const c of movCases) adminCases.push(c)
+  for (const c of orderCases) adminCases.push(c)
   if (keys.readonly) {
     adminCases.push({ name: 'getProducts（只读密钥，白名单内）', action: 'getProducts', key: keys.readonly, expectAudit: 0 })
     adminCases.push({ name: 'createProduct（只读密钥，应拒绝）', action: 'createProduct', key: keys.readonly, expectAudit: 0 })
@@ -410,7 +480,7 @@ writeFileSync(jsonOut, JSON.stringify({ ...report, problems }, null, 2) + '\n')
 console.log('原始读数 ' + jsonOut)
 console.log(problems.length
   ? '\nGATE-FAIL check-api-native-e2e：' + problems.length + ' 项\n  - ' + problems.join('\n  - ')
-  : '\nGATE-PASS check-api-native-e2e：公开面 8 个用例 + 管理面 16 个用例\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
+  : '\nGATE-PASS check-api-native-e2e：公开面 8 个用例 + 管理面 22 个用例\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
 
 edge.kill()
 mock.kill()
