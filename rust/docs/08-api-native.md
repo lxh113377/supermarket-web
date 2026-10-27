@@ -328,3 +328,41 @@ Rust 侧没有 NaN 这种 JSON 值 ⇒ **解析失败落 0**。差异只出现�
 `getDashboardStats` 的写失效只 `del` 了 9 个整数区间键（`DASHBOARD_RANGES = [1,3,7,14,30,60,90,180,365]`），
 **非表内区间（如 5、7.5）不会被失效** ⇒ 写操作后最长脏 60s。这是现网既有行为，不是本轮引入；
 原生化该动作时必须显式决定「复刻还是修正」，不能默默改语义（已登记进下一批的判据清单）。
+
+## 2h. 管理端第六批：getPromotions（第 12 轮）
+
+| 件 | 位置 | 要点 |
+|---|---|---|
+| 两条 SQL | orders.js:134 / :138 | 档位定义（按 threshold 升序）+ 每档命中（`GROUP BY promotionId`，无 WHERE） |
+| 纯映射 | `core::api_shapes::promotion_tiers_to_json` | `name`/`updatedAt` 空值落空串；`threshold/discount` 走 `Number(x)||0`；
+| | | **`enabled` 是 `Number(t.enabled) === 1`** —— 数字 1 ✓、字符串 "1" ✓、布尔 true ✓（`Number(true)===1`）、而 "true"/2/0/null ✗；
+| | | `hits` 按 `promotionId === _id` 配对，配不上 ⇒ `{orders:0,totalDiscount:0}`（不是缺键） |
+| 边缘实现 | `crates/edge/src/api_admin.rs` | **镜像现网的防御式语义**：外层 try 把任何异常（含缺 promotions 表）吞成 `{code:0,data:[]}`（成功信封！）；hits 查询单独 try，失败 ⇒ 全零命中 |
+| | | 这一条与我惯用的「失败就回落透传」**不同**，是刻意的：现网契约就是这个形状（页面显示「未配置满减」而不是报错） |
+| 缓存 | —— | **不进微缓存**（现网也没缓存它；进了就是行为改变） |
+
+端到端：新增 1 条用例（现网 1 档 / 0 档有命中），逐字节相同；总数 **33**（公开面 8 + 管理面 25），两种 JSON 列模式各跑一遍全绿。
+SQL 判据现覆盖 **19 条语句 / 7 个文件**。
+
+## 2i. 上游缺陷登记（下一批必须显式裁决，不许默默改语义）
+
+两个都是**现网既有行为**，不是本轮引入；原生化时必须先决定「复刻还是修正」，并把决定写进判据：
+
+### 2i.1 `getDashboardStats`：缓存失效只覆盖 9 个整数区间
+
+写操作后 `invalidateDashboard` 只 `del` 了 `DASHBOARD_RANGES=[1,3,7,14,30,60,90,180,365]` 这 9 个键 ⇒
+**非表内区间（如 5、7.5）不会被失效**，最长脏 60s（TTL 到期才自愈）。
+
+### 2i.2 `getDashboardStats`：日期标签比桶的 UTC+8 日历日**早一天**（委派侦察实测）
+
+现网 `label(k) = String(new Date(k*DAY - TZ).getUTCMonth()+1) + "/" + getUTCDate()`（stats.js:32）。
+实测：`nowMs=2026-03-10T04:00:00Z`（东八区 3/10 12:00）时，**今天那个桶的 label 是 "3/9"**，
+`rangeData.labels = ["3/7","3/8","3/9"]`；若按真·东八区日期（`new Date(k*DAY)` 取 UTC 段）应为 `["3/8","3/9","3/10"]`。
+
+**更值得记的是判据本身抓不到它**：`tests/stats.test.js:20` 的 `utc8TodayLabel()` 用了**完全相同的式子**，
+于是「实现与测试同错」⇒ 这套测试永远不会因为标签漂移而红。原生化时的两条路：
+
+1. **对齐线上行为**：照抄 `stats.js:32` 的字面式子（标签早一天），并在 Rust 侧用例里把「早一天」写成**断言**；
+2. **以注释为准修 bug**：同时改 `stats.js:32` 与 `tests/stats.test.js:20`（行为=所有标签 +1 天，前端会看到日期变化）。
+
+我倾向 **1**（原生化不允许顺带改线上行为），并把 2 作为独立工单登记 —— 但这条要等 `getDashboardStats` 真正原生化时按当时证据复核。

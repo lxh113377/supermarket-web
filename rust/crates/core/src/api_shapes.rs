@@ -182,6 +182,57 @@ pub fn submission_row_to_json(row: &Value) -> Value {
     );
     Value::Object(out)
 }
+/// `functions/lib/actions/orders.js:131` 的 `getPromotions` 的纯映射：档位定义 + 每档命中统计。
+///
+/// 三处细节别抄漏（都是现网逐字行为）：
+///   · `name: t.name || ''` / `updatedAt: t.updatedAt || ''` —— 缺列或空串都落空串；
+///   · `threshold/discount: Number(t.x) || 0`；
+///   · `enabled: Number(t.enabled) === 1` —— **严格等于**：字符串 "1" 与布尔 true 都算启用，
+///     而 "true"/2 不算（与 rowToProduct 的 enabled 同风格，但这里是 Number 后再比）。
+///   · `hits`：按 `promotionId === _id` 配对，配不上 ⇒ `{orders:0,totalDiscount:0}`（不是缺键）。
+pub fn promotion_tiers_to_json(tiers: &[Value], hits: &[Value]) -> Vec<Value> {
+    // hits → 查找表（先算再拼，保持「先出现者胜」与 JS 的 Map 构造顺序一致）
+    let find_hit = |id: &str| -> Option<&Value> {
+        hits.iter().find(|h| h.get("promotionId").and_then(|v| v.as_str()) == Some(id))
+    };
+    tiers
+        .iter()
+        .map(|t| {
+            let id = t.get("_id").and_then(|v| v.as_str()).unwrap_or("");
+            let hit = find_hit(id);
+            // Number(h.orders) || 0：取不出数就落 0（复用文件里已有的 number_or_zero）
+            let orders = match hit.and_then(|h| h.get("orders")) {
+                Some(v) => number_or_zero(Some(v)),
+                None => json!(0),
+            };
+            let total = match hit.and_then(|h| h.get("totalDiscount")) {
+                Some(v) => number_or_zero(Some(v)),
+                None => json!(0),
+            };
+            // Number(t.enabled) === 1 —— 先做 Number() 再严格比 1：
+            //   数字 1 ✓、字符串 "1" ✓、布尔 true ✓（Number(true) === 1）、"true"/2/0/null 都 ✗
+            let enabled = match t.get("enabled") {
+                Some(Value::Number(n)) => n.as_f64() == Some(1.0),
+                Some(Value::String(s)) => s.trim().parse::<f64>().map(|x| x == 1.0).unwrap_or(false),
+                Some(Value::Bool(b)) => *b,
+                _ => false,
+            };
+            let mut out = Map::new();
+            out.insert("_id".into(), t.get("_id").cloned().unwrap_or(Value::Null));
+            out.insert("name".into(), string_or_empty(t.get("name")));
+            out.insert("threshold".into(), number_or_zero(t.get("threshold")));
+            out.insert("discount".into(), number_or_zero(t.get("discount")));
+            out.insert("enabled".into(), Value::Bool(enabled));
+            out.insert("updatedAt".into(), string_or_empty(t.get("updatedAt")));
+            out.insert(
+                "hits".into(),
+                json!({ "orders": orders, "totalDiscount": total }),
+            );
+            Value::Object(out)
+        })
+        .collect()
+}
+
 /// `functions/lib/actions/orders.js:438` 的 `getOrderStatus` 成功响应：
 /// `{ code: 0, data: { orderId, status: row.status, updatedAt: row.updatedAt } }`。
 ///

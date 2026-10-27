@@ -184,7 +184,7 @@ mod tests {
         // 只读一个文件的写法会让后两条「验了个空」（判据绿着，其实没比过）。
         // 扩到 7 条：管理端第一条（SELECT *）与审计 INSERT 也进判据 ——
         // 语句抄错时判据要在**落地前**红，而不是等线上审计表少几行才发现。
-        let sources: [(&str, &str, &str); 17] = [
+        let sources: [(&str, &str, &str); 19] = [
             (SQL_PUBLIC_PRODUCTS, "SQL_PUBLIC_PRODUCTS", "functions/lib/actions/products.js"),
             (SQL_PUBLIC_CATEGORIES, "SQL_PUBLIC_CATEGORIES", "functions/lib/actions/products.js"),
             (SQL_CATALOG_ORDERS, "SQL_CATALOG_ORDERS", "functions/lib/actions/products.js"),
@@ -206,6 +206,9 @@ mod tests {
             // 第 11 轮：超时单盘点的两条查询（含动态 IN 占位符）
             (crate::api_admin::SQL_STALE_ORDERS, "SQL_STALE_ORDERS", "functions/lib/actions/orders.js"),
             (crate::api_admin::SQL_STALE_PRODUCTS, "SQL_STALE_PRODUCTS", "functions/lib/actions/orders.js"),
+            // 第 12 轮：促销档位两条查询
+            (crate::api_admin::SQL_PROMOTIONS, "SQL_PROMOTIONS", "functions/lib/actions/orders.js"),
+            (crate::api_admin::SQL_PROMOTION_HITS, "SQL_PROMOTION_HITS", "functions/lib/actions/orders.js"),
         ];
         for (sql, name, rel) in sources {
             let js_path = repo.join(rel);

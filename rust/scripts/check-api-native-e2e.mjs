@@ -339,6 +339,31 @@ if (keys.admin) {
 }
 
 // ⚠ 行集必须在 rows.json 落盘**之前**登记（第一版把这段写在管理端用例段里 ⇒ 键根本没进文件、边缘查询 400 → 回落透传 → HTTP 500）。
+  // getPromotions：两条查询都无参数 ⇒ 用纯 SQL 键登记即可。
+  // 反推行要把映射的**输入**还原出来（enabled 是 1/0，threshold/discount 是原始数值，name/updatedAt 原文）。
+  const promoSql = sqlOfFrom('crates/edge/src/api_admin.rs', 'SQL_PROMOTIONS')
+  const promoHitsSql = sqlOfFrom('crates/edge/src/api_admin.rs', 'SQL_PROMOTION_HITS')
+  const promoTiersSqlKey = promoSql
+  let promoRowsReady = false
+  {
+    const livePromo = await postWeb(live, 'getPromotions', keys.admin, {})
+    const tiers = livePromo.status === 200 && Array.isArray(livePromo.json.data) ? livePromo.json.data : null
+    if (tiers) {
+      ordersRows[promoTiersSqlKey] = tiers.map((t) => ({
+        _id: t._id, name: t.name, threshold: t.threshold, discount: t.discount,
+        enabled: t.enabled ? 1 : 0, updatedAt: t.updatedAt,
+      }))
+      ordersRows[promoHitsSql] = tiers
+        .filter((t) => t.hits && (t.hits.orders > 0 || t.hits.totalDiscount > 0))
+        .map((t) => ({ promotionId: t._id, orders: t.hits.orders, totalDiscount: t.hits.totalDiscount }))
+      // 用例本身在**管理端用例段**登记（本块在 mock 启动前、见不到 adminCases）—— 这里只登记行集并置标志
+      promoRowsReady = true
+      console.log('  getPromotions：现网 ' + tiers.length + ' 档（有命中 ' + ordersRows[promoHitsSql].length + ' 档）⇒ 行集已登记，用例待管理段登记')
+    } else {
+      console.log('  [观察] getPromotions 现网取不到（status=' + livePromo.status + '）⇒ 跳过')
+    }
+  }
+
   const staleRowsSql = sqlOfFrom('crates/edge/src/api_admin.rs', 'SQL_STALE_ORDERS')
   const staleProdsSql = sqlOfFrom('crates/edge/src/api_admin.rs', 'SQL_STALE_PRODUCTS')
   const staleInMark = '$' + '{productIds.map(() => \'?\').join(\',\')}'
@@ -503,6 +528,9 @@ if (!keys.admin) {
   })
   for (const c of movCases) adminCases.push(c)
   for (const c of orderCases) adminCases.push(c)
+  if (promoRowsReady) {
+    adminCases.push({ name: 'getPromotions（档位 + 命中统计）', action: 'getPromotions', key: keys.admin, payload: {}, expectAudit: 0 })
+  }
   // verifyKey：鉴权闭环（两档角色都要能取出来）
   adminCases.push({ name: 'verifyKey（正确密钥 ⇒ role:admin）', action: 'verifyKey', key: keys.admin, payload: {}, expectAudit: 0 })
   if (keys.readonly) {

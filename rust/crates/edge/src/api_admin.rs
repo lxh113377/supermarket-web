@@ -49,6 +49,11 @@ pub const SQL_ORDERS_PAGE: &str = r#"SELECT o._id, o.roomNumber, o.items, o.tota
 /// orders.js:546 —— 单订单详情（`o.*` + LEFT JOIN 的两列）。
 pub const SQL_ORDER_BY_ID: &str = r#"SELECT o.*, COALESCE(d.discountAmount, 0) AS discountAmount, COALESCE(d.promotionId, '') AS promotionId FROM orders o LEFT JOIN order_discounts d ON d.orderId = o._id WHERE o._id = ?"#;
 
+/// orders.js:134 —— 促销档位定义（按 threshold 升序；无分页、无 WHERE）。
+pub const SQL_PROMOTIONS: &str = r#"SELECT _id, name, threshold, discount, enabled, updatedAt FROM promotions ORDER BY threshold ASC"#;
+/// orders.js:138 —— 每档命中统计（无 WHERE、无占位符；缺表时现网把整段 catch 掉 ⇒ 全零命中）。
+pub const SQL_PROMOTION_HITS: &str = r#"SELECT promotionId, COUNT(*) AS orders, COALESCE(SUM(discountAmount), 0) AS totalDiscount FROM order_discounts GROUP BY promotionId"#;
+
 /// orders.js:369 —— 超时 pending 单（按 createdAt 升序，上限 200）。
 pub const SQL_STALE_ORDERS: &str = r#"SELECT _id, roomNumber, totalAmount, items, paymentScreenshot, createdAt FROM orders WHERE status = 'pending' AND createdAt < ? ORDER BY createdAt ASC LIMIT 200"#;
 /// orders.js:378 —— 相关商品库存（IN 的占位符个数由 pending 单的商品集合决定，标记与现网逐字一致）。
@@ -77,7 +82,7 @@ pub const EVENT_LIMIT_DEFAULT: i64 = 50;
 pub const EVENT_LIMIT_MAX: i64 = 100;
 
 /// 在册的管理端原生动作（第 6 轮 getProducts；第 7 轮 4 个单表只读；第 8~9 轮 getStockMovements）。
-pub const ADMIN_NATIVE_ACTIONS: [&str; 10] = [
+pub const ADMIN_NATIVE_ACTIONS: [&str; 11] = [
     "getProducts",
     "getAllReviews",
     "getSubmissions",
@@ -88,6 +93,7 @@ pub const ADMIN_NATIVE_ACTIONS: [&str; 10] = [
     "getOrder",
     "verifyKey",
     "stalePendingReport",
+    "getPromotions",
 ];
 
 /// 开关：未设 ⇒ 全关；all 或逗号分隔的动作名（大小写无关）。
@@ -396,6 +402,20 @@ pub async fn call_admin(
             Some(json!({
                 "code": 0,
                 "data": supermarket_core::stale::stale_report(&rows, &prods, now_ms, minutes),
+            }))
+        }
+        "getPromotions" => {
+            // 现网 orders.js:131 是**防御式**的：外层 try 把任何异常（含缺 promotions 表）吞成
+            // "{code:0,data:[]}"（**成功**信封，不是失败码）；hits 查询单独 try，失败 ⇒ 全零命中。
+            // 所以这里是「镜像现网语义」而不是我惯用的「失败就回落透传」—— 现网的契约就是这个形状。
+            let tiers = match d1.query_rows(SQL_PROMOTIONS, &[]).await {
+                Ok(rows) => rows,
+                Err(_) => return Some(json!({ "code": 0, "data": [] })),
+            };
+            let hits = d1.query_rows(SQL_PROMOTION_HITS, &[]).await.unwrap_or_default();
+            Some(json!({
+                "code": 0,
+                "data": supermarket_core::api_shapes::promotion_tiers_to_json(&tiers, &hits),
             }))
         }
         _ => None,
