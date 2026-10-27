@@ -218,6 +218,32 @@ if (keys.admin) {
     + '｜getSubmissionImages ' + (imagesLive ? '可查' : '跳过') + '｜getEventLog ' + adminExtra.events.length + ' 事件')
 }
 
+// getStockMovements：**两条查询 + 动态 clause** —— 每个 clause 变体都要有对应的行集，
+// 否则 mock 会按「未预期 SQL」回 400（那正是它该做的事：不让实现偷偷换语句）。
+const movMainSql = sqlOfFrom('crates/edge/src/api_admin.rs', 'SQL_MOVEMENTS_MAIN')
+const movCountSql = sqlOfFrom('crates/edge/src/api_admin.rs', 'SQL_MOVEMENTS_COUNT')
+const MARK = '${clause}'
+const movRows = {}
+const movCases = []
+if (keys.admin) {
+  const first = await postWeb(live, 'getStockMovements', keys.admin, {})
+  const firstData = first.status === 200 ? first.json.data : null
+  const anyProductId = firstData && firstData.items && firstData.items.length ? firstData.items[0].productId : 'p001'
+  movCases.push({ name: 'getStockMovements（默认分页）', action: 'getStockMovements', key: keys.admin, payload: {}, clause: '', expectAudit: 0 })
+  movCases.push({ name: 'getStockMovements（productId 过滤）', action: 'getStockMovements', key: keys.admin, payload: { productId: anyProductId }, clause: 'WHERE m.productId = ?', expectAudit: 0 })
+  movCases.push({ name: 'getStockMovements（kind=sale）', action: 'getStockMovements', key: keys.admin, payload: { kind: 'sale' }, clause: 'WHERE m.kind = ?', expectAudit: 0 })
+  movCases.push({ name: 'getStockMovements（kind 非法 ⇒ 400）', action: 'getStockMovements', key: keys.admin, payload: { kind: 'steal' }, clause: null, expectAudit: 0 })
+  movCases.push({ name: 'getStockMovements（limit/offset 钳制）', action: 'getStockMovements', key: keys.admin, payload: { limit: 5, offset: 2 }, clause: '', expectAudit: 0 })
+  for (const c of movCases) {
+    if (c.clause === null) continue
+    const r = await postWeb(live, c.action, c.key, c.payload)
+    const d = r.status === 200 ? r.json.data : null
+    movRows[movMainSql.replace(MARK, c.clause)] = d && Array.isArray(d.items) ? d.items : []
+    movRows[movCountSql.replace(MARK, c.clause)] = [{ c: d ? d.total : 0 }]
+  }
+  console.log('  现网 getStockMovements：默认 ' + (firstData ? firstData.items.length + ' 条 / total ' + firstData.total : '取不到') + '（clause 变体 ' + Object.keys(movRows).length + ' 条 SQL）')
+}
+
 const rowsFile = path.join(rustRoot, '.cache', 'mock-d1-rows' + (parsedMode ? '-parsed' : '') + '.json')
 writeFileSync(rowsFile, JSON.stringify({
   [SQL.products]: rows.products,
@@ -231,6 +257,8 @@ writeFileSync(rowsFile, JSON.stringify({
   [sqlOfFrom('crates/edge/src/api_admin.rs', 'SQL_SUBMISSIONS')]: adminExtra.submissions || [],
   [sqlOfFrom('crates/edge/src/api_admin.rs', 'SQL_SUBMISSION_IMAGES')]: adminExtra.submissionImages || [],
   [sqlOfFrom('crates/edge/src/api_admin.rs', 'SQL_EVENT_TIMELINE')]: adminExtra.events || [],
+  // 流水：主查询与 COUNT 的每个 clause 变体（键就是替换后的完整 SQL —— 与边缘真正发出的字节一致）
+  ...movRows,
 }, null, 1) + '\n')
 
 // ── ③ 起 mock D1 + 真边缘 ──
@@ -340,6 +368,7 @@ if (!keys.admin) {
     name: 'getEventLog（缺 orderId）', action: 'getEventLog', key: keys.admin,
     payload: {}, expectAudit: 0,
   })
+  for (const c of movCases) adminCases.push(c)
   if (keys.readonly) {
     adminCases.push({ name: 'getProducts（只读密钥，白名单内）', action: 'getProducts', key: keys.readonly, expectAudit: 0 })
     adminCases.push({ name: 'createProduct（只读密钥，应拒绝）', action: 'createProduct', key: keys.readonly, expectAudit: 0 })

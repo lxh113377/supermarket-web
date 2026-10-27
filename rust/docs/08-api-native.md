@@ -193,3 +193,55 @@ SQL 判据现已覆盖 **11 条语句 / 6 个文件**（products.js、reviews.js
 - **getStockMovements**：动态 WHERE（productId/kind）+ LEFT JOIN products + **第二条 COUNT 查询**，还有 kind 白名单与分页钳制；
   它值得单独一批（判据要能验「两条查询的参数一致」），本批不赶。
 - 其余带依赖的读（getOrders/getOrder 的 LEFT JOIN、getDashboardStats 的 KV 分键缓存、getPromotions 的聚合）与全部写动作仍未动。
+
+## 2e. 管理端第三批：getStockMovements（双查询 + 动态 WHERE，第 8~9 轮）
+
+这个动作是前面几批刻意留出来的，因为它有一条**别处没有的风险**：现网要跑**两条查询**
+（主查询 + `COUNT(*)`），两条必须用**同一个 WHERE 子句与同一批参数**。
+
+### 2e.1 把「两条参数一致」变成类型保证
+
+现网（stock.js:101 的 `queryMovements`）手工拼 `where[]` 与 `params[]`，再分别拼进两条 SQL。
+抄成 Rust 时如果也手写两遍，最容易犯的错不是写不出来，而是**两条的参数不一致** ——
+于是 `items` 与 `total` 说的是两套筛选条件（列表 3 条、总数 17 条），而功能测试通常抓不到。
+
+所以抽了 `crates/core/src/stock_query.rs`：一次构造出
+
+    pub struct MovementQuery { clause: String, params: Vec<Value>, limit: i64, offset: i64 }
+
+两条 SQL 都从**同一个值**取 ⇒ 「参数不一致」在类型上不可能发生。它还是纯函数，由 5 条用例钉住：
+
+| 用例 | 钉住什么 |
+|---|---|
+| d_empty_payload_means_no_where_and_default_paging | 空载荷 / 无载荷同义：clause 空、limit 30、offset 0 |
+| d_both_filters_share_one_clause_and_param_order | 两条件同时给时 **clause 与参数顺序固定**（productId 在前、kind 在后）；数字也按 String(...) 绑定 |
+| d_falsy_filters_are_ignored_like_js | 真值判定：空串/0/null/false 都算「没给」 |
+| d_invalid_kind_returns_the_live_envelope | `invalid_kind` 封套逐字节（含清洗后的 kind 与在册清单文案） |
+| d_limit_and_offset_follow_js_coercion | `Number(x) || 30` 在 clamp **之内**：0 / "abc" / null 落 30、负数落 1、101 落 100、30.9 落 30；offset 负数落 0 |
+
+### 2e.2 SQL 侧仍逐字验
+
+两条 SQL 常量**保留现网模板串里的 `${clause}` 标记**（不是提前拼好再抄一份）——
+判据才能拿它去 `stock.js` 里逐字对；运行时用 `replace(marker, clause)` 注入。
+踩坑记一笔：第一版写成 `format!("${clause}")`，Rust 把 `{clause}` 当格式化占位符解析，
+编译直接报 cannot find value `clause`；改成普通字符串字面量即可（**别用 format! 拼含花括号的模板标记**）。
+
+SQL 判据现覆盖 **13 条语句 / 7 个文件**（新增两条流水查询）。
+
+### 2e.3 端到端读数（管理面新增 5 个用例，总数 8 + 16 = 24）
+
+| 用例 | 原生 | 与现网 | HTTP |
+|---|---|---|---|
+| getStockMovements（默认分页） | ✅ | ✅ 逐字段相同 | 200 |
+| getStockMovements（productId 过滤） | ✅ | ✅ | 200 |
+| getStockMovements（kind=sale） | ✅ | ✅ | 200 |
+| getStockMovements（kind 非法） | ✅ | ✅ | 400 / 400 |
+| getStockMovements（limit=5 & offset=2 钳制） | ✅ | ✅ | 200 |
+
+夹具侧同步加了一条腿：**每个 clause 变体都要有自己的行集**（mock 按「替换后的完整 SQL」为键），
+于是「实现偷偷换了语句」会当场 400，而不是悄悄回空表。
+
+### 2e.4 还没做的（点名）
+
+- `getOrders` / `getOrder`（orders LEFT JOIN order_discounts）、`getDashboardStats`（KV 分键缓存）、
+  `getPromotions`（按档聚合）、`stalePendingReport`（双表读）仍未端口；全部写动作与 `login`/两个 AI 动作也未动。

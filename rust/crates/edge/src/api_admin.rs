@@ -48,17 +48,26 @@ pub const SQL_EVENT_TIMELINE: &str = r#"SELECT type, at, orderId, status, totalA
 pub const SQL_AUDIT_INSERT: &str =
     r#"INSERT INTO security_events (ts, ip, action, result, keyFingerprint, detail) VALUES (?, ?, ?, ?, ?, ?)"#;
 
+/// stock.js:112 —— 流水主查询（LEFT JOIN products 取 productName）。
+///
+/// 这里**保留现网模板串里的 ${clause} 标记**（不是提前拼好再抄一份）：
+/// 判据 sql_matches_js_source 要拿它去 JS 源码里逐字对；而运行时用 replace 注入 clause。
+pub const SQL_MOVEMENTS_MAIN: &str = r#"SELECT m.id, m.productId, m.delta, m.kind, m.refType, m.refId, m.actor, m.note, m.voided, m.voidedAt, m.createdAt, p.name AS productName FROM stock_movements m LEFT JOIN products p ON p._id = m.productId ${clause} ORDER BY m.createdAt DESC, m.id DESC LIMIT ? OFFSET ?"#;
+/// stock.js:118 —— 计数查询：与主查询**同一 clause、同一 params**（由 core::stock_query 保证）。
+pub const SQL_MOVEMENTS_COUNT: &str = r#"SELECT COUNT(*) AS c FROM stock_movements m ${clause}"#;
+
 /// 事件时间线的 limit 常量（events.js:16-17）。
 pub const EVENT_LIMIT_DEFAULT: i64 = 50;
 pub const EVENT_LIMIT_MAX: i64 = 100;
 
-/// 在册的管理端原生动作（第 6 轮首发 getProducts；第 7 轮批量加 4 个单表只读）。
-pub const ADMIN_NATIVE_ACTIONS: [&str; 5] = [
+/// 在册的管理端原生动作（第 6 轮 getProducts；第 7 轮 4 个单表只读；第 8~9 轮 getStockMovements）。
+pub const ADMIN_NATIVE_ACTIONS: [&str; 6] = [
     "getProducts",
     "getAllReviews",
     "getSubmissions",
     "getSubmissionImages",
     "getEventLog",
+    "getStockMovements",
 ];
 
 /// 开关：未设 ⇒ 全关；all 或逗号分隔的动作名（大小写无关）。
@@ -253,6 +262,53 @@ pub async fn call_admin(
                 .ok()?;
             Some(json!({ "code": 0, "data": { "orderId": order_id, "events": rows } }))
         }
+        "getStockMovements" => {
+            // 现网 stock.js:101 的 queryMovements：**两条查询**（主查询 + COUNT）共用同一 clause/params。
+            // clause/params/limit/offset 由 core::stock_query 一次构造 ⇒ 「两条参数不一致」在类型上不可能。
+            let q = match supermarket_core::stock_query::movement_query(payload) {
+                Ok(q) => q,
+                // invalid_kind：core 直接给出现网同形的失败封套
+                Err(fail) => return Some(fail),
+            };
+            // 注意：这里不能用 format!(...) —— 它会把 {clause} 当占位符解析（第一版就栽在这）。
+            // 直接用一个普通字符串字面量做替换目标即可。
+            let marker = "${clause}";
+            let main_sql = SQL_MOVEMENTS_MAIN.replace(marker, &q.clause);
+            let count_sql = SQL_MOVEMENTS_COUNT.replace(marker, &q.clause);
+            // 主查询的绑定 = WHERE 参数 + limit + offset（顺序与现网 [..., limit, offset] 一致）
+            let mut main_params = q.params.clone();
+            main_params.push(json!(q.limit));
+            main_params.push(json!(q.offset));
+            let items = d1.query_rows(&main_sql, &main_params).await.ok()?;
+            let count_rows = d1.query_rows(&count_sql, &q.params).await.ok()?;
+            let total = count_rows
+                .first()
+                .and_then(|r| r.get("c"))
+                .map(number_from_value)
+                .unwrap_or(0.0);
+            // 现网 Number(total?.c || 0)：取不出数就落 0
+            let total_v = if total.is_finite() { json!(total as i64) } else { json!(0) };
+            Some(json!({
+                "code": 0,
+                "data": { "items": items, "total": total_v, "limit": q.limit, "offset": q.offset },
+            }))
+        }
         _ => None,
+    }
+}
+
+/// 把 D1 回的值当数字读（COUNT(*) 可能是数字，也可能是数字字符串 —— 现网走 Number(x)）。
+fn number_from_value(v: &Value) -> f64 {
+    match v {
+        Value::Number(n) => n.as_f64().unwrap_or(0.0),
+        Value::String(s) => s.trim().parse::<f64>().unwrap_or(0.0),
+        Value::Bool(b) => {
+            if *b {
+                1.0
+            } else {
+                0.0
+            }
+        }
+        _ => 0.0,
     }
 }

@@ -184,7 +184,7 @@ mod tests {
         // 只读一个文件的写法会让后两条「验了个空」（判据绿着，其实没比过）。
         // 扩到 7 条：管理端第一条（SELECT *）与审计 INSERT 也进判据 ——
         // 语句抄错时判据要在**落地前**红，而不是等线上审计表少几行才发现。
-        let sources: [(&str, &str, &str); 11] = [
+        let sources: [(&str, &str, &str); 13] = [
             (SQL_PUBLIC_PRODUCTS, "SQL_PUBLIC_PRODUCTS", "functions/lib/actions/products.js"),
             (SQL_PUBLIC_CATEGORIES, "SQL_PUBLIC_CATEGORIES", "functions/lib/actions/products.js"),
             (SQL_CATALOG_ORDERS, "SQL_CATALOG_ORDERS", "functions/lib/actions/products.js"),
@@ -197,6 +197,9 @@ mod tests {
             (crate::api_admin::SQL_SUBMISSIONS, "SQL_SUBMISSIONS", "functions/lib/actions/submissions.js"),
             (crate::api_admin::SQL_SUBMISSION_IMAGES, "SQL_SUBMISSION_IMAGES", "functions/lib/actions/submissions.js"),
             (crate::api_admin::SQL_EVENT_TIMELINE, "SQL_EVENT_TIMELINE", "functions/lib/actions/events.js"),
+            // 第 8~9 轮的流水双查询：两条都要逐字验（参数一致性由 core 单测保证，这里保证语句本身没抄错）
+            (crate::api_admin::SQL_MOVEMENTS_MAIN, "SQL_MOVEMENTS_MAIN", "functions/lib/stock.js"),
+            (crate::api_admin::SQL_MOVEMENTS_COUNT, "SQL_MOVEMENTS_COUNT", "functions/lib/stock.js"),
         ];
         for (sql, name, rel) in sources {
             let js_path = repo.join(rel);

@@ -35,6 +35,7 @@ pub mod contract;
 pub mod csv;
 pub mod errors;
 pub mod sanitize;
+pub mod stock_query;
 pub mod format;
 
 /// 与 `functions/lib/shared.js` 同值的起送门槛（元）。

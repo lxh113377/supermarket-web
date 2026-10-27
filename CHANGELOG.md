@@ -1,4 +1,17 @@
 ## [未发布]
+### 2026-10-27 管理端第三批：getStockMovements 原生化（双查询 + 动态 WHERE；端到端 24 用例全绿）
+- **新增 1 个原生动作**（这批刻意留到最后做）：getStockMovements —— 现网要跑**两条查询**（主查询 + COUNT），
+  两条必须共用同一 WHERE 与参数；进度 **11 / 37**（剩余 26）。
+- **把「两条参数一致」变成类型保证**：抽 crates/core/src/stock_query.rs，一次构造 MovementQuery{clause,params,limit,offset}，
+  两条 SQL 都从同一个值取；纯函数 + 5 条用例（空载荷/无载荷同义、两条件顺序固定、真值判定、invalid_kind 封套逐字节、
+  limit/offset 的 JS 强制转换规则）。
+- **SQL 仍逐字验**：两条查询保留现网模板串里的 clause 标记（判据据此逐字对，运行时 replace 注入）。
+  踩坑记一笔：第一版写 format! 包住含花括号的标记，Rust 把它当格式化占位符解析、编译报错；改用普通字符串字面量。
+- **端到端 24 个用例全绿**（公开面 8 + 管理面 16）：新增 5 条流水用例（默认/productId/kind=sale/kind 非法 400/limit+offset 钳制）
+  全部与现网**逐字段相同**；夹具加了一条腿：**每个 clause 变体都要自己的行集**（mock 以「替换后的完整 SQL」为键），
+  于是「实现偷偷换语句」会当场 400 而不是悄悄回空表。SQL 判据扩到 **13 条语句 / 7 个文件**。
+- **没做的（点名）**：getOrders/getOrder（LEFT JOIN order_discounts）、getDashboardStats（KV 分键缓存）、
+  getPromotions（聚合）、stalePendingReport（双表读）；全部写动作与 login/两个 AI 动作仍未动。
 ### 2026-10-27 管理端第二批：4 个单表只读原生化（端到端 19 用例全绿）
 - **新增 4 个原生动作**：getAllReviews（reviews.js:50）、getSubmissions（submissions.js:77）、
   getSubmissionImages（submissions.js:93）、getEventLog（events.js:31 的 getEventTimeline）。

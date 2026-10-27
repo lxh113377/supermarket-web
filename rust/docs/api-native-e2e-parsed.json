@@ -1,5 +1,5 @@
 {
-  "at": "2026-10-27T08:44:19.375Z",
+  "at": "2026-10-27T12:12:50.674Z",
   "live": "https://supermarket-web.pages.dev",
   "edge": "http://127.0.0.1:5198",
   "mode": "JSON 列=已解析",
@@ -46,7 +46,7 @@
     "getOrderStatus（未知订单号：错误路径）": {
       "action": "getOrderStatus",
       "payload": {
-        "orderId": "o_not_exist_1793090652903"
+        "orderId": "o_not_exist_1793103157305"
       },
       "status": 404,
       "edge": "native",
@@ -157,6 +157,51 @@
       "action": "getEventLog",
       "status": 400,
       "liveStatus": 400,
+      "edge": "native",
+      "auditDelta": 0,
+      "expectAudit": 0,
+      "equal": true
+    },
+    "getStockMovements（默认分页）": {
+      "action": "getStockMovements",
+      "status": 200,
+      "liveStatus": 200,
+      "edge": "native",
+      "auditDelta": 0,
+      "expectAudit": 0,
+      "equal": true
+    },
+    "getStockMovements（productId 过滤）": {
+      "action": "getStockMovements",
+      "status": 200,
+      "liveStatus": 200,
+      "edge": "native",
+      "auditDelta": 0,
+      "expectAudit": 0,
+      "equal": true
+    },
+    "getStockMovements（kind=sale）": {
+      "action": "getStockMovements",
+      "status": 200,
+      "liveStatus": 200,
+      "edge": "native",
+      "auditDelta": 0,
+      "expectAudit": 0,
+      "equal": true
+    },
+    "getStockMovements（kind 非法 ⇒ 400）": {
+      "action": "getStockMovements",
+      "status": 400,
+      "liveStatus": 400,
+      "edge": "native",
+      "auditDelta": 0,
+      "expectAudit": 0,
+      "equal": true
+    },
+    "getStockMovements（limit/offset 钳制）": {
+      "action": "getStockMovements",
+      "status": 200,
+      "liveStatus": 200,
       "edge": "native",
       "auditDelta": 0,
       "expectAudit": 0,
