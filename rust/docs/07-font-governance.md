@@ -97,7 +97,28 @@ SHA256 `a965146f…`）：它仍是分包的输入，但不再随站点发布 �
 2. **`pyftsubset.exe` 在本机静默空跑**（退出码 0、零产出）。改用 fontTools 的 Python API
    （`fontTools.subset.Subsetter`）后正常 —— 判据是「产物文件存在且 sha256 对得上」，而不是退出码。
 
-## 6. 复算
+## 6. 上线与线上验证（可复算）
+
+改动随 `f8018d2` 推到 `origin/main` 后，按仓内 #40 的三件套（提交 → 部署 → 线上验证）走完：
+
+| 件 | 证据 |
+|---|---|
+| 提交 | `f8018d2 perf(font): 中文展示体按用量分包 —— 首屏字体 215,580 B → 11,604 B（LCP −17.3%）` |
+| 部署 | 推送触发双通道：`Dispatch deploy to github.io`（run 40372745318@f8018d2 success）+ CI 的 deploy 作业（Pages） |
+| 线上验证（顾客端，GitHub Pages） | `GET /` HTML 只引用 `display-serif-cjk-a.woff2`；`HEAD /fonts/display-serif-cjk-a.woff2` → **200 / 11,604 B**；`HEAD /fonts/display-serif-cjk.woff2` → **404**（旧单文件已从发布面消失）；`-s1` 分片 → 200 / 29,660 B |
+| 线上验证（管理端，Cloudflare Pages） | 同一组 HEAD 请求 + `check:live-shape` 的 L3（`deploy` 字段 ⇄ 本地 HEAD） |
+| 探活 | `node scripts/uptime-check.mjs`：管理端/顾客端/静态后台/打印静态面全 200；唯一红项是**预先存在**的打印后端反代 530（外部 CampusPrint 服务不在线，与本次改动无关） |
+
+复算命令：
+```bash
+curl -s https://lxh113377.github.io/ | grep -o 'display-serif-cjk[^"]*woff2' | sort -u
+curl -sI https://lxh113377.github.io/fonts/display-serif-cjk-a.woff2 | head -3
+curl -sI https://lxh113377.github.io/fonts/display-serif-cjk.woff2 | head -1   # 期望 404
+npm run check:live-shape                                                       # L3 答「线上是哪一版」
+node scripts/uptime-check.mjs
+```
+
+## 7. 复算
 
 ```bash
 cd supermarket-web
@@ -115,7 +136,7 @@ node rust/scripts/check-font-split.mjs
 node rust/scripts/font-render-parity.mjs --old rust/.cache/dist-old --new dist
 ```
 
-## 7. 没有解决的部分（照实写）
+## 8. 没有解决的部分（照实写）
 
 - 原字体只覆盖 932 个字形，而产物里出现的 CJK 字符有 **1,489 种**（含 557 种缺字）——
   也就是说，**一部分中文标题本来就在走系统回退字体**（`src/index.css` 的回退链注释记录了
