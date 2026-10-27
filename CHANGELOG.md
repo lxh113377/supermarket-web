@@ -1,4 +1,18 @@
 ## [未发布]
+### 2026-10-27 P3 起步：/pub 三个公开读动作原生化（默认关，键集/键序与现网逐位一致）
+
+- **做了什么**：新增 `crates/core/src/api_shapes.rs`（行 → JSON 形状的纯映射：row_to_product / row_to_category /
+  catalog_orders / jparse，逐条对齐 functions/lib/actions/products.js，**字段顺序也一致**）与
+  `crates/edge/src/api_native.rs`（三条 SQL + D1 查询 + 映射 + `{code:0,data}` 封套），
+  在 `api.rs` 的网关里接线（位置在微缓存之后、透传之前）；开关 `NATIVE_PUBLIC_ACTIONS` **默认不设** ⇒ 行为与今天逐字节相同。
+- **降级语义**：原生路径取不到（未配 D1 / 查询失败 / D1 形状不对）时**回落透传**，不编错误响应 ——
+  迁移期最危险的形态是「换了一种错误形状」，而它不会被功能测试抓到。
+- **判据（本轮真跑）**：① `cargo test` 的 sql_matches_js_source 读 JS 源码断言三条 SQL 逐字出现（JS 改 SQL 而 Rust 没跟即红）；
+  ② api_shapes 5 条用例（完整 JSON 文本 + 脏值：enabled 字符串 "1" 判 false、stock null ⇒ -1、-2.7 ⇒ -2、specOptions 出对象 ⇒ []、catalog_orders 去重）；
+  ③ check-api-parity（现网 /pub 公开可取）：**三个动作键序逐位一致** —— getPublicProducts 14 键、getPublicCategories 5 键、
+  getCatalogOrders {order,needsLocalImage}；原始读数 rust/docs/api-live-shapes.json。
+- **本轮没验到的（点名）**：本机 .dev.vars 无 D1 account/db/api token ⇒ **值级对账与原生路径实测均 UNVERIFIED**；
+  线上仍跑透传（开关未开）；36 个管理动作与 6 个公开写动作一个都没动。见 rust/docs/08-api-native.md。
 ### 2026-10-27 中文展示体补上 564 个缺字（回退缺口）：922 → 1,484 / 1,486
 
 - **一手读数**：站内用到的 CJK 码点 **1,486 种**，原分包只覆盖 922 ⇒ 564 种走系统回退字体

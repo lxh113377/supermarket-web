@@ -1,0 +1,77 @@
+{
+  "at": "2026-10-27T06:08:43.990Z",
+  "live": "https://supermarket-web.pages.dev",
+  "actions": {
+    "getPublicProducts": {
+      "status": 200,
+      "code": 0,
+      "dataLength": 45,
+      "sampleKeys": [
+        "_id",
+        "name",
+        "spec",
+        "price",
+        "costPrice",
+        "subcategories",
+        "enabled",
+        "order",
+        "image",
+        "images",
+        "description",
+        "specOptions",
+        "reviews",
+        "stock"
+      ],
+      "keyTypes": {
+        "_id": "string",
+        "name": "string",
+        "spec": "string",
+        "price": "number",
+        "costPrice": "number",
+        "subcategories": "array",
+        "enabled": "boolean",
+        "order": "number",
+        "image": "string",
+        "images": "array",
+        "description": "string",
+        "specOptions": "array",
+        "reviews": "array",
+        "stock": "number"
+      }
+    },
+    "getPublicCategories": {
+      "status": 200,
+      "code": 0,
+      "dataLength": 3,
+      "sampleKeys": [
+        "_id",
+        "name",
+        "type",
+        "order",
+        "subcategories"
+      ],
+      "keyTypes": {
+        "_id": "string",
+        "name": "string",
+        "type": "string",
+        "order": "number",
+        "subcategories": "array"
+      }
+    },
+    "getCatalogOrders": {
+      "status": 200,
+      "code": 0,
+      "dataLength": 67,
+      "sampleKeys": [
+        "order",
+        "needsLocalImage"
+      ],
+      "keyTypes": {
+        "order": "number",
+        "needsLocalImage": "boolean"
+      }
+    }
+  },
+  "problems": [],
+  "nativeNote": "未给 EDGE_BASE（且本机无 D1_API_TOKEN/D1_ACCOUNT_ID/D1_DATABASE_ID）⇒ 值级对账与原生路径实测均 UNVERIFIED（本轮只做了键集/键序对账）"
+}

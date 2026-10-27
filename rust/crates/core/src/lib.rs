@@ -27,6 +27,7 @@
 //!   `"3.5"` 而不是 `"3.5f64"`，也**不能**写成 `"123.0"`（JS 的 `String(123)` 是 `"123"`）。
 //!   这一族差异收口在 [csv::js_number_to_string] 一个函数里，别在别处再写一遍。
 
+pub mod api_shapes;
 pub mod cart;
 pub mod catalog;
 pub mod contract;

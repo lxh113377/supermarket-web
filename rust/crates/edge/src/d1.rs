@@ -65,6 +65,26 @@ impl D1Client {
         Ok(value.get("result").cloned().unwrap_or(serde_json::Value::Null))
     }
 
+    /// 执行一条**查询**并取出第一段结果的行数组（D1 HTTP 的形状是
+    /// `{success, result: [{results: [...], success, meta}, ...]}`）。
+    ///
+    /// 形状不对时返回 Err（调用方据此回落透传）：宁可少一次原生命中，
+    /// 也不要把「没取到行」当成「表里没有行」——后者会让前端显示空目录。
+    pub async fn query_rows(
+        &self,
+        sql: &str,
+        params: &[serde_json::Value],
+    ) -> Result<Vec<serde_json::Value>, String> {
+        let result = self.query(sql, params).await?;
+        let rows = result
+            .get(0)
+            .and_then(|r| r.get("results"))
+            .and_then(|r| r.as_array())
+            .cloned()
+            .ok_or_else(|| format!("D1 返回形状不含 result[0].results：{}", result))?;
+        Ok(rows)
+    }
+
     /// `SELECT 1`：`/_health` 的 db 字段判据（与现网 `functions/_health.js` 同一条 SQL）。
     pub async fn ping(&self) -> bool {
         self.query("SELECT 1 AS ok", &[]).await.is_ok()

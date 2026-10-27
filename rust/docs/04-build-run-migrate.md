@@ -118,7 +118,8 @@ node rust/scripts/check-wasm-artifact.mjs   # 判据（也会被 node rust/scrip
 | **P0 影子** | 只部署边缘服务到独立域名/IP，不接流量；跑 `measure-http` + `measure-local` | 两臂读数齐全、`/_health` 200、上游透传字节一致 | 关进程，零影响 |
 | **P1 外壳与资产** | Cloudflare 前置，把 `/` 与 `/assets/*` 指到边缘（保留 Pages 作为回退源） | 首屏请求数 −1、HTML br ≤ gzip 的 85%、304 命中、CLS 不劣化 | 改 DNS/规则回到 Pages（分钟级） |
 | **P2 接口只读** | `/pub` 的三个带 cacheKey 的读动作走边缘（其余仍透传） | `X-Edge-Cache: hit` 命中率、上游 QPS 下降、响应字节与回源一致 | `--api-cache-ttl-ms 0` 即时回退 |
-| **P3 写动作** | 逐个原生实现写动作（每次一个），每个都带「同输入字节对账」 | 对账脚本逐动作对比（见 docs/05 §5） | 该动作回透传（配置级） |
+| **P3 读动作（已起步）** | 第 93 轮端口 **3 个公开读**：`getPublicProducts` / `getPublicCategories` / `getCatalogOrders`（开关 `NATIVE_PUBLIC_ACTIONS` 默认关） | `cargo test`（SQL ⇄ JS 逐字、映射语义）+ `node rust/scripts/check-api-parity.mjs`（键集/键序 ⇄ 现网） | 去掉环境变量即回透传（零残留）；见 [docs/08](08-api-native.md) |
+| **P3 写动作（未做）** | 逐个原生实现写动作（每次一个），每个都带「同输入字节对账」 | 对账脚本逐动作对比（见 docs/05 §5） | 该动作回透传（配置级） |
 
 **数据格式不变的保证**：边缘不碰 schema，读写都走 D1 HTTP API 或透传现网 Functions；
 迁移期间**同一份 D1**，没有双写、没有中间库。

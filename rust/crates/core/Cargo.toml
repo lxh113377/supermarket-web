@@ -8,6 +8,8 @@ description = "江科一站通：与前端/后端契约同源的纯计算与契�
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+# preserve_order：**字段顺序也是契约的一部分**（现网响应是 JS 对象字面量的键序，
+# 前端/判据按文本对账时它可观察）。Rust 侧不保序就会给出「值一样但字节不同」的响应。
+serde_json = { version = "1", features = ["preserve_order"] }
 
 [dev-dependencies]

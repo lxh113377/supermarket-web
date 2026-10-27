@@ -17,6 +17,7 @@
 //!     命中时不再回源。注意缓存的是**上游响应的原始字节**，不是重新拼的 JSON ——
 //!     于是「缓存命中」与「回源」在任何字段、任何顺序上都不可能不同。
 
+use crate::api_native;
 use crate::config::Config;
 use crate::cors::cors_headers;
 use crate::d1::D1Client;
@@ -248,6 +249,42 @@ pub async fn handle_gateway(
         }
     }
     let _ = &key;
+
+    // ④b 原生实现（默认关，见 api_native.rs 的文件头）。
+    //
+    // 位置刻意放在「透传上游」之前、微缓存之后：
+    //   · 在缓存之后 —— 原生命中同样吃 60s 微缓存（对应上游 KV 的 cache:public:*）；
+    //   · 在透传之前 —— 这样即使没配 FUNCTIONS_ORIGIN，原生动作也能独立服务；
+    //   · 取不到（D1 未配/查询失败）就**掉到透传**，客户端拿到的仍是正确数据。
+    if endpoint == Endpoint::Pub {
+        if let Some(a) = action.as_deref() {
+            if api_native::native_enabled(a) {
+                if let Some(value) = api_native::call(app, a).await {
+                    let bytes = Bytes::from(value.to_string());
+                    // 状态由封套决定（成功 200、失败按 errorCode 查 42 条表），而不是恒 200
+                    let status = StatusCode::from_u16(supermarket_core::contract::status_of(&value))
+                        .unwrap_or(StatusCode::OK);
+                    if let Some(key) = &key {
+                        if supermarket_core::contract::is_success(&value) {
+                            let mut guard = app.cache.lock().await;
+                            guard.insert(
+                                key.clone(),
+                                CacheEntry {
+                                    body: bytes.clone(),
+                                    status: status.as_u16(),
+                                    content_type: None,
+                                    stored: Instant::now(),
+                                },
+                            );
+                        }
+                    }
+                    let mut out_headers: Vec<(String, String)> = cors.clone();
+                    out_headers.push(("x-edge".to_string(), "native".to_string()));
+                    return json_response(status, bytes, out_headers);
+                }
+            }
+        }
+    }
 
     // ④ 透传上游（未配置上游时明确报错，不假装成功）。
     let Some(origin_base) = app.cfg.functions_origin.clone() else {

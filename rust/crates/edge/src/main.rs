@@ -16,6 +16,7 @@
 //!   3. 预压缩 + 长缓存 + ETag —— 传输字节与重复访问（304 零字节命中）。
 
 mod api;
+mod api_native;
 mod assets;
 mod config;
 mod cors;
