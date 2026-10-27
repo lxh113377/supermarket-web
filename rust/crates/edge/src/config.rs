@@ -12,6 +12,13 @@ pub struct D1Config {
     pub account_id: String,
     pub database_id: String,
     pub api_token: String,
+    /// D1 HTTP API 的基址（默认 Cloudflare 官方端点）。
+    ///
+    /// 之所以做成可覆盖：本机没有真 D1 凭据，若不给出这个口子，原生动作的**整条链路**
+    /// （SQL 组装 → HTTP 往返 → result[0].results 抽取 → 映射 → 封套 → 微缓存）就一步都验不了，
+    /// 只能靠读代码。有了它，`rust/scripts/check-api-native-e2e.mjs` 能把 mock D1 接上真链路。
+    /// **生产不必设它**（不设即官方端点），所以它不构成新的部署面。
+    pub api_base: Option<String>,
 }
 
 /// 边缘服务配置。字段全部可经命令行覆盖，环境变量只作为默认值来源 ——
@@ -84,7 +91,12 @@ pub fn parse_args(args: &[String]) -> Result<Command, String> {
         api_cache_ttl_ms: env_opt("API_CACHE_TTL_MS").and_then(|v| v.parse().ok()).unwrap_or(60_000),
         d1: match (env_opt("D1_ACCOUNT_ID"), env_opt("D1_DATABASE_ID"), env_opt("D1_API_TOKEN")) {
             (Some(account_id), Some(database_id), Some(api_token)) => {
-                Some(D1Config { account_id, database_id, api_token })
+                Some(D1Config {
+                    account_id,
+                    database_id,
+                    api_token,
+                    api_base: env_opt("D1_API_BASE"),
+                })
             }
             _ => None,
         },
@@ -151,6 +163,7 @@ pub const USAGE: &str = r#"supermarket-edge —— 江科一站通 Rust 边缘�
   CAMPUS_PRINT_ORIGIN /api/* 打印反代上游
   ALLOWED_ORIGINS     追加 CORS 白名单（逗号分隔）
   D1_ACCOUNT_ID / D1_DATABASE_ID / D1_API_TOKEN   D1 HTTP API（/_health 探活等）
+  D1_API_BASE          D1 HTTP API 基址覆盖（**仅供本机 mock 链路测试**，不设即官方端点）
   ADMIN_KEY           本地原生鉴权用（不配则 login 一律透传）
   DIFY_BASE_URL / DIFY_CHAT_APP_KEY  /_health 的 ai.configured 判据
   CF_PAGES_COMMIT_SHA  /_health 的 deploy 字段

@@ -27,14 +27,38 @@
 | 与现网键集/键序对账 | `node rust/scripts/check-api-parity.mjs` | **三个动作全部逐位一致**：`getPublicProducts` 14 键、`getPublicCategories` 5 键、`getCatalogOrders` `{order,needsLocalImage}`；原始读数落 `rust/docs/api-live-shapes.json` |
 
 ## 3. 本轮**没验到**的（点名，不装成验过）
+## 3. 端到端对账（本轮把上一轮的 UNVERIFIED 缺口补上了）
 
-- **值级对账**：本机 `.dev.vars` 只有 `ADMIN_KEY / PRINT_ADMIN_PASSWORD / BACKUP_PASSPHRASE /
-  ADMIN_READONLY_KEY`，**没有 D1 的 account/db/api token** ⇒ 原生动作在本机起不来，
-  「同一个查询两边取值是否逐字相同」**未验**。补法：在有 D1 凭据的机器上给 `EDGE_BASE`
-  与 `NATIVE_PUBLIC_ACTIONS=all`，对账脚本会走值级分支。
-- **原生路径的线上流量**：开关默认关 ⇒ 线上跑的仍是透传。开关打开后的灰度与回滚见 §4。
-- **写动作**：`createOrder` 等 36 个管理动作与 6 个公开写动作**一个都没动**（下一批）。
-- `getReviews` / `getOrderStatus` / `aiChat` 等其余公开读也还没端口。
+上一轮只能说清「键集/键序一致」，因为本机没有 D1 凭据 ⇒ 值级对账验不了。本轮用 **mock D1**
+把**除 D1 自身的 SQL 执行之外**的一切都跑真了（`rust/scripts/check-api-native-e2e.mjs`）：
+
+```
+现网响应 → 反推 D1 行（只覆盖 SQL 真正 SELECT 的列，JSON 列按 TEXT 给）
+        → mock D1（只认 Rust 源码里那三条 SQL，不认识就 400，绝不回空表）
+        → 真边缘（serve + NATIVE_PUBLIC_ACTIONS=all + D1_API_BASE 指向 mock）
+        → 与现网响应逐字段比（JSON.stringify 全等 ⇒ 含键序）
+```
+
+**读数**（`rust/docs/api-native-e2e.json`、`-parsed.json`）：
+
+| 动作 | 原生分支 | 与现网逐字段相同 | 第二发微缓存 | 件数 |
+|---|---|---|---|---|
+| getPublicProducts | ✅ `x-edge: native` | ✅ 全等（含键序） | ✅ hit | 45 / 45 |
+| getPublicCategories | ✅ | ✅ | ✅ hit | 3 / 3 |
+| getCatalogOrders | ✅ | ✅ | ✅ hit | 67 / 67 |
+
+两个刻意的加严：
+  1. **JSON 列的两种形态都跑**：TEXT（走 `jparse`）与已解析值（走 jparse 的非字符串直通）——两种都必须与现网全等；
+  2. **给 catalogOrders 多喂两条重复 + 一条 `order=0` 非法行**：输出仍须与现网相同 ⇒ 去重/过滤是活证据，而不是「碰巧没触发」。
+
+### 仍然没验到的（点名）
+
+- **D1 自身的 SQL 执行**：mock 只回预设行，所以「这三条 SQL 在真 D1 上跑出来的行」这一步仍是未知；
+  它的替代保障是 `sql_matches_js_source`（SQL 与现网 JS 逐字一致）+ 现网响应反推的行的形状一致；
+  真值级复核需要 D1 凭据，命令：给 `EDGE_BASE` 后跑 `check-api-parity.mjs` 的值级分支。
+- **线上流量**：开关默认关 ⇒ 线上仍跑透传（灰度与回退见 §4）。
+- **写动作**：36 个管理动作与 6 个公开写动作一个都没动（下一批，见 §5）。
+- `getReviews` / `getOrderStatus` 等其余公开读也还没端口。
 
 ## 4. 开关怎么开（以及怎么回退）
 

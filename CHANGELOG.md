@@ -8,6 +8,13 @@
 - **降级语义**：原生路径取不到（未配 D1 / 查询失败 / D1 形状不对）时**回落透传**，不编错误响应 ——
   迁移期最危险的形态是「换了一种错误形状」，而它不会被功能测试抓到。
 - **判据（本轮真跑）**：① `cargo test` 的 sql_matches_js_source 读 JS 源码断言三条 SQL 逐字出现（JS 改 SQL 而 Rust 没跟即红）；
+- **本轮补上的端到端对账（把上一轮的值级 UNVERIFIED 缺口关掉）**：新增 `rust/scripts/mock-d1-server.mjs`（只认 Rust 源码里那三条 SQL，
+  不认识就 400，**绝不回空表** —— 空表会被读成「库里没有行」）与 `rust/scripts/check-api-native-e2e.mjs`：
+  现网响应 → 反推 D1 行 → mock D1 → 真边缘（`serve` + `NATIVE_PUBLIC_ACTIONS=all` + `D1_API_BASE` 指向 mock）→ 与现网逐字段比。
+  读数：三个动作**全部与现网逐字段相同（含键序）**、都走 `x-edge: native`、第二发命中微缓存；
+  JSON 列的 TEXT 与已解析两种形态都跑；catalogOrders 额外喂两条重复 + 一条非法行，输出仍与现网相同（去重是活证据）。
+  仍然没验到的只剩「这三条 SQL 在真 D1 上执行」，替代保障是 sql_matches_js_source + 反推行形状一致。
+  `RUST_E2E_LIVE=1` 时才进 verify-all（联网腿；不给开关会打印 SKIP 与原因，不静默省略）。
   ② api_shapes 5 条用例（完整 JSON 文本 + 脏值：enabled 字符串 "1" 判 false、stock null ⇒ -1、-2.7 ⇒ -2、specOptions 出对象 ⇒ []、catalog_orders 去重）；
   ③ check-api-parity（现网 /pub 公开可取）：**三个动作键序逐位一致** —— getPublicProducts 14 键、getPublicCategories 5 键、
   getCatalogOrders {order,needsLocalImage}；原始读数 rust/docs/api-live-shapes.json。

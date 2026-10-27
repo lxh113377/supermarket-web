@@ -32,6 +32,13 @@ step('WASM ↔ JS 对账 + 微基准', process.execPath, [path.join(here, 'wasm-
 step('复刻 class 面不漂移', process.execPath, [path.join(here, 'check-shell-parity.mjs')])
 step('字体分包完整性（并集/不重叠/A 包覆盖/预算）', process.execPath, [path.join(here, 'check-font-split.mjs')])
 step('WASM 产物三方一致（产物 ⇄ manifest ⇄ ABI）', process.execPath, [path.join(here, 'check-wasm-artifact.mjs')])
+// 联网腿默认不进：它要打现网 /pub 真值并起 mock D1（本机可跑，但不该让「断网」把整条 verify 判红）。
+// 不给开关时**打印 SKIP 与原因**，而不是静默省略 —— 静默省略等于「没跑」被读成「过了」。
+if (process.env.RUST_E2E_LIVE === '1') {
+  step('原生动作端到端（现网真值 + mock D1）', process.execPath, [path.join(here, 'check-api-native-e2e.mjs')])
+} else {
+  console.log('▶ 原生动作端到端（现网真值 + mock D1） … SKIP（未设 RUST_E2E_LIVE=1；需要联网打现网 /pub）')
+}
 
 let failed = 0
 for (const s of steps) {

@@ -15,6 +15,8 @@ pub struct D1Client {
     account_id: String,
     database_id: String,
     api_token: String,
+    /// 见 `D1Config::api_base`：仅本机 mock 链路测试会设它。
+    api_base: Option<String>,
     http: reqwest::Client,
 }
 
@@ -24,6 +26,7 @@ impl D1Client {
             account_id: cfg.account_id.clone(),
             database_id: cfg.database_id.clone(),
             api_token: cfg.api_token.clone(),
+            api_base: cfg.api_base.clone(),
             // 探活必须「快速失败」：健康端点等 10 秒才回 500，等于探活本身变成了故障源。
             http: reqwest::Client::builder()
                 .timeout(Duration::from_secs(5))
@@ -33,9 +36,16 @@ impl D1Client {
     }
 
     fn endpoint(&self) -> String {
+        // 基址可覆盖（D1_API_BASE）：本机 mock 链路测试用；不设即官方端点。
+        let base = self
+            .api_base
+            .clone()
+            .unwrap_or_else(|| "https://api.cloudflare.com/client/v4".to_string());
         format!(
-            "https://api.cloudflare.com/client/v4/accounts/{}/d1/database/{}/query",
-            self.account_id, self.database_id
+            "{}/accounts/{}/d1/database/{}/query",
+            base.trim_end_matches('/'),
+            self.account_id,
+            self.database_id
         )
     }
 
