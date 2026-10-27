@@ -1,22 +1,29 @@
 // 原生动作的**端到端**对账：现网响应 → 反推 D1 行 → mock D1 → 真边缘链路 → 与现网逐字段比。
 //
-// ## 为什么要有这个（上一轮的 UNVERIFIED 缺口）
+// ## 覆盖的五个动作（2026-10-27 第二轮扩充）
+//   getPublicProducts / getPublicCategories / getCatalogOrders（无载荷）
+//   getReviews（载荷 productOrder）/ getOrderStatus（载荷 orderId）
 //
-// 上一轮只说清了「键集/键序一致」，因为本机没有 D1 凭据 ⇒ 值级对账验不了。这个脚本把
-// **除 D1 自身的 SQL 执行之外**的一切都验真：
-//   · Rust 侧发的 SQL 是不是那三条（mock 只认逐字归一化后相等的 SQL，不认就 400）；
+// ## 为什么要有这个
+//
+// 本机没有 D1 凭据 ⇒ 真值级对账做不了。这个脚本把**除 D1 自身的 SQL 执行之外**的一切都验真：
+//   · Rust 侧发的 SQL 是不是清单里那几条（mock 只认逐字归一化后相等的 SQL，不认就 400，绝不回空表）；
 //   · HTTP 往返、Bearer、result[0].results 抽取；
-//   · 行 → JSON 映射（用**现网响应反推出来的行**喂进去，输出必须与现网逐字段相同）；
-//   · 封套 code、状态码、CORS、x-edge 标记、以及 60s 微缓存的第二次命中。
+//   · 行 → JSON 映射（用现网响应反推出来的行喂进去，输出必须与现网相同）；
+//   · 封套/状态码/CORS/x-edge 标记；成功路径与**错误路径**（missing_* / order_not_found）都比；
+//   · 微缓存：可缓存的三个动作第二发必须 hit；**不可缓存的两个必须不 hit**（现网也没缓存它们，
+//     多缓存一次就是行为改变：新评价可能 60 秒看不见）。
 //
-// 反推的两处**不可观测**（照实写进读数）：
-//   1. catalogOrders 只公开 {order, needsLocalImage}，image 的真值不可见 ⇒ 反推用
+// ## 反推的不可观测处（照实写进读数）
+//   1. getCatalogOrders 只公开 {order, needsLocalImage} ⇒ image 真值不可见，反推用
 //      needsLocalImage ? '' : 'x.webp'（只保证「是否依赖本地图」这个可见事实一致）；
-//   2. D1 里 JSON 列存的是文本还是已解析值不可见 ⇒ 反推按**文本**给（更严：走 jparse 解析路径），
-//      并另跑一轮「已解析值」形态（另一个用例，见 --parsed）。
+//   2. D1 里 JSON 列存文本还是已解析值不可见 ⇒ 两种形态各跑一轮（--parsed 走已解析）；
+//   3. getOrderStatus 的**成功路径**无法端到端验：公开面没有任何途径能拿到一个真实订单号，
+//      所以本轮 E2E 覆盖它的两条**失败路径**（missing_order_id / order_not_found）；
+//      成功形状由 core 单测钉住（a_order_status_data_matches_js_object）。
 //
 // 用法：node rust/scripts/check-api-native-e2e.mjs [--live https://supermarket-web.pages.dev]
-//        [--edge-port 5198] [--mock-port 5199] [--json out.json]
+//        [--edge-port 5198] [--mock-port 5199] [--parsed] [--json out.json]
 
 import { spawn } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
@@ -38,61 +45,92 @@ const parsedMode = args.includes('--parsed')
 // ── SQL 从 Rust 源码读（确保 mock 认的就是 Rust 真正会发的语句）──
 const src = readFileSync(path.join(rustRoot, 'crates', 'edge', 'src', 'api_native.rs'), 'utf8')
 const sqlOf = (name) => {
-  const m = src.match(new RegExp('pub const ' + name + ': &str = r#"([\\s\\S]*?)"#'))
-  if (!m) throw new Error('读不到 ' + name)
-  return m[1]
+  // 原本用 new RegExp 拼正则，但反斜杠在字符串里被吃了一层 ⇒ 改用 indexOf 切片（无转义面）
+  const head = 'pub const ' + name + ': &str = r#"'
+  const at = src.indexOf(head)
+  if (at < 0) throw new Error('读不到 ' + name)
+  const from = at + head.length
+  const to = src.indexOf('"#', from)
+  if (to < 0) throw new Error(name + ' 的原始字符串没闭合')
+  return src.slice(from, to)
 }
 const SQL = {
   products: sqlOf('SQL_PUBLIC_PRODUCTS'),
   categories: sqlOf('SQL_PUBLIC_CATEGORIES'),
   catalogOrders: sqlOf('SQL_CATALOG_ORDERS'),
+  reviews: sqlOf('SQL_GET_REVIEWS'),
+  orderStatus: sqlOf('SQL_ORDER_STATUS'),
 }
 
-const postPub = async (base, action) => {
+const postPub = async (base, action, payload) => {
+  const body = payload === undefined ? { action } : { action, payload }
   const res = await fetch(base + '/pub', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ action, payload: {} }),
+    body: JSON.stringify(body),
   })
   return { status: res.status, edge: res.headers.get('x-edge'), edgeCache: res.headers.get('x-edge-cache'), json: await res.json() }
 }
+const stripTrace = (o) => { const c = { ...o }; delete c.trace; return c }
 
-const ACTIONS = [
-  { name: 'getPublicProducts', sql: SQL.products, map: 'products' },
-  { name: 'getPublicCategories', sql: SQL.categories, map: 'categories' },
-  { name: 'getCatalogOrders', sql: SQL.catalogOrders, map: 'catalogOrders' },
-]
-
-// ── ① 取现网响应（真值面）──
+// ── ① 取现网响应（真值面）。getReviews 需要一个真实 productOrder：从目录里的 order 号扫一遍 ──
 console.log('取现网 ' + live + ' …')
+const liveProducts = await postPub(live, 'getPublicProducts', {})
+if (!Array.isArray(liveProducts.json.data)) throw new Error('现网 getPublicProducts 取不到')
+const orders = liveProducts.json.data.map((p) => p.order).filter((n) => Number.isInteger(n) && n > 0)
+let reviewsPayload = { productOrder: orders[0] }
+let reviewsLive = await postPub(live, 'getReviews', reviewsPayload)
+let scanned = 1
+for (const order of orders.slice(1, 15)) {
+  if (Array.isArray(reviewsLive.json.data) && reviewsLive.json.data.length > 0) break
+  reviewsPayload = { productOrder: order }
+  reviewsLive = await postPub(live, 'getReviews', reviewsPayload)
+  scanned += 1
+}
+const reviewCount = Array.isArray(reviewsLive.json.data) ? reviewsLive.json.data.length : -1
+console.log('  getReviews 用 productOrder=' + reviewsPayload.productOrder + '（扫了 ' + scanned + ' 个号）⇒ ' + reviewCount + ' 条')
+
+const CASES = [
+  { name: 'getPublicProducts', sql: SQL.products, map: 'products', payload: {}, cacheable: true },
+  { name: 'getPublicCategories', sql: SQL.categories, map: 'categories', payload: {}, cacheable: true },
+  { name: 'getCatalogOrders', sql: SQL.catalogOrders, map: 'catalogOrders', payload: {}, cacheable: true },
+  { name: 'getReviews', sql: SQL.reviews, map: 'reviews', payload: reviewsPayload, cacheable: false },
+  { name: 'getOrderStatus（未知订单号：错误路径）', action: 'getOrderStatus', sql: SQL.orderStatus, payload: { orderId: 'o_not_exist_' + Date.now() }, cacheable: false },
+  { name: 'getOrderStatus（缺 orderId：错误路径）', action: 'getOrderStatus', sql: SQL.orderStatus, payload: {}, cacheable: false },
+  { name: 'getOrderStatus（不给 payload：边界）', action: 'getOrderStatus', sql: SQL.orderStatus, payload: undefined, cacheable: false },
+  { name: 'getReviews（缺 productOrder：错误路径）', action: 'getReviews', sql: SQL.reviews, payload: {}, cacheable: false },
+]
+for (const c of CASES) if (!c.action) c.action = c.name
+
 const liveOut = {}
-for (const a of ACTIONS) {
-  const r = await postPub(live, a.name)
-  if (r.status !== 200 || !Array.isArray(r.json.data)) throw new Error(a.name + ' 现网取不到（status=' + r.status + '）')
-  liveOut[a.name] = r.json
-  console.log('  ' + a.name + '：' + r.json.data.length + ' 件')
+for (const c of CASES) {
+  if (liveOut[c.action + '|' + JSON.stringify(c.payload)]) continue
+  const r = await postPub(live, c.action, c.payload)
+  liveOut[c.action + '|' + JSON.stringify(c.payload)] = stripTrace(r.json)
 }
 
-// ── ② 反推 D1 行（只覆盖 SQL 真正 SELECT 的列，且模拟 D1 的存储形态）──
-const asText = (v) => (parsedMode ? v : JSON.stringify(v))       // JSON 列：文本 / 已解析 两种形态
-const toRow = {
-  products: (p) => ({
+// ── ② 反推 D1 行 ──
+const asText = (v) => (parsedMode ? v : JSON.stringify(v))
+const rows = {
+  products: liveProducts.json.data.map((p) => ({
     _id: p._id, name: p.name, spec: p.spec && p.spec.length ? p.spec : null,
     price: p.price, image: p.image && p.image.length ? p.image : null,
     order: p.order, subcategories: asText(p.subcategories), enabled: p.enabled ? 1 : 0,
     description: p.description && p.description.length ? p.description : null,
     stock: p.stock, specOptions: asText(p.specOptions),
-  }),
-  categories: (c) => ({ _id: c._id, name: c.name, type: c.type && c.type.length ? c.type : null, order: c.order, subcategories: asText(c.subcategories) }),
-  catalogOrders: (o) => ({ order: o.order, image: o.needsLocalImage ? '' : 'x.webp' }),
+  })),
+  categories: (await postPub(live, 'getPublicCategories', {})).json.data.map((c) => ({
+    _id: c._id, name: c.name, type: c.type && c.type.length ? c.type : null, order: c.order, subcategories: asText(c.subcategories),
+  })),
+  catalogOrders: (await postPub(live, 'getCatalogOrders', {})).json.data.map((o) => ({ order: o.order, image: o.needsLocalImage ? '' : 'x.webp' })),
+  // 评价行：从现网响应反推（SQL 选的那 7 列；images 是 JSON 文本列）
+  reviews: (Array.isArray(reviewsLive.json.data) ? reviewsLive.json.data : []).map((r) => ({
+    _id: r._id, user: r.user, rating: r.rating, text: r.text, productOrder: r.productOrder,
+    createdAt: r.createdAt, images: asText(r.images),
+  })),
+  // 订单状态：**故意给空行集** ⇒ 原生必然走 order_not_found，与现网同输入的错误路径对齐
+  orderStatus: [],
 }
-const rows = {
-  products: liveOut.getPublicProducts.data.map(toRow.products),
-  categories: liveOut.getPublicCategories.data.map(toRow.categories),
-  catalogOrders: liveOut.getCatalogOrders.data.map(toRow.catalogOrders),
-}
-// 额外塞两条重复 + 一条非法 order：**输出仍须与现网相同**（去重/id 过滤的活证据；
-// 现网面已去重，若 Rust 侧漏了去重，这两条就会让结果多出来 ⇒ 差异暴露）
 rows.catalogOrders.push({ order: rows.catalogOrders[0].order, image: 'dup.webp' })
 rows.catalogOrders.push({ order: 0, image: '' })
 rows.catalogOrders.push({ order: -5, image: '' })
@@ -102,6 +140,8 @@ writeFileSync(rowsFile, JSON.stringify({
   [SQL.products]: rows.products,
   [SQL.categories]: rows.categories,
   [SQL.catalogOrders]: rows.catalogOrders,
+  [SQL.reviews]: rows.reviews,
+  [SQL.orderStatus]: rows.orderStatus,
 }, null, 1) + '\n')
 
 // ── ③ 起 mock D1 + 真边缘 ──
@@ -111,16 +151,8 @@ await new Promise((r) => setTimeout(r, 600))
 
 const bin = path.join(rustRoot, 'target', 'release', 'supermarket-edge' + (process.platform === 'win32' ? '.exe' : ''))
 if (!existsSync(bin)) { console.error('缺边缘二进制 ' + bin + '（先 cargo build -p supermarket-edge --release）'); mock.kill(); process.exit(2) }
-// 边缘是可执行文件的子命令形态：必须走 `serve`（第一版漏了它，二进制直接打帮助并退出）
 const edge = spawn(bin, ['serve', '--dist', path.join(repoRoot, 'dist'), '--port', String(edgePort)], {
-  env: {
-    ...process.env,
-    NATIVE_PUBLIC_ACTIONS: 'all',
-    D1_ACCOUNT_ID: 'mock-account',
-    D1_DATABASE_ID: 'mock-db',
-    D1_API_TOKEN: token,
-    D1_API_BASE: 'http://127.0.0.1:' + mockPort,
-  },
+  env: { ...process.env, NATIVE_PUBLIC_ACTIONS: 'all', D1_ACCOUNT_ID: 'mock-account', D1_DATABASE_ID: 'mock-db', D1_API_TOKEN: token, D1_API_BASE: 'http://127.0.0.1:' + mockPort },
   stdio: ['ignore', 'pipe', 'pipe'],
 })
 edge.stderr.on('data', (d) => process.stderr.write('[edge] ' + d))
@@ -133,38 +165,32 @@ for (let i = 0; i < 40; i += 1) {
 }
 if (!healthy) { console.error('边缘没起来（' + base + '/_health 不可达）'); edge.kill(); mock.kill(); process.exit(2) }
 
-// ── ④ 逐动作对比 ──
+// ── ④ 逐用例对比 ──
 const problems = []
-const report = { at: new Date().toISOString(), live, edge: base, mode: parsedMode ? 'JSON 列=已解析' : 'JSON 列=文本', actions: {}, rowsFed: { products: rows.products.length, categories: rows.categories.length, catalogOrders: rows.catalogOrders.length } }
-for (const a of ACTIONS) {
-  const first = await postPub(base, a.name)
-  const second = await postPub(base, a.name)      // 第二发：验微缓存命中
-  const entry = { status: first.status, edge: first.edge, cacheFirst: first.edgeCache, cacheSecond: second.edgeCache, liveLength: liveOut[a.name].data.length, edgeLength: first.json.data ? first.json.data.length : -1, equal: false }
-  if (first.edge !== 'native') problems.push(a.name + '：x-edge=' + first.edge + '（不是原生分支；说明回落了透传 —— 而本机没配 FUNCTIONS_ORIGIN，回落即失败）')
-  if (first.status !== 200 || first.json.code !== 0) problems.push(a.name + '：状态/封套不对 status=' + first.status + ' code=' + first.json.code)
-  const want = JSON.stringify(liveOut[a.name].data)
-  const got = JSON.stringify(first.json.data)
+const report = { at: new Date().toISOString(), live, edge: base, mode: parsedMode ? 'JSON 列=已解析' : 'JSON 列=文本', reviewsProductOrder: reviewsPayload.productOrder, cases: {}, rowsFed: { products: rows.products.length, categories: rows.categories.length, catalogOrders: rows.catalogOrders.length, reviews: rows.reviews.length, orderStatus: rows.orderStatus.length } }
+for (const c of CASES) {
+  const key = c.action + '|' + JSON.stringify(c.payload)
+  const first = await postPub(base, c.action, c.payload)
+  const second = await postPub(base, c.action, c.payload)
+  const entry = { action: c.action, payload: c.payload === undefined ? null : c.payload, status: first.status, edge: first.edge, cacheFirst: first.edgeCache, cacheSecond: second.edgeCache, equal: false }
+  if (first.edge !== 'native') problems.push(c.name + '：x-edge=' + first.edge + '（不是原生分支）')
+  const want = JSON.stringify(liveOut[key])
+  const got = JSON.stringify(stripTrace(first.json))
   entry.equal = want === got
   if (!entry.equal) {
-    problems.push(a.name + '：**数据与现网不同**（现网 ' + liveOut[a.name].data.length + ' 件 / 边缘 ' + (first.json.data ? first.json.data.length : -1) + ' 件）')
-    // 给出首个差异字段，省得下次靠肉眼找
-    const A = liveOut[a.name].data
-    const B = first.json.data || []
-    for (let i = 0; i < Math.max(A.length, B.length); i += 1) {
-      if (JSON.stringify(A[i]) !== JSON.stringify(B[i])) {
-        entry.firstDiff = { index: i, live: A[i], edge: B[i] }
-        break
-      }
-    }
+    entry.liveJson = liveOut[key]
+    entry.edgeJson = stripTrace(first.json)
+    problems.push(c.name + '：与现网不同（现网 ' + want.slice(0, 160) + '… / 边缘 ' + got.slice(0, 160) + '…）')
   }
-  if (second.edgeCache !== 'hit') problems.push(a.name + '：第二发没命中微缓存（x-edge-cache=' + second.edgeCache + '）')
-  report.actions[a.name] = entry
-  console.log(a.name + '：原生=' + (first.edge === 'native') + '｜与现网逐字段相同=' + entry.equal + '｜第二发缓存=' + second.edgeCache + '｜件数 ' + entry.liveLength + '/' + entry.edgeLength)
+  if (c.cacheable && second.edgeCache !== 'hit') problems.push(c.name + '：可缓存动作第二发没命中（' + second.edgeCache + '）')
+  if (!c.cacheable && second.edgeCache === 'hit') problems.push(c.name + '：**不该缓存却命中了**（现网没缓存它 ⇒ 这会改变时效性）')
+  report.cases[c.name] = entry
+  console.log(c.name + '：原生=' + (first.edge === 'native') + '｜与现网相同=' + entry.equal + '｜缓存第二发=' + (second.edgeCache || '无头') + '｜HTTP ' + first.status)
 }
 
 writeFileSync(jsonOut, JSON.stringify({ ...report, problems }, null, 2) + '\n')
 console.log('原始读数 ' + jsonOut)
-console.log(problems.length ? '\nGATE-FAIL check-api-native-e2e：' + problems.length + ' 项\n  - ' + problems.join('\n  - ') : '\nGATE-PASS check-api-native-e2e：三个动作的原生响应与现网**逐字段相同**（含键序），且第二发命中微缓存')
+console.log(problems.length ? '\nGATE-FAIL check-api-native-e2e：' + problems.length + ' 项\n  - ' + problems.join('\n  - ') : '\nGATE-PASS check-api-native-e2e：五个动作（含两条错误路径与「不给 payload」边界）与现网**逐字段相同**，缓存语义一致（可缓存的 hit、不可缓存的未 hit）')
 
 edge.kill()
 mock.kill()

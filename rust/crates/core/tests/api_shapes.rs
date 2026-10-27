@@ -5,7 +5,9 @@
 //! （含字段顺序），而不是"某几个键存在"。
 
 use serde_json::{json, Value};
-use supermarket_core::api_shapes::{catalog_orders, jparse, row_to_category, row_to_product};
+use supermarket_core::api_shapes::{
+    catalog_orders, jparse, order_status_data, review_row_to_json, row_to_category, row_to_product,
+};
 
 fn s(v: Value) -> String {
     serde_json::to_string(&v).unwrap()
@@ -88,6 +90,36 @@ fn a_row_to_category_matches_js() {
     let got = row_to_category(&row2);
     assert_eq!(got["type"], json!(""));
     assert_eq!(got["order"], json!(0));
+}
+
+#[test]
+fn a_review_row_follows_spread_semantics() {
+    // 行键序 = SQL SELECT 的列序（D1 的返回顺序），images 是 JSON 文本列
+    let row = json!({
+        "_id": "r_1", "user": "匿名用户", "rating": 5, "text": "好喝",
+        "productOrder": 6, "createdAt": "2026-10-27T00:00:00.000Z", "images": "[\"data:image/png;base64,AAA\"]"
+    });
+    assert_eq!(
+        s(review_row_to_json(&row)),
+        "{\"_id\":\"r_1\",\"user\":\"匿名用户\",\"rating\":5,\"text\":\"好喝\",\"productOrder\":6,\"createdAt\":\"2026-10-27T00:00:00.000Z\",\"images\":[\"data:image/png;base64,AAA\"]}"
+    );
+    let dirty = json!({ "_id": "r_2", "images": "{oops" });
+    assert_eq!(s(review_row_to_json(&dirty)), "{\"_id\":\"r_2\",\"images\":[]}");
+    let missing = json!({ "_id": "r_3" });
+    assert_eq!(s(review_row_to_json(&missing)), "{\"_id\":\"r_3\",\"images\":[]}");
+    let parsed = json!({ "_id": "r_4", "images": ["a.png"] });
+    assert_eq!(s(review_row_to_json(&parsed)), "{\"_id\":\"r_4\",\"images\":[\"a.png\"]}");
+}
+
+#[test]
+fn a_order_status_data_matches_js_object() {
+    let row = json!({ "status": "已完成", "updatedAt": "2026-10-27T01:02:03.000Z" });
+    assert_eq!(
+        s(order_status_data("o_abc", &row)),
+        "{\"orderId\":\"o_abc\",\"status\":\"已完成\",\"updatedAt\":\"2026-10-27T01:02:03.000Z\"}"
+    );
+    let sparse = json!({ "status": "待支付" });
+    assert_eq!(s(order_status_data("o_x", &sparse)), "{\"orderId\":\"o_x\",\"status\":\"待支付\",\"updatedAt\":null}");
 }
 
 #[test]

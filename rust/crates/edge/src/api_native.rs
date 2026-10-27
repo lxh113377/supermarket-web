@@ -23,10 +23,12 @@ use serde_json::Value;
 use crate::api::App;
 
 /// 在册的原生动作（全部公开读；写动作一律留透传，见 docs/08 的未做清单）。
-pub const NATIVE_ACTIONS: [&str; 3] = [
+pub const NATIVE_ACTIONS: [&str; 5] = [
     "getPublicProducts",
     "getPublicCategories",
     "getCatalogOrders",
+    "getReviews",
+    "getOrderStatus",
 ];
 
 // ── SQL（来源：functions/lib/actions/products.js，行号见注释；改一处必须同步改两边）──
@@ -36,6 +38,10 @@ pub const SQL_PUBLIC_PRODUCTS: &str = r#"SELECT _id, name, spec, price, image, "
 pub const SQL_PUBLIC_CATEGORIES: &str = r#"SELECT _id, name, type, "order", subcategories FROM categories ORDER BY "order" ASC LIMIT 200"#;
 /// products.js:67 —— 目录序号面（**不加 enabled 过滤**：它回答的是「目录里一共出现过多少个号」）。
 pub const SQL_CATALOG_ORDERS: &str = r#"SELECT "order", image FROM products ORDER BY "order" ASC LIMIT 1000"#;
+/// reviews.js:12 —— 某商品的评价（按 createdAt 倒序，上限 500）。**注意 "user" 是保留字，必须带引号**。
+pub const SQL_GET_REVIEWS: &str = r#"SELECT _id, "user", rating, text, productOrder, createdAt, images FROM reviews WHERE productOrder = ? ORDER BY createdAt DESC LIMIT 500"#;
+/// orders.js:441 —— 按订单号查状态（只回两列；查不到 ⇒ order_not_found）。
+pub const SQL_ORDER_STATUS: &str = r#"SELECT status, updatedAt FROM orders WHERE _id = ?"#;
 
 /// 开关：`NATIVE_PUBLIC_ACTIONS=all` 或逗号分隔的动作名；未设 ⇒ 全关（默认透传）。
 pub fn native_enabled(action: &str) -> bool {
@@ -55,7 +61,8 @@ pub fn native_enabled(action: &str) -> bool {
 /// 原生调用：`None` = 这条动作这次走不了原生（未配 D1 / 查询失败 / D1 形状不对）。
 ///
 /// **返回 None 而不是编一个失败响应**：调用方据此回落上游透传 —— 降级路径必须是「数据仍然对」。
-pub async fn call(app: &Arc<App>, action: &str) -> Option<Value> {
+/// `payload` 是请求体里的 `payload` 字段（现网 handlePublic/handleWeb 也是这么取的）。
+pub async fn call(app: &Arc<App>, action: &str, payload: Option<&Value>) -> Option<Value> {
     let d1 = app.d1.as_ref()?;
     match action {
         "getPublicProducts" => {
@@ -72,6 +79,67 @@ pub async fn call(app: &Arc<App>, action: &str) -> Option<Value> {
             let rows = d1.query_rows(SQL_CATALOG_ORDERS, &[]).await.ok()?;
             let data = supermarket_core::api_shapes::catalog_orders(&rows);
             Some(json!({ "code": 0, "data": data }))
+        }
+        "getReviews" => {
+            // 现网 reviews.js:9-10：`productOrder == null` ⇒ missing_product_order。
+            // 「没给」与「给了但取不出数」是两件事：前者回错误封套；后者**回落透传**
+            //（JS 会把 NaN 当参数发给 D1，那条路径我们不复刻 —— 宁可由上游照旧处理，
+            //  也不猜一个可能不对的答案）。
+            match payload.and_then(|p| p.get("productOrder")) {
+                None | Some(Value::Null) => Some(supermarket_core::errors::fail(
+                    "missing_product_order",
+                    "缺少 productOrder",
+                    Default::default(),
+                )),
+                Some(v) => {
+                    let n = match v {
+                        Value::Number(x) => x.as_f64(),
+                        Value::String(s) => s.trim().parse::<f64>().ok(),
+                        _ => None,
+                    }?;
+                    if !n.is_finite() {
+                        return None;
+                    }
+                    // Number(productOrder)：整数就按整数发（与 JS 的 [6] 同形），带小数才发小数
+                    let param = if n.fract() == 0.0 {
+                        json!(n as i64)
+                    } else {
+                        json!(n)
+                    };
+                    let rows = d1.query_rows(SQL_GET_REVIEWS, &[param]).await.ok()?;
+                    let data: Vec<Value> = rows
+                        .iter()
+                        .map(supermarket_core::api_shapes::review_row_to_json)
+                        .collect();
+                    Some(json!({ "code": 0, "data": data }))
+                }
+            }
+        }
+        "getOrderStatus" => {
+            // 现网 orders.js:439：`!orderId || typeof orderId !== 'string'` ⇒ missing_order_id
+            let id = match payload.and_then(|p| p.get("orderId")) {
+                Some(Value::String(s)) if !s.is_empty() => s.clone(),
+                _ => {
+                    return Some(supermarket_core::errors::fail(
+                        "missing_order_id",
+                        "缺少订单号",
+                        Default::default(),
+                    ))
+                }
+            };
+            let rows = d1.query_rows(SQL_ORDER_STATUS, &[json!(id)]).await.ok()?;
+            match rows.first() {
+                // 现网 orders.js:442：查不到 ⇒ order_not_found（404 档，kind=state）
+                None => Some(supermarket_core::errors::fail(
+                    "order_not_found",
+                    "订单不存在",
+                    Default::default(),
+                )),
+                Some(row) => Some(json!({
+                    "code": 0,
+                    "data": supermarket_core::api_shapes::order_status_data(&id, row),
+                })),
+            }
         }
         _ => None,
     }
@@ -91,28 +159,28 @@ mod tests {
     fn sql_matches_js_source() {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         // rust/crates/edge → 三级上一级 = 仓根（supermarket-web）
-        let js_path = root
-            .join("..")
-            .join("..")
-            .join("..")
-            .join("functions")
-            .join("lib")
-            .join("actions")
-            .join("products.js");
-        let js = fs::read_to_string(&js_path)
-            .unwrap_or_else(|e| panic!("读不到 {:?}：{}", js_path, e));
+        // rust/crates/edge → 三级上一级 = 仓根（supermarket-web）
+        let repo = root.join("..").join("..").join("..");
         let norm = |s: &str| s.split_whitespace().collect::<Vec<_>>().join(" ");
-        let flat = norm(&js);
-        for (name, sql) in [
-            ("SQL_PUBLIC_PRODUCTS", SQL_PUBLIC_PRODUCTS),
-            ("SQL_PUBLIC_CATEGORIES", SQL_PUBLIC_CATEGORIES),
-            ("SQL_CATALOG_ORDERS", SQL_CATALOG_ORDERS),
-        ] {
+        // 每条 SQL 坐在哪个 JS 文件里。2026-10-27 扩到 5 条 SQL 时才发现：
+        // 三条在 products.js，而 getReviews 在 reviews.js、getOrderStatus 在 orders.js ——
+        // 只读一个文件的写法会让后两条「验了个空」（判据绿着，其实没比过）。
+        let sources: [(&str, &str, &str); 5] = [
+            (SQL_PUBLIC_PRODUCTS, "SQL_PUBLIC_PRODUCTS", "functions/lib/actions/products.js"),
+            (SQL_PUBLIC_CATEGORIES, "SQL_PUBLIC_CATEGORIES", "functions/lib/actions/products.js"),
+            (SQL_CATALOG_ORDERS, "SQL_CATALOG_ORDERS", "functions/lib/actions/products.js"),
+            (SQL_GET_REVIEWS, "SQL_GET_REVIEWS", "functions/lib/actions/reviews.js"),
+            (SQL_ORDER_STATUS, "SQL_ORDER_STATUS", "functions/lib/actions/orders.js"),
+        ];
+        for (sql, name, rel) in sources {
+            let js_path = repo.join(rel);
+            let js = fs::read_to_string(&js_path)
+                .unwrap_or_else(|e| panic!("读不到 {:?}：{}", js_path, e));
             assert!(
-                flat.contains(&norm(sql)),
-                "{} 与 JS 源码不一致（现网实现改了 SQL，Rust 侧未同步）\n  Rust: {}",
+                norm(&js).contains(&norm(sql)),
+                "{} 与 {} 里的字面量不一致（现网实现改了 SQL，Rust 侧未同步）",
                 name,
-                norm(sql)
+                rel
             );
         }
     }

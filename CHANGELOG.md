@@ -1,4 +1,20 @@
 ## [未发布]
+### 2026-10-27 公开读续做：getReviews / getOrderStatus 原生化（端到端 8 用例全绿，含一条实测纠正）
+
+- **做了什么**：`core::api_shapes` 新增 `review_row_to_json`（**照搬 JS 的 spread 语义**：按行自己的键序原样拷再覆盖 images —— 不写死字段清单，SQL 加列时不会静默漏字段）
+  与 `order_status_data`（`{orderId,status,updatedAt}`，**data 是对象不是数组**）；边缘新增 `SQL_GET_REVIEWS` / `SQL_ORDER_STATUS` 与两个分支；
+  `api.rs` 把请求体的 payload 传进原生调用；错误路径一律走 core 的 42 条登记码（missing_product_order / missing_order_id / order_not_found）。
+- **一条实测纠正**：这两个动作现网**没有** KV 缓存 ⇒ 原生化后**不得进微缓存**（多缓存一次 = 新评价可能 60 秒看不见，是行为改变）。
+  判据相应加了一条反向断言：**不可缓存的动作第二发必须不 hit**。
+- **替委派审计核实一处**：子代理读码结论是「handlers 里 `payload.orderId` 在 payload 为 undefined 时会先抛 TypeError」；
+  线上实测是 **400 `missing_order_id`（不是 500）**，原生同值 ⇒ 结论按线上实测记（入口把 payload 归一化过）。
+- **SQL 判据扩面**：从「读 products.js 一个文件」扩到**按文件读**（5 条 SQL 分布在 products.js / reviews.js / orders.js）——
+  第一版只读一个文件时，后两条是「验了个空」（判据绿着，其实没比过），扩到 5 条 SQL 才暴露。
+- **读数**：`check-api-native-e2e.mjs` 8 个用例全绿（文本/已解析两种 JSON 列形态各跑一轮）：
+  5 个动作 + 未知订单号 404 + 缺 orderId 400 + **不给 payload 400** + 缺 productOrder 400，全部与现网**逐字段相同**；缓存语义一致。
+- **仍然没验到**：getOrderStatus 的**成功路径** —— 公开面没有任何途径能拿到真实订单号，端到端只能覆盖它的两条失败路径；
+  成功形状由 core 单测（a_order_status_data_matches_js_object）钉住。
+- 门禁：`cargo test`（core 26 条 + edge 8 条）全绿；`verify-all`（含 `RUST_E2E_LIVE=1` 的端到端腿）全通过。
 ### 2026-10-27 P3 起步：/pub 三个公开读动作原生化（默认关，键集/键序与现网逐位一致）
 
 - **做了什么**：新增 `crates/core/src/api_shapes.rs`（行 → JSON 形状的纯映射：row_to_product / row_to_category /

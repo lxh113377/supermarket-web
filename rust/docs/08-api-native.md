@@ -27,6 +27,38 @@
 | 与现网键集/键序对账 | `node rust/scripts/check-api-parity.mjs` | **三个动作全部逐位一致**：`getPublicProducts` 14 键、`getPublicCategories` 5 键、`getCatalogOrders` `{order,needsLocalImage}`；原始读数落 `rust/docs/api-live-shapes.json` |
 
 ## 3. 本轮**没验到**的（点名，不装成验过）
+## 2b. 第二轮扩充：getReviews / getOrderStatus（2026-10-27 第 5 轮）
+
+| 件 | 位置 | 与原实现的对齐点 |
+|---|---|---|
+| 评价行映射 | `crates/core/src/api_shapes.rs` 的 `review_row_to_json` | 照搬 JS 的 spread 语义（`{ ...r, images: jparse(r.images, []) }`）：**按行自己的键序原样拷**，再覆盖 `images`；不写死字段清单（SQL 加列时不会静默漏字段） |
+| 订单状态映射 | 同文件的 `order_status_data` | `{ orderId, status, updatedAt }`，键序一致；**data 是对象不是数组**（前端读 `data.status` 的写法直接依赖它） |
+| 两个动作的原生实现 | `crates/edge/src/api_native.rs` | 新增 `SQL_GET_REVIEWS`（reviews.js:12）与 `SQL_ORDER_STATUS`（orders.js:441）；载荷取自请求体的 `payload` |
+| 错误路径 | 同上 | `missing_product_order`（reviews.js:9）/ `missing_order_id`（orders.js:439）/ `order_not_found`（orders.js:442）——全部走 core 的 42 条登记码，不自造 |
+| 缓存语义 | `api.rs` 的 `PUBLIC_READ_CACHEABLE` | 这两个动作**不进微缓存**：现网也没给它们 KV 缓存，多缓存一次就是行为改变（新评价可能 60 秒看不见） |
+
+两处**刻意的「回落而不是猜」**：
+
+- `getReviews` 的 `productOrder` 是「非空但取不出有限数」（例如 `NaN`）时：JS 会把 NaN 当参数发给 D1（SQL 匹配不到 ⇒ 空数组）。
+  Rust 侧**不回原生**，直接落透传 —— 让上游照旧处理，比猜一个「大概等价」的答案安全。
+- `getOrderStatus` 的 `orderId` 非字符串（数字/布尔）时按 `missing_order_id` 处理（现网 `typeof orderId !== 'string'` 的语义），不靠类型宽松去「帮忙修好」。
+
+### 2b.1 判据读数（`check-api-native-e2e.mjs`，8 个用例）
+
+| 用例 | 原生分支 | 与现网 | HTTP | 缓存第二发 |
+|---|---|---|---|---|
+| getPublicProducts | ✅ | ✅ 逐字段相同 | 200 | hit（可缓存） |
+| getPublicCategories | ✅ | ✅ | 200 | hit |
+| getCatalogOrders | ✅ | ✅ | 200 | hit |
+| getReviews（productOrder=6，真实 1 条） | ✅ | ✅ | 200 | 无头（**不可缓存**） |
+| getOrderStatus（未知订单号 → 错误路径） | ✅ | ✅ | 404 | 无头 |
+| getOrderStatus（缺 orderId → 错误路径） | ✅ | ✅ | 400 | 无头 |
+| getOrderStatus（**不给 payload** → 边界） | ✅ | ✅ | 400 | 无头 |
+| getReviews（缺 productOrder → 错误路径） | ✅ | ✅ | 400 | 无头 |
+
+「不给 payload」这条是**替委派审计核实的一处疑虑**：它的读码结论是「handlers 里 `payload.orderId` 在 payload 为 undefined 时会先抛」；
+实测现网 **400 `missing_order_id`（不是 500）**，原生同值 —— 说明 `/pub` 的入口把 payload 归一化过。结论按**线上实测**记，不按读码推断记。
+
 ## 3. 端到端对账（本轮把上一轮的 UNVERIFIED 缺口补上了）
 
 上一轮只能说清「键集/键序一致」，因为本机没有 D1 凭据 ⇒ 值级对账验不了。本轮用 **mock D1**
@@ -53,11 +85,11 @@
 
 ### 仍然没验到的（点名）
 
-- **D1 自身的 SQL 执行**：mock 只回预设行，所以「这三条 SQL 在真 D1 上跑出来的行」这一步仍是未知；
+- **D1 自身的 SQL 执行**：mock 只回预设行，所以「这些 SQL 在真 D1 上跑出来的行」这一步仍是未知（现已覆盖 5 条 SQL）；
   它的替代保障是 `sql_matches_js_source`（SQL 与现网 JS 逐字一致）+ 现网响应反推的行的形状一致；
   真值级复核需要 D1 凭据，命令：给 `EDGE_BASE` 后跑 `check-api-parity.mjs` 的值级分支。
 - **线上流量**：开关默认关 ⇒ 线上仍跑透传（灰度与回退见 §4）。
-- **写动作**：36 个管理动作与 6 个公开写动作一个都没动（下一批，见 §5）。
+- **写动作**：一个都没动（下一批；清单与风险分级见 [docs/09](09-api-inventory.md)）。
 - `getReviews` / `getOrderStatus` 等其余公开读也还没端口。
 
 ## 4. 开关怎么开（以及怎么回退）

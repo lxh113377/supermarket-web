@@ -51,7 +51,7 @@ node scripts/wasm-host-test.mjs
 | 字体分包完整性 | `node scripts/check-font-split.mjs` | 7 项全过（并集=源字体 932 字形、两两不重叠、A 覆盖首屏、预算） |
 | WASM 产物一致 | `node scripts/check-wasm-artifact.mjs` | 产物 ⇄ manifest ⇄ ABI v2 三方一致（69,629 B） |
 | 原生 API 形状 | `node scripts/check-api-parity.mjs` | 现网 /pub 三个公开读的**键集/键序与 Rust 映射逐位一致**（14 / 5 / 2 键） |
-| 原生 API 端到端 | `node scripts/check-api-native-e2e.mjs`（`RUST_E2E_LIVE=1` 时进 verify-all） | 现网行 → mock D1 → 真边缘：三个动作响应与现网**逐字段相同**（含键序）+ 微缓存命中（见 docs/08 §3） |
+| 原生 API 端到端 | `node scripts/check-api-native-e2e.mjs`（`RUST_E2E_LIVE=1` 时进 verify-all） | 现网行 → mock D1 → 真边缘：**五个动作 + 3 个边界/错误路径**全与现网**逐字段相同**（含键序），缓存语义一致（可缓存 hit / 不可缓存不 hit）（见 docs/08 §2b.1） |
 | WASM 商城索引端到端 | `node scripts/measure-shop-filter.mjs --scale 1\|20` | 见 docs/05 §4c：**结果逐条等价，但端到端量不出收益**（~50 ms 帧地板）⇒ 开关默认关 |
 | 字体分包渲染等价 | `node scripts/font-render-parity.mjs --old … --new …` | 5 个样本串 `TextMetrics` 逐位相同；像素比 **0/260,538 不同** |
 | 仓内视觉门禁（geometries/contrast/触控目标） | `npm run test:visual` | **225 passed / 1 skipped / 0 failed** |

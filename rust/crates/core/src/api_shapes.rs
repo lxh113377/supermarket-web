@@ -144,6 +144,38 @@ pub fn row_to_category(row: &Value) -> Value {
     Value::Object(out)
 }
 
+/// `functions/lib/actions/reviews.js:8` 的 `getReviews` 里那行映射：
+/// `rows.map((r) => ({ ...r, images: jparse(r.images, []) }))`。
+///
+/// 这里**不写死字段清单**，而是照搬 spread 的语义：按行里自己的键序原样拷一遍，
+/// 再把 `images` 覆盖成 `jparse` 的结果（serde_json 的 preserve_order 让「覆盖已存在的键」
+/// 保持它原来的位置 —— 与 JS 的字面量展开一致）。
+/// 写死清单的写法会在「SQL 加了列」时静默漏字段；照搬 spread 则自动跟着走。
+pub fn review_row_to_json(row: &Value) -> Value {
+    let mut out = Map::new();
+    if let Value::Object(obj) = row {
+        for (k, v) in obj {
+            out.insert(k.clone(), v.clone());
+        }
+    }
+    // 覆盖 images（键已存在 ⇒ 位置不变；不存在则追加，与 JS 的语义相同）
+    out.insert("images".into(), jparse(row.get("images"), json!([])));
+    Value::Object(out)
+}
+
+/// `functions/lib/actions/orders.js:438` 的 `getOrderStatus` 成功响应：
+/// `{ code: 0, data: { orderId, status: row.status, updatedAt: row.updatedAt } }`。
+///
+/// 注意这是**对象**而不是数组（与 getPublicProducts 那几个不同）—— 形状差异必须逐字保留，
+/// 前端 `data.status` 的读法直接依赖它。
+pub fn order_status_data(order_id: &str, row: &Value) -> Value {
+    json!({
+        "orderId": order_id,
+        "status": row.get("status").cloned().unwrap_or(Value::Null),
+        "updatedAt": row.get("updatedAt").cloned().unwrap_or(Value::Null),
+    })
+}
+
 /// `products.js:66` 的 `getCatalogOrders` 循环体：按 `order` 去重、只回两个键。
 ///
 /// `Number.isInteger(n) && n > 0` 的判据必须逐字保留：`3.0` 在 JS 里是整数（接受），

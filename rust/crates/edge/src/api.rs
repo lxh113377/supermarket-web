@@ -259,7 +259,10 @@ pub async fn handle_gateway(
     if endpoint == Endpoint::Pub {
         if let Some(a) = action.as_deref() {
             if api_native::native_enabled(a) {
-                if let Some(value) = api_native::call(app, a).await {
+                // 现网从这里取载荷（handlePublic/handleWeb 也是 parsed.payload）；
+                // 缺 payload 时给 None —— 由动作自己按现网语义判 missing_*（不在这里猜）
+                let payload = parsed.get("payload");
+                if let Some(value) = api_native::call(app, a, payload).await {
                     let bytes = Bytes::from(value.to_string());
                     // 状态由封套决定（成功 200、失败按 errorCode 查 42 条表），而不是恒 200
                     let status = StatusCode::from_u16(supermarket_core::contract::status_of(&value))
