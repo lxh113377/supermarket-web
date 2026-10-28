@@ -1,4 +1,16 @@
 ## [未发布]
+### 2026-10-28 createOrder 纯计算层（10 条核心用例；动作未完成，计数不动）
+- 进度仍 19 / 37：createOrder 是全仓最长的写动作（20 步），本轮只落前半段（校验/计价/指纹/幂等/最优档/规格解析），
+  SQL 层下一批 —— 所以不把它记进完成数（诚实计数优先于好看的数字）。
+- 抽 crates/core/src/order_intake.rs（10 条用例）。这些函数抄错不报错，只让事故静默发生：
+  指纹漏 items[].spec ⇒ 同房间 90 秒内改口味被判成重复单（现网 2026-09-26 真出过）；
+  fnv1a 用字节而非 UTF-16 码元 ⇒ 中文房号/备注的键全错、幂等失效且只在中文输入时失效。
+- 参考值全部先用 node 现算（不手算），并顺带对上 FNV-1a 的公开测试向量（空串 / a / foobar）、
+  指纹串、幂等键 36-1116@req-1#1a47e90b、体积字符数 150。
+- 两处照抄的反直觉行为（都写进用例注释）：① bestPromotion 比的是已 clamp 的 discountAmount
+  ⇒ 同额档位在小计封顶场景下后到者胜（我第一版期望写错，判据抓了出来）；
+  ② Number(x).toFixed(2) 对 -0 给 0.00、对 -0.001 给 -0.00 ⇒ 只特判真正的 0。
+- 门禁：cargo 86 条全绿（core 78 + edge 8）；oxlint 0/0；eol 提交面判定后才推；其余四道门禁全 rc=0。
 - **动作表同步判据扩到 5 张**：新增目录失效面 `CATALOG_WRITE_ACTIONS`（现网是**内联数组 + includes** 而不是 new Set ⇒ 补了一个 `js_inline_array` 解析器）；新增第 5 张表覆盖面的负向断言（`deleteReview` 在看板面、不在目录面）。
 ### 2026-10-28 写动作第二条：adjustStock（8 条核心用例 + 4 条写用例；端到端 40 用例全绿）
 - **进度 19 / 37**（剩余 18）：库存手工调整 = SELECT → UPDATE → INSERT stock_movements（kind=adjust/refType=manual/actor=admin）→ 目录面失效 → 审计。

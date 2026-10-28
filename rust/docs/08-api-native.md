@@ -504,3 +504,47 @@ SQL 判据现覆盖 **22 条语句 / 8 个文件**。
 （`调整后库存为负（现 5，本次 -10）`）。SQL 判据 **26 条语句 / 9 个文件**。
 
 负控：`rows.json` 里的 `__metaMissingIds` 命中参数时 mock 回 `changes=0` —— 这是「守卫式 UPDATE 命中 0 行」唯一可判的地方。
+
+## 2m. createOrder 的纯计算层（第 19 轮；**动作未完成**，只落了前半段）
+
+createOrder 是全仓最长的写动作（20 步），其中**只有最后 6 步碰 SQL**。这一轮把前半段（校验 / 计价 / 指纹 / 幂等 / 最优档 / 规格解析）
+抽成 `crates/core/src/order_intake.rs`（**10 条用例**）；SQL 层下一批再做 —— 所以完成计数**不动**（仍 19 / 37）。
+
+### 2m.1 为什么先做纯计算层
+
+这些函数抄错**不会报错**，只会让两类事故静默发生：
+
+| 抄错的地方 | 后果 |
+|---|---|
+| 指纹漏了 `items[].spec` | 同房间 90 秒内改口味被判成重复单、复用旧单（**现网 2026-09-26 真出过**） |
+| 指纹少一段 / 连接符写错 | 同一单被判成两单（重复下单）或不同单被判成同一单 |
+| fnv1a 用字节而不是 UTF-16 码元 | 中文房号/备注的键全错，幂等失效且**只在中文输入时**失效 |
+| 最优档比较用原始 dc 而不是 clamp 后的值 | 满减金额在高门槛小计下选错档 |
+
+### 2m.2 参考值全部先用 node 现算（含三个公开向量）
+
+`fnv1a` 对上 FNV-1a 的公开测试向量：空串 `811c9dc5`、`"a"` `e40c292c`、`"foobar"` `bf9cf968`；
+指纹串、幂等键（`36-1116@req-1#1a47e90b`）、体积字符数（150）都是 node 按现网同一段逻辑算出来的，不手算。
+
+### 2m.3 两处照抄的反直觉行为（都写进了用例注释）
+
+1. `bestPromotion` 的比较用的是**已经被 clamp 的** `best.discountAmount` ⇒ 小计不足优惠额时，
+   同额档位**后到者胜**（我第一版期望写成先到者胜，判据把它抓了出来）；
+2. `Number(x).toFixed(2)` 对 `-0` 给 `"0.00"`（负零不带负号），而对 `-0.001` 给 `"-0.00"` ⇒ 只特判真正的 0。
+
+### 2m.4 已落地的函数清单（对应现网行号）
+
+| 函数 | 现网位置 | 要点 |
+|---|---|---|
+| `fnv1a` | orders.js:33 | UTF-16 码元 + `Math.imul` 环绕 + 8 位 hex |
+| `order_fingerprint` | :53 | 六段 NUL 连接；截图段只取长度 |
+| `idempotency_key` | :45 | requestId 非字符串/过滤后为空 ⇒ None |
+| `allowed_order_specs` / `resolve_order_spec` | :90 / :106 | 目录 spec + 启用口味组合；非法回落真值 |
+| `best_promotion` | :110 | 防御式（缺表零优惠）；`min(dc, subtotal)` |
+| `is_safe_image_url` | security.js:135 | 三段白名单：`data:image/(jpeg|png|webp|gif);base64` / `r2:` / https |
+| `statement_payload_chars` | orders.js:214 | 按 UTF-16 码元统计，与 `JSON.stringify(...).length` 对齐 |
+| `round2` / `line_total` / `valid_quantity` / `below_min_delivery` | :219 / :203 / 守卫 | 计价与门槛 |
+
+**下一批（SQL 层）要处理的**：`products IN` 查询、两条去重查询、护栏式扣减 batch（看 `meta.changes`）、
+流水 batch、`INSERT INTO orders` / `order_discounts`、失败补偿 `releaseStock`，
+以及侦察件点名的**一处不确定分支**（扣减 batch 成功而流水 batch 抛错时，现网该分支**不回补**）。
