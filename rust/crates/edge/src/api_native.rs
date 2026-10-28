@@ -197,7 +197,7 @@ mod tests {
         let ph_tpl = format!("{}{}ph{}", char::from(36u8), char::from(123u8), char::from(125u8));
         let expand = |s: &str| s.replace("__PH__", &ids_tpl).replace("__PHV__", &ph_tpl);
 
-        let sources: [(&str, &str, &str); 44] = [
+        let sources: [(&str, &str, &str); 47] = [
             (SQL_PUBLIC_PRODUCTS, "SQL_PUBLIC_PRODUCTS", "functions/lib/actions/products.js"),
             (SQL_PUBLIC_CATEGORIES, "SQL_PUBLIC_CATEGORIES", "functions/lib/actions/products.js"),
             (SQL_CATALOG_ORDERS, "SQL_CATALOG_ORDERS", "functions/lib/actions/products.js"),
@@ -205,6 +205,10 @@ mod tests {
             (crate::api_admin::SQL_BATCH_STOCK_IN, "SQL_BATCH_STOCK_IN", "functions/lib/actions/products.js"),
             (crate::api_admin::SQL_BATCH_EXIST_IN, "SQL_BATCH_EXIST_IN", "functions/lib/actions/products.js"),
             (crate::api_admin::SQL_BATCH_DELETE_IN, "SQL_BATCH_DELETE_IN", "functions/lib/actions/products.js"),
+            // 第 24 轮：订单状态机三条
+            (crate::api_admin::SQL_ORDER_STATE_READ, "SQL_ORDER_STATE_READ", "functions/lib/actions/orders.js"),
+            (crate::api_admin::SQL_ORDER_STATUS_UPDATE, "SQL_ORDER_STATUS_UPDATE", "functions/lib/actions/orders.js"),
+            (crate::api_admin::SQL_ORDER_DELETE, "SQL_ORDER_DELETE", "functions/lib/actions/orders.js"),
             (SQL_GET_REVIEWS, "SQL_GET_REVIEWS", "functions/lib/actions/reviews.js"),
             (SQL_ORDER_STATUS, "SQL_ORDER_STATUS", "functions/lib/actions/orders.js"),
             (crate::api_admin::SQL_GET_PRODUCTS, "SQL_GET_PRODUCTS", "functions/lib/actions/products.js"),

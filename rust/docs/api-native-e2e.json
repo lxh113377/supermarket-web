@@ -1,5 +1,5 @@
 {
-  "at": "2026-10-28T08:36:00.060Z",
+  "at": "2026-10-28T08:47:28.376Z",
   "live": "https://supermarket-web.pages.dev",
   "edge": "http://127.0.0.1:5198",
   "mode": "JSON 列=文本",
@@ -46,7 +46,7 @@
     "getOrderStatus（未知订单号：错误路径）": {
       "action": "getOrderStatus",
       "payload": {
-        "orderId": "o_not_exist_1793176541712"
+        "orderId": "o_not_exist_1793177226753"
       },
       "status": 404,
       "edge": "native",
@@ -520,6 +520,50 @@
         "INSERT INTO security_events (ts, ip, act"
       ],
       "ok": true
+    },
+    "updateOrderStatus（pending → paid 合法）": {
+      "action": "updateOrderStatus",
+      "status": 200,
+      "edge": "native",
+      "statements": [
+        "SELECT status, items FROM orders WHERE _",
+        "UPDATE orders SET status = ?, updatedAt ",
+        "INSERT INTO security_events (ts, ip, act"
+      ],
+      "ok": true
+    },
+    "updateOrderStatus（pending → completed 非法，文案逐字）": {
+      "action": "updateOrderStatus",
+      "status": 409,
+      "edge": "native",
+      "statements": [
+        "SELECT status, items FROM orders WHERE _",
+        "INSERT INTO security_events (ts, ip, act"
+      ],
+      "ok": true
+    },
+    "deleteOrder（pending 单 ⇒ 先读后删 + 回补库存与 void 流水）": {
+      "action": "deleteOrder",
+      "status": 200,
+      "edge": "native",
+      "statements": [
+        "SELECT status, items FROM orders WHERE _",
+        "DELETE FROM orders WHERE _id = ?",
+        "SELECT _id, stock FROM products WHERE _i",
+        "UPDATE products SET stock = CASE WHEN st",
+        "INSERT INTO stock_movements (productId, ",
+        "INSERT INTO security_events (ts, ip, act"
+      ],
+      "ok": true
+    },
+    "deleteOrder（缺 orderId ⇒ 400）": {
+      "action": "deleteOrder",
+      "status": 400,
+      "edge": "native",
+      "statements": [
+        "INSERT INTO security_events (ts, ip, act"
+      ],
+      "ok": true
     }
   },
   "rowsFed": {
@@ -836,6 +880,82 @@
         24,
         0,
         19,
+        4,
+        8,
+        0
+      ]
+    },
+    {
+      "paramCount": 6,
+      "paramTypes": [
+        "string",
+        "string",
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "paramLengths": [
+        24,
+        0,
+        17,
+        2,
+        8,
+        0
+      ]
+    },
+    {
+      "paramCount": 6,
+      "paramTypes": [
+        "string",
+        "string",
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "paramLengths": [
+        24,
+        0,
+        17,
+        4,
+        8,
+        0
+      ]
+    },
+    {
+      "paramCount": 6,
+      "paramTypes": [
+        "string",
+        "string",
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "paramLengths": [
+        24,
+        0,
+        11,
+        2,
+        8,
+        0
+      ]
+    },
+    {
+      "paramCount": 6,
+      "paramTypes": [
+        "string",
+        "string",
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "paramLengths": [
+        24,
+        0,
+        11,
         4,
         8,
         0

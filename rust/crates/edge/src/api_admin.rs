@@ -100,7 +100,7 @@ pub const EVENT_LIMIT_DEFAULT: i64 = 50;
 pub const EVENT_LIMIT_MAX: i64 = 100;
 
 /// 在册的管理端原生动作（第 6 轮 getProducts；第 7 轮 4 个单表只读；第 8~9 轮 getStockMovements）。
-pub const ADMIN_NATIVE_ACTIONS: [&str; 19] = [
+pub const ADMIN_NATIVE_ACTIONS: [&str; 21] = [
     "getProducts",
     "getAllReviews",
     "getSubmissions",
@@ -120,6 +120,8 @@ pub const ADMIN_NATIVE_ACTIONS: [&str; 19] = [
     "deleteProduct",
     "batchUpdateProducts",
     "batchDeleteProducts",
+    "updateOrderStatus",
+    "deleteOrder",
 ];
 
 /// 开关：未设 ⇒ 全关；all 或逗号分隔的动作名（大小写无关）。
@@ -728,6 +730,185 @@ async fn batch_delete_products(d1: &D1Client, payload: Option<&Value>) -> Option
         .collect();
     Some(json!({ "code": 0, "data": { "deleted": deleted, "failed": failed, "total": ids_raw.len() } }))
 }
+/// 现网 orders.js:420 —— 读订单当前状态与条目（乐观锁要比对读到的状态）。
+pub const SQL_ORDER_STATE_READ: &str = r#"SELECT status, items FROM orders WHERE _id = ?"#;
+/// 现网 orders.js:428 —— **乐观锁**：把读到的状态写进 WHERE，0 变更即有人抢先改过。
+pub const SQL_ORDER_STATUS_UPDATE: &str = r#"UPDATE orders SET status = ?, updatedAt = ? WHERE _id = ? AND status = ?"#;
+/// 现网 orders.js:451 —— 删除订单（先读后删；是否回补看状态）。
+pub const SQL_ORDER_DELETE: &str = r#"DELETE FROM orders WHERE _id = ?"#;
+
+/// 现网 orders.js reserveStock：护栏式扣减 + 流水；任一 0 变更 ⇒ 回补前面已扣的并报库存不足。
+async fn reserve_stock(d1: &D1Client, items: &[Value], order_id: &str, actor: &str) -> Option<Value> {
+    if items.is_empty() {
+        return None;
+    }
+    let ts = crate::api::iso_now();
+    let mut deducted: Vec<Value> = Vec::new();
+    let mut bad: Option<(usize, Value)> = None;
+    for (i, it) in items.iter().enumerate() {
+        let pid = it.get("productId").and_then(|v| v.as_str()).unwrap_or("");
+        let qty = supermarket_core::jsnum::js_number_of(it.get("quantity"));
+        let res = d1
+            .query(
+                crate::api_pub_order::SQL_ORDER_DEDUCT,
+                &[
+                    supermarket_core::jsnum::js_number(qty),
+                    json!(ts),
+                    json!(pid),
+                    supermarket_core::jsnum::js_number(qty),
+                ],
+            )
+            .await;
+        let changes = match res {
+            Ok(v) => crate::api_pub_order::changes_of(&v),
+            Err(_) => 0,
+        };
+        if changes == 0 {
+            bad = Some((i, it.clone()));
+            break;
+        }
+        deducted.push(it.clone());
+    }
+    if let Some((idx, it)) = bad {
+        if idx > 0 {
+            crate::api_pub_order::release_stock(d1, &deducted, order_id, actor).await;
+        }
+        let name = it.get("name").and_then(|v| v.as_str()).unwrap_or("");
+        let msg = format!("库存不足: {name}");
+        return Some(supermarket_core::errors::fail("stock_insufficient", &msg, Default::default()));
+    }
+    let ts2 = crate::api::iso_now();
+    for it in items {
+        let pid = it.get("productId").and_then(|v| v.as_str()).unwrap_or("");
+        let qty = supermarket_core::jsnum::js_number_of(it.get("quantity")).trunc() as i64;
+        let _ = d1
+            .query(
+                crate::api_pub_order::SQL_ORDER_MOVEMENT_SALE,
+                &[
+                    json!(pid),
+                    json!(-qty),
+                    json!("sale"),
+                    json!("order"),
+                    json!(order_id),
+                    json!(actor),
+                    json!(""),
+                    json!(ts2),
+                ],
+            )
+            .await;
+    }
+    None
+}
+
+/// 现网 orders.js:410 的 updateOrderStatus（含乐观锁与两条库存路径）。
+async fn update_order_status(d1: &D1Client, payload: Option<&Value>) -> Option<Value> {
+    use supermarket_core::order_state as st;
+    let fail = |code: &str, msg: &str| supermarket_core::errors::fail(code, msg, Default::default());
+    let order_raw = payload.and_then(|p| p.get("orderId"));
+    let status_raw = payload.and_then(|p| p.get("status"));
+    let order_truthy = match order_raw {
+        Some(Value::String(s)) => !s.is_empty(),
+        Some(Value::Number(n)) => n.as_f64().map(|x| x != 0.0 && !x.is_nan()).unwrap_or(true),
+        Some(Value::Bool(b)) => *b,
+        _ => false,
+    };
+    let Some(status) = status_raw.and_then(|v| v.as_str()) else {
+        return Some(fail("invalid_params", "参数无效"));
+    };
+    if !order_truthy || !st::status_known(status) {
+        return Some(fail("invalid_params", "参数无效"));
+    }
+    let order_id = match order_raw {
+        Some(Value::String(s)) => s.clone(),
+        Some(Value::Number(n)) => supermarket_core::jsnum::js_number_string(n.as_f64().unwrap_or(0.0)),
+        _ => String::new(),
+    };
+    let rows = match d1.query_rows(SQL_ORDER_STATE_READ, &[json!(order_id)]).await {
+        Ok(r) => r,
+        Err(_) => return Some(fail("internal_error", "服务暂时不可用，请稍后重试")),
+    };
+    let Some(cur) = rows.into_iter().next() else {
+        return Some(fail("order_not_found", "订单不存在"));
+    };
+    let cur_status = cur.get("status").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    if !st::transition_allowed(&cur_status, status) {
+        let msg = st::invalid_transition_message(&cur_status, status);
+        return Some(fail("invalid_transition", &msg));
+    }
+    let items = match supermarket_core::api_shapes::jparse(cur.get("items"), json!([])) {
+        Value::Array(a) => a,
+        _ => Vec::new(),
+    };
+    // 取消 = 释放本单占用的有限库存
+    if status == "cancelled" && !items.is_empty() {
+        crate::api_pub_order::release_stock(d1, &items, &order_id, "admin").await;
+    }
+    // 误取消恢复（cancelled→pending）= 重新占用；库存被占走则拒绝恢复，状态不动
+    let restoring = cur_status == "cancelled" && status == "pending" && !items.is_empty();
+    if restoring {
+        if let Some(env) = reserve_stock(d1, &items, &order_id, "admin").await {
+            return Some(env);
+        }
+    }
+    // 乐观锁：读到的状态进 WHERE；0 变更 ⇒ 有人抢先改过
+    let ts = crate::api::iso_now();
+    let res = match d1
+        .query(
+            SQL_ORDER_STATUS_UPDATE,
+            &[json!(status), json!(ts), json!(order_id), json!(cur_status)],
+        )
+        .await
+    {
+        Ok(v) => v,
+        Err(_) => return Some(fail("internal_error", "服务暂时不可用，请稍后重试")),
+    };
+    if crate::api_pub_order::changes_of(&res) == 0 {
+        // 抢占失败：本请求刚为「误取消恢复」扣下的库存必须回补，否则凭空少一份可售库存
+        if restoring {
+            crate::api_pub_order::release_stock(d1, &items, &order_id, "system").await;
+        }
+        return Some(fail("concurrent_update", "订单已被他人更新，请刷新后重试"));
+    }
+    Some(json!({ "code": 0 }))
+}
+
+/// 现网 orders.js:447 的 deleteOrder（先读后删；进行中单要回补库存）。
+async fn delete_order(d1: &D1Client, payload: Option<&Value>) -> Option<Value> {
+    let order_raw = payload.and_then(|p| p.get("orderId"));
+    let truthy = match order_raw {
+        Some(Value::String(s)) => !s.is_empty(),
+        Some(Value::Number(n)) => n.as_f64().map(|x| x != 0.0 && !x.is_nan()).unwrap_or(true),
+        Some(Value::Bool(b)) => *b,
+        _ => false,
+    };
+    if !truthy {
+        return Some(supermarket_core::errors::fail("missing_order_id", "缺少 orderId", Default::default()));
+    }
+    let order_id = match order_raw {
+        Some(Value::String(s)) => s.clone(),
+        Some(Value::Number(n)) => supermarket_core::jsnum::js_number_string(n.as_f64().unwrap_or(0.0)),
+        _ => String::new(),
+    };
+    let cur = d1
+        .query_rows(SQL_ORDER_STATE_READ, &[json!(order_id)])
+        .await
+        .ok()
+        .and_then(|r| r.into_iter().next());
+    let _ = d1.query(SQL_ORDER_DELETE, &[json!(order_id)]).await.ok()?;
+    if let Some(row) = cur {
+        let status = row.get("status").and_then(|v| v.as_str()).unwrap_or("");
+        if supermarket_core::order_state::delete_needs_release(status) {
+            let items = match supermarket_core::api_shapes::jparse(row.get("items"), json!([])) {
+                Value::Array(a) => a,
+                _ => Vec::new(),
+            };
+            if !items.is_empty() {
+                crate::api_pub_order::release_stock(d1, &items, &order_id, "admin").await;
+            }
+        }
+    }
+    Some(json!({ "code": 0 }))
+}
 pub async fn call_admin(
     app: &Arc<App>,
     action: &str,
@@ -1069,6 +1250,8 @@ pub async fn call_admin(
         "deleteProduct" => delete_product(d1, payload).await,
         "batchUpdateProducts" => batch_update_products(d1, payload).await,
         "batchDeleteProducts" => batch_delete_products(d1, payload).await,
+        "updateOrderStatus" => update_order_status(d1, payload).await,
+        "deleteOrder" => delete_order(d1, payload).await,
         _ => None,
     };
 

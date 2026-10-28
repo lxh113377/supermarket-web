@@ -502,7 +502,7 @@ async fn read_discount(d1: &D1Client, order_id: &str) -> (Value, Value) {
 }
 
 /// 现网 orders.js:325 的 releaseStock：先查哪些是有限库存项，再 CASE 式回补 + 记 void 流水。
-async fn release_stock(d1: &D1Client, items: &[Value], order_id: &str, actor: &str) {
+pub async fn release_stock(d1: &D1Client, items: &[Value], order_id: &str, actor: &str) {
     let ids: Vec<Value> = items
         .iter()
         .filter_map(|it| it.get("productId").cloned())

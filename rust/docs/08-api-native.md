@@ -671,3 +671,45 @@ createOrder 是全仓最长的写动作（20 步），其中**只有最后 6 步
 | batchDeleteProducts（去重 + 存在集合 + 失败清单） | 200 | 存在 IN(3 参数) → DELETE IN(3 参数) → 审计；`data={deleted:2,failed:[p_missing],total:4}` |
 | batchUpdateProducts（缺 items） | 400 | 只有审计(fail) |
 
+
+## 2q. 订单状态机两件（第 24 轮；updateOrderStatus / deleteOrder）
+
+### 2q.1 迁移表是单点强制（逐字照抄现网 orders.js:399）
+
+| 当前态 | 允许去到 |
+|---|---|
+| pending | paid / cancelled |
+| paid | delivering / cancelled |
+| delivering | completed / cancelled |
+| completed | （终态，无处可去） |
+| cancelled | pending（**误取消恢复**） |
+
+status 列是 TEXT、**没有 CHECK 约束**（扩态零迁移）⇒「哪些流转合法」只存在于这张表里。抽到 `core::order_state`（3 条用例）。
+
+### 2q.2 updateOrderStatus：两条库存路径 + 乐观锁
+
+顺序（照抄现网 orders.js:410-441）：校验（`invalid_params`）→ 读当前状态（缺行 ⇒ `order_not_found`）→
+迁移合法性（非法 ⇒ `invalid_transition`，文案逐字 `不允许的状态流转: 旧 → 新`）→
+**取消** ⇒ `releaseStock(actor=admin)` → **误取消恢复**（cancelled→pending）⇒ `reserveStock(actor=admin)`（库存被占走 ⇒ 直接返回库存不足、状态不动）→
+**乐观锁** `UPDATE … WHERE _id = ? AND status = ?`（把读到的状态写进 WHERE）→ 0 变更 ⇒
+（若刚才为恢复扣过库存）先 `releaseStock(actor=system)` 回补，再回 `concurrent_update`。
+
+乐观锁这一段是「两个管理员同时点同一单」的唯一防线：合法性判定基于读到的状态，两个人都会通过校验，
+但只有一个人能把状态**从旧值**改掉。
+
+### 2q.3 deleteOrder：删除时按状态决定是否回补
+
+`missing_order_id` → 先读（状态 + items）→ `DELETE` → 若状态**不在** {cancelled, completed} 且 items 非空 ⇒ `releaseStock(admin)`。
+口径：cancelled 已在取消时释放、completed 视为已交付消耗 —— 都不回补（**防删除历史单凭空加库存**）。
+
+### 2q.4 写用例（新增 4 条，总写用例 22 / 用例 56）
+
+| 用例 | HTTP | 断言 |
+|---|---|---|
+| updateOrderStatus（pending→paid） | 200 | 读状态 → UPDATE(4 参数,含旧状态) → 审计(ok) |
+| updateOrderStatus（pending→completed） | 409 | 读状态 → 审计(fail)；**文案逐字** `不允许的状态流转: pending → completed` |
+| deleteOrder（pending 单） | 200 | 读状态 → DELETE → 回补 SELECT IN → 回补 UPDATE(CASE) → void 流水 → 审计(ok) |
+| deleteOrder（缺 orderId） | 400 | 只有审计(fail) |
+
+SQL 逐字判据 **44 → 47 条**（新增读状态 / 乐观锁 UPDATE / 删单三条）。
+

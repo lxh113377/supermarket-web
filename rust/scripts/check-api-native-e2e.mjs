@@ -502,6 +502,13 @@ const batchExistSql = sqlOfFrom("crates/edge/src/api_admin.rs", "SQL_BATCH_EXIST
 ordersRows[batchStockSql.replace("__PHV__", "?") + "|" + JSON.stringify(["p_bu_1"])] = [{ _id: "p_bu_1", stock: 10 }]
 // 占位符个数必须与去重后的 id 数一致（3 个 id ⇒ IN (?,?,?)），否则 mock 认不出这条 SQL
 ordersRows[batchExistSql.replace("__PHV__", "?,?,?") + "|" + JSON.stringify(["p_bd_1", "p_bd_2", "p_missing"])] = [{ _id: "p_bd_1" }, { _id: "p_bd_2" }]
+// ── 订单状态机：状态读行与回补用的库存行 ──
+const orderStateSql = sqlOfFrom("crates/edge/src/api_admin.rs", "SQL_ORDER_STATE_READ")
+const releaseStockSql = sqlOfFrom("crates/edge/src/api_pub_order.rs", "SQL_RELEASE_STOCK")
+const itJson = JSON.stringify([{ productId: "p_rel_1", name: "牛奶", quantity: 2 }])
+ordersRows[orderStateSql + "|" + JSON.stringify(["o_state_1"])] = [{ status: "pending", items: itJson }]
+ordersRows[orderStateSql + "|" + JSON.stringify(["o_del_1"])] = [{ status: "pending", items: itJson }]
+ordersRows[releaseStockSql.replace("__PHV__", "?") + "|" + JSON.stringify(["p_rel_1"])] = [{ _id: "p_rel_1", stock: 5 }]
 const rowsFile = path.join(rustRoot, '.cache', 'mock-d1-rows' + (parsedMode ? '-parsed' : '') + '.json')
 // __metaMissingIds 是给 mock 的负控面：命中这些 id 的 UPDATE/DELETE 回 changes=0
 writeFileSync(rowsFile, JSON.stringify({
@@ -904,6 +911,50 @@ if (!keys.admin) {
       expectStatements: [auditFail],
     })
   }
+  // 订单状态机（/web 管理写；只打本地边缘）
+  {
+    const auditOk = { prefix: "INSERT INTO security_events", params: 6, resultLen: 2 }
+    const auditFail = { prefix: "INSERT INTO security_events", params: 6, resultLen: 4 }
+    writeCases.push({
+      name: "updateOrderStatus（pending → paid 合法）",
+      action: "updateOrderStatus", payload: { orderId: "o_state_1", status: "paid" },
+      expect: { code: 0 },
+      expectStatements: [
+        { prefix: "SELECT status, items FROM orders WHERE _id = ?", params: 1 },
+        { prefix: "UPDATE orders SET status = ?", params: 4 },
+        auditOk,
+      ],
+    })
+    writeCases.push({
+      name: "updateOrderStatus（pending → completed 非法，文案逐字）",
+      action: "updateOrderStatus", payload: { orderId: "o_state_1", status: "completed" },
+      expect: { code: -1, errorCode: "invalid_transition" },
+      expectMessage: "不允许的状态流转: pending → completed",
+      expectStatements: [
+        { prefix: "SELECT status, items FROM orders WHERE _id = ?", params: 1 },
+        auditFail,
+      ],
+    })
+    writeCases.push({
+      name: "deleteOrder（pending 单 ⇒ 先读后删 + 回补库存与 void 流水）",
+      action: "deleteOrder", payload: { orderId: "o_del_1" },
+      expect: { code: 0 },
+      expectStatements: [
+        { prefix: "SELECT status, items FROM orders WHERE _id = ?", params: 1 },
+        { prefix: "DELETE FROM orders WHERE _id = ?", params: 1 },
+        { prefix: "SELECT _id, stock FROM products WHERE _id IN", params: 1 },
+        { prefix: "UPDATE products SET stock = CASE", params: 3 },
+        { prefix: "INSERT INTO stock_movements", params: 8 },
+        auditOk,
+      ],
+    })
+    writeCases.push({
+      name: "deleteOrder（缺 orderId ⇒ 400）",
+      action: "deleteOrder", payload: {},
+      expect: { code: -1, errorCode: "missing_order_id" },
+      expectStatements: [auditFail],
+    })
+  }
   for (const c of writeCases) {
     const before = auditRoster().length
     // /pub 写用例走 postPub（可带额外请求头，例如用 cf-connecting-ip 固定限流桶键）；其余走 /web
@@ -994,7 +1045,7 @@ writeFileSync(jsonOut, JSON.stringify({ ...report, problems }, null, 2) + '\n')
 console.log('原始读数 ' + jsonOut)
 console.log(problems.length
   ? '\nGATE-FAIL check-api-native-e2e：' + problems.length + ' 项\n  - ' + problems.join('\n  - ')
-  : '\nGATE-PASS check-api-native-e2e：公开面 8 + 管理读 26 + 写 18（写入只打本地边缘）= 52 个用例\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
+  : '\nGATE-PASS check-api-native-e2e：公开面 8 + 管理读 26 + 写 22（写入只打本地边缘）= 56 个用例\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
 
 edge.kill()
 mock.kill()

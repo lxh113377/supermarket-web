@@ -1,4 +1,13 @@
 ## [未发布]
+### 2026-10-28 订单状态机两件（updateOrderStatus / deleteOrder；进度 27 / 37）
+- 迁移表逐字照抄现网（pending→paid/cancelled、paid→delivering/cancelled、delivering→completed/cancelled、completed 终态、
+  cancelled→pending 误取消恢复），抽 `core::order_state`（3 条用例）。status 列没有 CHECK 约束 ⇒ 这张表就是单点强制。
+- updateOrderStatus 两条库存路径 + **乐观锁**：取消 ⇒ releaseStock(admin)；误取消恢复 ⇒ reserveStock(admin)（占走则拒、状态不动）；
+  UPDATE 把**读到的状态**写进 WHERE，0 变更 ⇒ 先 releaseStock(system) 回补再回 `concurrent_update`。
+  这一段是「两个管理员同时点同一单」的唯一防线 —— 合法性判定基于读到的状态，两人都会过校验，但只有一人能把状态从旧值改掉。
+- deleteOrder：先读后删；状态不在 {cancelled, completed} 且 items 非空才回补（**防删除历史单凭空加库存**）。
+- 端到端新增 4 条写用例（总写用例 22 / 用例 56）：合法流转、非法流转（文案逐字）、删 pending 单（**回补链路实测走通**）、缺 orderId。
+- SQL 逐字判据 44 → 47 条（新增读状态 / 乐观锁 UPDATE / 删单）。cargo 90 条；lint 0/0；eol 提交面判定后才推。
 - **复核点出的一处分支已对齐**：现网在预读处就做 `"stock" in it.updates`，`updates` 若是字符串/数字会抛 TypeError
   ⇒ handleAdmin 兜成 `internal_error` 且**整批零写入**。我第一版会默默只写 `updatedAt`（语义不同）；
   已改成「先整批验形状、再动手」，并加写用例（500 + 只有审计一条语句）钉住。
