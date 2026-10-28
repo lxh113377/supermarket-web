@@ -860,3 +860,30 @@ text = 500 字、images 非数组 ⇒ **空表**（不是 invalid_image）。
 **本轮夹具自身的一处错**：`postWeb` 没有请求头参数 ⇒ 用例带的 `cf-connecting-ip` 被丢掉 ⇒ 限流桶名不匹配 ⇒ 负控**没拦住**（响应 200）。
 修：给 `postWeb` 加 `extraHeaders`（与 `postPub` 同形）。**这条又一次说明：负控红了先怀疑夹具，而不是先怀疑实现。**
 
+
+## 2w. 公开 AI 导购（第 30 轮；aiChat，规则兜底路径）
+
+现网结构（actions/ai.js:72）：`sanitize(question, 200)` + `sanitizeTrace(conversationId) || null` → 空问题 ⇒ `invalid_params` →
+`enabled(env)` 为假 ⇒ **规则兜底**（`traceAiCall` 留痕 + `ruleAssistantReply`）→ 为真 ⇒ 调 Dify；异常 ⇒ `{source:"dify-error", content:DIFY_UNAVAILABLE_TEXT}`。
+
+### 2w.1 为什么这一件也能「对账」
+
+现网 `/_health` 早就报 `ai.configured=false / source=rule` ⇒ **规则路径就是线上路径**。所以本实现不靠"猜 Dify 语义"，
+而是把 5 条 FAQ（关键词数组 + 答案）与默认话术**逐字**搬进 `core::ai_rules`，并用单测逐条钉住 ——
+其中「起送排在配送之前」这条顺序也是照抄的（否则「不满六元配送吗」会答偏）。
+
+两处容易看漏、我照抄了：① `ruleAssistantReply(question)` 调用时**不传 products** ⇒ `suggest([])` 落空串、被 `filter(Boolean)` 滤掉，
+所以答案里**没有**「当前热销」那一行；② `ai_calls` 的参数序里 `tokens` 落 `null`、`keyFp` 落**空串**（不是 null）。
+
+### 2w.2 Dify 已配置时：明确回落透传
+
+本边缘**不实现**对 Dify 的 HTTP 调用 ⇒ 一旦检测到 `DIFY_CHAT_APP_KEY`/`DIFY_ADVICE_APP_KEY` 存在，就走透传（不猜外部依赖语义，
+与「宁可少一次原生命中，也不把没取到行当成表里没有行」同一取向）。这条写成代码注释，不是隐含行为。
+
+### 2w.3 判据与用例
+
+- SQL 逐字判据 **54 → 55 条**（`ai_calls` 的 INSERT）；
+- 端到端 **77 用例**（公开 8 + 管理读 26 + 写 43），新增 2 条：规则兜底（FAQ 命中 + `ai_calls` 8 参数留痕，
+  `data` 三个字段逐字：`source:"rule"`/FAQ 答案/`conversationId:null`）、空问题 ⇒ 400 且**零留痕**；
+- 核心新增 2 条（5 条 FAQ 逐字 + 优先级 + 默认话术 + `sanitize` 的 trim/UTF-16 截断）。
+

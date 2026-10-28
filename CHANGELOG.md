@@ -1,4 +1,12 @@
 ## [未发布]
+### 2026-10-28 公开 AI 导购（aiChat，规则兜底；进度 36 / 37）
+- 现网结构照抄：sanitize(question,200) + sanitizeTrace(conversationId)||null → 空问题 invalid_params →
+  enabled 为假 ⇒ 规则兜底（traceAiCall 留痕 + ruleAssistantReply）→ 为真 ⇒ 调 Dify；异常 ⇒ dify-error 文案。
+- **这一件也能对账**：现网 /_health 早报 ai.configured=false / source=rule ⇒ 规则路径就是线上路径；
+  5 条 FAQ（关键词 + 答案）与默认话术逐字搬进 core::ai_rules，并用单测逐条钉住（含「起送排在配送之前」的顺序）。
+- 两处易漏、已照抄：① ruleAssistantReply 不传 products ⇒ 答案里没有「当前热销」行；② ai_calls 参数序 tokens→null、keyFp→空串。
+- **Dify 已配置时明确回落透传**（本边缘不实现对 Dify 的 HTTP 调用），写成代码注释而不是隐含行为。
+- SQL 逐字判据 54 → 55 条（ai_calls INSERT）；端到端 77 用例（新增 2：规则兜底 + 空问题零留痕）；核心新增 2 条。
 ### 2026-10-28 登录原生化（login；进度 35 / 37）
 - 顺序照抄：`rate:login:<ip>` 5/60s（**在鉴权之前**）→ checkAuth（login 不在 PUBLIC_ACTIONS ⇒ 必须密钥）→ 只读档判定 → `{code:0,role}` → 审计。
 - **失败审计用 auth_failed**（不是 fail）：错密钥 401 + 审计 result="auth_failed"；成功 result="ok"。

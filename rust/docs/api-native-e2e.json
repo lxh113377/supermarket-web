@@ -1,5 +1,5 @@
 {
-  "at": "2026-10-28T09:56:50.350Z",
+  "at": "2026-10-28T10:11:50.441Z",
   "live": "https://supermarket-web.pages.dev",
   "edge": "http://127.0.0.1:5198",
   "mode": "JSON 列=文本",
@@ -46,7 +46,7 @@
     "getOrderStatus（未知订单号：错误路径）": {
       "action": "getOrderStatus",
       "payload": {
-        "orderId": "o_not_exist_1793181393723"
+        "orderId": "o_not_exist_1793182293654"
       },
       "status": 404,
       "edge": "native",
@@ -753,6 +753,27 @@
         "SELECT count, resetAt FROM rate_limits W",
         "INSERT INTO rate_limits (bucket, count, ",
         "INSERT INTO security_events (ts, ip, act"
+      ],
+      "ok": true
+    },
+    "aiChat（规则兜底：FAQ 命中 + ai_calls 留痕）": {
+      "action": "aiChat",
+      "status": 200,
+      "edge": "native",
+      "statements": [
+        "SELECT count, resetAt FROM rate_limits W",
+        "INSERT INTO rate_limits (bucket, count, ",
+        "INSERT INTO ai_calls (ts, scene, source,"
+      ],
+      "ok": true
+    },
+    "aiChat（空问题 ⇒ 400 invalid_params，零留痕）": {
+      "action": "aiChat",
+      "status": 400,
+      "edge": "native",
+      "statements": [
+        "SELECT count, resetAt FROM rate_limits W",
+        "INSERT INTO rate_limits (bucket, count, "
       ],
       "ok": true
     }

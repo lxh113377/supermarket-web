@@ -1359,6 +1359,76 @@ pub async fn create_submission(d1: &D1Client, payload: Option<&Value>) -> Option
     // 现网响应：data 只回 {id}
     Some(json!({ "code": 0, "data": { "id": id } }))
 }
+/// 现网 ai_trace.js:39 —— AI 留痕（写失败不影响主流程，故这里忽略错误）。
+pub const SQL_AI_CALL_INSERT: &str = r#"INSERT INTO ai_calls (ts, scene, source, ok, fallback, latencyMs, tokens, keyFp)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)"#;
+
+/// 现网 ai_trace.js:23 的 traceAiCall（规则路径：keyRaw 缺 ⇒ keyFp 落空串、tokens 落 null）。
+pub async fn trace_ai_call(
+    d1: &D1Client,
+    scene: &str,
+    source: &str,
+    ok: bool,
+    fallback: bool,
+    latency_ms: i64,
+) {
+    let ts = crate::api::iso_now();
+    let _ = d1
+        .query(
+            SQL_AI_CALL_INSERT,
+            &[
+                json!(ts),
+                json!(scene),
+                json!(source),
+                json!(if ok { 1 } else { 0 }),
+                json!(if fallback { 1 } else { 0 }),
+                json!(latency_ms.max(0)),
+                Value::Null,
+                json!(""),
+            ],
+        )
+        .await;
+}
+
+/// 现网 dify.js:69 的 enabled：任一 Dify 密钥存在即视为已配置。
+pub fn dify_enabled() -> bool {
+    let chat = std::env::var("DIFY_CHAT_APP_KEY").unwrap_or_default();
+    let advice = std::env::var("DIFY_ADVICE_APP_KEY").unwrap_or_default();
+    !chat.is_empty() || !advice.is_empty()
+}
+
+/// 现网 actions/ai.js:72 的 pubAiChat（规则路径；限流在 /pub 路由层，桶 rate:ai:<ip>）。
+///
+/// **Dify 已配置时明确回落透传**（本边缘不实现对 Dify 的 HTTP 调用）：宁可少一次原生命中，
+/// 也不在这里猜外部依赖的语义 —— 与「宁可少一次原生命中，也不把没取到行当成表里没有行」同一取向。
+pub async fn ai_chat(d1: &D1Client, payload: Option<&Value>) -> Option<Value> {
+    use supermarket_core::ai_rules as ai;
+    let question = ai::sanitize(payload.and_then(|p| p.get("question")), 200);
+    // conversationId 是**标识**不是文本：现网用 sanitizeTrace（≤64 + 白名单字符），空 ⇒ null
+    let conv = match payload.and_then(|p| p.get("conversationId")) {
+        Some(v) => supermarket_core::sanitize::sanitize_trace_whitelist(
+            v.as_str().unwrap_or(""),
+        ),
+        None => String::new(),
+    };
+    if question.is_empty() {
+        return Some(supermarket_core::errors::fail(
+            "invalid_params",
+            "问题不能为空",
+            Default::default(),
+        ));
+    }
+    if dify_enabled() {
+        return None;
+    }
+    trace_ai_call(d1, "aiChat", "rule", true, true, 0).await;
+    let content = ai::rule_assistant_reply(&question);
+    let conv_value = if conv.is_empty() { Value::Null } else { json!(conv) };
+    Some(json!({
+        "code": 0,
+        "data": { "source": "rule", "content": content, "conversationId": conv_value },
+    }))
+}
 pub async fn call_admin(
     app: &Arc<App>,
     action: &str,

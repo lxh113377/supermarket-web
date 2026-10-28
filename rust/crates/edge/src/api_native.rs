@@ -197,7 +197,7 @@ mod tests {
         let ph_tpl = format!("{}{}ph{}", char::from(36u8), char::from(123u8), char::from(125u8));
         let expand = |s: &str| s.replace("__PH__", &ids_tpl).replace("__PHV__", &ph_tpl);
 
-        let sources: [(&str, &str, &str); 54] = [
+        let sources: [(&str, &str, &str); 55] = [
             (SQL_PUBLIC_PRODUCTS, "SQL_PUBLIC_PRODUCTS", "functions/lib/actions/products.js"),
             (SQL_PUBLIC_CATEGORIES, "SQL_PUBLIC_CATEGORIES", "functions/lib/actions/products.js"),
             (SQL_CATALOG_ORDERS, "SQL_CATALOG_ORDERS", "functions/lib/actions/products.js"),
@@ -219,6 +219,8 @@ mod tests {
             // 第 27 轮：提交域两条
             (crate::api_admin::SQL_SUBMISSION_STATUS, "SQL_SUBMISSION_STATUS", "functions/lib/actions/submissions.js"),
             (crate::api_admin::SQL_SUBMISSION_DELETE, "SQL_SUBMISSION_DELETE", "functions/lib/actions/submissions.js"),
+            // 第 30 轮：AI 留痕
+            (crate::api_admin::SQL_AI_CALL_INSERT, "SQL_AI_CALL_INSERT", "functions/lib/ai_trace.js"),
             (SQL_GET_REVIEWS, "SQL_GET_REVIEWS", "functions/lib/actions/reviews.js"),
             (SQL_ORDER_STATUS, "SQL_ORDER_STATUS", "functions/lib/actions/orders.js"),
             (crate::api_admin::SQL_GET_PRODUCTS, "SQL_GET_PRODUCTS", "functions/lib/actions/products.js"),

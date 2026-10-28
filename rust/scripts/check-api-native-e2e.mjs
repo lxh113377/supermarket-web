@@ -525,6 +525,8 @@ ordersRows[rateReadSql + "|" + JSON.stringify(["rate:write:203.0.113.12"])] = []
 ordersRows[rateReadSql + "|" + JSON.stringify(["rate:login:203.0.113.30"])] = []
 // 限流命中负控：桶有效且计数已满（resetAt 远未来）
 ordersRows[rateReadSql + "|" + JSON.stringify(["rate:login:203.0.113.31"])] = [{ count: 5, resetAt: 4102444800000 }]
+// ── aiChat：限流桶 rate:ai:<ip>（独立于写桶）──
+ordersRows[rateReadSql + "|" + JSON.stringify(["rate:ai:203.0.113.40"])] = []
 const rowsFile = path.join(rustRoot, '.cache', 'mock-d1-rows' + (parsedMode ? '-parsed' : '') + '.json')
 // __metaMissingIds 是给 mock 的负控面：命中这些 id 的 UPDATE/DELETE 回 changes=0
 writeFileSync(rowsFile, JSON.stringify({
@@ -560,7 +562,7 @@ const edge = spawn(bin, ['serve', '--dist', path.join(repoRoot, 'dist'), '--port
     // 管理端走独立开关（爆炸半径不同）；密钥从 .dev.vars 现读现用，**绝不写入读数文件**
     NATIVE_ADMIN_ACTIONS: 'all',
     // /pub 写动作的开关（默认关）：判据就位后由夹具显式打开，生产侧要不要开是独立决定
-    NATIVE_PUB_WRITE: 'createOrder,addPublicReview,createSubmission',
+    NATIVE_PUB_WRITE: 'createOrder,addPublicReview,createSubmission,aiChat',
     ...adminEnv(),
     D1_ACCOUNT_ID: 'mock-account',
     D1_DATABASE_ID: 'mock-db',
@@ -1164,6 +1166,29 @@ if (!keys.admin) {
       })
     }
   }
+  // aiChat（/pub 公开 AI；规则兜底路径。写用例只打本地边缘）
+  {
+    const rateInitInline = { prefix: "INSERT INTO rate_limits", params: 2 }
+    writeCases.push({
+      name: "aiChat（规则兜底：FAQ 命中 + ai_calls 留痕）",
+      action: "aiChat", pub: true, headers: { "cf-connecting-ip": "203.0.113.40" },
+      payload: { question: "你们营业时间" },
+      expect: { code: 0 },
+      expectDataFields: { source: "rule", content: "本店营业时间 08:00 - 22:00，周末照常营业。", conversationId: null },
+      expectStatements: [
+        { prefix: "SELECT count, resetAt FROM rate_limits", params: 1 },
+        rateInitInline,
+        { prefix: "INSERT INTO ai_calls", params: 8 },
+      ],
+    })
+    writeCases.push({
+      name: "aiChat（空问题 ⇒ 400 invalid_params，零留痕）",
+      action: "aiChat", pub: true, headers: { "cf-connecting-ip": "203.0.113.40" },
+      payload: { question: "   " },
+      expect: { code: -1, errorCode: "invalid_params" },
+      expectStatements: [{ prefix: "SELECT count, resetAt FROM rate_limits", params: 1 }, rateInitInline],
+    })
+  }
   for (const c of writeCases) {
     const before = auditRoster().length
     // /pub 写用例走 postPub（可带额外请求头，例如用 cf-connecting-ip 固定限流桶键）；其余走 /web
@@ -1254,7 +1279,7 @@ writeFileSync(jsonOut, JSON.stringify({ ...report, problems }, null, 2) + '\n')
 console.log('原始读数 ' + jsonOut)
 console.log(problems.length
   ? '\nGATE-FAIL check-api-native-e2e：' + problems.length + ' 项\n  - ' + problems.join('\n  - ')
-  : '\nGATE-PASS check-api-native-e2e：公开面 8 + 管理读 26 + 写 41（写入只打本地边缘）= 75 个用例\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
+  : '\nGATE-PASS check-api-native-e2e：公开面 8 + 管理读 26 + 写 43（写入只打本地边缘）= 77 个用例\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
 
 edge.kill()
 mock.kill()
