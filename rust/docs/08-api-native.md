@@ -644,3 +644,30 @@ createOrder 是全仓最长的写动作（20 步），其中**只有最后 6 步
 
 动态 SQL（INSERT 的列由入参决定、UPDATE 的 SET 由字段决定）**进不了逐字判据**（没有静态文本可比）——
 它们的正确性由「语句条数 + 参数个数 + 响应键序」这三条用例腿覆盖，这一点在 docs/09 §3 里点名。
+
+## 2p. 批量商品写（第 23 轮；batchUpdateProducts / batchDeleteProducts）
+
+| 动作 | 语句序列 | 要点 |
+|---|---|---|
+| batchUpdateProducts | 可选批量预读 `SELECT _id, stock … IN`（1 条，只取「updates 带 stock」的项）→ 逐件复用单条 UPDATE/流水 → 审计 | 上限 **20**（现网 `BATCH_UPDATE_MAX`）；**恒回 code 0**，逐件失败进 `data.failed`；缺 productId 的项回 `{id:"?", message:"缺少 productId"}` |
+| batchDeleteProducts | `SELECT _id … IN`（存在集合）→ `DELETE … IN` → 审计 | 上限 **200**；先去重（只留非空字符串）；`deleted` 以**存在集合**为准（现网明确不看驱动 `meta.changes`——各环境口径不一甚至为 null） |
+
+**复用**：批量更新逐件调用的就是单条 `applyProductUpdate`（我这边抽成 `update_product_with`，把批量预读到的「改前库存」传进去）——
+这正是现网的做法：**先一条 IN 拿全，再逐件应用**，避免 n 倍语句数。语句序列因此与现网一致（预读 1 条 + 每件 1~2 条 + 审计）。
+
+### 2p.1 本轮判据抓出的两处（都是**我方判据自身**的问题，不是实现）
+
+1. **mock 键的占位符个数写错**：3 个 id 的 SQL 是 `IN (?,?,?)`，我按单个 `?` 登记 ⇒ mock 认不出 ⇒ 边缘查询失败 ⇒ 该用例红。
+   修法：登记键的占位符个数必须与**去重后**的 id 数一致。
+2. **SQL 判据的数组长度写错（43 vs 44）** ⇒ `cargo test -p supermarket-edge` 的**测试目标根本没编译**，
+   而 `cargo build --release`（二进制）照常通过 —— 于是「判据绿」这句话会变成**假的**。
+   这是我第一次在提交前主动复跑判据目标才发现：**二进制绿 ≠ 判据绿**。已在下一批沿用「提交前显式跑一次判据目标」。
+
+### 2p.2 写用例（新增 3 条，总写用例 17 / 用例 51）
+
+| 用例 | HTTP | 断言 |
+|---|---|---|
+| batchUpdateProducts（1 成功 + 1 缺 id） | 200 | 预读 IN → UPDATE → 流水 → 审计(ok)；`data={updated:1,failed:[{id:"?",message:"缺少 productId"}],total:2}` |
+| batchDeleteProducts（去重 + 存在集合 + 失败清单） | 200 | 存在 IN(3 参数) → DELETE IN(3 参数) → 审计；`data={deleted:2,failed:[p_missing],total:4}` |
+| batchUpdateProducts（缺 items） | 400 | 只有审计(fail) |
+

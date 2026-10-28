@@ -496,6 +496,12 @@ if (keys.admin) {
 // ── 商品域三写：改库存预读（按 SQL|params 精确命中）──
 const prodStockSql = sqlOfFrom("crates/edge/src/api_admin.rs", "SQL_PRODUCT_STOCK_READ")
 ordersRows[prodStockSql + "|" + JSON.stringify(["p_upd_probe"])] = [{ stock: 10 }]
+// ── 批量商品写：预读与存在集合（按 SQL|params 精确命中）──
+const batchStockSql = sqlOfFrom("crates/edge/src/api_admin.rs", "SQL_BATCH_STOCK_IN")
+const batchExistSql = sqlOfFrom("crates/edge/src/api_admin.rs", "SQL_BATCH_EXIST_IN")
+ordersRows[batchStockSql.replace("__PHV__", "?") + "|" + JSON.stringify(["p_bu_1"])] = [{ _id: "p_bu_1", stock: 10 }]
+// 占位符个数必须与去重后的 id 数一致（3 个 id ⇒ IN (?,?,?)），否则 mock 认不出这条 SQL
+ordersRows[batchExistSql.replace("__PHV__", "?,?,?") + "|" + JSON.stringify(["p_bd_1", "p_bd_2", "p_missing"])] = [{ _id: "p_bd_1" }, { _id: "p_bd_2" }]
 const rowsFile = path.join(rustRoot, '.cache', 'mock-d1-rows' + (parsedMode ? '-parsed' : '') + '.json')
 // __metaMissingIds 是给 mock 的负控面：命中这些 id 的 UPDATE/DELETE 回 changes=0
 writeFileSync(rowsFile, JSON.stringify({
@@ -855,6 +861,42 @@ if (!keys.admin) {
       expectIdPrefix: "p_",
     })
   }
+  // 批量商品写（/web 管理写；只打本地边缘）
+  {
+    const auditOk = { prefix: "INSERT INTO security_events", params: 6, resultLen: 2 }
+    const auditFail = { prefix: "INSERT INTO security_events", params: 6, resultLen: 4 }
+    writeCases.push({
+      name: "batchUpdateProducts（1 条成功 + 1 条缺 id）",
+      action: "batchUpdateProducts",
+      payload: { items: [{ productId: "p_bu_1", updates: { price: 9, stock: 4 } }, { updates: { price: 1 } }] },
+      expect: { code: 0 },
+      expectData: { updated: 1, failed: [{ id: "?", message: "缺少 productId" }], total: 2 },
+      expectStatements: [
+        { prefix: "SELECT _id, stock FROM products WHERE _id IN", params: 1 },
+        { prefix: "UPDATE products SET", params: 4 },
+        { prefix: "INSERT INTO stock_movements", params: 8 },
+        auditOk,
+      ],
+    })
+    writeCases.push({
+      name: "batchDeleteProducts（去重 + 存在集合口径 + 失败清单）",
+      action: "batchDeleteProducts",
+      payload: { productIds: ["p_bd_1", "p_bd_1", "p_bd_2", "p_missing"] },
+      expect: { code: 0 },
+      expectData: { deleted: 2, failed: [{ id: "p_missing", message: "商品不存在" }], total: 4 },
+      expectStatements: [
+        { prefix: "SELECT _id FROM products WHERE _id IN", params: 3 },
+        { prefix: "DELETE FROM products WHERE _id IN", params: 3 },
+        auditOk,
+      ],
+    })
+    writeCases.push({
+      name: "batchUpdateProducts（缺 items ⇒ 400）",
+      action: "batchUpdateProducts", payload: {},
+      expect: { code: -1, errorCode: "missing_items" },
+      expectStatements: [auditFail],
+    })
+  }
   for (const c of writeCases) {
     const before = auditRoster().length
     // /pub 写用例走 postPub（可带额外请求头，例如用 cf-connecting-ip 固定限流桶键）；其余走 /web
@@ -945,7 +987,7 @@ writeFileSync(jsonOut, JSON.stringify({ ...report, problems }, null, 2) + '\n')
 console.log('原始读数 ' + jsonOut)
 console.log(problems.length
   ? '\nGATE-FAIL check-api-native-e2e：' + problems.length + ' 项\n  - ' + problems.join('\n  - ')
-  : '\nGATE-PASS check-api-native-e2e：公开面 8 + 管理读 26 + 写 14（写入只打本地边缘）= 48 个用例\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
+  : '\nGATE-PASS check-api-native-e2e：公开面 8 + 管理读 26 + 写 17（写入只打本地边缘）= 51 个用例\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
 
 edge.kill()
 mock.kill()

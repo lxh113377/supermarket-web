@@ -100,7 +100,7 @@ pub const EVENT_LIMIT_DEFAULT: i64 = 50;
 pub const EVENT_LIMIT_MAX: i64 = 100;
 
 /// 在册的管理端原生动作（第 6 轮 getProducts；第 7 轮 4 个单表只读；第 8~9 轮 getStockMovements）。
-pub const ADMIN_NATIVE_ACTIONS: [&str; 17] = [
+pub const ADMIN_NATIVE_ACTIONS: [&str; 19] = [
     "getProducts",
     "getAllReviews",
     "getSubmissions",
@@ -118,6 +118,8 @@ pub const ADMIN_NATIVE_ACTIONS: [&str; 17] = [
     "createProduct",
     "updateProduct",
     "deleteProduct",
+    "batchUpdateProducts",
+    "batchDeleteProducts",
 ];
 
 /// 开关：未设 ⇒ 全关；all 或逗号分隔的动作名（大小写无关）。
@@ -322,6 +324,12 @@ async fn adjust_stock(d1: &D1Client, payload: Option<&Value>) -> Option<Value> {
 pub const SQL_DELETE_PRODUCT: &str = r#"DELETE FROM products WHERE _id = ?"#;
 /// 现网 products.js:163 —— 改库存前的预读（绝对值入口要留痕，必须先读后改）。
 pub const SQL_PRODUCT_STOCK_READ: &str = r#"SELECT stock FROM products WHERE _id = ?"#;
+/// 现网 products.js:227 —— 批量更新前一次性把「改前库存」拿全（1 条 IN，避免逐件 SELECT）。
+pub const SQL_BATCH_STOCK_IN: &str = r#"SELECT _id, stock FROM products WHERE _id IN (__PHV__)"#;
+/// 现网 products.js:263 —— 批量删除前查存在集合（deleted 以它为口径，不看驱动的 meta.changes）。
+pub const SQL_BATCH_EXIST_IN: &str = r#"SELECT _id FROM products WHERE _id IN (__PHV__)"#;
+/// 现网 products.js:265 —— 批量删除本体。
+pub const SQL_BATCH_DELETE_IN: &str = r#"DELETE FROM products WHERE _id IN (__PHV__)"#;
 /// 商品域共有：`stock` 有现值且为有限非负时，才需要记一条流水（现网 normalizeMovement 拒 delta=0）。
 const PRODUCT_MOVEMENT_SQL: &str = SQL_MOVEMENT_INSERT;
 
@@ -438,6 +446,17 @@ async fn create_product(d1: &D1Client, payload: Option<&Value>) -> Option<Value>
 }
 /// 现网 products.js:155 的 applyProductUpdate（updateProduct 的核心）。
 async fn update_product(d1: &D1Client, payload: Option<&Value>) -> Option<Value> {
+    // 单条入口：改前库存由自己 SELECT
+    update_product_with(d1, payload, None).await
+}
+
+/// 现网 applyProductUpdate 的实现主体；`stock_before` 由**批量入口**预读后传入
+/// （现网也是这么省的：批量先一条 IN 拿全，再逐件应用，避免 n 倍 SELECT）。
+async fn update_product_with(
+    d1: &D1Client,
+    payload: Option<&Value>,
+    stock_before: Option<f64>,
+) -> Option<Value> {
     use supermarket_core::product_writes as pw;
     let fail = |code: &str, msg: &str| supermarket_core::errors::fail(code, msg, Default::default());
     let pid_val = payload.and_then(|p| p.get("productId"));
@@ -472,8 +491,9 @@ async fn update_product(d1: &D1Client, payload: Option<&Value>) -> Option<Value>
     }
     // 改库存的绝对值入口必须先读后改（改完再读 delta 恒为 0，账就记空了）
     let stock_present = data.iter().any(|(k, _)| k == "stock");
-    let mut before: Option<f64> = None;
-    if stock_present {
+    let mut before: Option<f64> = stock_before;
+    if stock_present && before.is_none() {
+        // 只有单条入口才会走到这里（批量入口已预读并传值）
         let rows = d1.query_rows(SQL_PRODUCT_STOCK_READ, &[json!(pid)]).await.ok()?;
         before = rows
             .first()
@@ -575,6 +595,124 @@ async fn delete_product(d1: &D1Client, payload: Option<&Value>) -> Option<Value>
     };
     let _ = d1.query(SQL_DELETE_PRODUCT, &[json!(pid)]).await.ok()?;
     Some(json!({ "code": 0 }))
+}
+/// 现网 products.js:218 的 batchUpdateProducts（恒回 code 0；逐件失败进 failed 清单）。
+async fn batch_update_products(d1: &D1Client, payload: Option<&Value>) -> Option<Value> {
+    use supermarket_core::product_writes as pw;
+    let items = match payload.and_then(|p| p.get("items")) {
+        Some(Value::Array(a)) if !a.is_empty() => a.clone(),
+        _ => return Some(supermarket_core::errors::fail("missing_items", "缺少 items", Default::default())),
+    };
+    if items.len() > pw::BATCH_UPDATE_MAX {
+        let msg = format!("单次批量最多 {} 个商品，请分批提交", pw::BATCH_UPDATE_MAX);
+        return Some(supermarket_core::errors::fail("batch_too_large", &msg, Default::default()));
+    }
+    // 预读：只对「updates 里带 stock」的项取改前值（1 条 IN）
+    let stock_ids: Vec<Value> = items
+        .iter()
+        .filter(|it| {
+            it.get("productId").and_then(|v| v.as_str()).is_some()
+                && it.get("updates").map(|u| u.get("stock").is_some()).unwrap_or(false)
+        })
+        .filter_map(|it| it.get("productId").cloned())
+        .collect();
+    let mut before_map: Vec<(String, f64)> = Vec::new();
+    if !stock_ids.is_empty() {
+        let ph = vec!["?"; stock_ids.len()].join(",");
+        let sql = SQL_BATCH_STOCK_IN.replace("__PHV__", &ph);
+        let rows = match d1.query_rows(&sql, &stock_ids).await {
+            Ok(r) => r,
+            Err(_) => return Some(supermarket_core::errors::fail("internal_error", "服务暂时不可用，请稍后重试", Default::default())),
+        };
+        for r in rows {
+            let id = r.get("_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            before_map.push((id, supermarket_core::jsnum::js_number_of(r.get("stock"))));
+        }
+    }
+    let mut failed: Vec<Value> = Vec::new();
+    let mut updated: i64 = 0;
+    for it in &items {
+        let pid = it.get("productId").and_then(|v| v.as_str()).unwrap_or("");
+        if pid.is_empty() {
+            failed.push(json!({ "id": "?", "message": "缺少 productId" }));
+            continue;
+        }
+        let before = before_map
+            .iter()
+            .find(|(k, _)| k == pid)
+            .map(|(_, v)| *v);
+        let updates = it.get("updates").cloned().unwrap_or(json!({}));
+        let mut merged = match updates {
+            Value::Object(m) => m,
+            _ => serde_json::Map::new(),
+        };
+        merged.insert("productId".to_string(), json!(pid));
+        let payload_one = Value::Object(merged);
+        match update_product_with(d1, Some(&payload_one), before).await {
+            Some(v) if supermarket_core::contract::is_success(&v) => updated += 1,
+            Some(v) => {
+                let msg = v.get("message").and_then(|m| m.as_str()).unwrap_or("");
+                // 回显走 sanitizeTrace（这一支恰恰是「没命中主键」的那批，入参不受服务端约束）
+                failed.push(json!({ "id": supermarket_core::sanitize::sanitize_trace_whitelist(pid), "message": msg }));
+            }
+            None => {
+                failed.push(json!({ "id": supermarket_core::sanitize::sanitize_trace_whitelist(pid), "message": "服务暂时不可用，请稍后重试" }));
+            }
+        }
+    }
+    Some(json!({ "code": 0, "data": { "updated": updated, "failed": failed, "total": items.len() } }))
+}
+
+/// 现网 products.js:250 的 batchDeleteProducts（恒回 code 0；deleted 以**存在集合**为准）。
+async fn batch_delete_products(d1: &D1Client, payload: Option<&Value>) -> Option<Value> {
+    use supermarket_core::product_writes as pw;
+    let ids_raw = match payload.and_then(|p| p.get("productIds")) {
+        Some(Value::Array(a)) if !a.is_empty() => a.clone(),
+        _ => {
+            return Some(supermarket_core::errors::fail("missing_product_ids", "缺少 productIds", Default::default()))
+        }
+    };
+    if ids_raw.len() > pw::BATCH_DELETE_MAX {
+        let msg = format!("单次批量最多 {} 个商品", pw::BATCH_DELETE_MAX);
+        return Some(supermarket_core::errors::fail("batch_too_large", &msg, Default::default()));
+    }
+    let ids = pw::dedupe_product_ids(&ids_raw);
+    if ids.is_empty() {
+        return Some(supermarket_core::errors::fail("missing_product_ids", "缺少 productIds", Default::default()));
+    }
+    let ph = vec!["?"; ids.len()].join(",");
+    let params: Vec<Value> = ids.iter().map(|s| json!(s)).collect();
+    let exist_sql = SQL_BATCH_EXIST_IN.replace("__PHV__", &ph);
+    let exist_rows = match d1.query_rows(&exist_sql, &params).await {
+        Ok(r) => r,
+        Err(_) => return Some(supermarket_core::errors::fail("internal_error", "服务暂时不可用，请稍后重试", Default::default())),
+    };
+    let exist: Vec<String> = exist_rows
+        .iter()
+        .filter_map(|r| r.get("_id").and_then(|v| v.as_str()).map(|s| s.to_string()))
+        .collect();
+    let del_sql = SQL_BATCH_DELETE_IN.replace("__PHV__", &ph);
+    if d1.query(&del_sql, &params).await.is_err() {
+        return Some(supermarket_core::errors::fail("internal_error", "服务暂时不可用，请稍后重试", Default::default()));
+    }
+    // deleted 用存在集合的大小（现网明确不看 meta.changes：各环境口径不一，甚至可能为 null）
+    let deleted = exist.len() as i64;
+    let failed: Vec<Value> = ids_raw
+        .iter()
+        .filter(|v| match v {
+            Value::String(s) => !exist.contains(s),
+            _ => true,
+        })
+        .map(|v| {
+            let raw_id = match v {
+                Value::String(s) => s.clone(),
+                Value::Number(n) => supermarket_core::jsnum::js_number_string(n.as_f64().unwrap_or(0.0)),
+                _ => String::new(),
+            };
+            json!({ "id": supermarket_core::sanitize::sanitize_trace_whitelist(&raw_id), "message": "商品不存在" })
+        })
+        .collect();
+    Some(json!({ "code": 0, "data": { "deleted": deleted, "failed": failed, "total": ids_raw.len() } }))
 }
 pub async fn call_admin(
     app: &Arc<App>,
@@ -915,6 +1053,8 @@ pub async fn call_admin(
         "createProduct" => create_product(d1, payload).await,
         "updateProduct" => update_product(d1, payload).await,
         "deleteProduct" => delete_product(d1, payload).await,
+        "batchUpdateProducts" => batch_update_products(d1, payload).await,
+        "batchDeleteProducts" => batch_delete_products(d1, payload).await,
         _ => None,
     };
 

@@ -128,6 +128,33 @@ pub fn enabled_flag(v: Option<&Value>) -> bool {
 }
 
 /// INSERT / UPDATE 的值序列化（现网 db.js:61-67）：数组与对象走 JSON 字符串，其余原样绑定。
+/// 现网 products.js:217 —— 单次批量更新上限（20；分块提交是调用方的事）。
+pub const BATCH_UPDATE_MAX: usize = 20;
+/// 现网 products.js:249 —— 单次批量删除上限（200；与更新差 10 倍，两处都不是拍的）。
+pub const BATCH_DELETE_MAX: usize = 200;
+
+/// 现网 batchDeleteProducts 里的去重：只留**非空字符串**，保序去重。
+pub fn dedupe_product_ids(list: &[Value]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for v in list {
+        if let Value::String(s) = v {
+            if !s.is_empty() && !out.contains(s) {
+                out.push(s.clone());
+            }
+        }
+    }
+    out
+}
+
+/// 批量动作的统一成功形状（现网两个批量动作都恒回 code 0，失败清单在 data.failed 里）。
+pub fn batch_result(updated_or_deleted: i64, failed: Vec<Value>, total: usize) -> Value {
+    json!({
+        "updated_or_deleted": updated_or_deleted,
+        "failed": failed,
+        "total": total,
+    })
+}
+
 /// 现网 db.js:55 的 insertSql：列名逐个加双引号、逗号加空格连接（列序即键序）。
 pub fn insert_sql(table: &str, cols: &[String]) -> String {
     let quoted: Vec<String> = cols.iter().map(|c| format!("\"{c}\"")).collect();
