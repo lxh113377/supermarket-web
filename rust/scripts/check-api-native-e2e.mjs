@@ -102,7 +102,8 @@ const postPub = async (base, action, payload, extraHeaders = {}) => {
   const body = payload === undefined ? { action } : { action, payload }
   const res = await fetchRetry(base + '/pub', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    // extraHeaders：写用例靠它带 cf-connecting-ip，把限流桶键固定成可预期值（否则桶名里的 IP 没法在 mock 里命中）
+    headers: { 'content-type': 'application/json', ...extraHeaders },
     body: JSON.stringify(body),
   })
   return { status: res.status, edge: res.headers.get('x-edge'), edgeCache: res.headers.get('x-edge-cache'), json: await res.json() }
@@ -465,6 +466,33 @@ if (keys.admin) {
   ordersRows[stockRowSql + "|" + JSON.stringify([stockLowId])] = [{ _id: stockLowId, name: "牛奶", stock: 5 }]
   ordersRows[stockRowSql + "|" + JSON.stringify([stockGhostId])] = [{ _id: stockGhostId, name: "幽灵", stock: 3 }]
   missingIds.push(stockGhostId)
+  // ── createOrder（/pub 写动作）：行集必须在 mock 启动前登记 ──
+  const orderProductsSql = sqlOfFrom("crates/edge/src/api_pub_order.rs", "SQL_ORDER_PRODUCTS")
+  const orderPromoSql = sqlOfFrom("crates/edge/src/api_pub_order.rs", "SQL_ORDER_PROMOTIONS")
+  const orderByKeySql = sqlOfFrom("crates/edge/src/api_pub_order.rs", "SQL_ORDER_BY_KEY")
+  const orderDiscountSql = sqlOfFrom("crates/edge/src/api_pub_order.rs", "SQL_ORDER_DISCOUNT")
+  const rateReadSql = sqlOfFrom("crates/edge/src/api_pub_order.rs", "SQL_RATE_READ")
+  const orderBuyerId = "p_order_probe"
+  ordersRows[orderProductsSql.replace("__PH__", "?") + "|" + JSON.stringify([orderBuyerId])] = [
+    { _id: orderBuyerId, name: "牛奶", spec: "", specOptions: "[]", price: 4, enabled: 1, subcategories: "[]", stock: 10 },
+  ]
+  ordersRows[orderPromoSql] = []
+  ordersRows[orderDiscountSql] = []
+  // 限流桶：不带请求头的用例走纯 SQL 键 ⇒ 空数组 = 视为过期桶 = 放行
+  ordersRows[rateReadSql] = []
+  // 限流命中用例：按 cf-connecting-ip 精确命中（resetAt 取远未来 ⇒ 桶有效且计数已达上限）
+  ordersRows[rateReadSql + "|" + JSON.stringify(["rate:write:203.0.113.9"])] = [{ count: 20, resetAt: 4102444800000 }]
+  // 幂等键查询：默认空（无历史单）；去重命中用例自己覆盖
+  ordersRows[orderByKeySql] = []
+  const orderLowId = "p_order_probe_low"
+  ordersRows[orderProductsSql.replace("__PH__", "?") + "|" + JSON.stringify([orderLowId])] = [
+    { _id: orderLowId, name: "牛奶", spec: "", specOptions: "[]", price: 4, enabled: 1, subcategories: "[]", stock: 10 },
+  ]
+  missingIds.push(orderLowId)
+  // 指纹去重命中用：这一行的字段重算出指纹后必须等于「无 requestId 那一版载荷」的指纹
+  const orderFpSql2 = sqlOfFrom("crates/edge/src/api_pub_order.rs", "SQL_ORDER_BY_FINGERPRINT")
+  const dupItemsJson = JSON.stringify([{ productId: orderBuyerId, name: "牛奶", spec: "", price: 4, quantity: 2, subcategories: [] }])
+  ordersRows[orderFpSql2] = [{ _id: "o_dup_1", totalAmount: 8, items: dupItemsJson, wechat: "wx", remark: "", paymentScreenshot: "" }]
 const rowsFile = path.join(rustRoot, '.cache', 'mock-d1-rows' + (parsedMode ? '-parsed' : '') + '.json')
 // __metaMissingIds 是给 mock 的负控面：命中这些 id 的 UPDATE/DELETE 回 changes=0
 writeFileSync(rowsFile, JSON.stringify({
@@ -499,6 +527,8 @@ const edge = spawn(bin, ['serve', '--dist', path.join(repoRoot, 'dist'), '--port
     NATIVE_PUBLIC_ACTIONS: 'all',
     // 管理端走独立开关（爆炸半径不同）；密钥从 .dev.vars 现读现用，**绝不写入读数文件**
     NATIVE_ADMIN_ACTIONS: 'all',
+    // /pub 写动作的开关（默认关）：判据就位后由夹具显式打开，生产侧要不要开是独立决定
+    NATIVE_PUB_WRITE: 'createOrder',
     ...adminEnv(),
     D1_ACCOUNT_ID: 'mock-account',
     D1_DATABASE_ID: 'mock-db',
@@ -723,9 +753,70 @@ if (!keys.admin) {
       expectStatements: [{ prefix: "INSERT INTO security_events", params: 6, resultLen: 4 }],
     })
   }
+  // createOrder（/pub 写动作）：判据只打本地边缘；成功 / 指纹去重命中 / 库存不足 / 限流 四条
+  {
+    const baseline = [
+      { prefix: "SELECT count, resetAt FROM rate_limits", params: 1 },
+      // 空桶（或过期桶）会走现网同款的 UPSERT 起桶 —— 我第一版期望漏了这条，判据把它指出来
+      { prefix: "INSERT INTO rate_limits", params: 2 },
+      { prefix: "SELECT _id, name, spec, specOptions", params: 1 },
+      { prefix: "SELECT _id, threshold, discount FROM promotions", params: 0 },
+    ]
+    writeCases.push({
+      name: "createOrder（成功：7 条语句 + 响应）",
+      action: "createOrder", pub: true,
+      payload: { roomNumber: "201", requestId: "req-order-1", items: [{ productId: "p_order_probe", quantity: 2 }], wechat: "wx", remark: "" },
+      expect: { code: 0 },
+      expectDataFields: { totalAmount: 8, discountAmount: 0, promotionId: "" },
+      expectIdPrefix: "o_",
+      expectStatements: [
+        ...baseline,
+        { prefix: "SELECT _id, totalAmount FROM orders WHERE idempotencyKey", params: 1 },
+        { prefix: "UPDATE products SET stock = stock", params: 4 },
+        { prefix: "INSERT INTO stock_movements", params: 8 },
+        { prefix: "INSERT INTO orders", params: 11 },
+      ],
+    })
+    writeCases.push({
+      name: "createOrder（指纹去重命中：不动库存）",
+      action: "createOrder", pub: true,
+      payload: { roomNumber: "201", items: [{ productId: "p_order_probe", quantity: 2 }], wechat: "wx", remark: "" },
+      expect: { code: 0 },
+      expectDataFields: { id: "o_dup_1", totalAmount: 8, discountAmount: 0, promotionId: "", deduplicated: true },
+      expectNoWrites: true,
+      expectStatements: [
+        ...baseline,
+        { prefix: "SELECT _id, totalAmount, items, wechat, remark, paymentScreenshot", params: 2 },
+        { prefix: "SELECT discountAmount, promotionId FROM order_discounts", params: 1 },
+      ],
+    })
+    writeCases.push({
+      name: "createOrder（库存不足：护栏 UPDATE 0 变更 ⇒ stock_insufficient）",
+      action: "createOrder", pub: true,
+      payload: { roomNumber: "201", requestId: "req-order-3", items: [{ productId: "p_order_probe_low", quantity: 2 }], wechat: "wx", remark: "" },
+      expect: { code: -1, errorCode: "stock_insufficient" },
+      expectMessage: "库存不足: 牛奶",
+      expectStatements: [
+        ...baseline,
+        { prefix: "SELECT _id, totalAmount FROM orders WHERE idempotencyKey", params: 1 },
+        { prefix: "UPDATE products SET stock = stock", params: 4 },
+      ],
+    })
+    writeCases.push({
+      name: "createOrder（限流：20/60s 桶已满 ⇒ 429 + retryAfterMs）",
+      action: "createOrder", pub: true,
+      headers: { "cf-connecting-ip": "203.0.113.9" },
+      payload: { roomNumber: "201", requestId: "req-order-4", items: [{ productId: "p_order_probe", quantity: 2 }], wechat: "wx", remark: "" },
+      expect: { code: -1, errorCode: "rate_limited" },
+      expectStatements: [{ prefix: "SELECT count, resetAt FROM rate_limits", params: 1 }],
+    })
+  }
   for (const c of writeCases) {
     const before = auditRoster().length
-    const nativeR = await postWeb(base, c.action, keys.admin, c.payload) // ← 本地边缘；现网一次都不打
+    // /pub 写用例走 postPub（可带额外请求头，例如用 cf-connecting-ip 固定限流桶键）；其余走 /web
+    const nativeR = c.pub
+      ? await postPub(base, c.action, c.payload || {}, c.headers || {})
+      : await postWeb(base, c.action, keys.admin, c.payload) // ← 本地边缘；现网一次都不打
     const added = auditRoster().slice(before)
     const entry = { action: c.action, status: nativeR.status, edge: nativeR.edge, statements: added.map((s) => s.sql.slice(0, 40)), ok: true }
     if (nativeR.edge !== "native") problems.push(c.name + "：x-edge=" + nativeR.edge + "（不是原生分支）")
@@ -736,6 +827,34 @@ if (!keys.admin) {
       const got = JSON.stringify(nativeR.json.data)
       const want = JSON.stringify(c.expectData)
       if (got !== want) { entry.ok = false; problems.push(c.name + "：data 与手算不符（" + got + " ≠ " + want + "）") }
+    }
+    if (c.expectDataFields) {
+      // 部分字段比对：订单号这类**非确定值**（o_ + 36 进制时间 + 随机尾）不许整段比，只能比确定的几个字段
+      for (const [k, v] of Object.entries(c.expectDataFields)) {
+        const got = nativeR.json.data ? nativeR.json.data[k] : undefined
+        if (JSON.stringify(got) !== JSON.stringify(v)) {
+          entry.ok = false
+          problems.push(c.name + "：data." + k + "=" + JSON.stringify(got) + "，期望 " + JSON.stringify(v))
+        }
+      }
+    }
+    if (c.expectIdPrefix) {
+      const id = nativeR.json.data ? nativeR.json.data.id : undefined
+      if (typeof id !== "string" || !id.startsWith(c.expectIdPrefix)) {
+        entry.ok = false
+        problems.push(c.name + "：data.id 前缀不是 " + c.expectIdPrefix + "（" + id + "）")
+      }
+    }
+    if (c.expectNoWrites) {
+      // 只看**订单域**的写：限流起桶（INSERT INTO rate_limits）是写，但它是限流器自己的事，
+      // 不在「这次下单有没有动库存/落单」这个判据里。
+      const wrote = added.filter(
+        (s) => s.isWrite && /INSERT INTO orders|INSERT INTO stock_movements|UPDATE products/.test(s.sql),
+      )
+      if (wrote.length !== 0) {
+        entry.ok = false
+        problems.push(c.name + "：不该有写语句，实测 " + wrote.map((s) => s.sql.slice(0, 24)).join(" | "))
+      }
     }
     if (c.expectMessage && nativeR.json.message !== c.expectMessage) {
       entry.ok = false
@@ -772,7 +891,7 @@ writeFileSync(jsonOut, JSON.stringify({ ...report, problems }, null, 2) + '\n')
 console.log('原始读数 ' + jsonOut)
 console.log(problems.length
   ? '\nGATE-FAIL check-api-native-e2e：' + problems.length + ' 项\n  - ' + problems.join('\n  - ')
-  : '\nGATE-PASS check-api-native-e2e：公开面 8 + 管理读 26 + 写 6（写入只打本地边缘）= 40 个用例\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
+  : '\nGATE-PASS check-api-native-e2e：公开面 8 + 管理读 26 + 写 10（写入只打本地边缘）= 44 个用例\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
 
 edge.kill()
 mock.kill()

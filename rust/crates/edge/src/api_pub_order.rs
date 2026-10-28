@@ -34,7 +34,7 @@ pub const SQL_ORDER_MOVEMENT_SALE: &str = r#"INSERT INTO stock_movements (produc
 /// stock.js:80（releaseStock 用）—— 回补流水（kind=void）。
 pub const SQL_ORDER_MOVEMENT_VOID: &str = r#"INSERT INTO stock_movements (productId, delta, kind, refType, refId, actor, note, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"#;
 /// orders.js:325 —— 回补前先取这些商品的当前库存（只回补有限库存项）。
-pub const SQL_RELEASE_STOCK: &str = r#"SELECT _id, stock FROM products WHERE _id IN (__PH__)"#;
+pub const SQL_RELEASE_STOCK: &str = r#"SELECT _id, stock FROM products WHERE _id IN (__PHV__)"#;
 /// orders.js:335 —— CASE 式回补（不限售项 stock<0 原样不动）。
 pub const SQL_RELEASE_UPDATE: &str = r#"UPDATE products SET stock = CASE WHEN stock >= 0 THEN stock + ? ELSE stock END, updatedAt = ? WHERE _id = ?"#;
 /// orders.js:274 —— 优惠明细落行（仅 discount > 0 时）。
@@ -511,7 +511,8 @@ async fn release_stock(d1: &D1Client, items: &[Value], order_id: &str, actor: &s
         return;
     }
     let placeholders = vec!["?"; ids.len()].join(",");
-    let sql = SQL_RELEASE_STOCK.replace("__PH__", &placeholders);
+    // 现网这条用的是局部变量 ${ph}（不是内联表达式）⇒ 标记也不一样，判据按标记分别展开
+    let sql = SQL_RELEASE_STOCK.replace("__PHV__", &placeholders);
     let Ok(rows) = d1.query_rows(&sql, &ids).await else {
         return;
     };

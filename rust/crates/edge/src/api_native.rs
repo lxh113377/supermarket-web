@@ -184,7 +184,20 @@ mod tests {
         // 只读一个文件的写法会让后两条「验了个空」（判据绿着，其实没比过）。
         // 扩到 7 条：管理端第一条（SELECT *）与审计 INSERT 也进判据 ——
         // 语句抄错时判据要在**落地前**红，而不是等线上审计表少几行才发现。
-        let sources: [(&str, &str, &str); 26] = [
+        // 动态占位符：Rust 侧用 __PH__ 标记，现网模板串里是 $ + {ids.map(() => '?').join(',')}。
+        // 判据把它展开成现网原文再比 —— 比「跳过这两条」强得多：列序或条件改了一样红。
+        let ids_tpl = format!(
+            "{}{}ids.map(() => {q}?{q}).join({q},{q}){}",
+            char::from(36u8),
+            char::from(123u8),
+            char::from(125u8),
+            q = char::from(39u8)
+        );
+        // 两种标记：内联表达式与局部变量（现网两处写法不同，判据各认各的）
+        let ph_tpl = format!("{}{}ph{}", char::from(36u8), char::from(123u8), char::from(125u8));
+        let expand = |s: &str| s.replace("__PH__", &ids_tpl).replace("__PHV__", &ph_tpl);
+
+        let sources: [(&str, &str, &str); 40] = [
             (SQL_PUBLIC_PRODUCTS, "SQL_PUBLIC_PRODUCTS", "functions/lib/actions/products.js"),
             (SQL_PUBLIC_CATEGORIES, "SQL_PUBLIC_CATEGORIES", "functions/lib/actions/products.js"),
             (SQL_CATALOG_ORDERS, "SQL_CATALOG_ORDERS", "functions/lib/actions/products.js"),
@@ -219,13 +232,28 @@ mod tests {
             (crate::api_admin::SQL_STOCK_ROW, "SQL_STOCK_ROW", "functions/lib/stock.js"),
             (crate::api_admin::SQL_STOCK_UPDATE, "SQL_STOCK_UPDATE", "functions/lib/stock.js"),
             (crate::api_admin::SQL_MOVEMENT_INSERT, "SQL_MOVEMENT_INSERT", "functions/lib/stock.js"),
+            // 第 20~21 轮：/pub 下单链路（13 条；orders.js / stock.js / security.js）
+            (crate::api_pub_order::SQL_ORDER_PRODUCTS, "SQL_ORDER_PRODUCTS", "functions/lib/actions/orders.js"),
+            (crate::api_pub_order::SQL_ORDER_BY_KEY, "SQL_ORDER_BY_KEY", "functions/lib/actions/orders.js"),
+            (crate::api_pub_order::SQL_ORDER_BY_FINGERPRINT, "SQL_ORDER_BY_FINGERPRINT", "functions/lib/actions/orders.js"),
+            (crate::api_pub_order::SQL_ORDER_DISCOUNT, "SQL_ORDER_DISCOUNT", "functions/lib/actions/orders.js"),
+            (crate::api_pub_order::SQL_ORDER_PROMOTIONS, "SQL_ORDER_PROMOTIONS", "functions/lib/actions/orders.js"),
+            (crate::api_pub_order::SQL_ORDER_DEDUCT, "SQL_ORDER_DEDUCT", "functions/lib/actions/orders.js"),
+            (crate::api_pub_order::SQL_ORDER_MOVEMENT_SALE, "SQL_ORDER_MOVEMENT_SALE", "functions/lib/stock.js"),
+            (crate::api_pub_order::SQL_ORDER_MOVEMENT_VOID, "SQL_ORDER_MOVEMENT_VOID", "functions/lib/stock.js"),
+            (crate::api_pub_order::SQL_RELEASE_STOCK, "SQL_RELEASE_STOCK", "functions/lib/actions/orders.js"),
+            (crate::api_pub_order::SQL_RELEASE_UPDATE, "SQL_RELEASE_UPDATE", "functions/lib/actions/orders.js"),
+            (crate::api_pub_order::SQL_ORDER_DISCOUNT_INSERT, "SQL_ORDER_DISCOUNT_INSERT", "functions/lib/actions/orders.js"),
+            (crate::api_pub_order::SQL_RATE_READ, "SQL_RATE_READ", "functions/lib/security.js"),
+            (crate::api_pub_order::SQL_RATE_INIT, "SQL_RATE_INIT", "functions/lib/security.js"),
+            (crate::api_pub_order::SQL_RATE_BUMP, "SQL_RATE_BUMP", "functions/lib/security.js"),
         ];
         for (sql, name, rel) in sources {
             let js_path = repo.join(rel);
             let js = fs::read_to_string(&js_path)
                 .unwrap_or_else(|e| panic!("读不到 {:?}：{}", js_path, e));
             assert!(
-                norm(&js).contains(&norm(sql)),
+                norm(&js).contains(&norm(&expand(sql))),
                 "{} 与 {} 里的字面量不一致（现网实现改了 SQL，Rust 侧未同步）",
                 name,
                 rel
