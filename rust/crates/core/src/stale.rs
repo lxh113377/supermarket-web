@@ -74,7 +74,6 @@ pub fn parse_iso_ms(ts: &str) -> Option<i64> {
     let mut idx = 19;
     let mut ms: i64 = 0;
     if b.get(19) == Some(&b'.') {
-        idx = 20;
         let digits: String = ts
             .get(20..)?
             .chars()

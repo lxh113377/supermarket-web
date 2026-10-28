@@ -26,6 +26,7 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
 use crate::api::App;
+use crate::d1::D1Client;
 
 // ── SQL（逐字抄自现网；判据 sql_matches_js_source 会去 JS 源码里验）────────────────
 
@@ -49,7 +50,13 @@ pub const SQL_ORDERS_PAGE: &str = r#"SELECT o._id, o.roomNumber, o.items, o.tota
 /// orders.js:546 —— 单订单详情（`o.*` + LEFT JOIN 的两列）。
 pub const SQL_ORDER_BY_ID: &str = r#"SELECT o.*, COALESCE(d.discountAmount, 0) AS discountAmount, COALESCE(d.promotionId, '') AS promotionId FROM orders o LEFT JOIN order_discounts d ON d.orderId = o._id WHERE o._id = ?"#;
 
-// ── 写动作（第 14 轮起）────────────────────────────────────────────
+// ── 写动作（第 14 轮起）
+/// stock.js:126 —— 读当前库存行（写前必须先读，判 stock_untracked / stock_insufficient）。
+pub const SQL_STOCK_ROW: &str = r#"SELECT _id, name, stock FROM products WHERE _id = ?"#;
+/// stock.js:137 —— 改快照（**用 meta.changes 判商品是否存在**：0 变更 ⇒ product_not_found）。
+pub const SQL_STOCK_UPDATE: &str = r#"UPDATE products SET stock = ?, updatedAt = ? WHERE _id = ?"#;
+/// stock.js:80 —— 记一行库存流水（kind=adjust / refType=manual / actor=admin）。
+pub const SQL_MOVEMENT_INSERT: &str = r#"INSERT INTO stock_movements (productId, delta, kind, refType, refId, actor, note, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"#;
 /// reviews.js:57 —— 删除一条评价（单语句；没有库存/订单那种多语句的中间态风险）。
 pub const SQL_DELETE_REVIEW: &str = r#"DELETE FROM reviews WHERE _id = ?"#;
 
@@ -93,7 +100,7 @@ pub const EVENT_LIMIT_DEFAULT: i64 = 50;
 pub const EVENT_LIMIT_MAX: i64 = 100;
 
 /// 在册的管理端原生动作（第 6 轮 getProducts；第 7 轮 4 个单表只读；第 8~9 轮 getStockMovements）。
-pub const ADMIN_NATIVE_ACTIONS: [&str; 13] = [
+pub const ADMIN_NATIVE_ACTIONS: [&str; 14] = [
     "getProducts",
     "getAllReviews",
     "getSubmissions",
@@ -107,6 +114,7 @@ pub const ADMIN_NATIVE_ACTIONS: [&str; 13] = [
     "getPromotions",
     "getDashboardStats",
     "deleteReview",
+    "adjustStock",
 ];
 
 /// 开关：未设 ⇒ 全关；all 或逗号分隔的动作名（大小写无关）。
@@ -179,6 +187,134 @@ pub fn client_ip(headers: &axum::http::HeaderMap) -> String {
 }
 
 /// 管理端原生调用。返回 None ⇒ 调用方落回透传。
+/// 库存手工调整（现网 actions/stock.js:24-44 的同义实现）。
+///
+/// **为什么抽成独立函数**：这个动作有四个失败出口，而写动作的失败也必须落审计
+/// （现网 backend.js:204：写动作无论成败都审计）。第一版把它写在 match 分支里、用 return 提前退出，
+/// 于是失败路径全部绕过了「失效 → 审计」后处理 —— 判据当场报「语句条数 1，期望 2」。
+/// 抽出来之后，函数内部的 return 只结束自己，外层后处理照常执行。
+async fn adjust_stock(d1: &D1Client, payload: Option<&Value>) -> Option<Value> {
+    let pid = supermarket_core::stock_ops::adjust_product_id(payload);
+    if pid.is_empty() {
+        return Some(supermarket_core::errors::fail(
+            "missing_product_id",
+            "缺少 productId",
+            Default::default(),
+        ));
+    }
+    let delta = match supermarket_core::stock_ops::adjust_delta(payload) {
+        Ok(d) => d,
+        Err(msg) => {
+            return Some(supermarket_core::errors::fail(
+                "invalid_delta",
+                msg,
+                Default::default(),
+            ))
+        }
+    };
+    // 读当前行：读失败 ⇒ 显式错误（写动作不回落透传，避免上游重放）
+    let row = match d1.query_rows(SQL_STOCK_ROW, &[json!(pid)]).await {
+        Ok(rows) => rows.into_iter().next(),
+        Err(_) => {
+            return Some(supermarket_core::errors::fail(
+                "internal_error",
+                "服务暂时不可用，请稍后重试",
+                Default::default(),
+            ))
+        }
+    };
+    let Some(row) = row else {
+        return Some(supermarket_core::errors::fail(
+            "product_not_found",
+            "商品不存在",
+            Default::default(),
+        ));
+    };
+    let before = supermarket_core::jsnum::js_number_of(row.get("stock"));
+    if before < 0.0 {
+        return Some(supermarket_core::errors::fail(
+            "stock_untracked",
+            "该商品按不限售管理（stock=-1），没有账面可记；请先在商品编辑里填入实际库存",
+            Default::default(),
+        ));
+    }
+    let after = before + delta as f64;
+    if after < 0.0 {
+        let msg = supermarket_core::stock_ops::insufficient_message(before, delta);
+        return Some(supermarket_core::errors::fail(
+            "stock_insufficient",
+            &msg,
+            Default::default(),
+        ));
+    }
+    // UPDATE：必须看 meta.changes（0 变更 ⇒ 商品不存在），所以用 query 而不是 query_rows
+    let ts1 = crate::api::iso_now();
+    let upd = match d1
+        .query(
+            SQL_STOCK_UPDATE,
+            &[
+                supermarket_core::jsnum::js_number(after),
+                json!(ts1),
+                json!(pid),
+            ],
+        )
+        .await
+    {
+        Ok(v) => v,
+        Err(_) => {
+            return Some(supermarket_core::errors::fail(
+                "internal_error",
+                "服务暂时不可用，请稍后重试",
+                Default::default(),
+            ))
+        }
+    };
+    let changes = upd
+        .get(0)
+        .and_then(|r| r.get("meta"))
+        .and_then(|m| m.get("changes"))
+        .and_then(|c| c.as_i64())
+        .unwrap_or(0);
+    if changes == 0 {
+        return Some(supermarket_core::errors::fail(
+            "product_not_found",
+            "商品不存在",
+            Default::default(),
+        ));
+    }
+    // 流水：只有 deltaForStockChange 非 null 才记（小数/NaN 场景不记账，但 UPDATE 已生效）
+    let ledger = supermarket_core::stock_ops::delta_for_stock_change(before, after);
+    if let Some(led) = ledger {
+        let note = supermarket_core::stock_ops::adjust_note(payload);
+        let ts2 = crate::api::iso_now();
+        let ins = d1
+            .query(
+                SQL_MOVEMENT_INSERT,
+                &[
+                    json!(pid),
+                    json!(led),
+                    json!("adjust"),
+                    json!("manual"),
+                    json!(""),
+                    json!("admin"),
+                    json!(note),
+                    json!(ts2),
+                ],
+            )
+            .await;
+        if ins.is_err() {
+            return Some(supermarket_core::errors::fail(
+                "internal_error",
+                "服务暂时不可用，请稍后重试",
+                Default::default(),
+            ));
+        }
+    }
+    Some(json!({
+        "code": 0,
+        "data": supermarket_core::stock_ops::adjust_data(&pid, before, after, ledger),
+    }))
+}
 pub async fn call_admin(
     app: &Arc<App>,
     action: &str,
@@ -514,6 +650,7 @@ pub async fn call_admin(
                 Some(json!({ "code": 0 }))
             }
         }
+        "adjustStock" => adjust_stock(d1, payload).await,
         _ => None,
     };
 
@@ -525,6 +662,16 @@ pub async fn call_admin(
             // 边缘侧的微缓存键里带动作名 ⇒ 按动作名清理即可（语义等价：写后不再命中旧快照）。
             let mut guard = app.cache.lock().await;
             guard.retain(|k, _| !k.contains(":getDashboardStats:"));
+        }
+        if ok && supermarket_core::auth::is_catalog_write_action(action) {
+            // 目录面失效（现网 invalidatePublicCatalog 删 3 个公开 KV 键）：
+            // 边缘侧的微缓存键里带动作名 ⇒ 按三个公开动作名清理，顾客端立即看到新数据。
+            let mut guard = app.cache.lock().await;
+            guard.retain(|k, _| {
+                !k.contains(":getPublicProducts:")
+                    && !k.contains(":getPublicCategories:")
+                    && !k.contains(":getCatalogOrders:")
+            });
         }
         if supermarket_core::auth::is_admin_write_action(action) {
             // 现网：写动作**无论成败**都审计（result = ok / fail）

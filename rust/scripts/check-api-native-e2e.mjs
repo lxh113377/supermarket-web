@@ -156,6 +156,18 @@ const CASES = [
   { name: 'getOrderStatus（不给 payload：边界）', action: 'getOrderStatus', sql: SQL.orderStatus, payload: undefined, cacheable: false },
   { name: 'getReviews（缺 productOrder：错误路径）', action: 'getReviews', sql: SQL.reviews, payload: {}, cacheable: false },
 ]
+// 逐字节面里剔除「时间敏感字段」：这类字段的值取决于**两侧各自的当前时刻**，
+// 拿它们做逐字节判据等于让两个时钟比大小 —— 红的是夹具的时钟，不是等价性（实测 flaky 过一次）。
+const stripFieldsDeep = (obj, fields) => {
+  if (Array.isArray(obj)) return obj.map((x) => stripFieldsDeep(x, fields))
+  if (obj && typeof obj === 'object') {
+    const out = {}
+    for (const [k, v] of Object.entries(obj)) { if (!fields.includes(k)) out[k] = stripFieldsDeep(v, fields) }
+    return out
+  }
+  return obj
+}
+const caseJson = (c, obj) => JSON.stringify(c.stripFields ? stripFieldsDeep(obj, c.stripFields) : obj)
 for (const c of CASES) if (!c.action) c.action = c.name
 
 const liveOut = {}
@@ -274,6 +286,8 @@ if (keys.admin) {
 const ordersPageSql = sqlOfFrom('crates/edge/src/api_admin.rs', 'SQL_ORDERS_PAGE')
 const orderByIdSql = sqlOfFrom('crates/edge/src/api_admin.rs', 'SQL_ORDER_BY_ID')
 const ordersRows = {}
+// 负控：这些 id 会被 mock 当作「UPDATE/DELETE 命中 0 行」（守卫式 UPDATE 的唯一可判路径）
+const missingIds = []
 const orderCases = []
 if (keys.admin) {
   const mk = (q) => ordersPageSql
@@ -441,8 +455,20 @@ if (keys.admin) {
     }
   }
   ordersRows[staleProdsSql.replace(staleInMark, staleIds.map(() => "?").join(","))] = []
+  // adjustStock 的三个商品行必须在**mock 启动前**登记（同一套 SQL|params 键）。
+  // 第一版把这几行写在管理段 ⇒ 键没进 rows.json ⇒ 边缘查询失败 ⇒ 全部 500（同类第三次）。
+  const stockRowSql = sqlOfFrom("crates/edge/src/api_admin.rs", "SQL_STOCK_ROW")
+  const stockOkId = "p_stock_probe_ok"
+  const stockLowId = "p_stock_probe_low"
+  const stockGhostId = "p_stock_probe_ghost"
+  ordersRows[stockRowSql + "|" + JSON.stringify([stockOkId])] = [{ _id: stockOkId, name: "牛奶", stock: 5 }]
+  ordersRows[stockRowSql + "|" + JSON.stringify([stockLowId])] = [{ _id: stockLowId, name: "牛奶", stock: 5 }]
+  ordersRows[stockRowSql + "|" + JSON.stringify([stockGhostId])] = [{ _id: stockGhostId, name: "幽灵", stock: 3 }]
+  missingIds.push(stockGhostId)
 const rowsFile = path.join(rustRoot, '.cache', 'mock-d1-rows' + (parsedMode ? '-parsed' : '') + '.json')
+// __metaMissingIds 是给 mock 的负控面：命中这些 id 的 UPDATE/DELETE 回 changes=0
 writeFileSync(rowsFile, JSON.stringify({
+  __metaMissingIds: missingIds,
   [SQL.products]: rows.products,
   [SQL.categories]: rows.categories,
   [SQL.catalogOrders]: rows.catalogOrders,
@@ -521,8 +547,8 @@ for (const c of CASES) {
   const second = await postPub(base, c.action, c.payload)
   const entry = { action: c.action, payload: c.payload === undefined ? null : c.payload, status: first.status, edge: first.edge, cacheFirst: first.edgeCache, cacheSecond: second.edgeCache, equal: false }
   if (first.edge !== 'native') problems.push(c.name + '：x-edge=' + first.edge + '（不是原生分支）')
-  const want = JSON.stringify(liveOut[key])
-  const got = JSON.stringify(stripTrace(first.json))
+  const want = caseJson(c, liveOut[key])
+  const got = caseJson(c, stripTrace(first.json))
   entry.equal = want === got
   if (!entry.equal) {
     entry.liveJson = liveOut[key]
@@ -588,7 +614,8 @@ if (!keys.admin) {
   const staleLive = await postWeb(live, 'stalePendingReport', keys.admin, staleCasePayload)
   const staleLiveData = staleLive.status === 200 ? staleLive.json.data : null
   if (staleLiveData && staleLiveData.count === pendingRows.length) {
-    adminCases.push({ name: 'stalePendingReport（minutes=10080，非空窗）', action: 'stalePendingReport', key: keys.admin, payload: staleCasePayload, expectAudit: 0 })
+    // stripFields：ageMinutes 取决于两侧各自的当前时刻 ⇒ 不参与逐字节面（否则红的是时钟不是等价性）
+    adminCases.push({ name: 'stalePendingReport（minutes=10080，非空窗）', action: 'stalePendingReport', key: keys.admin, payload: staleCasePayload, expectAudit: 0, stripFields: ['ageMinutes'] })
     console.log('  stalePendingReport：现网 count=' + staleLiveData.count + ' ⇒ 逐字节用例已登记（喂 ' + pendingRows.length + ' 行 / ' + staleIds.length + ' 个商品 id）')
   } else {
     console.log('  [观察] stalePendingReport 非空窗跳过：现网 count=' + (staleLiveData ? staleLiveData.count : '?') + ' ≠ 夹具 ' + pendingRows.length + '（筛选口径有差 ⇒ 不拿它当判据）')
@@ -620,8 +647,8 @@ if (!keys.admin) {
     const entry = { action: c.action, status: nativeR.status, liveStatus: liveR.status, edge: nativeR.edge, auditDelta, expectAudit: c.expectAudit, equal: false }
     if (nativeR.edge !== 'native') problems.push(c.name + '：x-edge=' + nativeR.edge + '（不是原生分支）')
     if (nativeR.status !== liveR.status) problems.push(c.name + '：HTTP 状态与现网不同（现网 ' + liveR.status + ' / 边缘 ' + nativeR.status + '）')
-    const want = JSON.stringify(stripTrace(liveR.json))
-    const got = JSON.stringify(stripTrace(nativeR.json))
+    const want = caseJson(c, stripTrace(liveR.json))
+    const got = caseJson(c, stripTrace(nativeR.json))
     entry.equal = want === got
     if (!entry.equal) {
       entry.liveJson = stripTrace(liveR.json)
@@ -651,6 +678,51 @@ if (!keys.admin) {
       expectStatements: [{ prefix: "INSERT INTO security_events", params: 6, resultLen: 4 }],
     })
   }
+  // adjustStock：三条语句 + 三种失败形态。行集按「mock 的 SQL|params 键」登记；
+  // 现网一次都不打（写动作的硬边界）。
+  {
+    // 行集已在 mock 启动前登记（见上面的 stockRowSql 段）；这里只用常量登记用例
+    const okId = stockOkId
+    const lowId = stockLowId
+    const ghostId = stockGhostId
+    writeCases.push({
+      name: "adjustStock（成功：+4 ⇒ 三条语句 + 审计）", action: "adjustStock",
+      payload: { productId: okId, delta: 4, note: "到货" },
+      expect: { code: 0 },
+      expectData: { productId: okId, before: 5, after: 9, delta: 4, recorded: true },
+      expectStatements: [
+        { prefix: "SELECT _id, name, stock FROM products", params: 1 },
+        { prefix: "UPDATE products SET stock", params: 3 },
+        { prefix: "INSERT INTO stock_movements", params: 8 },
+        { prefix: "INSERT INTO security_events", params: 6, resultLen: 2 },
+      ],
+    })
+    writeCases.push({
+      name: "adjustStock（-10 ⇒ stock_insufficient，不写库）", action: "adjustStock",
+      payload: { productId: lowId, delta: -10 },
+      expect: { code: -1, errorCode: "stock_insufficient" },
+      expectMessage: "调整后库存为负（现 5，本次 -10）",
+      expectStatements: [
+        { prefix: "SELECT _id, name, stock FROM products", params: 1 },
+        { prefix: "INSERT INTO security_events", params: 6, resultLen: 4 },
+      ],
+    })
+    writeCases.push({
+      name: "adjustStock（UPDATE 命中 0 行 ⇒ product_not_found）", action: "adjustStock",
+      payload: { productId: ghostId, delta: 1 },
+      expect: { code: -1, errorCode: "product_not_found" },
+      expectStatements: [
+        { prefix: "SELECT _id, name, stock FROM products", params: 1 },
+        { prefix: "UPDATE products SET stock", params: 3 },
+        { prefix: "INSERT INTO security_events", params: 6, resultLen: 4 },
+      ],
+    })
+    writeCases.push({
+      name: "adjustStock（缺 productId ⇒ 400）", action: "adjustStock", payload: {},
+      expect: { code: -1, errorCode: "missing_product_id" },
+      expectStatements: [{ prefix: "INSERT INTO security_events", params: 6, resultLen: 4 }],
+    })
+  }
   for (const c of writeCases) {
     const before = auditRoster().length
     const nativeR = await postWeb(base, c.action, keys.admin, c.payload) // ← 本地边缘；现网一次都不打
@@ -659,6 +731,15 @@ if (!keys.admin) {
     if (nativeR.edge !== "native") problems.push(c.name + "：x-edge=" + nativeR.edge + "（不是原生分支）")
     for (const [k, v] of Object.entries(c.expect)) {
       if (nativeR.json[k] !== v) { entry.ok = false; problems.push(c.name + "：响应字段 " + k + "=" + nativeR.json[k] + "，期望 " + v) }
+    }
+    if (c.expectData) {
+      const got = JSON.stringify(nativeR.json.data)
+      const want = JSON.stringify(c.expectData)
+      if (got !== want) { entry.ok = false; problems.push(c.name + "：data 与手算不符（" + got + " ≠ " + want + "）") }
+    }
+    if (c.expectMessage && nativeR.json.message !== c.expectMessage) {
+      entry.ok = false
+      problems.push(c.name + "：message 不逐字（" + nativeR.json.message + " ≠ " + c.expectMessage + "）")
     }
     if (added.length !== c.expectStatements.length) {
       entry.ok = false
@@ -691,7 +772,7 @@ writeFileSync(jsonOut, JSON.stringify({ ...report, problems }, null, 2) + '\n')
 console.log('原始读数 ' + jsonOut)
 console.log(problems.length
   ? '\nGATE-FAIL check-api-native-e2e：' + problems.length + ' 项\n  - ' + problems.join('\n  - ')
-  : '\nGATE-PASS check-api-native-e2e：公开面 8 + 管理读 26 + 写 2（写入只打本地边缘）= 36 个用例\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
+  : '\nGATE-PASS check-api-native-e2e：公开面 8 + 管理读 26 + 写 6（写入只打本地边缘）= 40 个用例\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
 
 edge.kill()
 mock.kill()

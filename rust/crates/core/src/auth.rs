@@ -84,6 +84,21 @@ pub fn resolve_role(
     None
 }
 
+/// `backend.js:192` —— 成功后必须让**公共目录**缓存失效的写动作（顾客端立即看到新数据）。
+/// 与看板失效面**不是同一套**：`adjustStock` 在这里，但不在 DASHBOARD_WRITE_ACTIONS。
+pub const CATALOG_WRITE_ACTIONS: [&str; 6] = [
+    "createProduct",
+    "updateProduct",
+    "deleteProduct",
+    "batchUpdateProducts",
+    "batchDeleteProducts",
+    "adjustStock",
+];
+
+pub fn is_catalog_write_action(action: &str) -> bool {
+    CATALOG_WRITE_ACTIONS.contains(&action)
+}
+
 /// `backend.js:65` —— **会影响看板聚合**的写动作：成功后必须让看板缓存即时失效，
 /// 否则「提交后立即可见」的语义被 60s 缓存破坏（现网注释原话）。
 pub const DASHBOARD_WRITE_ACTIONS: [&str; 16] = [

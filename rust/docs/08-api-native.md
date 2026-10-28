@@ -456,3 +456,51 @@ SQL 判据现覆盖 **22 条语句 / 8 个文件**。
 
 总数 **36 个用例**（公开面 8 + 管理读 26 + 写 2）；写用例在夹具里有一条顺着代码就能看出来的保证：
 它只对 `base`（本地边缘）发请求，**一次都不打现网**。
+
+## 2l. 写动作第二条：adjustStock（第 16~17 轮）
+
+库存域写动作：`SELECT _id, name, stock FROM products WHERE _id = ?` → `UPDATE products SET stock = ?, updatedAt = ? WHERE _id = ?` →
+`INSERT INTO stock_movements (...)`（kind=adjust / refType=manual / actor=admin）→ 目录面失效 → 审计。
+
+### 2l.1 中间态才是这个动作的难点（不是 SQL）
+
+`products.stock` 是 SQLite 动态类型列，库里真出现过 null / 字符串 / 小数。现网对每一种都有不同结局，全部照抄进 `core::stock_ops`（8 条用例）：
+
+| 读出来的 stock | Number 后 | 结局 |
+|---|---|---|
+| 无行 | —— | `product_not_found` |
+| 负数（-1 不限售，-5 也算） | 负数 | `stock_untracked` |
+| null / 空串 | 0 | **静默当 0 记账**（最隐蔽的一条） |
+| "12" | 12 | 正常按整数走 |
+| 12.5 | 12.5 | UPDATE 照样写库，但**不落流水**、`recorded=false`、`delta=0` |
+| "abc" | NaN | UPDATE 写 NaN，不落流水，响应 `before/after` 序列化成 `null` |
+
+### 2l.2 判据抓出的两件事
+
+1. **mock 被我改坏了**：负控分支里我写了 `state` / `params` 两个不存在的变量名（真实是 `table` / `parsed.params`）⇒ 每次写都抛 ReferenceError ⇒
+   **审计静默全丢**，端到端一次红 **66 项**。这类「批量红」的根因往往在夹具自己身上 —— 先看 mock 的 stderr 比逐个用例看差异快得多。
+2. **同一个坑第二次**：`adjustStock` 的四个失败出口又用提前 `return` 绕过了写后处理（失败没审计）；判据报「语句条数 1，期望 2」。
+   修法：把整个动作抽成独立 `async fn adjust_stock`（函数内的 return 只结束自己，外层「失效 → 审计」照常执行）。
+   **这条现在是硬纪律**：写动作一律抽独立函数，不许写在 match 分支里直接 return。
+
+### 2l.3 一个被我改成容差的地方（诚实记录）
+
+`stalePendingReport` 的 `ageMinutes` 取决于**两侧各自的当前时刻**，用逐字节比它等于让两个时钟比大小；
+本轮实测 flaky 一次（count 相同、前三单相同，某一单的 ageMinutes 差 1）。处置：把该字段放进 `stripFields`，
+其余字段仍逐字节比 —— 判据保留牙齿，但不再对时钟过敏。
+
+### 2l.4 端到端读数（写用例 2 → 6 条）
+
+| 写用例 | HTTP | 语句序列（mock 录制） |
+|---|---|---|
+| deleteReview（成功） | 200 | DELETE → 审计(ok) |
+| deleteReview（缺 reviewId） | 400 | 审计(fail) |
+| **adjustStock（+4 成功）** | 200 | SELECT → UPDATE → INSERT stock_movements → 审计(ok) |
+| **adjustStock（-10 ⇒ stock_insufficient）** | 409 | SELECT → 审计(fail)（**不写库**） |
+| **adjustStock（UPDATE 命中 0 行 ⇒ product_not_found）** | 404 | SELECT → UPDATE → 审计(fail) |
+| **adjustStock（缺 productId）** | 400 | 审计(fail) |
+
+写用例还各自断言响应字段逐字（含 `data` 与手算一致：`{productId,before:5,after:9,delta:4,recorded:true}`）与错误消息逐字
+（`调整后库存为负（现 5，本次 -10）`）。SQL 判据 **26 条语句 / 9 个文件**。
+
+负控：`rows.json` 里的 `__metaMissingIds` 命中参数时 mock 回 `changes=0` —— 这是「守卫式 UPDATE 命中 0 行」唯一可判的地方。

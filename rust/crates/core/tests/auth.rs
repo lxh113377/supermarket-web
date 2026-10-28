@@ -8,9 +8,9 @@ use serde_json::json;
 use std::fs;
 use std::path::PathBuf;
 use supermarket_core::auth::{
-    check_auth, check_readonly, constant_time_equal, is_dashboard_write_action,
-    is_public_action, resolve_role, Role, ADMIN_READ_ACTIONS, ADMIN_WRITE_ACTIONS,
-    DASHBOARD_WRITE_ACTIONS, PUBLIC_ACTIONS,
+    check_auth, check_readonly, constant_time_equal, is_catalog_write_action,
+    is_dashboard_write_action, is_public_action, resolve_role, Role, ADMIN_READ_ACTIONS,
+    ADMIN_WRITE_ACTIONS, CATALOG_WRITE_ACTIONS, DASHBOARD_WRITE_ACTIONS, PUBLIC_ACTIONS,
 };
 
 #[test]
@@ -69,6 +69,21 @@ fn b_check_readonly_is_whitelist_deny_by_default() {
     assert!(check_readonly("createProduct", Some(Role::Admin)).is_none());
 }
 
+/// 把 JS 里的**内联数组字面量**（不是 new Set）解成字符串数组。
+///
+/// 为什么需要单独一个：现网的目录失效面是内联数组 + includes(action) 这种形状，
+/// 与 new Set([...]) 不同 —— 拿 js_set 去解会 panic，而「解不出来」比「解错了」更容易被发现。
+fn js_inline_array(src: &str, literal: &str) -> Vec<String> {
+    let at = src.find(literal).unwrap_or_else(|| panic!("JS 里找不到内联数组 {literal}"));
+    let _ = at;
+    literal
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .split(',')
+        .map(|s| s.trim().trim_matches(|c: char| c == '\u{27}' || c == '[' || c == ']' || c == ' ').to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
+}
 /// 把 JS 里 new Set([...]) 块解成字符串数组（只认单引号字符串，顺带过滤注释）。
 fn js_set(src: &str, decl: &str) -> Vec<String> {
     let at = src.find(decl).unwrap_or_else(|| panic!("JS 里找不到 {decl}"));
@@ -93,13 +108,17 @@ fn b_action_sets_match_js_source() {
         .expect("读不到 backend.js");
 
     let mut problems = Vec::new();
-    let checks: [(&str, Vec<String>, Vec<&str>); 4] = [
+    let checks: [(&str, Vec<String>, Vec<&str>); 5] = [
         ("PUBLIC_ACTIONS", js_set(&security, "export const PUBLIC_ACTIONS = new Set(["), PUBLIC_ACTIONS.to_vec()),
         ("ADMIN_READ_ACTIONS", js_set(&backend, "const ADMIN_READ_ACTIONS = new Set(["), ADMIN_READ_ACTIONS.to_vec()),
         ("ADMIN_WRITE_ACTIONS", js_set(&backend, "const ADMIN_WRITE_ACTIONS = new Set(["), ADMIN_WRITE_ACTIONS.to_vec()),
         // 第 14 轮补的第 4 张表：看板失效面（现网 backend.js:65）
         ("DASHBOARD_WRITE_ACTIONS", js_set(&backend, "const DASHBOARD_WRITE_ACTIONS = new Set(["), DASHBOARD_WRITE_ACTIONS.to_vec()),
+        // 第 16 轮补的第 5 张表：目录失效面（现网 backend.js:192 是**内联数组**，不是 new Set）
+        ("CATALOG_WRITE_ACTIONS", js_inline_array(&backend, "['createProduct', 'updateProduct', 'deleteProduct', 'batchUpdateProducts', 'batchDeleteProducts', 'adjustStock']"), CATALOG_WRITE_ACTIONS.to_vec()),
     ];
+    assert!(is_catalog_write_action("adjustStock"));
+    assert!(!is_catalog_write_action("deleteReview")); // deleteReview 在看板面、不在目录面
     // 顺手验两个判定函数与表一致（表对了、判定写错也是事故）
     assert!(is_dashboard_write_action("deleteReview"));
     assert!(!is_dashboard_write_action("getProducts"));

@@ -38,8 +38,10 @@ pub mod orders_query;
 pub mod sanitize;
 pub mod stale;
 pub mod stats;
+pub mod stock_ops;
 pub mod stock_query;
 pub mod format;
+pub mod jsnum;
 
 /// 与 `functions/lib/shared.js` 同值的起送门槛（元）。
 ///

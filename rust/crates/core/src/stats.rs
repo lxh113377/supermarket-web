@@ -191,16 +191,9 @@ fn number_of(v: Option<&Value>) -> f64 {
     }
 }
 
-/// JS 数字 → JSON：整数写整数（JSON.stringify(50) 是 50，不是 50.0）。
+/// JS 数字 → JSON（统一走 jsnum，避免三处各写一份格式化）。
 fn num(x: f64) -> Value {
-    if !x.is_finite() {
-        return Value::Null;
-    }
-    if x.fract() == 0.0 && x.abs() < 9.0e15 {
-        json!(x as i64)
-    } else {
-        json!(x)
-    }
+    crate::jsnum::js_number(x)
 }
 
 fn to_margin(revenue: f64, cost: f64) -> Value {

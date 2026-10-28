@@ -53,7 +53,16 @@ const server = http.createServer((req, res) => {
     //（挡住会让审计静默丢失，而现网恰恰吞掉审计错误 ⇒ 那会变成「看着一切正常、其实没留痕」）
     if (/^(INSERT|UPDATE|DELETE)/i.test(parsed.sql.trim())) {
       res.writeHead(200, { 'content-type': 'application/json' })
-      res.end(JSON.stringify({ success: true, result: [{ results: [], success: true, meta: { changes: 1, rows_read: 0 } }] }))
+      // 负控支持：当 rows.json 里 __metaMissingIds 命中本次参数时，UPDATE/DELETE 回 changes=0
+      // —— 这是现网「守卫式 UPDATE 命中 0 行」路径（product_not_found）唯一可判的地方。
+      // 注意变量名：rows.json 解析结果叫 table（不是 state），参数在 parsed.params。
+      // 第一版写错名字 ⇒ 每次写都抛 ReferenceError ⇒ 审计静默全丢（端到端一次红 66 项）。
+      const missing = Array.isArray(table.__metaMissingIds) ? table.__metaMissingIds : []
+      const hitsGhost = (Array.isArray(parsed.params) ? parsed.params : []).some(
+        (p) => typeof p === 'string' && missing.includes(p),
+      )
+      const changes = hitsGhost ? 0 : 1
+      res.end(JSON.stringify({ success: true, result: [{ results: [], success: true, meta: { changes, rows_read: 0 } }] }))
       return
     }
     // 参数感知：先查「SQL|params」复合键，再回落纯 SQL 键。

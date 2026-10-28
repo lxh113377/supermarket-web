@@ -1,4 +1,16 @@
 ## [未发布]
+- **动作表同步判据扩到 5 张**：新增目录失效面 `CATALOG_WRITE_ACTIONS`（现网是**内联数组 + includes** 而不是 new Set ⇒ 补了一个 `js_inline_array` 解析器）；新增第 5 张表覆盖面的负向断言（`deleteReview` 在看板面、不在目录面）。
+### 2026-10-28 写动作第二条：adjustStock（8 条核心用例 + 4 条写用例；端到端 40 用例全绿）
+- **进度 19 / 37**（剩余 18）：库存手工调整 = SELECT → UPDATE → INSERT stock_movements（kind=adjust/refType=manual/actor=admin）→ 目录面失效 → 审计。
+- **中间态才是难点**：products.stock 是 SQLite 动态类型列，null/字符串/小数各有不同结局，全部照抄进 `core::stock_ops`（8 条用例）：
+  null/空串 ⇒ 静默当 0；12.5 ⇒ UPDATE 照样写库但**不落流水**（`recorded=false, delta=0`）；"abc" ⇒ NaN 落库、响应 before/after 序列化成 null。
+- **判据抓出的两件事**：
+  ① mock 被我改坏：负控分支里写了不存在的变量名（`state`/`params`，真实是 `table`/`parsed.params`）⇒ 每次写抛 ReferenceError ⇒ 审计静默全丢 ⇒ **一次红 66 项**；
+  ② **同一个坑第二次**：`adjustStock` 的四个失败出口又用提前 return 绕过了写后处理（失败没审计）⇒ 抽成独立 `async fn adjust_stock`。
+     这条升级为硬纪律：**写动作一律抽独立函数，不许写在 match 分支里直接 return**。
+- **一处改成容差（诚实记录）**：`stalePendingReport` 的 `ageMinutes` 取决于两侧各自的当前时刻（本轮实测 flaky 一次）⇒ 放进 `stripFields`，其余字段仍逐字节比。
+- **端到端 40 用例全绿**（公开面 8 + 管理读 26 + 写 6）：新增 4 条 adjustStock 写用例（成功 / stock_insufficient / UPDATE 命中 0 行 / 缺 productId），
+  断言语句序列 + 响应 data 与手算一致 + 错误消息逐字；新增 mock 负控面 `__metaMissingIds`（守卫式 UPDATE 命中 0 行）。SQL 判据 **26 条语句 / 9 个文件**。
 ### 2026-10-27 写动作第一条：deleteReview + 写路径机器（端到端 36 用例全绿）
 - **进度 18 / 37**（剩余 19）：新增 `deleteReview`（单语句写）+ 写路径机器（失效 → 审计）。
 - **硬边界**：写动作**绝不对现网做对账**（会真改生产数据）⇒ 判据换成「SQL 逐字 + 语句序列/参数形状（mock `--record`）+ core 单测」，
