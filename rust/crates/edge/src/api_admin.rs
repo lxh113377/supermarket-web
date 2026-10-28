@@ -100,7 +100,7 @@ pub const EVENT_LIMIT_DEFAULT: i64 = 50;
 pub const EVENT_LIMIT_MAX: i64 = 100;
 
 /// 在册的管理端原生动作（第 6 轮 getProducts；第 7 轮 4 个单表只读；第 8~9 轮 getStockMovements）。
-pub const ADMIN_NATIVE_ACTIONS: [&str; 21] = [
+pub const ADMIN_NATIVE_ACTIONS: [&str; 22] = [
     "getProducts",
     "getAllReviews",
     "getSubmissions",
@@ -122,6 +122,7 @@ pub const ADMIN_NATIVE_ACTIONS: [&str; 21] = [
     "batchDeleteProducts",
     "updateOrderStatus",
     "deleteOrder",
+    "recalculateOrders",
 ];
 
 /// 开关：未设 ⇒ 全关；all 或逗号分隔的动作名（大小写无关）。
@@ -909,6 +910,119 @@ async fn delete_order(d1: &D1Client, payload: Option<&Value>) -> Option<Value> {
     }
     Some(json!({ "code": 0 }))
 }
+/// 现网 orders.js:457 —— 重算的扫描页（LEFT JOIN 带出优惠明细；缺表由外层兜成 internal_error）。
+pub const SQL_RECALC_SCAN: &str = r#"SELECT o._id, o.items, o.totalAmount,
+              COALESCE(d.discountAmount, 0) AS discountAmount, COALESCE(d.promotionId, '') AS promotionId
+       FROM orders o LEFT JOIN order_discounts d ON d.orderId = o._id
+       ORDER BY o._id ASC LIMIT ? OFFSET ?"#;
+/// 现网 orders.js:473 —— 按存单锁定过的 promotionId 查规则（N+1，逐行一条）。
+pub const SQL_RECALC_RULE: &str = r#"SELECT threshold, discount, enabled FROM promotions WHERE _id = ?"#;
+/// 现网 orders.js:503 —— 修正批（CASE 式一条改多行）。
+pub const SQL_RECALC_UPDATE: &str = r#"UPDATE orders SET totalAmount = CASE _id ${cases} ELSE totalAmount END, updatedAt = ? WHERE _id IN (${inPh})"#;
+/// 现网 orders.js:512 —— 同批 UPSERT 优惠明细（无优惠的单也写 0 行占位）。
+pub const SQL_RECALC_UPSERT: &str = r#"INSERT INTO order_discounts (orderId, discountAmount, promotionId, createdAt) VALUES ${dvals}
+         ON CONFLICT(orderId) DO UPDATE SET discountAmount = excluded.discountAmount, promotionId = excluded.promotionId"#;
+/// 现网 orders.js:450 的 recalculateOrders（无入参校验；**会改总额**、不动库存）。
+///
+/// 分页扫描（200 一页）→ 逐行算「按当前规则应为的总额」→ 漂移单按 50 一组修正（CASE 式 UPDATE + 明细 UPSERT）。
+/// 口径（现网 :462-490）写进 core::recalc：只有存单 promotionId 是**非空字符串**才查规则；
+/// 规则关/门槛不足/缺行 ⇒ 优惠归零**且 pid 落空串**；漂移判定 = null 或 |差| > 0.01。
+async fn recalculate_orders(d1: &D1Client) -> Option<Value> {
+    use supermarket_core::recalc;
+    const BATCH: i64 = 200;
+    const CHUNK: usize = 50;
+    let mut processed: i64 = 0;
+    let mut fixed: i64 = 0;
+    loop {
+        let rows = match d1
+            .query_rows(SQL_RECALC_SCAN, &[json!(BATCH), json!(processed)])
+            .await
+        {
+            Ok(r) => r,
+            Err(_) => {
+                return Some(supermarket_core::errors::fail(
+                    "internal_error",
+                    "服务暂时不可用，请稍后重试",
+                    Default::default(),
+                ))
+            }
+        };
+        if rows.is_empty() {
+            break;
+        }
+        let mut pending: Vec<(String, f64, f64, String)> = Vec::new();
+        for row in &rows {
+            let items = match supermarket_core::api_shapes::jparse(row.get("items"), json!([])) {
+                Value::Array(a) => a,
+                _ => Vec::new(),
+            };
+            let pid = recalc::stored_promotion_id(row.get("promotionId"));
+            let rule = if pid.is_empty() {
+                None
+            } else {
+                d1.query_rows(SQL_RECALC_RULE, &[json!(pid)])
+                    .await
+                    .ok()
+                    .and_then(|r| r.into_iter().next())
+            };
+            let (expect_discount, expect_total, expect_pid) = recalc::recalc_expect(&items, &pid, rule.as_ref());
+            let stored_total = row.get("totalAmount").and_then(|v| v.as_f64());
+            let stored_discount = supermarket_core::jsnum::js_number_of(row.get("discountAmount"));
+            if recalc::recalc_needs_fix(stored_total, stored_discount, expect_total, expect_discount) {
+                let id = row.get("_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                pending.push((id, expect_total, expect_discount, expect_pid));
+            }
+        }
+        for chunk in pending.chunks(CHUNK) {
+            let now = crate::api::iso_now();
+            // ③ CASE 式一条改多行
+            let cases = vec!["WHEN ? THEN ?"; chunk.len()].join(" ");
+            let in_ph = vec!["?"; chunk.len()].join(",");
+            let sql = SQL_RECALC_UPDATE
+                .replace("${cases}", &cases)
+                .replace("${inPh}", &in_ph);
+            let mut params: Vec<Value> = Vec::new();
+            for (id, total, _, _) in chunk {
+                params.push(json!(id));
+                params.push(supermarket_core::jsnum::js_number(*total));
+            }
+            params.push(json!(now));
+            for (id, _, _, _) in chunk {
+                params.push(json!(id));
+            }
+            if d1.query(&sql, &params).await.is_err() {
+                return Some(supermarket_core::errors::fail(
+                    "internal_error",
+                    "服务暂时不可用，请稍后重试",
+                    Default::default(),
+                ));
+            }
+            // ④ 同批 UPSERT 明细（多行 VALUES 单语句）
+            let dvals = vec!["(?, ?, ?, ?)"; chunk.len()].join(", ");
+            let usql = SQL_RECALC_UPSERT.replace("${dvals}", &dvals);
+            let mut uparams: Vec<Value> = Vec::new();
+            for (id, _, discount, pid) in chunk {
+                uparams.push(json!(id));
+                uparams.push(supermarket_core::jsnum::js_number(*discount));
+                uparams.push(json!(pid));
+                uparams.push(json!(now));
+            }
+            if d1.query(&usql, &uparams).await.is_err() {
+                return Some(supermarket_core::errors::fail(
+                    "internal_error",
+                    "服务暂时不可用，请稍后重试",
+                    Default::default(),
+                ));
+            }
+            fixed += chunk.len() as i64;
+        }
+        processed += rows.len() as i64;
+        if (rows.len() as i64) < BATCH {
+            break;
+        }
+    }
+    Some(json!({ "code": 0, "data": { "total": processed, "fixed": fixed } }))
+}
 pub async fn call_admin(
     app: &Arc<App>,
     action: &str,
@@ -1252,6 +1366,7 @@ pub async fn call_admin(
         "batchDeleteProducts" => batch_delete_products(d1, payload).await,
         "updateOrderStatus" => update_order_status(d1, payload).await,
         "deleteOrder" => delete_order(d1, payload).await,
+        "recalculateOrders" => recalculate_orders(d1).await,
         _ => None,
     };
 

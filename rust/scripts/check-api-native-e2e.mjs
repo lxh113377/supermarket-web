@@ -509,6 +509,11 @@ const itJson = JSON.stringify([{ productId: "p_rel_1", name: "牛奶", quantity:
 ordersRows[orderStateSql + "|" + JSON.stringify(["o_state_1"])] = [{ status: "pending", items: itJson }]
 ordersRows[orderStateSql + "|" + JSON.stringify(["o_del_1"])] = [{ status: "pending", items: itJson }]
 ordersRows[releaseStockSql.replace("__PHV__", "?") + "|" + JSON.stringify(["p_rel_1"])] = [{ _id: "p_rel_1", stock: 5 }]
+// ── 订单重算：扫描页（1 行漂移单：存 25、按 items 应 20）──
+const recalcScanSql = sqlOfFrom("crates/edge/src/api_admin.rs", "SQL_RECALC_SCAN")
+ordersRows[recalcScanSql + "|" + JSON.stringify([200, 0])] = [
+  { _id: "o_rc_1", items: JSON.stringify([{ price: 10, quantity: 2 }]), totalAmount: 25, discountAmount: 0, promotionId: "" },
+]
 const rowsFile = path.join(rustRoot, '.cache', 'mock-d1-rows' + (parsedMode ? '-parsed' : '') + '.json')
 // __metaMissingIds 是给 mock 的负控面：命中这些 id 的 UPDATE/DELETE 回 changes=0
 writeFileSync(rowsFile, JSON.stringify({
@@ -955,6 +960,21 @@ if (!keys.admin) {
       expectStatements: [auditFail],
     })
   }
+  // 订单重算（/web 管理写；只打本地边缘）
+  {
+    writeCases.push({
+      name: "recalculateOrders（1 行漂移 ⇒ CASE UPDATE + 明细 UPSERT）",
+      action: "recalculateOrders", payload: {},
+      expect: { code: 0 },
+      expectData: { total: 1, fixed: 1 },
+      expectStatements: [
+        { prefix: "SELECT o._id, o.items, o.totalAmount", params: 2 },
+        { prefix: "UPDATE orders SET totalAmount = CASE _id", params: 4 },
+        { prefix: "INSERT INTO order_discounts", params: 4 },
+        { prefix: "INSERT INTO security_events", params: 6, resultLen: 2 },
+      ],
+    })
+  }
   for (const c of writeCases) {
     const before = auditRoster().length
     // /pub 写用例走 postPub（可带额外请求头，例如用 cf-connecting-ip 固定限流桶键）；其余走 /web
@@ -1045,7 +1065,7 @@ writeFileSync(jsonOut, JSON.stringify({ ...report, problems }, null, 2) + '\n')
 console.log('原始读数 ' + jsonOut)
 console.log(problems.length
   ? '\nGATE-FAIL check-api-native-e2e：' + problems.length + ' 项\n  - ' + problems.join('\n  - ')
-  : '\nGATE-PASS check-api-native-e2e：公开面 8 + 管理读 26 + 写 22（写入只打本地边缘）= 56 个用例\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
+  : '\nGATE-PASS check-api-native-e2e：公开面 8 + 管理读 26 + 写 23（写入只打本地边缘）= 57 个用例\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
 
 edge.kill()
 mock.kill()

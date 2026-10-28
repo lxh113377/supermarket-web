@@ -1,5 +1,5 @@
 {
-  "at": "2026-10-28T08:47:28.376Z",
+  "at": "2026-10-28T09:00:12.562Z",
   "live": "https://supermarket-web.pages.dev",
   "edge": "http://127.0.0.1:5198",
   "mode": "JSON 列=文本",
@@ -46,7 +46,7 @@
     "getOrderStatus（未知订单号：错误路径）": {
       "action": "getOrderStatus",
       "payload": {
-        "orderId": "o_not_exist_1793177226753"
+        "orderId": "o_not_exist_1793177991870"
       },
       "status": 404,
       "edge": "native",
@@ -564,6 +564,18 @@
         "INSERT INTO security_events (ts, ip, act"
       ],
       "ok": true
+    },
+    "recalculateOrders（1 行漂移 ⇒ CASE UPDATE + 明细 UPSERT）": {
+      "action": "recalculateOrders",
+      "status": 200,
+      "edge": "native",
+      "statements": [
+        "SELECT o._id, o.items, o.totalAmount, CO",
+        "UPDATE orders SET totalAmount = CASE _id",
+        "INSERT INTO order_discounts (orderId, di",
+        "INSERT INTO security_events (ts, ip, act"
+      ],
+      "ok": true
     }
   },
   "rowsFed": {
@@ -957,6 +969,25 @@
         0,
         11,
         4,
+        8,
+        0
+      ]
+    },
+    {
+      "paramCount": 6,
+      "paramTypes": [
+        "string",
+        "string",
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "paramLengths": [
+        24,
+        0,
+        17,
+        2,
         8,
         0
       ]

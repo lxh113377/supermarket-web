@@ -37,6 +37,7 @@ pub mod errors;
 pub mod order_intake;
 pub mod order_state;
 pub mod product_writes;
+pub mod recalc;
 pub mod orders_query;
 pub mod sanitize;
 pub mod stale;

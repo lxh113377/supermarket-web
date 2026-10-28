@@ -1,4 +1,15 @@
 ## [未发布]
+### 2026-10-28 订单重算（recalculateOrders；进度 28 / 37）
+- 全序：分页扫描（200/页，LEFT JOIN 优惠明细）→ 逐行算期望 → 漂移单按 50 一组 `CASE _id WHEN ? THEN ? …` 修正
+  + 同批 `order_discounts` 多行 UPSERT；响应 `{total, fixed}`。**会改总额、不动库存**。
+- 抽 `core::recalc`（3 条用例）：subtotal=round2(Σprice*qty)；只有存单 promotionId 是非空字符串才查规则；
+  规则不命中 ⇒ 优惠归零**且 pid 落空串**；漂移判定 = null 或 |差| > 0.01。
+- **读源抓到我自己的语义错**：现网是 `rule?.enabled === 1`（严格等于数字 1）—— 字符串 "1" 与 true 都不算启用；
+  我第一版按 Number 语义实现并把这个错断言进了用例，逐字读源时改正。二手规格不能替代逐字读源。
+- 另一处照抄：expectTotal 比 subtotal-discount 多一次 round2。
+- 边界处理：±0.01 的浮点边界**不钉**（JS/Rust 同源，钉它只钉住浮点表示）；用例改钉「明显漂移修、明显一致不修」并写明理由。
+- SQL 逐字判据 47 → 51 条（两条动态语句在现网源码里就是 ${cases}/${dvals} 字面量，与常量逐字相同 ⇒ 直接进判据）。
+- 端到端 57 用例全绿（公开 8 + 管理读 26 + 写 23）；cargo 96 条；lint 0/0。
 ### 2026-10-28 订单状态机两件（updateOrderStatus / deleteOrder；进度 27 / 37）
 - 迁移表逐字照抄现网（pending→paid/cancelled、paid→delivering/cancelled、delivering→completed/cancelled、completed 终态、
   cancelled→pending 误取消恢复），抽 `core::order_state`（3 条用例）。status 列没有 CHECK 约束 ⇒ 这张表就是单点强制。

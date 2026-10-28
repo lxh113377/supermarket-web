@@ -197,7 +197,7 @@ mod tests {
         let ph_tpl = format!("{}{}ph{}", char::from(36u8), char::from(123u8), char::from(125u8));
         let expand = |s: &str| s.replace("__PH__", &ids_tpl).replace("__PHV__", &ph_tpl);
 
-        let sources: [(&str, &str, &str); 47] = [
+        let sources: [(&str, &str, &str); 51] = [
             (SQL_PUBLIC_PRODUCTS, "SQL_PUBLIC_PRODUCTS", "functions/lib/actions/products.js"),
             (SQL_PUBLIC_CATEGORIES, "SQL_PUBLIC_CATEGORIES", "functions/lib/actions/products.js"),
             (SQL_CATALOG_ORDERS, "SQL_CATALOG_ORDERS", "functions/lib/actions/products.js"),
@@ -209,6 +209,11 @@ mod tests {
             (crate::api_admin::SQL_ORDER_STATE_READ, "SQL_ORDER_STATE_READ", "functions/lib/actions/orders.js"),
             (crate::api_admin::SQL_ORDER_STATUS_UPDATE, "SQL_ORDER_STATUS_UPDATE", "functions/lib/actions/orders.js"),
             (crate::api_admin::SQL_ORDER_DELETE, "SQL_ORDER_DELETE", "functions/lib/actions/orders.js"),
+            // 第 25 轮：订单重算四条（两条含 ${cases}/${dvals} 模板标记，现网源码里就是这个字面量）
+            (crate::api_admin::SQL_RECALC_SCAN, "SQL_RECALC_SCAN", "functions/lib/actions/orders.js"),
+            (crate::api_admin::SQL_RECALC_RULE, "SQL_RECALC_RULE", "functions/lib/actions/orders.js"),
+            (crate::api_admin::SQL_RECALC_UPDATE, "SQL_RECALC_UPDATE", "functions/lib/actions/orders.js"),
+            (crate::api_admin::SQL_RECALC_UPSERT, "SQL_RECALC_UPSERT", "functions/lib/actions/orders.js"),
             (SQL_GET_REVIEWS, "SQL_GET_REVIEWS", "functions/lib/actions/reviews.js"),
             (SQL_ORDER_STATUS, "SQL_ORDER_STATUS", "functions/lib/actions/orders.js"),
             (crate::api_admin::SQL_GET_PRODUCTS, "SQL_GET_PRODUCTS", "functions/lib/actions/products.js"),
