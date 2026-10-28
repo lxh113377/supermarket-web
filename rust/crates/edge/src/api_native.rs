@@ -197,7 +197,7 @@ mod tests {
         let ph_tpl = format!("{}{}ph{}", char::from(36u8), char::from(123u8), char::from(125u8));
         let expand = |s: &str| s.replace("__PH__", &ids_tpl).replace("__PHV__", &ph_tpl);
 
-        let sources: [(&str, &str, &str); 55] = [
+        let sources: [(&str, &str, &str); 56] = [
             (SQL_PUBLIC_PRODUCTS, "SQL_PUBLIC_PRODUCTS", "functions/lib/actions/products.js"),
             (SQL_PUBLIC_CATEGORIES, "SQL_PUBLIC_CATEGORIES", "functions/lib/actions/products.js"),
             (SQL_CATALOG_ORDERS, "SQL_CATALOG_ORDERS", "functions/lib/actions/products.js"),
@@ -221,6 +221,8 @@ mod tests {
             (crate::api_admin::SQL_SUBMISSION_DELETE, "SQL_SUBMISSION_DELETE", "functions/lib/actions/submissions.js"),
             // 第 30 轮：AI 留痕
             (crate::api_admin::SQL_AI_CALL_INSERT, "SQL_AI_CALL_INSERT", "functions/lib/ai_trace.js"),
+            // 第 31 轮：经营建议的订单投影（只准出现下游引用的列）
+            (crate::api_admin::SQL_ADVICE_ORDERS, "SQL_ADVICE_ORDERS", "functions/lib/actions/ai.js"),
             (SQL_GET_REVIEWS, "SQL_GET_REVIEWS", "functions/lib/actions/reviews.js"),
             (SQL_ORDER_STATUS, "SQL_ORDER_STATUS", "functions/lib/actions/orders.js"),
             (crate::api_admin::SQL_GET_PRODUCTS, "SQL_GET_PRODUCTS", "functions/lib/actions/products.js"),

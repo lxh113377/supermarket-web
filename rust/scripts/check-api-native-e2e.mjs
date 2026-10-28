@@ -527,6 +527,16 @@ ordersRows[rateReadSql + "|" + JSON.stringify(["rate:login:203.0.113.30"])] = []
 ordersRows[rateReadSql + "|" + JSON.stringify(["rate:login:203.0.113.31"])] = [{ count: 5, resetAt: 4102444800000 }]
 // ── aiChat：限流桶 rate:ai:<ip>（独立于写桶）──
 ordersRows[rateReadSql + "|" + JSON.stringify(["rate:ai:203.0.113.40"])] = []
+// ── aiChat / aiAdvice 行集（限流桶按 IP；订单投影用运行期时间构造）──
+ordersRows[rateReadSql + "|" + JSON.stringify(["rate:ai:203.0.113.40"])] = []
+ordersRows[rateReadSql + "|" + JSON.stringify(["rate:aiadv:unknown"])] = []
+const adviceOrdersSql = sqlOfFrom("crates/edge/src/api_admin.rs", "SQL_ADVICE_ORDERS")
+const recent = new Date(Date.now() - 3600000).toISOString()
+ordersRows[adviceOrdersSql] = [
+  { items: JSON.stringify([{ name: "可乐", spec: "500ml", quantity: 3 }]), totalAmount: 30, createdAt: recent },
+  { items: JSON.stringify([{ name: "可乐", spec: "500ml", quantity: 2 }, { name: "面包", spec: "", quantity: 1 }]), totalAmount: 20, createdAt: recent },
+]
+
 const rowsFile = path.join(rustRoot, '.cache', 'mock-d1-rows' + (parsedMode ? '-parsed' : '') + '.json')
 // __metaMissingIds 是给 mock 的负控面：命中这些 id 的 UPDATE/DELETE 回 changes=0
 writeFileSync(rowsFile, JSON.stringify({
@@ -1189,6 +1199,45 @@ if (!keys.admin) {
       expectStatements: [{ prefix: "SELECT count, resetAt FROM rate_limits", params: 1 }, rateInitInline],
     })
   }
+  // aiChat（/pub 公开 AI；规则兜底）与 aiAdvice（/web 管理读；规则兜底 + 留痕 + 可缓存）
+  {
+    const rateInitInline = { prefix: "INSERT INTO rate_limits", params: 2 }
+    writeCases.push({
+      name: "aiChat（规则兜底：FAQ 命中 + ai_calls 留痕）",
+      action: "aiChat", pub: true, headers: { "cf-connecting-ip": "203.0.113.40" },
+      payload: { question: "你们营业时间" },
+      expect: { code: 0 },
+      expectDataFields: { source: "rule", content: "本店营业时间 08:00 - 22:00，周末照常营业。", conversationId: null },
+      expectStatements: [
+        { prefix: "SELECT count, resetAt FROM rate_limits", params: 1 },
+        rateInitInline,
+        { prefix: "INSERT INTO ai_calls", params: 8 },
+      ],
+    })
+    writeCases.push({
+      name: "aiChat（空问题 ⇒ 400 invalid_params，零留痕）",
+      action: "aiChat", pub: true, headers: { "cf-connecting-ip": "203.0.113.40" },
+      payload: { question: "   " },
+      expect: { code: -1, errorCode: "invalid_params" },
+      expectStatements: [{ prefix: "SELECT count, resetAt FROM rate_limits", params: 1 }, rateInitInline],
+    })
+    writeCases.push({
+      name: "aiAdvice（规则版：来源与语句序列 + 可缓存）",
+      action: "aiAdvice", payload: {},
+      expect: { code: 0 },
+      // 正文全文（含统计口径）钉在 core 单测（合成输入 ⇒ 完全确定，不受现网评价数据影响）
+      expectDataFields: { source: "rule" },
+      cacheable: true,
+      expectStatements: [
+        { prefix: "SELECT count, resetAt FROM rate_limits", params: 1 },
+        { prefix: "INSERT INTO rate_limits", params: 2 },
+        { prefix: "SELECT items, totalAmount, createdAt", params: 0 },
+        { prefix: "SELECT _id, ", params: 0 },
+        { prefix: "INSERT INTO ai_calls", params: 8 },
+      ],
+    })
+  }
+
   for (const c of writeCases) {
     const before = auditRoster().length
     // /pub 写用例走 postPub（可带额外请求头，例如用 cf-connecting-ip 固定限流桶键）；其余走 /web
@@ -1279,7 +1328,7 @@ writeFileSync(jsonOut, JSON.stringify({ ...report, problems }, null, 2) + '\n')
 console.log('原始读数 ' + jsonOut)
 console.log(problems.length
   ? '\nGATE-FAIL check-api-native-e2e：' + problems.length + ' 项\n  - ' + problems.join('\n  - ')
-  : '\nGATE-PASS check-api-native-e2e：公开面 8 + 管理读 26 + 写 43（写入只打本地边缘）= 77 个用例\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
+  : '\nGATE-PASS check-api-native-e2e：公开面 8 + 管理读 26 + 写 46（写入只打本地边缘）= 80 个用例\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
 
 edge.kill()
 mock.kill()

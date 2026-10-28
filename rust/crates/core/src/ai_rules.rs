@@ -4,7 +4,7 @@
 //! 所以**规则路径就是线上路径** —— 它可以用现网做逐字节对账（本会话里少见的「AI 也能对账」）。
 //! 而 Dify 一旦配上，走的是外部 HTTP；那时规则层仍要在**熔断/超时**后兜底，所以它永远不是死代码。
 
-use serde_json::Value;
+use serde_json::{json, Value};
 
 /// 现网 dify.js:170 的营业时间常量。
 pub const RULE_HOURS: &str = "08:00 - 22:00";
@@ -41,6 +41,68 @@ pub fn rule_assistant_reply(question: &str) -> String {
         }
     }
     format!("可以咨询商品、营业时间（{RULE_HOURS}）、配送与支付等问题。")
+}
+
+/// 现网 dify.js:201 的 ruleAdvice（管理端规则版经营建议，基于近 30 天订单与评价的真实统计）。
+///
+/// 两处逐字照抄的细节：
+/// · 热销键是 name + (spec 为真值才加括号) ⇒ 与看板 topRevenue 同族；
+/// · 步骤编号**写死在字符串里**（top3 为空时第 3 行仍叫 "2."）—— 这不是笔误，是现网行为。
+pub fn rule_advice(orders30: &[Value], reviews: &[Value]) -> String {
+    let mut revenue30 = 0f64;
+    for o in orders30 {
+        revenue30 += crate::jsnum::js_number_of(o.get("totalAmount"));
+    }
+    let order30 = orders30.len();
+    // 热销累计（键序即首次出现序；排序**稳定**，同量保持首次出现序）
+    let mut item_qty: Vec<(String, f64)> = Vec::new();
+    for o in orders30 {
+        let items = crate::api_shapes::jparse(o.get("items"), json!([]));
+        if let Value::Array(list) = items {
+            for it in list {
+                let name = it.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                let spec = it.get("spec").and_then(|v| v.as_str()).unwrap_or("");
+                let key = if spec.is_empty() {
+                    name.to_string()
+                } else {
+                    format!("{name}({spec})")
+                };
+                let q = crate::jsnum::js_number_of(it.get("quantity"));
+                match item_qty.iter_mut().find(|(k, _)| k == &key) {
+                    Some((_, v)) => *v += q,
+                    None => item_qty.push((key, q)),
+                }
+            }
+        }
+    }
+    item_qty.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    let top3: Vec<String> = item_qty.iter().take(3).map(|(k, _)| k.clone()).collect();
+    let low = reviews
+        .iter()
+        .filter(|r| crate::jsnum::js_number_of(r.get("rating")) <= 2.0)
+        .count();
+    if order30 == 0 {
+        return "暂无近 30 天订单数据，待顾客下单后生成经营建议。".to_string();
+    }
+    let mut lines: Vec<String> = Vec::new();
+    lines.push(format!(
+        "📊 近 30 天：营收 ¥{}，共 {order30} 单。",
+        crate::js_round(revenue30) as i64
+    ));
+    if !top3.is_empty() {
+        lines.push(format!(
+            "1. 优先备货热销：{}，按平日 1.2 倍预备。",
+            top3.join("、")
+        ));
+    }
+    lines.push("2. 易损鲜蔬/乳品按需采购，避免隔夜损耗。".to_string());
+    if low > 0 {
+        lines.push(format!(
+            "3. 近 30 天有 {low} 条低分评价，建议复盘对应商品与服务话术。"
+        ));
+    }
+    lines.push("配置 Dify 后可生成更精细的备货/定价建议。".to_string());
+    lines.join("\n")
 }
 
 /// 现网 dify.js:32 的 sanitize(text, maxLen)：非字符串 ⇒ 空串；trim；超长按 UTF-16 码元截断。

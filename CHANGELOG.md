@@ -1,4 +1,12 @@
 ## [未发布]
+### 2026-10-28 管理端经营建议 aiAdvice（进度 37 / 37 —— **37 个动作全部原生化**）
+- 结构照抄：orders 三列投影 LIMIT 2000 → 近 30 天过滤 → 评价面 → enabled 假 ⇒ 规则版 + 留痕；真 ⇒ Dify（透传）。
+- 三条细节：① 投影只准出现下游引用的列（现网 check-pii-inventory 互锁判据：多一列即判红）；② 规则版也要留痕；
+  ③ 热销为空时第 3 行仍是字面 2.（现网行为）。
+- 限流 rate:aiadv 10/60s **在鉴权之后**（与 login 的「在鉴权之前」正好相反，两处都照抄）；缓存面加 aiAdvice + 失效钩子同步清。
+- **正文全文钉在 core 单测而不是夹具**：我注入的夹具前缀分支在字段缺省时也进失败分支、误判了 aiChat；随后行手术又把夹具改坏
+  （已 git 恢复绿版本再重加）。结论：能进纯函数层的断言就别塞进端点夹具。
+- 收官：SQL 判据 56 条；端到端 80 用例；核心新增 1 条；37 个动作全部原生化、剩余 0。
 ### 2026-10-28 公开 AI 导购（aiChat，规则兜底；进度 36 / 37）
 - 现网结构照抄：sanitize(question,200) + sanitizeTrace(conversationId)||null → 空问题 invalid_params →
   enabled 为假 ⇒ 规则兜底（traceAiCall 留痕 + ruleAssistantReply）→ 为真 ⇒ 调 Dify；异常 ⇒ dify-error 文案。

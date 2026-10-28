@@ -104,7 +104,7 @@ pub const EVENT_LIMIT_MAX: i64 = 100;
 pub const LOGIN_RATE_WINDOW_MS: i64 = 60_000;
 pub const LOGIN_RATE_MAX: f64 = 5.0;
 
-pub const ADMIN_NATIVE_ACTIONS: [&str; 28] = [
+pub const ADMIN_NATIVE_ACTIONS: [&str; 29] = [
     "getProducts",
     "getAllReviews",
     "getSubmissions",
@@ -133,6 +133,7 @@ pub const ADMIN_NATIVE_ACTIONS: [&str; 28] = [
     "deleteSubmission",
     "createSubmission",
     "login",
+    "aiAdvice",
 ];
 
 /// 开关：未设 ⇒ 全关；all 或逗号分隔的动作名（大小写无关）。
@@ -1429,6 +1430,50 @@ pub async fn ai_chat(d1: &D1Client, payload: Option<&Value>) -> Option<Value> {
         "data": { "source": "rule", "content": content, "conversationId": conv_value },
     }))
 }
+/// 现网 dify.js / actions/ai.js:24 —— 经营建议用的订单投影（**只准出现下游真引用到的列**）。
+/// 现网有 check-pii-inventory 互锁判据：多一列（如 roomNumber/wechat/remark）即判红 —— 这里的列与它对齐。
+pub const SQL_ADVICE_ORDERS: &str = r#"SELECT items, totalAmount, createdAt
+       FROM orders ORDER BY createdAt DESC LIMIT 2000"#;
+/// 现网 security.js —— aiAdvice 的独立限流档（60 秒 10 次，桶 rate:aiadv:<ip>）。
+pub const ADVICE_RATE_WINDOW_MS: i64 = 60_000;
+pub const ADVICE_RATE_MAX: f64 = 10.0;
+
+/// 现网 actions/ai.js:24 的 adminAiAdvice（规则路径；Dify 已配置时回落透传）。
+async fn ai_advice(d1: &D1Client) -> Option<Value> {
+    let order_rows = match d1.query_rows(SQL_ADVICE_ORDERS, &[]).await {
+        Ok(r) => r,
+        Err(_) => {
+            return Some(supermarket_core::errors::fail(
+                "internal_error",
+                "服务暂时不可用，请稍后重试",
+                Default::default(),
+            ))
+        }
+    };
+    // 近 30 天过滤（现网 cutoff = Date.now() - 30*86400000，解析不出的跳过）
+    let cutoff = crate::api::now_ms() - 30 * 86_400_000;
+    let orders30: Vec<Value> = order_rows
+        .into_iter()
+        .filter(|o| {
+            let s = o.get("createdAt").and_then(|v| v.as_str()).unwrap_or("");
+            supermarket_core::stale::parse_iso_ms(s).map(|t| t >= cutoff).unwrap_or(false)
+        })
+        .collect();
+    // 评价面：现网调 getAllReviews（同一条 SELECT）；商品面只在 Dify 路径用 ⇒ 规则路径不取
+    let reviews = d1
+        .query_rows(SQL_ALL_REVIEWS, &[])
+        .await
+        .unwrap_or_default();
+    if dify_enabled() {
+        // Dify 已配置 ⇒ 本边缘不实现外部调用，明确回落透传
+        return None;
+    }
+    trace_ai_call(d1, "aiAdvice", "rule", true, true, 0).await;
+    Some(json!({
+        "code": 0,
+        "data": { "source": "rule", "content": supermarket_core::ai_rules::rule_advice(&orders30, &reviews) },
+    }))
+}
 pub async fn call_admin(
     app: &Arc<App>,
     action: &str,
@@ -1477,6 +1522,20 @@ pub async fn call_admin(
     }
     // ③ 派发（只服务已实现的动作；未实现 ⇒ None ⇒ 透传，且不重复鉴权）
     let d1 = app.d1.as_ref()?;
+    // aiAdvice 独立限流（现网 backend.js:98-101）：放在**鉴权之后** —— 未认证请求不消耗配额、也不产生限流写入。
+    if action == "aiAdvice" {
+        let bucket = format!("rate:aiadv:{}", ip);
+        if let Some(env) = crate::api_pub_order::check_rate_db(
+            d1,
+            &bucket,
+            ADVICE_RATE_WINDOW_MS,
+            ADVICE_RATE_MAX,
+        )
+        .await
+        {
+            return Some(env);
+        }
+    }
     // 把结果接住再统一做写动作后处理（现网 backend.js:196-206 的顺序：**先失效、后审计**）。
     // 另一条纪律：**多语句写动作不许走「失败即回落透传」** —— 第一条语句已生效时回落会让上游重放；
     // 目前只有单语句写（deleteReview），所以 `.ok()?` 回落是安全的；下一批 createOrder 必须改成显式错误。
@@ -1647,6 +1706,7 @@ pub async fn call_admin(
                 })),
             }
         }
+        "aiAdvice" => ai_advice(d1).await,
         "login" => {
             // 现网 backend.js:103：result = { code: 0, role }（角色由 resolveRole 决定）。
             // password 对的密钥到这里已经是通过 checkAuth 的（login 不在 PUBLIC_ACTIONS 里）。
@@ -1815,7 +1875,8 @@ pub async fn call_admin(
             // 看板/aiAdvice 同层失效：现网 invalidateDashboard 删 KV 的 9 个区间键；
             // 边缘侧的微缓存键里带动作名 ⇒ 按动作名清理即可（语义等价：写后不再命中旧快照）。
             let mut guard = app.cache.lock().await;
-            guard.retain(|k, _| !k.contains(":getDashboardStats:"));
+            // 看板与 AI 建议同层失效（现网 invalidateDashboard + invalidateAiAdvice 一起调）
+            guard.retain(|k, _| !k.contains(":getDashboardStats:") && !k.contains(":aiAdvice:"));
         }
         if ok && supermarket_core::auth::is_catalog_write_action(action) {
             // 目录面失效（现网 invalidatePublicCatalog 删 3 个公开 KV 键）：

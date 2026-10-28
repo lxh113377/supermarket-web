@@ -49,7 +49,7 @@ pub const PUBLIC_READ_CACHEABLE: [&str; 3] =
 
 /// /web 侧可微缓存的动作（现网用 KV 包着的那一个：getDashboardStats，TTL 60s）。
 /// 其余管理读**不进缓存**（现网也没缓存它们）。
-const ADMIN_READ_CACHEABLE: [&str; 1] = ["getDashboardStats"];
+const ADMIN_READ_CACHEABLE: [&str; 2] = ["getDashboardStats", "aiAdvice"];
 
 /// 端点。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
