@@ -5,8 +5,8 @@ use serde_json::json;
 use supermarket_core::order_intake::{
     allowed_order_specs, best_promotion, below_min_delivery, fingerprint_lines, fnv1a,
     idempotency_key, is_safe_image_url, js_to_fixed2, line_total, order_fingerprint,
-    quantity_over_limit, resolve_order_spec, round2, statement_payload_chars, valid_quantity,
-    MAX_STATEMENT_PAYLOAD_CHARS,
+    quantity_over_limit, resolve_order_spec, round2, slice_utf16, statement_payload_chars,
+    valid_quantity, MAX_STATEMENT_PAYLOAD_CHARS,
 };
 
 #[test]
@@ -180,4 +180,40 @@ fn j_pricing_and_quantity_guards() {
     // 起送门槛 6 元（折前）
     assert!(below_min_delivery(5.99));
     assert!(!below_min_delivery(6.0));
+}
+
+#[test]
+fn j_to_fixed2_rounds_half_up_like_js() {
+    // 复核子代理点名、我用 cargo 真跑 + node 对照确认过的分歧：
+    // Rust 的 format!("{:.2}") 对恰好半值走「半偶」⇒ 0.125 给 "0.12"，而 JS 的 toFixed 是「半值向上」⇒ "0.13"。
+    assert_eq!(js_to_fixed2(0.125), "0.13");
+    assert_eq!(js_to_fixed2(2.675), "2.67");
+    assert_eq!(js_to_fixed2(1.005), "1.00");
+}
+
+#[test]
+fn j_payload_chars_counts_integral_prices_like_js() {
+    // node：JSON.stringify({room:'201',wechat:'wx',remark:'',items:[{...price:3,quantity:2...}],shot:''}).length = 143
+    // 若把 price 当 f64 直接序列化会打成 "3.0" ⇒ 长度 145（差 2）—— 体积守卫会算偏。
+    let items = vec![json!({
+        "productId": "p1", "name": "可乐", "spec": "", "price": 3.0, "quantity": 2, "subcategories": []
+    })];
+    assert_eq!(statement_payload_chars("201", "wx", "", &items, ""), 143);
+}
+
+#[test]
+fn j_image_url_rejects_empty_host_and_accepts_upper_scheme() {
+    // JS 的 new URL("https:///x") hostname 为空 ⇒ 拒；scheme 大小写不敏感 ⇒ HTTPS 收
+    assert!(!is_safe_image_url("https:///x"));
+    assert!(is_safe_image_url("HTTPS://example.com/x.png"));
+}
+
+#[test]
+fn j_slice_utf16_never_splits_a_surrogate_pair() {
+    // JS 的 slice 会把 emoji 劈成孤立代理项（'a🏠b'.slice(0,2) 是 "a" + 高代理）；
+    // Rust 的 String 不允许孤立代理项 ⇒ 本实现选择**不劈**（宁可少一个字符，也不产生坏串）。
+    // 这是本文件里唯一一处「与现网行为刻意不同」的地方，写在这里免得后人以为是漏抄。
+    assert_eq!(slice_utf16("a🏠b", 2), "a");
+    assert_eq!(slice_utf16("a🏠b", 3), "a🏠");
+    assert_eq!(slice_utf16("36-1116", 40), "36-1116");
 }

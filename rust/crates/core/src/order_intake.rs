@@ -48,7 +48,25 @@ pub fn js_to_fixed2(x: f64) -> String {
     if x == 0.0 {
         return "0.00".to_string();
     }
-    format!("{x:.2}")
+    // JS 的 toFixed 是「按 double 的**精确十进制值**取两位，恰好半值取较大者」。
+    // 两种天真的实现都会错：
+    //   · format!("{x:.2}") 走半偶 ⇒ 0.125 给 0.12（JS 是 0.13）；
+    //   · (x*100).round()/100 会引入乘法误差 ⇒ 2.675 给 2.68（JS 是 2.67）。
+    // 所以取 20 位小数展开（double 的有效十进制位 ≤ 17 位，20 位足够），再手工按半值向上修约到两位。
+    let negative = x < 0.0;
+    let s = format!("{:.20}", x.abs());
+    let (int_part, frac_part) = s.split_once(String::from(char::from(46)).as_str()).unwrap_or((s.as_str(), "0"));
+    let head = format!("{int_part}{}", &frac_part[..2]);
+    let round_up = frac_part.as_bytes().get(2).map(|b| *b >= b'5').unwrap_or(false);
+    let mut cents: u128 = head.parse::<u128>().unwrap_or(0);
+    if round_up {
+        cents += 1;
+    }
+    let int_digits = int_part.len();
+    let cents_str = format!("{cents:0width$}", width = int_digits + 2);
+    let (i, f) = cents_str.split_at(int_digits);
+    let sign = if negative && cents != 0 { "-" } else { "" };
+    format!("{sign}{i}.{f}")
 }
 
 /// 指纹里的行规约：每行 productId x quantity @ spec，排序后逗号连接。
@@ -113,7 +131,7 @@ pub fn idempotency_key(
     if filtered.is_empty() {
         return None;
     }
-    let room: String = room_number.trim().chars().take(40).collect();
+    let room: String = slice_utf16(room_number.trim(), 40);
     Some(format!("{room}@{filtered}#{}", fnv1a(fingerprint)))
 }
 
@@ -216,7 +234,15 @@ pub fn is_safe_image_url(url: &str) -> bool {
             return true;
         }
     }
-    url.starts_with("https://") && url.len() > "https://".len()
+    // https：scheme 大小写不敏感（JS 的 new URL 会归一），且必须真有主机 ——
+    // "https:///x" 这种空主机在 JS 里 hostname 为空则拒；第一版只判前缀长度，会误放。
+    let lower = url.to_ascii_lowercase();
+    if let Some(rest) = lower.strip_prefix("https://") {
+        let stop = [char::from(47u8), char::from(63u8), char::from(35u8)];
+        let authority = rest.split(|c: char| stop.contains(&c)).next().unwrap_or("");
+        return !authority.is_empty();
+    }
+    false
 }
 
 /// 现网 orders.js:219 的舍入点：Math.round(x*100)/100。
@@ -257,13 +283,45 @@ pub fn statement_payload_chars(
     verified_items: &[Value],
     shot: &str,
 ) -> usize {
+    // 关键：数字要先按 JS 的写法规整。serde_json 把 f64 的 3.0 打成 "3.0"，
+    // 而 JSON.stringify(3.0) 是 "3" —— 差两个字符，体积守卫会算偏（复核子代理点出来的）。
+    let items: Vec<Value> = verified_items
+        .iter()
+        .map(|it| {
+            let mut m = it.as_object().cloned().unwrap_or_default();
+            for key in ["price", "quantity"] {
+                if let Some(v) = m.get(key).and_then(|v| v.as_f64()) {
+                    m.insert(key.to_string(), crate::jsnum::js_number(v));
+                }
+            }
+            Value::Object(m)
+        })
+        .collect();
     let doc = json!({
         "room": room,
         "wechat": wechat,
         "remark": remark,
-        "items": verified_items,
+        "items": items,
         "shot": shot,
     });
     doc.to_string().encode_utf16().count()
+}
+
+/// JS 的 String.prototype.slice(0, n)：按 **UTF-16 码元**计（不是字符数）。
+///
+/// 差别只在星平面字符（emoji）上体现：JS 把一个 emoji 算作 2 个单元，按 40 截断时可能劈开代理对。
+/// 房号/备注出现 emoji 虽罕见，但「静默少半截」比报错更难查，所以照 JS 口径实现。
+pub fn slice_utf16(s: &str, n: usize) -> String {
+    let mut out = String::new();
+    let mut used = 0usize;
+    for c in s.chars() {
+        let w = c.len_utf16();
+        if used + w > n {
+            break;
+        }
+        out.push(c);
+        used += w;
+    }
+    out
 }
 
