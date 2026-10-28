@@ -64,6 +64,15 @@ const rel = (u) => join(dist, u.replace(/^\.?\//, ''))
 let firstJs = 0
 let firstCss = 0
 const firstParts = []
+// 首屏 CSS 若被**内联**进 index.html（构建期 scripts/inline-critical-css.mjs 干的），
+// <link rel=stylesheet> 就不存在了 ⇒ 只数 refs 会把 CSS 预算静默读成 0.0KB。
+// 2026-10-28 内联落地当天实测到这个空转：这份预算必须同时数内联 <style> 的 gzip 体积。
+const inlineStyles = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)].map((m) => m[1])
+for (const css of inlineStyles) {
+  const size = gzipSync(Buffer.from(css, 'utf8')).length
+  firstParts.push({ name: '(inline style)', size })
+  firstCss += size
+}
 for (const u of refs) {
   const p = rel(u)
   if (!existsSync(p)) continue

@@ -58,6 +58,7 @@
 | `npm run verify:functions` | check-functions-build.mjs |
 | `npm run verify:governance` | check-governance-framework.mjs |
 | `npm run verify:images` | verify_images.py |
+| `npm run verify:inline-css` | check-inline-css.mjs |
 | `npm run verify:licenses` | check-licenses.mjs |
 | `npm run verify:limits` | check-limit-provenance.mjs |
 | `npm run verify:logs` | check-logging.mjs |

@@ -1,4 +1,17 @@
 ## [未发布]
+### 2026-10-29 托管侧内联首屏 CSS（+ 证明 br 已在线上）
+- **br 预压缩**：线上**早就有** —— 部署前后 curl 都是 `Content-Encoding: br`（平台按 Accept-Encoding 自动协商）；
+  Pages 无「预压缩变体协商」、`_headers` 是静态声明不能按请求头分支 ⇒ 手写 `Content-Encoding: br` 反会给不支持 br 的客户端发乱码。**这项不做，给证据。**
+- **内联首屏 CSS**：构建期把入口样式表换成 `<style>`（`postbuild` = scripts/inline-critical-css.mjs），并**只把 sha256 写进 CSP meta 的 style-src**；
+  另给 `dist/_headers` 生成入口 `Link: rel=preload`（带哨兵注释、每次构建按新 hash 幂等重写）。线上实测：identity 2,978 → **145,077 B**、`<link rel=stylesheet>` 1 → **0**、内联 `<style>` 1 个。
+- **线上对照（确定性读数为准）**：文档+CSS 合计 br 30,087 → **30,138 B（+0.2%，等于没省字节）**，省下来的是**一个渲染阻塞请求（少一次 RTT）**与 `Link` 让入口更早下载。
+- **线上 Lighthouse 的天然负控**：customer 臂（gh.io，产物未变）在同样两批之间也测出 LCP −14.3% / FCP −8.0% / SI −17.6%
+  ⇒ n=3 的线上采样噪声 ≥ 内联收益，**admin 臂的改善不可归因**于本次改动；Lighthouse 只作辅证（admin 总字节还少了 34 KB，方向与我的改动相反）。
+- **复核点名、本轮修掉的四个缺口（都是我留下的）**：① check:size 报「首屏 CSS gzip 0.0 KB」= 预算空转 ⇒ 现把内联 `<style>` 计入（现报 28.2 KB ≤ 30 KB）；
+  ② `verify:inline-css` 没挂进 verify 链 ⇒ 已挂（治理册 verifyLegs 45→46 同步）；③ check-cache-headers 只读 public/_headers ⇒ 新增 dist 侧对账（生成段之外逐字相同）；
+  ④ `inline-css-bytes` 截断自检是死腿（没 producer）⇒ producer 写标记、判据从 `_headers` 读。
+- 自己踩的坑：哈希一度被插进 **HTML 注释**里的 `style-src`（粗判据 `includes(hash)` 因此误判绿，真 CSP 仍是 `self`）⇒ 改为只改 CSP meta 的 content，判据也改为在指令取值里比对；
+  负控当时还是空转的（构建没过 ⇒ 红的是「没内联」）⇒ **负控必须与被证明的那条腿同处一个状态**。
 ### 2026-10-28 管理端经营建议 aiAdvice（进度 37 / 37 —— **37 个动作全部原生化**）
 - 结构照抄：orders 三列投影 LIMIT 2000 → 近 30 天过滤 → 评价面 → enabled 假 ⇒ 规则版 + 留痕；真 ⇒ Dify（透传）。
 - 三条细节：① 投影只准出现下游引用的列（现网 check-pii-inventory 互锁判据：多一列即判红）；② 规则版也要留痕；

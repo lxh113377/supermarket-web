@@ -1,0 +1,81 @@
+{
+  "at": "2026-10-28T15:31:14.724Z",
+  "unit": "bytes / 无噪声（curl，同一 URL 同一口径）",
+  "live_before": {
+    "doc_identity": 2978,
+    "doc_br": 1432,
+    "doc_gzip": 1505,
+    "css_br": 28655,
+    "css_gzip": 28584,
+    "doc_plus_css_br": 30087,
+    "blocking_style_requests": 1,
+    "link_preload": false,
+    "csp_style_src": "self"
+  },
+  "live_after": {
+    "doc_identity": 145077,
+    "doc_br": 30138,
+    "doc_gzip": 30247,
+    "css_br_referenced": 0,
+    "doc_plus_css_br": 30138,
+    "blocking_style_requests": 0,
+    "link_preload": true,
+    "csp_style_src": "self + sha256 hash",
+    "entry_chunk": "assets/index-DIVNgyrR.js",
+    "inline_style_tags": 1,
+    "stylesheet_links": 0
+  },
+  "lambda": {
+    "doc_plus_css_br_delta": 51,
+    "doc_plus_css_br_delta_pct": 0.17,
+    "blocking_request_delta": -1
+  },
+  "lighthouse_batches": {
+    "before_inline": {
+      "collected": "admin 2/3 (1 PROTOCOL_TIMEOUT) + customer 3/3 ⇒ 取数器 RED",
+      "admin_median": {
+        "fcp": 1759,
+        "lcp": 3237.5,
+        "si": 5259.8,
+        "ttfb": 299.8,
+        "bytes": 477119
+      },
+      "customer_median": {
+        "fcp": 1848.7,
+        "lcp": 3175.2,
+        "si": 5278.9,
+        "ttfb": 395.9
+      }
+    },
+    "after_inline": {
+      "collected": "6/6 GREEN",
+      "admin_median": {
+        "fcp": 1529.9,
+        "lcp": 2704.9,
+        "si": 4094.8,
+        "ttfb": 178.6,
+        "bytes": 442830
+      },
+      "customer_median": {
+        "fcp": 1701.3,
+        "lcp": 2720.4,
+        "si": 4351.9,
+        "ttfb": 176
+      }
+    },
+    "negative_control": "customer 臂两批之间产物未变（gh.io 由 CI 在 push 后重建），却测出 LCP −14.3% / FCP −8.0% / SI −17.6% ⇒ n=3 的线上采样噪声 ≥ 内联收益，admin 臂的改善不可归因于本次改动",
+    "verdict": "收益证据只认 live_before/live_after 的确定性读数（渲染阻塞请求 1→0；文档+CSS br +0.2%）；Lighthouse 仅作辅证"
+  },
+  "caveat": "线上 Lighthouse 为真网络单机采样，样本少时噪声大于内联收益；确定性收益以 live_before/live_after 的字节与请求数为准。",
+  "gaps_fixed": [
+    "check:size 现把内联 <style> 计入 CSS 预算（0.0KB → 28.2KB ≤ 30KB）",
+    "verify:inline-css 已挂进 verify 链（verifyLegs 45→46，治理册同步）",
+    "check-cache-headers 新增 dist 侧对账（生成段之外逐字相同）",
+    "inline-css-bytes 死腿复活（producer 写标记、判据从 _headers 读）"
+  ],
+  "gaps_open": [
+    "customer 臂 after 需等 CI 重建后重取",
+    "HomePage 路由 chunk 与字体未进 Link",
+    "rust/crates/edge/src/shell.rs:15 注释过期（CSS 11.7KB → 实测 142,100 raw）"
+  ]
+}

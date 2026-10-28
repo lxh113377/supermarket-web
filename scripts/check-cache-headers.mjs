@@ -27,6 +27,30 @@ import { fileURLToPath } from 'node:url'
 export const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SELF = join(ROOT, 'scripts', 'check-cache-headers.mjs')
 export const DEFAULT_FILE = join(ROOT, 'public', '_headers')
+/**
+ * 上线真相源已是 dist/_headers（构建期会有脚本往里追加「生成段」，如入口 Link 预载）。
+ * 只看 public/_headers，那份多出来的生成段就永远不被判据看见 ⇒ 声明面与产物漂移。
+ * 本函数把两者对账：dist 去掉哨兵段之后，必须与 public 逐字相同。
+ */
+export function distSideDrift(rootDir = ROOT) {
+  const pub = join(rootDir, 'public', '_headers')
+  const distFile = join(rootDir, 'dist', '_headers')
+  if (!existsSync(pub) || !existsSync(distFile)) return { skipped: true }
+  const strip = (s) => {
+    // 切掉**整行**哨兵段：从 '# >>> ' 那行的行首，到 '# <<< ' 那行的行尾（含换行）。
+    // 第一版只切到 '# <<< ' 之后 6 个字符，把该行剩下的「inline-css 生成段 <<<」留在产物里
+    // ⇒ 判据自己报漂移（这回漂移是判据造出来的，不是产物）。切整行才是对的。
+    const a = s.indexOf('# >>> ')
+    const b = s.indexOf('# <<< ')
+    if (a < 0 || b <= a) return s.replace(/\s+$/, '')
+    const endOfLine = s.indexOf('\n', b)
+    const tail = endOfLine >= 0 ? s.slice(endOfLine + 1) : ''
+    return (s.slice(0, a) + tail).replace(/\s+$/, '')
+  }
+  const p = strip(readFileSync(pub, 'utf8'))
+  const d = strip(readFileSync(distFile, 'utf8'))
+  return { skipped: false, same: p === d, pubLen: p.length, distLen: d.length }
+}
 
 /**
  * 必须存在的声明（顺序无关）。每一条都写清「为什么」——
@@ -199,6 +223,15 @@ function main(argv = process.argv.slice(2)) {
   console.log('[cache-headers] ' + tag + ' :: 块 ' + r.blocks + ' 个｜必需声明 ' + r.checks.length + ' 条｜不符 ' + r.problems.length)
   for (const c of r.checks) console.log('  ' + (c.state === 'OK' ? 'OK  ' : 'BAD ') + c.pattern.padEnd(14) + ' Cache-Control=' + (c.value === null ? '(缺)' : c.value))
   for (const p of r.problems) console.log('  · ' + p)
+  // 声明面 ⇄ 产物 对账：dist/_headers 去掉构建期生成段后必须与 public 逐字相同。
+  // 只看 public 的话，那份多出来的生成段（入口 Link 预载）永远不被判据看见
+  // ⇒ 声明面与上线真相源漂移，而漂移的那一半恰恰是线上真正生效的那一半。
+  const drift = distSideDrift(ROOT)
+  if (!drift.skipped && !drift.same) {
+    console.log('[cache-headers] GATE-FAIL :: dist/_headers 去掉生成段后与 public/_headers 不同（声明面与产物漂移）')
+    return 1
+  }
+  if (!drift.skipped) console.log('[cache-headers] dist 侧对账 OK（生成段之外逐字相同）')
   return r.rc
 }
 
