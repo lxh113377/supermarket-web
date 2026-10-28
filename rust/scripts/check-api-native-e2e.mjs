@@ -514,6 +514,11 @@ const recalcScanSql = sqlOfFrom("crates/edge/src/api_admin.rs", "SQL_RECALC_SCAN
 ordersRows[recalcScanSql + "|" + JSON.stringify([200, 0])] = [
   { _id: "o_rc_1", items: JSON.stringify([{ price: 10, quantity: 2 }]), totalAmount: 25, discountAmount: 0, promotionId: "" },
 ]
+// ── 评价域：种子计数（库非空 ⇒ 跳过）──
+const reviewCountSql = sqlOfFrom("crates/edge/src/api_admin.rs", "SQL_REVIEW_COUNT")
+ordersRows[reviewCountSql] = [{ c: 20 }]
+// /pub 的 addPublicReview 用独立 IP，避免与 createOrder 的用例共用桶键
+ordersRows[rateReadSql + "|" + JSON.stringify(["rate:write:203.0.113.11"])] = []
 const rowsFile = path.join(rustRoot, '.cache', 'mock-d1-rows' + (parsedMode ? '-parsed' : '') + '.json')
 // __metaMissingIds 是给 mock 的负控面：命中这些 id 的 UPDATE/DELETE 回 changes=0
 writeFileSync(rowsFile, JSON.stringify({
@@ -549,7 +554,7 @@ const edge = spawn(bin, ['serve', '--dist', path.join(repoRoot, 'dist'), '--port
     // 管理端走独立开关（爆炸半径不同）；密钥从 .dev.vars 现读现用，**绝不写入读数文件**
     NATIVE_ADMIN_ACTIONS: 'all',
     // /pub 写动作的开关（默认关）：判据就位后由夹具显式打开，生产侧要不要开是独立决定
-    NATIVE_PUB_WRITE: 'createOrder',
+    NATIVE_PUB_WRITE: 'createOrder,addPublicReview',
     ...adminEnv(),
     D1_ACCOUNT_ID: 'mock-account',
     D1_DATABASE_ID: 'mock-db',
@@ -975,6 +980,54 @@ if (!keys.admin) {
       ],
     })
   }
+  // 评价域三写（/web 管理写 + /pub 公开写；只打本地边缘）
+  {
+    const auditOk = { prefix: "INSERT INTO security_events", params: 6, resultLen: 2 }
+    writeCases.push({
+      name: "addReview（成功：插一行 + 审计）",
+      action: "addReview",
+      payload: { productOrder: 6, user: "小明", rating: 5, text: "好喝", images: [] },
+      expect: { code: 0 },
+      expectDataKeys: "_id,id,productOrder,user,rating,text,images,createdAt",
+      expectStatements: [{ prefix: "INSERT INTO reviews", params: 7 }, auditOk],
+    })
+    writeCases.push({
+      name: "addReview（rating 越界 ⇒ 钳到 5；user 缺省 ⇒ 匿名用户）",
+      action: "addReview",
+      payload: { productOrder: 6, rating: 99, text: "还行", images: [] },
+      expect: { code: 0 },
+      expectDataFields: { user: "匿名用户", rating: 5 },
+      expectStatements: [{ prefix: "INSERT INTO reviews", params: 7 }, auditOk],
+    })
+    writeCases.push({
+      name: "addReview（正文含 script ⇒ invalid_text）",
+      action: "addReview",
+      payload: { productOrder: 6, text: "<script>alert(1)</script>", images: [] },
+      expect: { code: -1, errorCode: "invalid_text" },
+      // 失败写入的审计是 fail（长度 4）—— 我第一版写成 auditOk，判据把它指出来了。
+      // 这里用内联字面量而不是块内变量：本轮我因为引用了别的块里的 auditFail 让夹具当场抛错、
+      // 而那条提交**已经带着「62 用例全绿」的假话出去了**（下一笔修正并说明）。
+      expectStatements: [{ prefix: "INSERT INTO security_events", params: 6, resultLen: 4 }],
+    })
+    writeCases.push({
+      name: "addPublicReview（/pub：写限流起桶 + 插行，**无审计**）",
+      action: "addPublicReview", pub: true, headers: { "cf-connecting-ip": "203.0.113.11" },
+      payload: { productOrder: 6, user: "顾客", rating: 4, text: "不错", images: [] },
+      expect: { code: 0 },
+      expectStatements: [
+        { prefix: "SELECT count, resetAt FROM rate_limits", params: 1 },
+        { prefix: "INSERT INTO rate_limits", params: 2 },
+        { prefix: "INSERT INTO reviews", params: 7 },
+      ],
+    })
+    writeCases.push({
+      name: "seedReviews（库非空 ⇒ 跳过）",
+      action: "seedReviews", payload: {},
+      expect: { code: 0 },
+      expectData: { added: 0, skipped: true },
+      expectStatements: [{ prefix: "SELECT COUNT(*) AS c FROM reviews", params: 0 }, auditOk],
+    })
+  }
   for (const c of writeCases) {
     const before = auditRoster().length
     // /pub 写用例走 postPub（可带额外请求头，例如用 cf-connecting-ip 固定限流桶键）；其余走 /web
@@ -1065,7 +1118,7 @@ writeFileSync(jsonOut, JSON.stringify({ ...report, problems }, null, 2) + '\n')
 console.log('原始读数 ' + jsonOut)
 console.log(problems.length
   ? '\nGATE-FAIL check-api-native-e2e：' + problems.length + ' 项\n  - ' + problems.join('\n  - ')
-  : '\nGATE-PASS check-api-native-e2e：公开面 8 + 管理读 26 + 写 23（写入只打本地边缘）= 57 个用例\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
+  : '\nGATE-PASS check-api-native-e2e：公开面 8 + 管理读 26 + 写 28（写入只打本地边缘）= 62 个用例\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
 
 edge.kill()
 mock.kill()

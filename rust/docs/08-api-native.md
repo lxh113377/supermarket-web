@@ -745,3 +745,32 @@ SQL 逐字判据 **44 → 47 条**（新增读状态 / 乐观锁 UPDATE / 删单
 - 端到端新增 1 条：1 行漂移单（存 25、按 items 应 20）⇒ 语句序列 `扫描 → CASE UPDATE(4 参数) → 明细 UPSERT(4 参数) → 审计`，
   响应 `{total:1, fixed:1}`；总用例 **57**（公开 8 + 管理读 26 + 写 23）。
 
+
+## 2s. 评价域三写（第 26 轮；addReview / addPublicReview / seedReviews）
+
+| 动作 | 语句序列 | 要点 |
+|---|---|---|
+| addReview | INSERT INTO reviews（7 列）→ 审计 | 守卫链：missing_product_order → too_many_images(>3) → invalid_image(逐项 scheme) → image_too_large(单张) → payload_too_large(**合计**共享同一份 90000 预算) → invalid_text(长度 + 四条黑名单) |
+| addPublicReview | 写限流读/起桶 → 同一套 addReview → **无审计** | 现网就是 addReview 的**直接复用**（backend.js:153）；差别只在入口：免鉴权、有 rate:write:<ip> 限流、公开面**不落管理端审计** |
+| seedReviews | SELECT COUNT(*) AS c FROM reviews → 非空则 {added:0,skipped:true}；空则 20 条 INSERT | 幂等种子；20 条正文**逐字照抄**现网常量 |
+
+归一（抽 core::review_writes）：user = String(x || 匿名用户).slice(0,20)、rating = max(1, min(5, Number(x) || 5))、
+text = 500 字、images 非数组 ⇒ **空表**（不是 invalid_image）。
+
+### 2s.1 判据抓出的一处是我方期望
+
+失败写入的审计 result 是 fail（长度 4），我在 invalid_text 用例里写成了 auditOk（长度 2）。
+这条说明：此前 25 轮都在比审计**条数**，这是第一次比到审计**内容形状** —— 条数一致不等于留痕正确。
+
+### 2s.2 结构性差异（同族第三条）
+
+现网 seedReviews 把 20 条合成一次 batch 往返；本边缘走 D1 REST 一次一条 ⇒ 顺序 20 条（语句序列一致、原子性不同），
+与 createOrder / 批量商品写同族，口径见 §2n.2。
+
+### 2s.3 判据与用例
+
+- SQL 逐字判据 51 → **52 条**（评价计数那条）；INSERT INTO reviews 的列由 doc 决定 ⇒ 属动态 SQL，进不了逐字判据，
+  由「语句条数 + 参数个数 + 响应键序」三条腿覆盖；
+- 端到端新增 5 条（总写用例 28 / 用例 **62**）：addReview 成功、rating 越界钳制 + user 缺省、正文黑名单、
+  **addPublicReview 在 /pub（限流起桶 + 插行 + 无审计）**、seedReviews 库非空跳过。
+

@@ -1,4 +1,19 @@
 ## [未发布]
+### 2026-10-28 评价域三写（addReview / addPublicReview / seedReviews；进度 31 / 37）
+- addReview：单行 INSERT + 完整守卫链（productOrder / 图册张数与 scheme / 单张与**合计**体积共享 90000 预算 / 正文长度与四条黑名单）。
+- addPublicReview：现网就是 addReview 的**直接复用**（backend.js:153）⇒ 本实现复用同一函数；差别只在入口 ——
+  免鉴权、有 rate:write:<ip> 限流、公开面**不落管理端审计**（已在 /pub 接线，开关同 createOrder）。
+- seedReviews：幂等种子（非空即跳过）；20 条正文逐字照抄现网常量。
+- 归一抽 core::review_writes：user 20 字、rating 钳 [1,5] 且 0 落 5、text 500 字、images 非数组⇒空表。
+- 判据抓出的一处是**我方期望**：失败写入的审计 result 是 fail（长度 4），我在 invalid_text 用例里写成 auditOk ——
+  此前 25 轮只比审计**条数**，这是第一次比到审计**内容形状**。
+- **修正一笔假话（同一提交内 amend，不靠补一笔掩盖）**：上一版提交信息写「端到端 62 用例全绿」，但那次夹具因为
+  引用了别的块里的 `auditFail` **当场抛错** ⇒ 用例根本没跑成。是「复核 + 提交前复跑」把它抓出来的。
+  处置：夹具改用内联字面量（不再跨块引用），复跑得 **rc=0 / 62 用例真绿**，并在提交信息里写明这次修正。
+- **复核点名并已修的三处 Rust 偏差**：① `rating` 我返回 `i64` 截断（现网 `Math.max(1,Math.min(5,Number(x)||5))` 保 3.9）；
+  ② 正文长度我按字符计、现网按 **UTF-16 码元**（emoji 在 500 边界上不同）；③ `user` 归一：现网先做假值判定再 `String()`
+  （0/空串/null/false 落「匿名用户」，而 `[]` → 空串、`{}` → "[object Object]"），我第一版把数组与对象都落成了默认值。
+- SQL 逐字判据 51 → 52 条；端到端 62 用例（公开 8 + 管理读 26 + 写 28）；cargo 99 条；lint 0/0。
 ### 2026-10-28 订单重算（recalculateOrders；进度 28 / 37）
 - 全序：分页扫描（200/页，LEFT JOIN 优惠明细）→ 逐行算期望 → 漂移单按 50 一组 `CASE _id WHEN ? THEN ? …` 修正
   + 同批 `order_discounts` 多行 UPSERT；响应 `{total, fixed}`。**会改总额、不动库存**。

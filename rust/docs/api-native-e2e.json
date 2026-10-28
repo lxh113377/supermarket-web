@@ -1,5 +1,5 @@
 {
-  "at": "2026-10-28T09:00:12.562Z",
+  "at": "2026-10-28T09:21:35.845Z",
   "live": "https://supermarket-web.pages.dev",
   "edge": "http://127.0.0.1:5198",
   "mode": "JSON 列=文本",
@@ -46,7 +46,7 @@
     "getOrderStatus（未知订单号：错误路径）": {
       "action": "getOrderStatus",
       "payload": {
-        "orderId": "o_not_exist_1793177991870"
+        "orderId": "o_not_exist_1793179274414"
       },
       "status": 404,
       "edge": "native",
@@ -576,6 +576,56 @@
         "INSERT INTO security_events (ts, ip, act"
       ],
       "ok": true
+    },
+    "addReview（成功：插一行 + 审计）": {
+      "action": "addReview",
+      "status": 200,
+      "edge": "native",
+      "statements": [
+        "INSERT INTO reviews (\"_id\", \"productOrde",
+        "INSERT INTO security_events (ts, ip, act"
+      ],
+      "ok": true
+    },
+    "addReview（rating 越界 ⇒ 钳到 5；user 缺省 ⇒ 匿名用户）": {
+      "action": "addReview",
+      "status": 200,
+      "edge": "native",
+      "statements": [
+        "INSERT INTO reviews (\"_id\", \"productOrde",
+        "INSERT INTO security_events (ts, ip, act"
+      ],
+      "ok": true
+    },
+    "addReview（正文含 script ⇒ invalid_text）": {
+      "action": "addReview",
+      "status": 400,
+      "edge": "native",
+      "statements": [
+        "INSERT INTO security_events (ts, ip, act"
+      ],
+      "ok": true
+    },
+    "addPublicReview（/pub：写限流起桶 + 插行，**无审计**）": {
+      "action": "addPublicReview",
+      "status": 200,
+      "edge": "native",
+      "statements": [
+        "SELECT count, resetAt FROM rate_limits W",
+        "INSERT INTO rate_limits (bucket, count, ",
+        "INSERT INTO reviews (\"_id\", \"productOrde"
+      ],
+      "ok": true
+    },
+    "seedReviews（库非空 ⇒ 跳过）": {
+      "action": "seedReviews",
+      "status": 200,
+      "edge": "native",
+      "statements": [
+        "SELECT COUNT(*) AS c FROM reviews",
+        "INSERT INTO security_events (ts, ip, act"
+      ],
+      "ok": true
     }
   },
   "rowsFed": {
@@ -987,6 +1037,82 @@
         24,
         0,
         17,
+        2,
+        8,
+        0
+      ]
+    },
+    {
+      "paramCount": 6,
+      "paramTypes": [
+        "string",
+        "string",
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "paramLengths": [
+        24,
+        0,
+        9,
+        2,
+        8,
+        0
+      ]
+    },
+    {
+      "paramCount": 6,
+      "paramTypes": [
+        "string",
+        "string",
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "paramLengths": [
+        24,
+        0,
+        9,
+        2,
+        8,
+        0
+      ]
+    },
+    {
+      "paramCount": 6,
+      "paramTypes": [
+        "string",
+        "string",
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "paramLengths": [
+        24,
+        0,
+        9,
+        4,
+        8,
+        0
+      ]
+    },
+    {
+      "paramCount": 6,
+      "paramTypes": [
+        "string",
+        "string",
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "paramLengths": [
+        24,
+        0,
+        11,
         2,
         8,
         0

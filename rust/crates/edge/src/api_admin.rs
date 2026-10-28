@@ -100,7 +100,7 @@ pub const EVENT_LIMIT_DEFAULT: i64 = 50;
 pub const EVENT_LIMIT_MAX: i64 = 100;
 
 /// 在册的管理端原生动作（第 6 轮 getProducts；第 7 轮 4 个单表只读；第 8~9 轮 getStockMovements）。
-pub const ADMIN_NATIVE_ACTIONS: [&str; 22] = [
+pub const ADMIN_NATIVE_ACTIONS: [&str; 24] = [
     "getProducts",
     "getAllReviews",
     "getSubmissions",
@@ -123,6 +123,8 @@ pub const ADMIN_NATIVE_ACTIONS: [&str; 22] = [
     "updateOrderStatus",
     "deleteOrder",
     "recalculateOrders",
+    "addReview",
+    "seedReviews",
 ];
 
 /// 开关：未设 ⇒ 全关；all 或逗号分隔的动作名（大小写无关）。
@@ -1023,6 +1025,151 @@ async fn recalculate_orders(d1: &D1Client) -> Option<Value> {
     }
     Some(json!({ "code": 0, "data": { "total": processed, "fixed": fixed } }))
 }
+/// 现网 reviews.js seedReviews —— 先数表：非空就跳过（幂等种子）。
+pub const SQL_REVIEW_COUNT: &str = r#"SELECT COUNT(*) AS c FROM reviews"#;
+/// 现网 reviews.js 的 addReview（addPublicReview 在现网就是**直接复用**它，只是入口不同）。
+///
+/// 返回完整响应封套。公开面复用时由调用方先做写限流；**管理端审计只挂 handleAdmin**，公开面不落审计。
+pub async fn add_review(d1: &D1Client, payload: Option<&Value>) -> Option<Value> {
+    use supermarket_core::review_writes as rw;
+    let fail = |code: &str, msg: &str| supermarket_core::errors::fail(code, msg, Default::default());
+    let clean = rw::pick_review_fields(payload);
+    // productOrder == null 才拒（0 是合法值，会被 Number() 成 0）
+    let po_null = match payload.and_then(|p| p.get("productOrder")) {
+        None | Some(Value::Null) => true,
+        _ => false,
+    };
+    if po_null {
+        return Some(fail("missing_product_order", "缺少 productOrder"));
+    }
+    let images_raw = payload.and_then(|p| p.get("images"));
+    if let Some(Value::Array(a)) = images_raw {
+        if a.len() > rw::MAX_REVIEW_IMAGES {
+            return Some(fail("too_many_images", "最多上传 3 张图片"));
+        }
+    }
+    let Some(clean_images) = rw::validate_review_images(images_raw) else {
+        return Some(fail("invalid_image", "图片格式无效"));
+    };
+    let budget = supermarket_core::order_intake::MAX_STATEMENT_PAYLOAD_CHARS;
+    for img in &clean_images {
+        let len = img.as_str().map(|s| s.encode_utf16().count()).unwrap_or(0);
+        if len > budget {
+            let msg = rw::image_too_large_message(len, budget);
+            return Some(fail("image_too_large", &msg));
+        }
+    }
+    // 一条评价 = 一行 INSERT ⇒ 最多 3 张图**共享同一份**单语句预算
+    let image_chars = rw::review_image_chars(&clean_images);
+    if image_chars > budget {
+        let msg = rw::payload_too_large_message(image_chars, budget);
+        return Some(fail("payload_too_large", &msg));
+    }
+    let text = rw::normalize_review_text(payload);
+    if !rw::check_public_text(&text, rw::REVIEW_TEXT_MAX) {
+        return Some(fail("invalid_text", "评价内容无效"));
+    }
+    let _ = &clean; // pick 的产物用于确认白名单命中，实际取值走下面的归一函数
+    let id = crate::api_pub_order::gen_order_id().replacen("o_", "r_", 1);
+    let created = crate::api::iso_now();
+    let po = supermarket_core::jsnum::js_number_of(payload.and_then(|p| p.get("productOrder")));
+    let user = rw::normalize_review_author(payload);
+    let rating = rw::normalize_review_rating(payload);
+    // doc 列序照抄现网：_id, productOrder, user, rating, text, images, createdAt
+    let cols: Vec<String> = vec![
+        "_id".into(),
+        "productOrder".into(),
+        "user".into(),
+        "rating".into(),
+        "text".into(),
+        "images".into(),
+        "createdAt".into(),
+    ];
+    let params: Vec<Value> = vec![
+        json!(id),
+        supermarket_core::jsnum::js_number(po),
+        json!(user),
+        json!(rating),
+        json!(text),
+        json!(Value::Array(clean_images.clone()).to_string()),
+        json!(created),
+    ];
+    let sql = supermarket_core::product_writes::insert_sql("reviews", &cols);
+    if d1.query(&sql, &params).await.is_err() {
+        return Some(fail("internal_error", "服务暂时不可用，请稍后重试"));
+    }
+    // 现网响应：{_id, id, ...doc}（_id 与 id 同值，且 doc 的键再铺一遍）
+    Some(json!({
+        "code": 0,
+        "data": {
+            "_id": id,
+            "id": id,
+            "productOrder": supermarket_core::jsnum::js_number(po),
+            "user": user,
+            "rating": rating,
+            "text": text,
+            "images": clean_images,
+            "createdAt": created,
+        }
+    }))
+}
+
+/// 现网 reviews.js 的 seedReviews：**只在库为空时**灌 20 条种子；非空 ⇒ {added:0,skipped:true}。
+///
+/// 现网把 20 条合成一次 batch 往返；本边缘走 D1 REST 一次一条 ⇒ 顺序 20 条（原子性差异见 docs §2n.2 同族说明）。
+async fn seed_reviews(d1: &D1Client) -> Option<Value> {
+    use supermarket_core::review_writes as rw;
+    let rows = match d1.query_rows(SQL_REVIEW_COUNT, &[]).await {
+        Ok(r) => r,
+        Err(_) => {
+            return Some(supermarket_core::errors::fail(
+                "internal_error",
+                "服务暂时不可用，请稍后重试",
+                Default::default(),
+            ))
+        }
+    };
+    let existing = rows
+        .first()
+        .map(|r| supermarket_core::jsnum::js_number_of(r.get("c")))
+        .unwrap_or(0.0);
+    if existing > 0.0 {
+        return Some(json!({ "code": 0, "data": { "added": 0, "skipped": true } }))
+    }
+    let cols: Vec<String> = vec![
+        "_id".into(),
+        "productOrder".into(),
+        "user".into(),
+        "rating".into(),
+        "text".into(),
+        "images".into(),
+        "createdAt".into(),
+    ];
+    let sql = supermarket_core::product_writes::insert_sql("reviews", &cols);
+    let mut added = 0i64;
+    for (po, user, rating, text) in rw::SEED_REVIEWS {
+        let id = crate::api_pub_order::gen_order_id().replacen("o_", "r_", 1);
+        let created = crate::api::iso_now();
+        let params: Vec<Value> = vec![
+            json!(id),
+            json!(po),
+            json!(user),
+            json!(rating),
+            json!(text),
+            json!("[]"),
+            json!(created),
+        ];
+        if d1.query(&sql, &params).await.is_err() {
+            return Some(supermarket_core::errors::fail(
+                "internal_error",
+                "服务暂时不可用，请稍后重试",
+                Default::default(),
+            ));
+        }
+        added += 1;
+    }
+    Some(json!({ "code": 0, "data": { "added": added } }))
+}
 pub async fn call_admin(
     app: &Arc<App>,
     action: &str,
@@ -1367,6 +1514,8 @@ pub async fn call_admin(
         "updateOrderStatus" => update_order_status(d1, payload).await,
         "deleteOrder" => delete_order(d1, payload).await,
         "recalculateOrders" => recalculate_orders(d1).await,
+        "addReview" => add_review(d1, payload).await,
+        "seedReviews" => seed_reviews(d1).await,
         _ => None,
     };
 
