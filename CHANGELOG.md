@@ -1,4 +1,13 @@
 ## [未发布]
+### 2026-10-28 提交域第三件：createSubmission（进度 34 / 37）
+- 校验链照抄：missing_service_info → too_many_images(>9) → invalid_image（**按 serviceId 分流**：print 走文件白名单）
+  → image_too_large/payload_too_large（**两把互不共享的尺**）→ invalid_text（formData 逐键 50/200 字 + 文本守卫）。
+- **两把尺**：普通服务 90000/90000；print 单件 700000 / 合计 2000000（内联降级的预算，依据是仓内实测「线上单条 442KB 仍成功」）。
+  合并成一把不是简化，是改变接受边界。
+- print 文件白名单比图册多三类：data:application/pdf|msword|vnd.openxmlformats-officedocument.[a-z.]+ ;base64。
+- 响应 `{code:0,data:{id}}`（**只有 id，不是 _id**）；/pub 入口带写限流且**不落审计**，/web 入口落审计。
+- 端到端新增 6 条（总写用例 37 / 用例 71）全绿；SQL 逐字判据仍 54 条（INSERT 的列由 doc 决定 ⇒ 属动态 SQL，
+  由「语句条数 + 参数个数 + 响应键序」三条腿覆盖）。cargo 99 条；lint 0/0。
 ### 2026-10-28 提交域两写（updateSubmissionStatus / deleteSubmission；进度 33 / 37）
 - updateSubmissionStatus：**没有状态白名单** —— 只做 `status || done` 假值兜底，任何字符串都写；changes=0 ⇒ submission_not_found。
   这与订单状态机的严格迁移表**正好相反**：按「更安全」的直觉加白名单就是行为不同（会拒掉现网接受的调用）。

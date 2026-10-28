@@ -299,6 +299,35 @@ pub async fn handle_gateway(
             // 打开方式与 admin 侧同风格：环境变量 NATIVE_PUB_WRITE 里列动作名（逗号分隔）。
             // addPublicReview：现网就是 addReview 的直接复用（backend.js:153），差别只在入口 ——
             // 公开面免鉴权、有写限流（rate:write:<ip>）、**不落管理端审计**（审计只挂 handleAdmin）。
+            // createSubmission：/pub 入口（写限流 + 同一实现；公开面不落审计）。
+            if a == "createSubmission" && crate::api_pub_order::pub_write_native_enabled(a) {
+                if let Some(d1) = app.d1.as_ref() {
+                    let bucket = format!("rate:write:{}", crate::api_admin::client_ip(headers));
+                    let limited = crate::api_pub_order::check_rate_db(
+                        d1,
+                        &bucket,
+                        crate::api_pub_order::RATE_PUBLIC_WRITE_WINDOW_MS,
+                        crate::api_pub_order::RATE_PUBLIC_WRITE_MAX,
+                    )
+                    .await;
+                    let value = match limited {
+                        Some(env) => env,
+                        None => crate::api_admin::create_submission(d1, parsed.get("payload")).await.unwrap_or_else(|| {
+                            supermarket_core::errors::fail(
+                                "internal_error",
+                                "服务暂时不可用，请稍后重试",
+                                Default::default(),
+                            )
+                        }),
+                    };
+                    let bytes = Bytes::from(value.to_string());
+                    let status = StatusCode::from_u16(supermarket_core::contract::status_of(&value))
+                        .unwrap_or(StatusCode::OK);
+                    let mut out_headers: Vec<(String, String)> = cors.clone();
+                    out_headers.push(("x-edge".to_string(), "native".to_string()));
+                    return json_response(status, bytes, out_headers);
+                }
+            }
             if a == "addPublicReview" && crate::api_pub_order::pub_write_native_enabled(a) {
                 if let Some(d1) = app.d1.as_ref() {
                     let bucket = format!("rate:write:{}", crate::api_admin::client_ip(headers));

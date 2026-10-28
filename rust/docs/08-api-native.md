@@ -797,3 +797,39 @@ text = 500 字、images 非数组 ⇒ **空表**（不是 invalid_image）。
 打印走单独的文件白名单 `r2:` 与文档类 `data:` URL；`formData` 逐键 50/200 字 + `checkPublicText`）与最后三件
 （`login`、`aiAdvice`、`aiChat`）。
 
+
+## 2u. 提交域第三件：createSubmission（第 28 轮）
+
+校验链（现网 submissions.js:14-69，逐条照抄）：
+`missing_service_info`（serviceId/serviceName 真值）→ `too_many_images`（>9）→ `invalid_image`（**按 serviceId 分流**：`print` 走文件白名单、其余走图册白名单，非数组回空表、任一项非法整组拒）→
+`image_too_large` / `payload_too_large`（**两把互不共享的尺**）→ `invalid_text`（formData 逐键）。
+
+### 2u.1 两把体积尺（这是本条最容易被"统一成一把"的地方）
+
+| 服务 | 单件上限 | 合计上限 | 文案（英文括号原文） |
+|---|---|---|---|
+| 普通 | 90,000（`MAX_STATEMENT_PAYLOAD_CHARS`） | 90,000 | 单张图片过大（N 字符 > 预算 90000） / 图片合计 N 字符 > 单语句预算 90000：请减少张数或压小图片 |
+| `print` | 700,000（`MAX_INLINE_PRINT_CHARS`） | 2,000,000（`MAX_INLINE_PRINT_TOTAL_CHARS`） | 单个文件过大（N 字符 > 预算 700000） / 文件合计 N 字符 > 预算 2000000：请减少张数或压小文件 |
+
+打印那把尺是**内联降级**（R2 未就绪时文件本体进 D1）的预算，依据是仓内一手实测「线上单条提交 images 最大 442KB 仍写成功」。
+把它并成一把不是简化，是**改变接受边界**。
+
+### 2u.2 打印服务的文件白名单（比图册多三类）
+
+`r2:<key>`（≤128 且不含 `..`）、`data:image/(jpeg|png|webp|gif);base64` 之外，另收 `data:application/pdf;base64`、
+`data:application/msword;base64`、`data:application/vnd.openxmlformats-officedocument.[a-z.]+;base64`（介质子类型只允许小写字母与点）。
+
+### 2u.3 写用例（新增 6 条，总写用例 37 / 用例 71）
+
+| 用例 | HTTP | 断言 |
+|---|---|---|
+| 成功（9 列 INSERT） | 200 | `INSERT INTO submissions`(9 参数) + 审计(ok)；**响应只有 `id`**（不是 `_id`） |
+| 10 张 | 400 | `too_many_images`，零写（只有审计 fail） |
+| 单张 90,001 | 413 | `image_too_large` |
+| print：`r2:` + pdf data URL | 200 | 走 700000 那把尺、正常落行 |
+| formData 含 script | 400 | `invalid_text` |
+| **/pub** | 200 | 限流读 → 起桶 → 9 列 INSERT；**无审计**（公开面口径） |
+
+**为何没有新增 SQL 逐字判据**：`INSERT INTO submissions` 的列由 doc 决定 ⇒ 属动态 SQL（与商品/评价域同族），
+判据仍为 **54 条**，其正确性由「语句条数 + 参数个数 + 响应键序」三条腿覆盖。
+

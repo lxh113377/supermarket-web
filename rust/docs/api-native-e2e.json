@@ -1,5 +1,5 @@
 {
-  "at": "2026-10-28T09:28:01.233Z",
+  "at": "2026-10-28T09:42:02.858Z",
   "live": "https://supermarket-web.pages.dev",
   "edge": "http://127.0.0.1:5198",
   "mode": "JSON 列=文本",
@@ -46,7 +46,7 @@
     "getOrderStatus（未知订单号：错误路径）": {
       "action": "getOrderStatus",
       "payload": {
-        "orderId": "o_not_exist_1793179660328"
+        "orderId": "o_not_exist_1793180505367"
       },
       "status": 404,
       "edge": "native",
@@ -655,6 +655,64 @@
         "INSERT INTO security_events (ts, ip, act"
       ],
       "ok": true
+    },
+    "createSubmission（成功：9 列 INSERT + 审计；响应只有 id）": {
+      "action": "createSubmission",
+      "status": 200,
+      "edge": "native",
+      "statements": [
+        "INSERT INTO submissions (\"_id\", \"service",
+        "INSERT INTO security_events (ts, ip, act"
+      ],
+      "ok": true
+    },
+    "createSubmission（10 张 ⇒ too_many_images，零写）": {
+      "action": "createSubmission",
+      "status": 400,
+      "edge": "native",
+      "statements": [
+        "INSERT INTO security_events (ts, ip, act"
+      ],
+      "ok": true
+    },
+    "createSubmission（单张超 90000 ⇒ image_too_large 413）": {
+      "action": "createSubmission",
+      "status": 413,
+      "edge": "native",
+      "statements": [
+        "INSERT INTO security_events (ts, ip, act"
+      ],
+      "ok": true
+    },
+    "createSubmission（print 服务：r2: 与 pdf data URL 都收，走 700000 那把尺）": {
+      "action": "createSubmission",
+      "status": 200,
+      "edge": "native",
+      "statements": [
+        "INSERT INTO submissions (\"_id\", \"service",
+        "INSERT INTO security_events (ts, ip, act"
+      ],
+      "ok": true
+    },
+    "createSubmission（formData 含 script ⇒ invalid_text）": {
+      "action": "createSubmission",
+      "status": 400,
+      "edge": "native",
+      "statements": [
+        "INSERT INTO security_events (ts, ip, act"
+      ],
+      "ok": true
+    },
+    "createSubmission（/pub：限流起桶 + 9 列 INSERT，无审计）": {
+      "action": "createSubmission",
+      "status": 200,
+      "edge": "native",
+      "statements": [
+        "SELECT count, resetAt FROM rate_limits W",
+        "INSERT INTO rate_limits (bucket, count, ",
+        "INSERT INTO submissions (\"_id\", \"service"
+      ],
+      "ok": true
     }
   },
   "rowsFed": {
@@ -1200,6 +1258,101 @@
         0,
         16,
         2,
+        8,
+        0
+      ]
+    },
+    {
+      "paramCount": 6,
+      "paramTypes": [
+        "string",
+        "string",
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "paramLengths": [
+        24,
+        0,
+        16,
+        2,
+        8,
+        0
+      ]
+    },
+    {
+      "paramCount": 6,
+      "paramTypes": [
+        "string",
+        "string",
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "paramLengths": [
+        24,
+        0,
+        16,
+        4,
+        8,
+        0
+      ]
+    },
+    {
+      "paramCount": 6,
+      "paramTypes": [
+        "string",
+        "string",
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "paramLengths": [
+        24,
+        0,
+        16,
+        4,
+        8,
+        0
+      ]
+    },
+    {
+      "paramCount": 6,
+      "paramTypes": [
+        "string",
+        "string",
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "paramLengths": [
+        24,
+        0,
+        16,
+        2,
+        8,
+        0
+      ]
+    },
+    {
+      "paramCount": 6,
+      "paramTypes": [
+        "string",
+        "string",
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "paramLengths": [
+        24,
+        0,
+        16,
+        4,
         8,
         0
       ]

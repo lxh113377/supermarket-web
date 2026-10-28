@@ -100,7 +100,7 @@ pub const EVENT_LIMIT_DEFAULT: i64 = 50;
 pub const EVENT_LIMIT_MAX: i64 = 100;
 
 /// 在册的管理端原生动作（第 6 轮 getProducts；第 7 轮 4 个单表只读；第 8~9 轮 getStockMovements）。
-pub const ADMIN_NATIVE_ACTIONS: [&str; 26] = [
+pub const ADMIN_NATIVE_ACTIONS: [&str; 27] = [
     "getProducts",
     "getAllReviews",
     "getSubmissions",
@@ -127,6 +127,7 @@ pub const ADMIN_NATIVE_ACTIONS: [&str; 26] = [
     "seedReviews",
     "updateSubmissionStatus",
     "deleteSubmission",
+    "createSubmission",
 ];
 
 /// 开关：未设 ⇒ 全关；all 或逗号分隔的动作名（大小写无关）。
@@ -1246,6 +1247,113 @@ async fn delete_submission(d1: &D1Client, payload: Option<&Value>) -> Option<Val
     let _ = d1.query(SQL_SUBMISSION_DELETE, &[json!(sid)]).await.ok()?;
     Some(json!({ "code": 0 }))
 }
+/// 现网 submissions.js:14 的 createSubmission（/pub 与 /web 共用；公开面由调用方先做写限流）。
+pub async fn create_submission(d1: &D1Client, payload: Option<&Value>) -> Option<Value> {
+    use supermarket_core::submission_writes as sw;
+    let fail = |code: &str, msg: &str| supermarket_core::errors::fail(code, msg, Default::default());
+    let get = |k: &str| payload.and_then(|p| p.get(k));
+    // ① serviceId / serviceName 真值判定
+    let truthy = |v: Option<&Value>| match v {
+        Some(Value::String(s)) => !s.is_empty(),
+        Some(Value::Number(n)) => n.as_f64().map(|x| x != 0.0).unwrap_or(true),
+        Some(Value::Bool(b)) => *b,
+        Some(Value::Array(_)) | Some(Value::Object(_)) => true,
+        _ => false,
+    };
+    if !truthy(get("serviceId")) || !truthy(get("serviceName")) {
+        return Some(fail("missing_service_info", "缺少服务信息"));
+    }
+    // ② 条数上限（非数组跳过）
+    let images_raw = get("images");
+    if let Some(Value::Array(a)) = images_raw {
+        if a.len() > sw::MAX_SUBMISSION_FILES {
+            return Some(fail("too_many_images", "最多上传 9 个文件"));
+        }
+    }
+    // ③ scheme：打印走文件白名单，其余走图册白名单；两者非数组都回空表、任一项非法整组拒
+    let service_id = match get("serviceId") {
+        Some(Value::String(s)) => s.clone(),
+        _ => String::new(),
+    };
+    let is_print = service_id == "print";
+    let clean_images = if is_print {
+        sw::validate_submission_files(images_raw)
+    } else {
+        sw::validate_submission_images(images_raw)
+    };
+    let Some(clean_images) = clean_images else {
+        return Some(fail("invalid_image", "文件格式无效"));
+    };
+    // ④ 体积：两把尺互不共享（普通 90000；打印单件 700000 / 合计 2000000）
+    let chars: usize = clean_images
+        .iter()
+        .map(|v| v.as_str().map(|s| s.encode_utf16().count()).unwrap_or(0))
+        .sum();
+    let budget = supermarket_core::order_intake::MAX_STATEMENT_PAYLOAD_CHARS;
+    if is_print {
+        for img in &clean_images {
+            let len = img.as_str().map(|s| s.encode_utf16().count()).unwrap_or(0);
+            if len > sw::MAX_INLINE_PRINT_CHARS {
+                let msg = format!("单个文件过大（{len} 字符 > 预算 {}）", sw::MAX_INLINE_PRINT_CHARS);
+                return Some(fail("image_too_large", &msg));
+            }
+        }
+        if chars > sw::MAX_INLINE_PRINT_TOTAL_CHARS {
+            let msg = format!(
+                "文件合计 {chars} 字符 > 预算 {}：请减少张数或压小文件",
+                sw::MAX_INLINE_PRINT_TOTAL_CHARS
+            );
+            return Some(fail("payload_too_large", &msg));
+        }
+    } else {
+        for img in &clean_images {
+            let len = img.as_str().map(|s| s.encode_utf16().count()).unwrap_or(0);
+            if len > budget {
+                let msg = format!("单张图片过大（{len} 字符 > 预算 {budget}）");
+                return Some(fail("image_too_large", &msg));
+            }
+        }
+        if chars > budget {
+            let msg = format!("图片合计 {chars} 字符 > 单语句预算 {budget}：请减少张数或压小图片");
+            return Some(fail("payload_too_large", &msg));
+        }
+    }
+    // ⑤ formData 归一 + 文本守卫
+    let Some(safe_form) = sw::normalize_form_data(payload) else {
+        return Some(fail("invalid_text", "表单内容无效"));
+    };
+    // ⑥ doc：列序照抄现网字面量
+    let id = crate::api_pub_order::gen_order_id().replacen("o_", "s_", 1);
+    let created = crate::api::iso_now();
+    let cols: Vec<String> = vec![
+        "_id".into(),
+        "serviceId".into(),
+        "serviceName".into(),
+        "categoryId".into(),
+        "categoryName".into(),
+        "formData".into(),
+        "images".into(),
+        "status".into(),
+        "createdAt".into(),
+    ];
+    let params: Vec<Value> = vec![
+        json!(id),
+        json!(sw::submission_service_string(get("serviceId"), false)),
+        json!(sw::submission_service_string(get("serviceName"), false)),
+        json!(sw::submission_service_string(get("categoryId"), true)),
+        json!(sw::submission_service_string(get("categoryName"), true)),
+        json!(safe_form.to_string()),
+        json!(Value::Array(clean_images.clone()).to_string()),
+        json!("pending"),
+        json!(created),
+    ];
+    let sql = supermarket_core::product_writes::insert_sql("submissions", &cols);
+    if d1.query(&sql, &params).await.is_err() {
+        return Some(fail("internal_error", "服务暂时不可用，请稍后重试"));
+    }
+    // 现网响应：data 只回 {id}
+    Some(json!({ "code": 0, "data": { "id": id } }))
+}
 pub async fn call_admin(
     app: &Arc<App>,
     action: &str,
@@ -1594,6 +1702,7 @@ pub async fn call_admin(
         "seedReviews" => seed_reviews(d1).await,
         "updateSubmissionStatus" => update_submission_status(d1, payload).await,
         "deleteSubmission" => delete_submission(d1, payload).await,
+        "createSubmission" => create_submission(d1, payload).await,
         _ => None,
     };
 

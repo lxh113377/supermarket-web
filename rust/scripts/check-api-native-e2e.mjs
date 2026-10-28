@@ -519,6 +519,8 @@ const reviewCountSql = sqlOfFrom("crates/edge/src/api_admin.rs", "SQL_REVIEW_COU
 ordersRows[reviewCountSql] = [{ c: 20 }]
 // /pub 的 addPublicReview 用独立 IP，避免与 createOrder 的用例共用桶键
 ordersRows[rateReadSql + "|" + JSON.stringify(["rate:write:203.0.113.11"])] = []
+// ── createSubmission 的 /pub 用例：独立 IP 的限流桶 ──
+ordersRows[rateReadSql + "|" + JSON.stringify(["rate:write:203.0.113.12"])] = []
 const rowsFile = path.join(rustRoot, '.cache', 'mock-d1-rows' + (parsedMode ? '-parsed' : '') + '.json')
 // __metaMissingIds 是给 mock 的负控面：命中这些 id 的 UPDATE/DELETE 回 changes=0
 writeFileSync(rowsFile, JSON.stringify({
@@ -554,7 +556,7 @@ const edge = spawn(bin, ['serve', '--dist', path.join(repoRoot, 'dist'), '--port
     // 管理端走独立开关（爆炸半径不同）；密钥从 .dev.vars 现读现用，**绝不写入读数文件**
     NATIVE_ADMIN_ACTIONS: 'all',
     // /pub 写动作的开关（默认关）：判据就位后由夹具显式打开，生产侧要不要开是独立决定
-    NATIVE_PUB_WRITE: 'createOrder,addPublicReview',
+    NATIVE_PUB_WRITE: 'createOrder,addPublicReview,createSubmission',
     ...adminEnv(),
     D1_ACCOUNT_ID: 'mock-account',
     D1_DATABASE_ID: 'mock-db',
@@ -1055,6 +1057,59 @@ if (!keys.admin) {
       expectStatements: [{ prefix: "DELETE FROM submissions WHERE _id = ?", params: 1 }, auditOk],
     })
   }
+  // createSubmission（/web 管理写 + /pub 公开写；只打本地边缘）
+  {
+    const auditOkInline = { prefix: "INSERT INTO security_events", params: 6, resultLen: 2 }
+    const auditFailInline = { prefix: "INSERT INTO security_events", params: 6, resultLen: 4 }
+    const okPayload = { serviceId: "unlock", serviceName: "开锁", categoryId: "door", categoryName: "门锁", formData: { "地址": "1栋" }, images: ["data:image/jpeg;base64,/9j/4AAQSkZJRg=="] }
+    writeCases.push({
+      name: "createSubmission（成功：9 列 INSERT + 审计；响应只有 id）",
+      action: "createSubmission", payload: okPayload,
+      expect: { code: 0 },
+      expectDataKeys: "id",
+      expectIdPrefix: "s_",
+      expectStatements: [{ prefix: "INSERT INTO submissions", params: 9 }, auditOkInline],
+    })
+    writeCases.push({
+      name: "createSubmission（10 张 ⇒ too_many_images，零写）",
+      action: "createSubmission",
+      payload: { serviceId: "unlock", serviceName: "开锁", images: Array.from({ length: 10 }, () => "https://x/y.png") },
+      expect: { code: -1, errorCode: "too_many_images" },
+      expectStatements: [auditFailInline],
+    })
+    writeCases.push({
+      name: "createSubmission（单张超 90000 ⇒ image_too_large 413）",
+      action: "createSubmission",
+      payload: { serviceId: "unlock", serviceName: "开锁", images: ["data:image/png;base64," + "A".repeat(90001)] },
+      expect: { code: -1, errorCode: "image_too_large" },
+      expectStatements: [auditFailInline],
+    })
+    writeCases.push({
+      name: "createSubmission（print 服务：r2: 与 pdf data URL 都收，走 700000 那把尺）",
+      action: "createSubmission",
+      payload: { serviceId: "print", serviceName: "打印", images: ["r2:docs/a.pdf", "data:application/pdf;base64,AAA="] },
+      expect: { code: 0 },
+      expectStatements: [{ prefix: "INSERT INTO submissions", params: 9 }, auditOkInline],
+    })
+    writeCases.push({
+      name: "createSubmission（formData 含 script ⇒ invalid_text）",
+      action: "createSubmission",
+      payload: { serviceId: "unlock", serviceName: "开锁", formData: { note: "<script>x</script>" }, images: [] },
+      expect: { code: -1, errorCode: "invalid_text" },
+      expectStatements: [auditFailInline],
+    })
+    writeCases.push({
+      name: "createSubmission（/pub：限流起桶 + 9 列 INSERT，无审计）",
+      action: "createSubmission", pub: true, headers: { "cf-connecting-ip": "203.0.113.12" },
+      payload: okPayload,
+      expect: { code: 0 },
+      expectStatements: [
+        { prefix: "SELECT count, resetAt FROM rate_limits", params: 1 },
+        { prefix: "INSERT INTO rate_limits", params: 2 },
+        { prefix: "INSERT INTO submissions", params: 9 },
+      ],
+    })
+  }
   for (const c of writeCases) {
     const before = auditRoster().length
     // /pub 写用例走 postPub（可带额外请求头，例如用 cf-connecting-ip 固定限流桶键）；其余走 /web
@@ -1145,7 +1200,7 @@ writeFileSync(jsonOut, JSON.stringify({ ...report, problems }, null, 2) + '\n')
 console.log('原始读数 ' + jsonOut)
 console.log(problems.length
   ? '\nGATE-FAIL check-api-native-e2e：' + problems.length + ' 项\n  - ' + problems.join('\n  - ')
-  : '\nGATE-PASS check-api-native-e2e：公开面 8 + 管理读 26 + 写 31（写入只打本地边缘）= 65 个用例\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
+  : '\nGATE-PASS check-api-native-e2e：公开面 8 + 管理读 26 + 写 37（写入只打本地边缘）= 71 个用例\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
 
 edge.kill()
 mock.kill()
