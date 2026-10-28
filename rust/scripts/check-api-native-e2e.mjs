@@ -111,11 +111,11 @@ const postPub = async (base, action, payload, extraHeaders = {}) => {
 const stripTrace = (o) => { const c = { ...o }; delete c.trace; return c }
 
 // /web 调用（管理端）：密钥只走 body（现网 web.js:21 唯一通道），**不设请求头**
-const postWeb = async (target, action, key, payload = {}) => {
+const postWeb = async (target, action, key, payload = {}, extraHeaders = {}) => {
   const body = key === undefined ? { action, payload } : { action, adminKey: key, payload }
   const res = await fetchRetry(target + '/web', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...extraHeaders },
     body: JSON.stringify(body),
   })
   return { status: res.status, edge: res.headers.get('x-edge'), json: await res.json() }
@@ -521,6 +521,10 @@ ordersRows[reviewCountSql] = [{ c: 20 }]
 ordersRows[rateReadSql + "|" + JSON.stringify(["rate:write:203.0.113.11"])] = []
 // ── createSubmission 的 /pub 用例：独立 IP 的限流桶 ──
 ordersRows[rateReadSql + "|" + JSON.stringify(["rate:write:203.0.113.12"])] = []
+// ── login：限流桶（按 IP 精确命中；空数组 = 过期桶 = 放行）──
+ordersRows[rateReadSql + "|" + JSON.stringify(["rate:login:203.0.113.30"])] = []
+// 限流命中负控：桶有效且计数已满（resetAt 远未来）
+ordersRows[rateReadSql + "|" + JSON.stringify(["rate:login:203.0.113.31"])] = [{ count: 5, resetAt: 4102444800000 }]
 const rowsFile = path.join(rustRoot, '.cache', 'mock-d1-rows' + (parsedMode ? '-parsed' : '') + '.json')
 // __metaMissingIds 是给 mock 的负控面：命中这些 id 的 UPDATE/DELETE 回 changes=0
 writeFileSync(rowsFile, JSON.stringify({
@@ -1110,12 +1114,62 @@ if (!keys.admin) {
       ],
     })
   }
+  // login（/web；密钥只走 body，限流桶用请求头固定）
+  {
+    const rateInit = { prefix: "INSERT INTO rate_limits", params: 2 }
+    const auditOkInline = { prefix: "INSERT INTO security_events", params: 6, resultLen: 2 }
+    const auditAuthFail = { prefix: "INSERT INTO security_events", params: 6, resultLen: 11 }
+    if (keys.admin) {
+      writeCases.push({
+        name: "login（正确密钥 ⇒ role admin）",
+        action: "login", headers: { "cf-connecting-ip": "203.0.113.30" },
+        payload: {}, adminKeyOverride: keys.admin,
+        expect: { code: 0, role: "admin" },
+        expectStatements: [
+          { prefix: "SELECT count, resetAt FROM rate_limits", params: 1 },
+          rateInit,
+          auditOkInline,
+        ],
+      })
+    }
+    writeCases.push({
+      name: "login（错密钥 ⇒ 401 auth_failed + 审计 auth_failed）",
+      action: "login", headers: { "cf-connecting-ip": "203.0.113.30" },
+      payload: {}, adminKeyOverride: "definitely-wrong-key",
+      expect: { code: -1, errorCode: "auth_failed" },
+      expectStatements: [
+        { prefix: "SELECT count, resetAt FROM rate_limits", params: 1 },
+        rateInit,
+        auditAuthFail,
+      ],
+    })
+    writeCases.push({
+      name: "login（限流：桶已满 5/60s ⇒ 429 且只有限流读）",
+      action: "login", headers: { "cf-connecting-ip": "203.0.113.31" },
+      payload: {}, adminKeyOverride: keys.admin,
+      expect: { code: -1, errorCode: "rate_limited" },
+      expectStatements: [{ prefix: "SELECT count, resetAt FROM rate_limits", params: 1 }],
+    })
+    if (keys.readonly) {
+      writeCases.push({
+        name: "login（只读密钥 ⇒ role readonly）",
+        action: "login", headers: { "cf-connecting-ip": "203.0.113.30" },
+        payload: {}, adminKeyOverride: keys.readonly,
+        expect: { code: 0, role: "readonly" },
+        expectStatements: [
+          { prefix: "SELECT count, resetAt FROM rate_limits", params: 1 },
+          rateInit,
+          auditOkInline,
+        ],
+      })
+    }
+  }
   for (const c of writeCases) {
     const before = auditRoster().length
     // /pub 写用例走 postPub（可带额外请求头，例如用 cf-connecting-ip 固定限流桶键）；其余走 /web
     const nativeR = c.pub
       ? await postPub(base, c.action, c.payload || {}, c.headers || {})
-      : await postWeb(base, c.action, keys.admin, c.payload) // ← 本地边缘；现网一次都不打
+      : await postWeb(base, c.action, c.adminKeyOverride !== undefined ? c.adminKeyOverride : keys.admin, c.payload, c.headers || {}) // ← 本地边缘；现网一次都不打
     const added = auditRoster().slice(before)
     const entry = { action: c.action, status: nativeR.status, edge: nativeR.edge, statements: added.map((s) => s.sql.slice(0, 40)), ok: true }
     if (nativeR.edge !== "native") problems.push(c.name + "：x-edge=" + nativeR.edge + "（不是原生分支）")
@@ -1200,7 +1254,7 @@ writeFileSync(jsonOut, JSON.stringify({ ...report, problems }, null, 2) + '\n')
 console.log('原始读数 ' + jsonOut)
 console.log(problems.length
   ? '\nGATE-FAIL check-api-native-e2e：' + problems.length + ' 项\n  - ' + problems.join('\n  - ')
-  : '\nGATE-PASS check-api-native-e2e：公开面 8 + 管理读 26 + 写 37（写入只打本地边缘）= 71 个用例\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
+  : '\nGATE-PASS check-api-native-e2e：公开面 8 + 管理读 26 + 写 41（写入只打本地边缘）= 75 个用例\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
 
 edge.kill()
 mock.kill()

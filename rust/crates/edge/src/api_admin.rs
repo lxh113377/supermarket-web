@@ -100,7 +100,11 @@ pub const EVENT_LIMIT_DEFAULT: i64 = 50;
 pub const EVENT_LIMIT_MAX: i64 = 100;
 
 /// 在册的管理端原生动作（第 6 轮 getProducts；第 7 轮 4 个单表只读；第 8~9 轮 getStockMovements）。
-pub const ADMIN_NATIVE_ACTIONS: [&str; 27] = [
+/// 现网 security.js:77 的 RATE_LOGIN：60 秒 5 次（登录桶另立，与写桶/公开桶互不影响）。
+pub const LOGIN_RATE_WINDOW_MS: i64 = 60_000;
+pub const LOGIN_RATE_MAX: f64 = 5.0;
+
+pub const ADMIN_NATIVE_ACTIONS: [&str; 28] = [
     "getProducts",
     "getAllReviews",
     "getSubmissions",
@@ -128,6 +132,7 @@ pub const ADMIN_NATIVE_ACTIONS: [&str; 27] = [
     "updateSubmissionStatus",
     "deleteSubmission",
     "createSubmission",
+    "login",
 ];
 
 /// 开关：未设 ⇒ 全关；all 或逗号分隔的动作名（大小写无关）。
@@ -1362,6 +1367,23 @@ pub async fn call_admin(
     ip: &str,
 ) -> Option<Value> {
     // ① 鉴权（现网顺序：先鉴权，后动作校验）
+    // 登录限流必须在**鉴权之前**（无论密钥对错都计数，才能真正防暴力破解）—— 现网 backend.js:78 的顺序。
+    // 桶 rate:login:<ip>，5 次/60 秒（RATE_LOGIN）。
+    if action == "login" {
+        if let Some(d1_rate) = app.d1.as_ref() {
+            let bucket = format!("rate:login:{}", ip);
+            if let Some(env) = crate::api_pub_order::check_rate_db(
+                d1_rate,
+                &bucket,
+                LOGIN_RATE_WINDOW_MS,
+                LOGIN_RATE_MAX,
+            )
+            .await
+            {
+                return Some(env);
+            }
+        }
+    }
     if let Some(fail) = supermarket_core::auth::check_auth(
         action,
         admin_key,
@@ -1555,6 +1577,16 @@ pub async fn call_admin(
                 })),
             }
         }
+        "login" => {
+            // 现网 backend.js:103：result = { code: 0, role }（角色由 resolveRole 决定）。
+            // password 对的密钥到这里已经是通过 checkAuth 的（login 不在 PUBLIC_ACTIONS 里）。
+            let role_str = match role {
+                Some(supermarket_core::auth::Role::Admin) => "admin",
+                Some(supermarket_core::auth::Role::Readonly) => "readonly",
+                None => return None,
+            };
+            Some(json!({ "code": 0, "role": role_str }))
+        }
         "verifyKey" => {
             // 现网 backend.js:109：result = { code: 0, role }（角色由鉴权阶段解析出来）。
             // 走到这里说明鉴权已通过 ⇒ role 必为 Some；None 只可能是逻辑错，落回透传。
@@ -1725,7 +1757,8 @@ pub async fn call_admin(
                     && !k.contains(":getCatalogOrders:")
             });
         }
-        if supermarket_core::auth::is_admin_write_action(action) {
+        // 现网 backend.js:204：审计面 = login + 全部 ADMIN_WRITE_ACTIONS（写动作无论成败都落 ok/fail）
+        if action == "login" || supermarket_core::auth::is_admin_write_action(action) {
             // 现网：写动作**无论成败**都审计（result = ok / fail）
             audit(app, action, if ok { "ok" } else { "fail" }, admin_key, ip).await;
         }

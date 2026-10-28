@@ -1,4 +1,12 @@
 ## [未发布]
+### 2026-10-28 登录原生化（login；进度 35 / 37）
+- 顺序照抄：`rate:login:<ip>` 5/60s（**在鉴权之前**）→ checkAuth（login 不在 PUBLIC_ACTIONS ⇒ 必须密钥）→ 只读档判定 → `{code:0,role}` → 审计。
+- **失败审计用 auth_failed**（不是 fail）：错密钥 401 + 审计 result="auth_failed"；成功 result="ok"。
+  审计面 = login ∪ 全部 ADMIN_WRITE_ACTIONS（现网 backend.js:204），已补进后处理条件。
+- **只读密钥能登录**（回 role:readonly）—— 因为 login 登记在 ADMIN_READ_ACTIONS 里，绕过了「只读只能读」的闸门；两档角色都用例钉住。
+- 端到端新增 4 条（总写用例 41 / 用例 75）全绿，含**限流负控**（桶满 ⇒ 429 且只有限流读一条语句）。
+- 夹具自身一处错：postWeb 没有请求头参数 ⇒ cf-connecting-ip 被丢 ⇒ 限流桶名不匹配、负控没拦住（200）。已修（加 extraHeaders）。
+  **负控红了先怀疑夹具** —— 这条已是本会话第三次同类。
 ### 2026-10-28 提交域第三件：createSubmission（进度 34 / 37）
 - 校验链照抄：missing_service_info → too_many_images(>9) → invalid_image（**按 serviceId 分流**：print 走文件白名单）
   → image_too_large/payload_too_large（**两把互不共享的尺**）→ invalid_text（formData 逐键 50/200 字 + 文本守卫）。

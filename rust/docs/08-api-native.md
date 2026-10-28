@@ -833,3 +833,30 @@ text = 500 字、images 非数组 ⇒ **空表**（不是 invalid_image）。
 **为何没有新增 SQL 逐字判据**：`INSERT INTO submissions` 的列由 doc 决定 ⇒ 属动态 SQL（与商品/评价域同族），
 判据仍为 **54 条**，其正确性由「语句条数 + 参数个数 + 响应键序」三条腿覆盖。
 
+
+## 2v. 登录（第 29 轮；login）
+
+顺序（现网 backend.js:72-105，**限流在鉴权之前**）：`rate:login:<ip>` 5 次/60 秒 → `checkAuth`（login 不在 `PUBLIC_ACTIONS` 里 ⇒ 必须密钥）→
+只读档判定 → 分支返回 `{code:0,role}` → 审计。
+
+### 2v.1 三处值得单独记的语义
+
+1. **限流必须在鉴权之前**：无论密钥对错都计数，才能真正防暴力破解。我把它放在 `call_admin` 的最前面（`check_auth` 之前），
+   与现网顺序一致；桶另立（`rate:login`），与写桶 `rate:write`、AI 桶互不影响。
+2. **失败审计用的是 `auth_failed`**（不是 `fail`）：错密钥 ⇒ 401 + 审计一行 `result="auth_failed"`（参数长度 11，可判）；
+   成功 ⇒ `result="ok"`（长度 2）。审计面 = **login ∪ 全部 ADMIN_WRITE_ACTIONS**（现网 backend.js:204），我把这条也补进了后处理条件。
+3. **只读密钥能登录**（返回 `role: "readonly"`）—— 因为 login 被登记在 `ADMIN_READ_ACTIONS` 里，绕过了「只读档只能执行可读动作」的闸门。
+   这条不对称（只读密钥不能调 `getProducts` 之外的管理读？不 —— 能读；不能写）在用例里钉住了两档角色。
+
+### 2v.2 写用例（新增 4 条，总写用例 41 / 用例 75）
+
+| 用例 | HTTP | 断言 |
+|---|---|---|
+| 正确密钥 | 200 | `{code:0,role:"admin"}`；限流读 → 起桶 → 审计(ok) |
+| 错密钥 | 401 | `auth_failed`；限流读 → 起桶 → **审计(auth_failed，长度 11)** |
+| **限流（桶已满 5/60s）** | 429 | 只有限流读一条语句（负控：证明桶真的拦住了） |
+| 只读密钥 | 200 | `{code:0,role:"readonly"}` |
+
+**本轮夹具自身的一处错**：`postWeb` 没有请求头参数 ⇒ 用例带的 `cf-connecting-ip` 被丢掉 ⇒ 限流桶名不匹配 ⇒ 负控**没拦住**（响应 200）。
+修：给 `postWeb` 加 `extraHeaders`（与 `postPub` 同形）。**这条又一次说明：负控红了先怀疑夹具，而不是先怀疑实现。**
+
