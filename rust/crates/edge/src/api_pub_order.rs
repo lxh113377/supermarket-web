@@ -478,7 +478,7 @@ pub async fn create_order(d1: &D1Client, payload: Option<&Value>) -> Value {
 }
 
 /// 从 D1 的 result 数组里取第一条的 meta.changes（拿不到就按 0 —— 与现网 !r.meta?.changes 同义）。
-fn changes_of(result: &Value) -> i64 {
+pub fn changes_of(result: &Value) -> i64 {
     result
         .get(0)
         .and_then(|r| r.get("meta"))

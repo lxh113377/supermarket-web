@@ -493,6 +493,9 @@ if (keys.admin) {
   const orderFpSql2 = sqlOfFrom("crates/edge/src/api_pub_order.rs", "SQL_ORDER_BY_FINGERPRINT")
   const dupItemsJson = JSON.stringify([{ productId: orderBuyerId, name: "牛奶", spec: "", price: 4, quantity: 2, subcategories: [] }])
   ordersRows[orderFpSql2] = [{ _id: "o_dup_1", totalAmount: 8, items: dupItemsJson, wechat: "wx", remark: "", paymentScreenshot: "" }]
+// ── 商品域三写：改库存预读（按 SQL|params 精确命中）──
+const prodStockSql = sqlOfFrom("crates/edge/src/api_admin.rs", "SQL_PRODUCT_STOCK_READ")
+ordersRows[prodStockSql + "|" + JSON.stringify(["p_upd_probe"])] = [{ stock: 10 }]
 const rowsFile = path.join(rustRoot, '.cache', 'mock-d1-rows' + (parsedMode ? '-parsed' : '') + '.json')
 // __metaMissingIds 是给 mock 的负控面：命中这些 id 的 UPDATE/DELETE 回 changes=0
 writeFileSync(rowsFile, JSON.stringify({
@@ -811,6 +814,47 @@ if (!keys.admin) {
       expectStatements: [{ prefix: "SELECT count, resetAt FROM rate_limits", params: 1 }],
     })
   }
+  // 商品域三写（/web 管理写；只打本地边缘）
+  {
+    const auditOk = { prefix: "INSERT INTO security_events", params: 6, resultLen: 2 }
+    const auditFail = { prefix: "INSERT INTO security_events", params: 6, resultLen: 4 }
+    writeCases.push({
+      name: "deleteProduct（成功：单语句 + 审计）",
+      action: "deleteProduct", payload: { productId: "p_del_probe" },
+      expect: { code: 0 },
+      expectStatements: [{ prefix: "DELETE FROM products WHERE _id = ?", params: 1 }, auditOk],
+    })
+    writeCases.push({
+      name: "deleteProduct（缺 productId ⇒ 400）",
+      action: "deleteProduct", payload: {},
+      expect: { code: -1, errorCode: "missing_product_id" },
+      expectStatements: [auditFail],
+    })
+    writeCases.push({
+      name: "updateProduct（改价 + 改库存 ⇒ 预读 → UPDATE → 流水）",
+      action: "updateProduct", payload: { productId: "p_upd_probe", price: 4.5, stock: 3 },
+      expect: { code: 0 },
+      expectStatements: [
+        { prefix: "SELECT stock FROM products WHERE _id = ?", params: 1 },
+        { prefix: "UPDATE products SET", params: 4 },
+        { prefix: "INSERT INTO stock_movements", params: 8 },
+        auditOk,
+      ],
+    })
+    writeCases.push({
+      name: "createProduct（成功：插行 + 期初流水；响应键序）",
+      action: "createProduct",
+      payload: { name: "可乐", price: 3, stock: 5, subcategories: ["饮料"], enabled: false, image: "https://cdn.example.com/a.png", images: ["https://cdn.example.com/a.png"], specOptions: [{ label: " 大瓶 ", enabled: false }, { label: "大瓶" }, { label: "" }, "x"] },
+      expect: { code: 0 },
+      expectStatements: [
+        { prefix: "INSERT INTO products", params: 11 },
+        { prefix: "INSERT INTO stock_movements", params: 8 },
+        auditOk,
+      ],
+      expectDataKeys: "_id,name,price,subcategories,enabled,image,images,stock,specOptions,createdAt,updatedAt",
+      expectIdPrefix: "p_",
+    })
+  }
   for (const c of writeCases) {
     const before = auditRoster().length
     // /pub 写用例走 postPub（可带额外请求头，例如用 cf-connecting-ip 固定限流桶键）；其余走 /web
@@ -838,8 +882,18 @@ if (!keys.admin) {
         }
       }
     }
+    if (c.expectDataKeys) {
+      // 键序是接口契约的一部分（JSON.stringify 保序）⇒ 直接比 keys 的拼接
+      const keys = nativeR.json.data ? Object.keys(nativeR.json.data).join(",") : ""
+      if (keys !== c.expectDataKeys) {
+        entry.ok = false
+        problems.push(c.name + "：data 键序不符（" + keys + " ≠ " + c.expectDataKeys + "）")
+      }
+    }
     if (c.expectIdPrefix) {
-      const id = nativeR.json.data ? nativeR.json.data.id : undefined
+      // 订单类动作的 data 用 id；商品类用 _id（现网 products.js:118 回的是整份 doc）⇒ 两种都认
+      const d = nativeR.json.data
+      const id = d ? (d.id !== undefined ? d.id : d._id) : undefined
       if (typeof id !== "string" || !id.startsWith(c.expectIdPrefix)) {
         entry.ok = false
         problems.push(c.name + "：data.id 前缀不是 " + c.expectIdPrefix + "（" + id + "）")
@@ -891,7 +945,7 @@ writeFileSync(jsonOut, JSON.stringify({ ...report, problems }, null, 2) + '\n')
 console.log('原始读数 ' + jsonOut)
 console.log(problems.length
   ? '\nGATE-FAIL check-api-native-e2e：' + problems.length + ' 项\n  - ' + problems.join('\n  - ')
-  : '\nGATE-PASS check-api-native-e2e：公开面 8 + 管理读 26 + 写 10（写入只打本地边缘）= 44 个用例\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
+  : '\nGATE-PASS check-api-native-e2e：公开面 8 + 管理读 26 + 写 14（写入只打本地边缘）= 48 个用例\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
 
 edge.kill()
 mock.kill()

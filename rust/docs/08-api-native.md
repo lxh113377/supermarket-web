@@ -615,3 +615,32 @@ createOrder 是全仓最长的写动作（20 步），其中**只有最后 6 步
 
 夹具里已设 `NATIVE_PUB_WRITE=createOrder`（判据就位后显式打开）；**生产侧默认仍关** —— 开不开是独立决定，
 要的是「实现与判据都在、开关由人决定」，不是「悄悄把公开写切到新实现」。
+
+## 2o. 商品域三个写动作（第 22 轮；createProduct / updateProduct / deleteProduct）
+
+三者共用一份字段白名单（现网 shared.js:9 的 PRODUCT_FIELDS，**出现序即 INSERT 列序**）与同一套归一；
+核心抽 `crates/core/src/product_writes.rs`。它们都在目录失效面里 ⇒ 复用已有的「写后失效 → 审计」收口。
+
+| 动作 | 语句序列 | 要点 |
+|---|---|---|
+| deleteProduct | `DELETE FROM products WHERE _id = ?` → 审计 | 单语句；删不存在的 id 也走成功路径（幂等），不级联删流水（留孤儿账） |
+| updateProduct | 可选 `SELECT stock`（先读后改）→ 动态 `UPDATE products SET "c" = ? …` → 可选流水 → 审计 | `meta.changes` 为 0 ⇒ `product_not_found`（**早退前不写流水**）；`updatedAt` 无条件追加 |
+| createProduct | 动态 `INSERT INTO products` → 可选期初流水 → 审计 | 期初流水 kind=init/refType=ledger；**stock=0 时不发**（现网 normalizeMovement 拒 delta=0） |
+
+### 2o.1 判据抓出的一处真偏差（键序）
+
+`enabled` 是**无条件写入**的键，但位置讲究：入参带了它 ⇒ 保持白名单里的**原位**；入参没带 ⇒ **追加到末尾**。
+我第一版一律挪到末尾，判据报「data 键序不符」——这正是「键序也是接口契约」的例子。
+另外我自己的断言也写错了一处：商品类响应回的是 `_id`（整份 doc），不是订单类的 `id` ⇒ 断言改成两种都认。
+
+### 2o.2 写用例（新增 4 条，总写用例 14）
+
+| 用例 | HTTP | 断言 |
+|---|---|---|
+| deleteProduct（成功） | 200 | DELETE + 审计(ok) |
+| deleteProduct（缺 productId） | 400 | 只有审计(fail) |
+| updateProduct（改价 + 改库存） | 200 | 预读 → UPDATE → 流水 → 审计(ok) |
+| createProduct（成功） | 200 | INSERT products → 期初流水 → 审计(ok)；**响应键序** `_id,name,price,subcategories,enabled,image,images,stock,specOptions,createdAt,updatedAt` |
+
+动态 SQL（INSERT 的列由入参决定、UPDATE 的 SET 由字段决定）**进不了逐字判据**（没有静态文本可比）——
+它们的正确性由「语句条数 + 参数个数 + 响应键序」这三条用例腿覆盖，这一点在 docs/09 §3 里点名。

@@ -100,7 +100,7 @@ pub const EVENT_LIMIT_DEFAULT: i64 = 50;
 pub const EVENT_LIMIT_MAX: i64 = 100;
 
 /// 在册的管理端原生动作（第 6 轮 getProducts；第 7 轮 4 个单表只读；第 8~9 轮 getStockMovements）。
-pub const ADMIN_NATIVE_ACTIONS: [&str; 14] = [
+pub const ADMIN_NATIVE_ACTIONS: [&str; 17] = [
     "getProducts",
     "getAllReviews",
     "getSubmissions",
@@ -115,6 +115,9 @@ pub const ADMIN_NATIVE_ACTIONS: [&str; 14] = [
     "getDashboardStats",
     "deleteReview",
     "adjustStock",
+    "createProduct",
+    "updateProduct",
+    "deleteProduct",
 ];
 
 /// 开关：未设 ⇒ 全关；all 或逗号分隔的动作名（大小写无关）。
@@ -314,6 +317,264 @@ async fn adjust_stock(d1: &D1Client, payload: Option<&Value>) -> Option<Value> {
         "code": 0,
         "data": supermarket_core::stock_ops::adjust_data(&pid, before, after, ledger),
     }))
+}
+/// 现网 products.js:274 —— 删除商品（单语句；删不存在的 id 也走成功路径）。
+pub const SQL_DELETE_PRODUCT: &str = r#"DELETE FROM products WHERE _id = ?"#;
+/// 现网 products.js:163 —— 改库存前的预读（绝对值入口要留痕，必须先读后改）。
+pub const SQL_PRODUCT_STOCK_READ: &str = r#"SELECT stock FROM products WHERE _id = ?"#;
+/// 商品域共有：`stock` 有现值且为有限非负时，才需要记一条流水（现网 normalizeMovement 拒 delta=0）。
+const PRODUCT_MOVEMENT_SQL: &str = SQL_MOVEMENT_INSERT;
+
+/// 现网 products.js:92 的 createProduct（返回完整响应封套）。
+///
+/// 两步写：products 插行，紧接一条期初流水（kind=init）。stock=0 时**不发**流水 ——
+/// 现网 normalizeMovement 把 delta=0 当非法（记 0 行只会污染对账），所以那条会静默消失。
+async fn create_product(d1: &D1Client, payload: Option<&Value>) -> Option<Value> {
+    use supermarket_core::product_writes as pw;
+    let fail = |code: &str, msg: &str| supermarket_core::errors::fail(code, msg, Default::default());
+    let mut data: Vec<(String, Value)> = pw::pick_product_fields(payload);
+    // enabled 是**无条件写入**的键（现网 data.enabled = data.enabled !== false）
+    // enabled 是**无条件写入**的键，但位置讲究：入参带了它 ⇒ 保持白名单里的原位；
+    // 入参没带 ⇒ 追加到末尾（正是 JS 里 data.enabled = ... 对已存在/不存在的键分别的行为）。
+    // 第一版一律挪到末尾，判据当场抓到「data 键序不符」。
+    let enabled_val = payload.and_then(|p| p.get("enabled"));
+    let flag = pw::enabled_flag(enabled_val);
+    match data.iter().position(|(k, _)| k == "enabled") {
+        Some(pos) => data[pos].1 = Value::Bool(flag),
+        None => data.push(("enabled".to_string(), Value::Bool(flag))),
+    }
+    // stock / specOptions 只在入参带了该键时才归一（现网 if (key in data)）
+    if let Some(pos) = data.iter().position(|(k, _)| k == "stock") {
+        let v = data[pos].1.clone();
+        data[pos] = ("stock".to_string(), pw::sanitize_stock(Some(&v)));
+    }
+    if let Some(pos) = data.iter().position(|(k, _)| k == "specOptions") {
+        let v = data[pos].1.clone();
+        data[pos] = ("specOptions".to_string(), pw::sanitize_spec_options(Some(&v)));
+    }
+    // 图片白名单（主图 + 图册）；图册先判条数、再判每项
+    if let Some(v) = payload.and_then(|p| p.get("image")) {
+        let truthy = match v {
+            Value::String(s) => !s.is_empty(),
+            Value::Bool(b) => *b,
+            Value::Number(n) => n.as_f64().map(|x| x != 0.0).unwrap_or(false),
+            Value::Array(a) => !a.is_empty(),
+            Value::Object(_) => true,
+            _ => false,
+        };
+        if truthy {
+            let ok = v.as_str().map(supermarket_core::order_intake::is_safe_image_url).unwrap_or(false);
+            if !ok {
+                return Some(fail("invalid_image", "商品主图格式无效"));
+            }
+        }
+    }
+    if let Some(v) = payload.and_then(|p| p.get("images")) {
+        if let Value::Array(list) = v {
+            if list.len() > pw::MAX_PRODUCT_IMAGES {
+                return Some(fail("too_many_images", "商品图册最多 9 张"));
+            }
+            match pw::validate_images(v) {
+                None => return Some(fail("invalid_image", "商品图片格式无效")),
+                Some(clean) => {
+                    if let Some(pos) = data.iter().position(|(k, _)| k == "images") {
+                        data[pos] = ("images".to_string(), Value::Array(clean));
+                    }
+                }
+            }
+        }
+    }
+    // 组装 doc：_id + 数据键（白名单序）+ 两个时间戳
+    // 现网 db.js:32 的 genId 同一套形状（前缀不同）；订单号生成器在 pub 模块里，这里按前缀改写
+    let id = crate::api_pub_order::gen_order_id().replacen("o_", "p_", 1);
+    let c1 = crate::api::iso_now();
+    let c2 = crate::api::iso_now();
+    let mut cols: Vec<String> = vec!["_id".to_string()];
+    let mut params: Vec<Value> = vec![json!(id)];
+    for (k, v) in &data {
+        cols.push(k.clone());
+        params.push(pw::bind_value(v));
+    }
+    cols.push("createdAt".to_string());
+    params.push(json!(c1));
+    cols.push("updatedAt".to_string());
+    params.push(json!(c2));
+    let sql = pw::insert_sql("products", &cols);
+    if d1.query(&sql, &params).await.is_err() {
+        return Some(fail("internal_error", "服务暂时不可用，请稍后重试"));
+    }
+    // 期初流水：仅当 stock 是「有限非负且不为 0」时发（delta=0 会被现网判非法）
+    let stock_val = data
+        .iter()
+        .find(|(k, _)| k == "stock")
+        .map(|(_, v)| supermarket_core::jsnum::js_number_of(Some(v)));
+    if let Some(s) = stock_val {
+        if s >= 0.0 && s != 0.0 {
+            let m = crate::api::iso_now();
+            let _ = d1
+                .query(
+                    PRODUCT_MOVEMENT_SQL,
+                    &[
+                        json!(id),
+                        json!(s as i64),
+                        json!("init"),
+                        json!("ledger"),
+                        json!(""),
+                        json!("admin"),
+                        json!("新品建档期初"),
+                        json!(m),
+                    ],
+                )
+                .await;
+        }
+    }
+    // 响应 data = doc（键序照抄；**不经** rowToProduct）
+    let mut doc = serde_json::Map::new();
+    for (i, c) in cols.iter().enumerate() {
+        doc.insert(c.clone(), params[i].clone());
+    }
+    doc.insert("_id".to_string(), json!(id));
+    Some(json!({ "code": 0, "data": Value::Object(doc) }))
+}
+/// 现网 products.js:155 的 applyProductUpdate（updateProduct 的核心）。
+async fn update_product(d1: &D1Client, payload: Option<&Value>) -> Option<Value> {
+    use supermarket_core::product_writes as pw;
+    let fail = |code: &str, msg: &str| supermarket_core::errors::fail(code, msg, Default::default());
+    let pid_val = payload.and_then(|p| p.get("productId"));
+    let truthy = match pid_val {
+        Some(Value::String(s)) => !s.is_empty(),
+        Some(Value::Number(n)) => n.as_f64().map(|x| x != 0.0 && !x.is_nan()).unwrap_or(true),
+        Some(Value::Bool(b)) => *b,
+        _ => false,
+    };
+    if !truthy {
+        return Some(fail("missing_product_id", "缺少 productId"));
+    }
+    let pid = match pid_val {
+        Some(Value::String(s)) => s.clone(),
+        Some(Value::Number(n)) => supermarket_core::jsnum::js_number_string(n.as_f64().unwrap_or(0.0)),
+        _ => String::new(),
+    };
+    let mut data: Vec<(String, Value)> = pw::pick_product_fields(payload);
+    if let Some(pos) = data.iter().position(|(k, _)| k == "stock") {
+        let v = data[pos].1.clone();
+        data[pos] = ("stock".to_string(), pw::sanitize_stock(Some(&v)));
+    }
+    if let Some(pos) = data.iter().position(|(k, _)| k == "specOptions") {
+        let v = data[pos].1.clone();
+        data[pos] = ("specOptions".to_string(), pw::sanitize_spec_options(Some(&v)));
+    }
+    // enabled 只在**入参显式带了**该键时才写（防部分更新把缺货商品静默重上架）
+    if let Some(v) = payload.and_then(|p| p.get("enabled")) {
+        let flag = pw::enabled_flag(Some(v));
+        data.retain(|(k, _)| k != "enabled");
+        data.push(("enabled".to_string(), Value::Bool(flag)));
+    }
+    // 改库存的绝对值入口必须先读后改（改完再读 delta 恒为 0，账就记空了）
+    let stock_present = data.iter().any(|(k, _)| k == "stock");
+    let mut before: Option<f64> = None;
+    if stock_present {
+        let rows = d1.query_rows(SQL_PRODUCT_STOCK_READ, &[json!(pid)]).await.ok()?;
+        before = rows
+            .first()
+            .map(|r| supermarket_core::jsnum::js_number_of(r.get("stock")));
+    }
+    if let Some(v) = payload.and_then(|p| p.get("image")) {
+        let truthy_img = match v {
+            Value::String(s) => !s.is_empty(),
+            Value::Bool(b) => *b,
+            Value::Number(n) => n.as_f64().map(|x| x != 0.0).unwrap_or(false),
+            Value::Array(a) => !a.is_empty(),
+            Value::Object(_) => true,
+            _ => false,
+        };
+        if truthy_img {
+            let ok = v.as_str().map(supermarket_core::order_intake::is_safe_image_url).unwrap_or(false);
+            if !ok {
+                return Some(fail("invalid_image", "商品主图格式无效"));
+            }
+        }
+    }
+    if let Some(Value::Array(list)) = payload.and_then(|p| p.get("images")) {
+        if list.len() > pw::MAX_PRODUCT_IMAGES {
+            return Some(fail("too_many_images", "商品图册最多 9 张"));
+        }
+        let v = Value::Array(list.clone());
+        match pw::validate_images(&v) {
+            None => return Some(fail("invalid_image", "商品图片格式无效")),
+            Some(clean) => {
+                if let Some(pos) = data.iter().position(|(k, _)| k == "images") {
+                    data[pos] = ("images".to_string(), Value::Array(clean));
+                }
+            }
+        }
+    }
+    // updatedAt 无条件追加（现网先赋值再判空，所以「无更新字段」那条实际不可达）
+    let ts = crate::api::iso_now();
+    data.push(("updatedAt".to_string(), json!(ts)));
+    let cols: Vec<String> = data.iter().map(|(k, _)| k.clone()).collect();
+    let sql = format!("UPDATE products SET {} WHERE _id = ?", pw::update_set_sql(&cols));
+    let mut params: Vec<Value> = data.iter().map(|(_, v)| pw::bind_value(v)).collect();
+    params.push(json!(pid));
+    let res = match d1.query(&sql, &params).await {
+        Ok(v) => v,
+        Err(_) => return Some(fail("internal_error", "服务暂时不可用，请稍后重试")),
+    };
+    if crate::api_pub_order::changes_of(&res) == 0 {
+        return Some(fail("product_not_found", "商品不存在"));
+    }
+    if stock_present {
+        let new_stock = data
+            .iter()
+            .find(|(k, _)| k == "stock")
+            .map(|(_, v)| supermarket_core::jsnum::js_number_of(Some(v)))
+            .unwrap_or(f64::NAN);
+        let b = before.unwrap_or(f64::NAN);
+        if let Some(delta) = supermarket_core::stock_ops::delta_for_stock_change(b, new_stock) {
+            let m = crate::api::iso_now();
+            let _ = d1
+                .query(
+                    PRODUCT_MOVEMENT_SQL,
+                    &[
+                        json!(pid),
+                        json!(delta),
+                        json!("adjust"),
+                        json!("manual"),
+                        json!(""),
+                        json!("admin"),
+                        json!("后台商品编辑改数"),
+                        json!(m),
+                    ],
+                )
+                .await;
+        }
+    }
+    Some(json!({ "code": 0 }))
+}
+
+/// 现网 products.js:271 的 deleteProduct（单语句；删不存在的 id 也回 code 0）。
+async fn delete_product(d1: &D1Client, payload: Option<&Value>) -> Option<Value> {
+    let pid_val = payload.and_then(|p| p.get("productId"));
+    let truthy = match pid_val {
+        Some(Value::String(s)) => !s.is_empty(),
+        Some(Value::Number(n)) => n.as_f64().map(|x| x != 0.0 && !x.is_nan()).unwrap_or(true),
+        Some(Value::Bool(b)) => *b,
+        _ => false,
+    };
+    if !truthy {
+        return Some(supermarket_core::errors::fail(
+            "missing_product_id",
+            "缺少 productId",
+            Default::default(),
+        ));
+    }
+    let pid = match pid_val {
+        Some(Value::String(s)) => s.clone(),
+        Some(Value::Number(n)) => supermarket_core::jsnum::js_number_string(n.as_f64().unwrap_or(0.0)),
+        _ => String::new(),
+    };
+    let _ = d1.query(SQL_DELETE_PRODUCT, &[json!(pid)]).await.ok()?;
+    Some(json!({ "code": 0 }))
 }
 pub async fn call_admin(
     app: &Arc<App>,
@@ -651,6 +912,9 @@ pub async fn call_admin(
             }
         }
         "adjustStock" => adjust_stock(d1, payload).await,
+        "createProduct" => create_product(d1, payload).await,
+        "updateProduct" => update_product(d1, payload).await,
+        "deleteProduct" => delete_product(d1, payload).await,
         _ => None,
     };
 
