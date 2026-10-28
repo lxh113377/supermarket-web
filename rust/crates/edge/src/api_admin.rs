@@ -607,6 +607,20 @@ async fn batch_update_products(d1: &D1Client, payload: Option<&Value>) -> Option
         let msg = format!("单次批量最多 {} 个商品，请分批提交", pw::BATCH_UPDATE_MAX);
         return Some(supermarket_core::errors::fail("batch_too_large", &msg, Default::default()));
     }
+    // 复核点出的一处分支：现网在预读处就会做 `"stock" in it.updates`，
+    // updates 若是字符串/数字 ⇒ 抛 TypeError ⇒ handleAdmin 兜成 internal_error 且**零写入**（整批拒）。
+    // 本实现照抄这个「先整批验形状、再动手」的顺序（否则我会默默只写 updatedAt，语义不同）。
+    for it in &items {
+        if let Some(u) = it.get("updates") {
+            if !u.is_object() {
+                return Some(supermarket_core::errors::fail(
+                    "internal_error",
+                    "服务暂时不可用，请稍后重试",
+                    Default::default(),
+                ));
+            }
+        }
+    }
     // 预读：只对「updates 里带 stock」的项取改前值（1 条 IN）
     let stock_ids: Vec<Value> = items
         .iter()

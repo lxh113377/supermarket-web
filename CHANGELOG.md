@@ -1,4 +1,7 @@
 ## [未发布]
+- **复核点出的一处分支已对齐**：现网在预读处就做 `"stock" in it.updates`，`updates` 若是字符串/数字会抛 TypeError
+  ⇒ handleAdmin 兜成 `internal_error` 且**整批零写入**。我第一版会默默只写 `updatedAt`（语义不同）；
+  已改成「先整批验形状、再动手」，并加写用例（500 + 只有审计一条语句）钉住。
 ### 2026-10-28 批量商品写（batchUpdateProducts / batchDeleteProducts；进度 25 / 37）
 - 两个批量动作落成，共用单条实现：批量更新**逐件复用 applyProductUpdate**，批量预读到的「改前库存」作为入参传进去 ——
   这正是现网做法（先一条 IN 拿全，再逐件应用），语句序列因此与现网一致。

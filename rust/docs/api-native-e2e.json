@@ -1,5 +1,5 @@
 {
-  "at": "2026-10-28T06:26:21.058Z",
+  "at": "2026-10-28T08:36:00.060Z",
   "live": "https://supermarket-web.pages.dev",
   "edge": "http://127.0.0.1:5198",
   "mode": "JSON 列=文本",
@@ -46,7 +46,7 @@
     "getOrderStatus（未知订单号：错误路径）": {
       "action": "getOrderStatus",
       "payload": {
-        "orderId": "o_not_exist_1793168762439"
+        "orderId": "o_not_exist_1793176541712"
       },
       "status": 404,
       "edge": "native",
@@ -384,6 +384,142 @@
         "INSERT INTO security_events (ts, ip, act"
       ],
       "ok": true
+    },
+    "createOrder（成功：7 条语句 + 响应）": {
+      "action": "createOrder",
+      "status": 200,
+      "edge": "native",
+      "statements": [
+        "SELECT count, resetAt FROM rate_limits W",
+        "INSERT INTO rate_limits (bucket, count, ",
+        "SELECT _id, name, spec, specOptions, pri",
+        "SELECT _id, threshold, discount FROM pro",
+        "SELECT _id, totalAmount FROM orders WHER",
+        "UPDATE products SET stock = stock - ?, u",
+        "INSERT INTO stock_movements (productId, ",
+        "INSERT INTO orders (\"_id\", \"roomNumber\","
+      ],
+      "ok": true
+    },
+    "createOrder（指纹去重命中：不动库存）": {
+      "action": "createOrder",
+      "status": 200,
+      "edge": "native",
+      "statements": [
+        "SELECT count, resetAt FROM rate_limits W",
+        "INSERT INTO rate_limits (bucket, count, ",
+        "SELECT _id, name, spec, specOptions, pri",
+        "SELECT _id, threshold, discount FROM pro",
+        "SELECT _id, totalAmount, items, wechat, ",
+        "SELECT discountAmount, promotionId FROM "
+      ],
+      "ok": true
+    },
+    "createOrder（库存不足：护栏 UPDATE 0 变更 ⇒ stock_insufficient）": {
+      "action": "createOrder",
+      "status": 409,
+      "edge": "native",
+      "statements": [
+        "SELECT count, resetAt FROM rate_limits W",
+        "INSERT INTO rate_limits (bucket, count, ",
+        "SELECT _id, name, spec, specOptions, pri",
+        "SELECT _id, threshold, discount FROM pro",
+        "SELECT _id, totalAmount FROM orders WHER",
+        "UPDATE products SET stock = stock - ?, u"
+      ],
+      "ok": true
+    },
+    "createOrder（限流：20/60s 桶已满 ⇒ 429 + retryAfterMs）": {
+      "action": "createOrder",
+      "status": 429,
+      "edge": "native",
+      "statements": [
+        "SELECT count, resetAt FROM rate_limits W"
+      ],
+      "ok": true
+    },
+    "deleteProduct（成功：单语句 + 审计）": {
+      "action": "deleteProduct",
+      "status": 200,
+      "edge": "native",
+      "statements": [
+        "DELETE FROM products WHERE _id = ?",
+        "INSERT INTO security_events (ts, ip, act"
+      ],
+      "ok": true
+    },
+    "deleteProduct（缺 productId ⇒ 400）": {
+      "action": "deleteProduct",
+      "status": 400,
+      "edge": "native",
+      "statements": [
+        "INSERT INTO security_events (ts, ip, act"
+      ],
+      "ok": true
+    },
+    "updateProduct（改价 + 改库存 ⇒ 预读 → UPDATE → 流水）": {
+      "action": "updateProduct",
+      "status": 200,
+      "edge": "native",
+      "statements": [
+        "SELECT stock FROM products WHERE _id = ?",
+        "UPDATE products SET \"price\" = ?, \"stock\"",
+        "INSERT INTO stock_movements (productId, ",
+        "INSERT INTO security_events (ts, ip, act"
+      ],
+      "ok": true
+    },
+    "createProduct（成功：插行 + 期初流水；响应键序）": {
+      "action": "createProduct",
+      "status": 200,
+      "edge": "native",
+      "statements": [
+        "INSERT INTO products (\"_id\", \"name\", \"pr",
+        "INSERT INTO stock_movements (productId, ",
+        "INSERT INTO security_events (ts, ip, act"
+      ],
+      "ok": true
+    },
+    "batchUpdateProducts（1 条成功 + 1 条缺 id）": {
+      "action": "batchUpdateProducts",
+      "status": 200,
+      "edge": "native",
+      "statements": [
+        "SELECT _id, stock FROM products WHERE _i",
+        "UPDATE products SET \"price\" = ?, \"stock\"",
+        "INSERT INTO stock_movements (productId, ",
+        "INSERT INTO security_events (ts, ip, act"
+      ],
+      "ok": true
+    },
+    "batchDeleteProducts（去重 + 存在集合口径 + 失败清单）": {
+      "action": "batchDeleteProducts",
+      "status": 200,
+      "edge": "native",
+      "statements": [
+        "SELECT _id FROM products WHERE _id IN (?",
+        "DELETE FROM products WHERE _id IN (?,?,?",
+        "INSERT INTO security_events (ts, ip, act"
+      ],
+      "ok": true
+    },
+    "batchUpdateProducts（updates 非对象 ⇒ 整批拒、零写入）": {
+      "action": "batchUpdateProducts",
+      "status": 500,
+      "edge": "native",
+      "statements": [
+        "INSERT INTO security_events (ts, ip, act"
+      ],
+      "ok": true
+    },
+    "batchUpdateProducts（缺 items ⇒ 400）": {
+      "action": "batchUpdateProducts",
+      "status": 400,
+      "edge": "native",
+      "statements": [
+        "INSERT INTO security_events (ts, ip, act"
+      ],
+      "ok": true
     }
   },
   "rowsFed": {
@@ -548,6 +684,158 @@
         24,
         0,
         11,
+        4,
+        8,
+        0
+      ]
+    },
+    {
+      "paramCount": 6,
+      "paramTypes": [
+        "string",
+        "string",
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "paramLengths": [
+        24,
+        0,
+        13,
+        2,
+        8,
+        0
+      ]
+    },
+    {
+      "paramCount": 6,
+      "paramTypes": [
+        "string",
+        "string",
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "paramLengths": [
+        24,
+        0,
+        13,
+        4,
+        8,
+        0
+      ]
+    },
+    {
+      "paramCount": 6,
+      "paramTypes": [
+        "string",
+        "string",
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "paramLengths": [
+        24,
+        0,
+        13,
+        2,
+        8,
+        0
+      ]
+    },
+    {
+      "paramCount": 6,
+      "paramTypes": [
+        "string",
+        "string",
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "paramLengths": [
+        24,
+        0,
+        13,
+        2,
+        8,
+        0
+      ]
+    },
+    {
+      "paramCount": 6,
+      "paramTypes": [
+        "string",
+        "string",
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "paramLengths": [
+        24,
+        0,
+        19,
+        2,
+        8,
+        0
+      ]
+    },
+    {
+      "paramCount": 6,
+      "paramTypes": [
+        "string",
+        "string",
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "paramLengths": [
+        24,
+        0,
+        19,
+        2,
+        8,
+        0
+      ]
+    },
+    {
+      "paramCount": 6,
+      "paramTypes": [
+        "string",
+        "string",
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "paramLengths": [
+        24,
+        0,
+        19,
+        4,
+        8,
+        0
+      ]
+    },
+    {
+      "paramCount": 6,
+      "paramTypes": [
+        "string",
+        "string",
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "paramLengths": [
+        24,
+        0,
+        19,
         4,
         8,
         0

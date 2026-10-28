@@ -891,6 +891,13 @@ if (!keys.admin) {
       ],
     })
     writeCases.push({
+      name: "batchUpdateProducts（updates 非对象 ⇒ 整批拒、零写入）",
+      action: "batchUpdateProducts",
+      payload: { items: [{ productId: "p_bu_1", updates: "oops" }] },
+      expect: { code: -1, errorCode: "internal_error" },
+      expectStatements: [auditFail],
+    })
+    writeCases.push({
       name: "batchUpdateProducts（缺 items ⇒ 400）",
       action: "batchUpdateProducts", payload: {},
       expect: { code: -1, errorCode: "missing_items" },
@@ -987,7 +994,7 @@ writeFileSync(jsonOut, JSON.stringify({ ...report, problems }, null, 2) + '\n')
 console.log('原始读数 ' + jsonOut)
 console.log(problems.length
   ? '\nGATE-FAIL check-api-native-e2e：' + problems.length + ' 项\n  - ' + problems.join('\n  - ')
-  : '\nGATE-PASS check-api-native-e2e：公开面 8 + 管理读 26 + 写 17（写入只打本地边缘）= 51 个用例\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
+  : '\nGATE-PASS check-api-native-e2e：公开面 8 + 管理读 26 + 写 18（写入只打本地边缘）= 52 个用例\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
 
 edge.kill()
 mock.kill()
