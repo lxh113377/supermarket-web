@@ -293,6 +293,32 @@ pub async fn handle_gateway(
 
     if endpoint == Endpoint::Pub {
         if let Some(a) = action.as_deref() {
+            // ②c /pub 的写动作（createOrder）：**先限流、再下单**，且永不进缓存
+            //     （缓存写响应等于把「下单成功」当成可重放的结果 —— 这是本仓的显式红线）。
+            // **默认关**：这是公开写动作用户可见的关键路径，判据（mock 只打本地的写用例）没就位前不许默认生效。
+            // 打开方式与 admin 侧同风格：环境变量 NATIVE_PUB_WRITE 里列动作名（逗号分隔）。
+            if a == "createOrder" && crate::api_pub_order::pub_write_native_enabled(a) {
+                if let Some(d1) = app.d1.as_ref() {
+                    let bucket = format!("rate:write:{}", crate::api_admin::client_ip(headers));
+                    let limited = crate::api_pub_order::check_rate_db(
+                        d1,
+                        &bucket,
+                        crate::api_pub_order::RATE_PUBLIC_WRITE_WINDOW_MS,
+                        crate::api_pub_order::RATE_PUBLIC_WRITE_MAX,
+                    )
+                    .await;
+                    let value = match limited {
+                        Some(env) => env,
+                        None => crate::api_pub_order::create_order(d1, parsed.get("payload")).await,
+                    };
+                    let bytes = Bytes::from(value.to_string());
+                    let status = StatusCode::from_u16(supermarket_core::contract::status_of(&value))
+                        .unwrap_or(StatusCode::OK);
+                    let mut out_headers: Vec<(String, String)> = cors.clone();
+                    out_headers.push(("x-edge".to_string(), "native".to_string()));
+                    return json_response(status, bytes, out_headers);
+                }
+            }
             if api_native::native_enabled(a) {
                 // 现网从这里取载荷（handlePublic/handleWeb 也是 parsed.payload）；
                 // 缺 payload 时给 None —— 由动作自己按现网语义判 missing_*（不在这里猜）

@@ -98,7 +98,7 @@ const fetchRetry = async (url, opts, attempts = 3) => {
   throw last
 }
 
-const postPub = async (base, action, payload) => {
+const postPub = async (base, action, payload, extraHeaders = {}) => {
   const body = payload === undefined ? { action } : { action, payload }
   const res = await fetchRetry(base + '/pub', {
     method: 'POST',

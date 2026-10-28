@@ -15,6 +15,7 @@
 //!   2. 内联样式 + preload —— 首屏关键请求数与 FCP·LCP；
 //!   3. 预压缩 + 长缓存 + ETag —— 传输字节与重复访问（304 零字节命中）。
 
+mod api_pub_order;
 mod api;
 mod api_admin;
 mod api_native;
