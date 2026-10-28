@@ -100,7 +100,7 @@ pub const EVENT_LIMIT_DEFAULT: i64 = 50;
 pub const EVENT_LIMIT_MAX: i64 = 100;
 
 /// 在册的管理端原生动作（第 6 轮 getProducts；第 7 轮 4 个单表只读；第 8~9 轮 getStockMovements）。
-pub const ADMIN_NATIVE_ACTIONS: [&str; 24] = [
+pub const ADMIN_NATIVE_ACTIONS: [&str; 26] = [
     "getProducts",
     "getAllReviews",
     "getSubmissions",
@@ -125,6 +125,8 @@ pub const ADMIN_NATIVE_ACTIONS: [&str; 24] = [
     "recalculateOrders",
     "addReview",
     "seedReviews",
+    "updateSubmissionStatus",
+    "deleteSubmission",
 ];
 
 /// 开关：未设 ⇒ 全关；all 或逗号分隔的动作名（大小写无关）。
@@ -1170,6 +1172,80 @@ async fn seed_reviews(d1: &D1Client) -> Option<Value> {
     }
     Some(json!({ "code": 0, "data": { "added": added } }))
 }
+/// 现网 submissions.js:101 —— 改状态（**无状态白名单**；status 假值落 done）。
+pub const SQL_SUBMISSION_STATUS: &str = r#"UPDATE submissions SET status = ?, updatedAt = ? WHERE _id = ?"#;
+/// 现网 submissions.js:109 —— 删提交（单语句，不级联删子表）。
+pub const SQL_SUBMISSION_DELETE: &str = r#"DELETE FROM submissions WHERE _id = ?"#;
+/// 现网 submissions.js:99 的 updateSubmissionStatus（无白名单 + meta.changes 判存在）。
+async fn update_submission_status(d1: &D1Client, payload: Option<&Value>) -> Option<Value> {
+    let sid_raw = payload.and_then(|p| p.get("submissionId"));
+    let truthy = match sid_raw {
+        Some(Value::String(s)) => !s.is_empty(),
+        Some(Value::Number(n)) => n.as_f64().map(|x| x != 0.0 && !x.is_nan()).unwrap_or(true),
+        Some(Value::Bool(b)) => *b,
+        _ => false,
+    };
+    if !truthy {
+        return Some(supermarket_core::errors::fail(
+            "missing_submission_id",
+            "缺少 submissionId",
+            Default::default(),
+        ));
+    }
+    let sid = match sid_raw {
+        Some(Value::String(s)) => s.clone(),
+        Some(Value::Number(n)) => supermarket_core::jsnum::js_number_string(n.as_f64().unwrap_or(0.0)),
+        _ => String::new(),
+    };
+    let status = supermarket_core::submission_writes::normalize_submission_status(payload.and_then(|p| p.get("status")));
+    let ts = crate::api::iso_now();
+    let res = match d1
+        .query(SQL_SUBMISSION_STATUS, &[json!(status), json!(ts), json!(sid)])
+        .await
+    {
+        Ok(v) => v,
+        Err(_) => {
+            return Some(supermarket_core::errors::fail(
+                "internal_error",
+                "服务暂时不可用，请稍后重试",
+                Default::default(),
+            ))
+        }
+    };
+    if crate::api_pub_order::changes_of(&res) == 0 {
+        return Some(supermarket_core::errors::fail(
+            "submission_not_found",
+            "提交不存在",
+            Default::default(),
+        ));
+    }
+    Some(json!({ "code": 0 }))
+}
+
+/// 现网 submissions.js:107 的 deleteSubmission（单语句；不看 meta.changes、不级联删）。
+async fn delete_submission(d1: &D1Client, payload: Option<&Value>) -> Option<Value> {
+    let sid_raw = payload.and_then(|p| p.get("submissionId"));
+    let truthy = match sid_raw {
+        Some(Value::String(s)) => !s.is_empty(),
+        Some(Value::Number(n)) => n.as_f64().map(|x| x != 0.0 && !x.is_nan()).unwrap_or(true),
+        Some(Value::Bool(b)) => *b,
+        _ => false,
+    };
+    if !truthy {
+        return Some(supermarket_core::errors::fail(
+            "missing_submission_id",
+            "缺少 submissionId",
+            Default::default(),
+        ));
+    }
+    let sid = match sid_raw {
+        Some(Value::String(s)) => s.clone(),
+        Some(Value::Number(n)) => supermarket_core::jsnum::js_number_string(n.as_f64().unwrap_or(0.0)),
+        _ => String::new(),
+    };
+    let _ = d1.query(SQL_SUBMISSION_DELETE, &[json!(sid)]).await.ok()?;
+    Some(json!({ "code": 0 }))
+}
 pub async fn call_admin(
     app: &Arc<App>,
     action: &str,
@@ -1516,6 +1592,8 @@ pub async fn call_admin(
         "recalculateOrders" => recalculate_orders(d1).await,
         "addReview" => add_review(d1, payload).await,
         "seedReviews" => seed_reviews(d1).await,
+        "updateSubmissionStatus" => update_submission_status(d1, payload).await,
+        "deleteSubmission" => delete_submission(d1, payload).await,
         _ => None,
     };
 

@@ -1,4 +1,10 @@
 ## [未发布]
+### 2026-10-28 提交域两写（updateSubmissionStatus / deleteSubmission；进度 33 / 37）
+- updateSubmissionStatus：**没有状态白名单** —— 只做 `status || done` 假值兜底，任何字符串都写；changes=0 ⇒ submission_not_found。
+  这与订单状态机的严格迁移表**正好相反**：按「更安全」的直觉加白名单就是行为不同（会拒掉现网接受的调用）。
+- deleteSubmission：单语句删、不看 meta.changes、不级联删子表。
+- SQL 逐字判据 52 → 54 条；端到端新增 3 条（总写用例 31 / 用例 65）全绿。
+- 夹具纪律补一条：**用内联字面量，不跨块引用变量** —— 上一轮就是跨块引用让夹具当场抛错、还写出了「62 用例全绿」的假话。
 ### 2026-10-28 评价域三写（addReview / addPublicReview / seedReviews；进度 31 / 37）
 - addReview：单行 INSERT + 完整守卫链（productOrder / 图册张数与 scheme / 单张与**合计**体积共享 90000 预算 / 正文长度与四条黑名单）。
 - addPublicReview：现网就是 addReview 的**直接复用**（backend.js:153）⇒ 本实现复用同一函数；差别只在入口 ——

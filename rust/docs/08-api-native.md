@@ -774,3 +774,26 @@ text = 500 字、images 非数组 ⇒ **空表**（不是 invalid_image）。
 - 端到端新增 5 条（总写用例 28 / 用例 **62**）：addReview 成功、rating 越界钳制 + user 缺省、正文黑名单、
   **addPublicReview 在 /pub（限流起桶 + 插行 + 无审计）**、seedReviews 库非空跳过。
 
+
+## 2t. 提交域两写（第 27 轮；updateSubmissionStatus / deleteSubmission）
+
+| 动作 | 语句序列 | 要点 |
+|---|---|---|
+| updateSubmissionStatus | `UPDATE submissions SET status = ?, updatedAt = ? WHERE _id = ?` → 审计 | **没有状态白名单** —— 只做 `status || done` 的假值兜底，任何字符串都写进去；`meta.changes` 为 0 ⇒ `submission_not_found` |
+| deleteSubmission | `DELETE FROM submissions WHERE _id = ?` → 审计 | 单语句；**不看 `meta.changes`**（删不存在的 id 也回 code 0）、不级联删子表 |
+
+**为什么把「没有白名单」也当要点写下来**：它与订单状态机的严格迁移表**正好相反**。若我按「更安全」的直觉给它加白名单，
+那就是**行为不同**（会拒掉现网本来接受的调用）—— 原生化不是顺手加固，加固要另行立项。
+
+### 2t.1 本轮判据与用例
+
+- SQL 逐字判据 **52 → 54 条**（改状态 / 删提交）；
+- 端到端新增 3 条（总写用例 31 / 用例 **65**）：status 缺省落 `done`、缺 submissionId ⇒ 400、
+  单语句删 + 审计；**夹具改用内联字面量**（上一轮跨块引用变量让夹具当场抛错、还写出了「全绿」的假话）。
+
+### 2t.2 剩下的两件（下一批）
+
+`createSubmission`（最大的一块：两套体积预算 —— 普通服务 90,000 / 打印服务单文件 700,000、合计 2,000,000；
+打印走单独的文件白名单 `r2:` 与文档类 `data:` URL；`formData` 逐键 50/200 字 + `checkPublicText`）与最后三件
+（`login`、`aiAdvice`、`aiChat`）。
+

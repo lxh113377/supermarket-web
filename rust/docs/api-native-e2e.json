@@ -1,5 +1,5 @@
 {
-  "at": "2026-10-28T09:21:35.845Z",
+  "at": "2026-10-28T09:28:01.233Z",
   "live": "https://supermarket-web.pages.dev",
   "edge": "http://127.0.0.1:5198",
   "mode": "JSON 列=文本",
@@ -46,7 +46,7 @@
     "getOrderStatus（未知订单号：错误路径）": {
       "action": "getOrderStatus",
       "payload": {
-        "orderId": "o_not_exist_1793179274414"
+        "orderId": "o_not_exist_1793179660328"
       },
       "status": 404,
       "edge": "native",
@@ -626,6 +626,35 @@
         "INSERT INTO security_events (ts, ip, act"
       ],
       "ok": true
+    },
+    "updateSubmissionStatus（status 缺省 ⇒ done）": {
+      "action": "updateSubmissionStatus",
+      "status": 200,
+      "edge": "native",
+      "statements": [
+        "UPDATE submissions SET status = ?, updat",
+        "INSERT INTO security_events (ts, ip, act"
+      ],
+      "ok": true
+    },
+    "updateSubmissionStatus（缺 submissionId ⇒ 400）": {
+      "action": "updateSubmissionStatus",
+      "status": 400,
+      "edge": "native",
+      "statements": [
+        "INSERT INTO security_events (ts, ip, act"
+      ],
+      "ok": true
+    },
+    "deleteSubmission（单语句删 + 审计）": {
+      "action": "deleteSubmission",
+      "status": 200,
+      "edge": "native",
+      "statements": [
+        "DELETE FROM submissions WHERE _id = ?",
+        "INSERT INTO security_events (ts, ip, act"
+      ],
+      "ok": true
     }
   },
   "rowsFed": {
@@ -1113,6 +1142,63 @@
         24,
         0,
         11,
+        2,
+        8,
+        0
+      ]
+    },
+    {
+      "paramCount": 6,
+      "paramTypes": [
+        "string",
+        "string",
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "paramLengths": [
+        24,
+        0,
+        22,
+        2,
+        8,
+        0
+      ]
+    },
+    {
+      "paramCount": 6,
+      "paramTypes": [
+        "string",
+        "string",
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "paramLengths": [
+        24,
+        0,
+        22,
+        4,
+        8,
+        0
+      ]
+    },
+    {
+      "paramCount": 6,
+      "paramTypes": [
+        "string",
+        "string",
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "paramLengths": [
+        24,
+        0,
+        16,
         2,
         8,
         0

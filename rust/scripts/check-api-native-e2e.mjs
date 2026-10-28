@@ -1028,6 +1028,33 @@ if (!keys.admin) {
       expectStatements: [{ prefix: "SELECT COUNT(*) AS c FROM reviews", params: 0 }, auditOk],
     })
   }
+  // 提交域两写（/web 管理写；只打本地边缘）
+  {
+    // 用内联字面量而不是块内变量：上一轮我跨块引用 auditFail 让夹具当场抛错、还写出了「全绿」的假话。
+    const auditOk = { prefix: "INSERT INTO security_events", params: 6, resultLen: 2 }
+    const auditFailInline = { prefix: "INSERT INTO security_events", params: 6, resultLen: 4 }
+    writeCases.push({
+      name: "updateSubmissionStatus（status 缺省 ⇒ done）",
+      action: "updateSubmissionStatus", payload: { submissionId: "s_probe_1" },
+      expect: { code: 0 },
+      expectStatements: [
+        { prefix: "UPDATE submissions SET status = ?", params: 3 },
+        auditOk,
+      ],
+    })
+    writeCases.push({
+      name: "updateSubmissionStatus（缺 submissionId ⇒ 400）",
+      action: "updateSubmissionStatus", payload: {},
+      expect: { code: -1, errorCode: "missing_submission_id" },
+      expectStatements: [auditFailInline],
+    })
+    writeCases.push({
+      name: "deleteSubmission（单语句删 + 审计）",
+      action: "deleteSubmission", payload: { submissionId: "s_probe_2" },
+      expect: { code: 0 },
+      expectStatements: [{ prefix: "DELETE FROM submissions WHERE _id = ?", params: 1 }, auditOk],
+    })
+  }
   for (const c of writeCases) {
     const before = auditRoster().length
     // /pub 写用例走 postPub（可带额外请求头，例如用 cf-connecting-ip 固定限流桶键）；其余走 /web
@@ -1118,7 +1145,7 @@ writeFileSync(jsonOut, JSON.stringify({ ...report, problems }, null, 2) + '\n')
 console.log('原始读数 ' + jsonOut)
 console.log(problems.length
   ? '\nGATE-FAIL check-api-native-e2e：' + problems.length + ' 项\n  - ' + problems.join('\n  - ')
-  : '\nGATE-PASS check-api-native-e2e：公开面 8 + 管理读 26 + 写 28（写入只打本地边缘）= 62 个用例\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
+  : '\nGATE-PASS check-api-native-e2e：公开面 8 + 管理读 26 + 写 31（写入只打本地边缘）= 65 个用例\n  ——全部与现网**逐字段相同**（含键序）；缓存语义一致；审计写入条数一致（读动作 +0、鉴权失败 +1、只读拒绝 +0）')
 
 edge.kill()
 mock.kill()
