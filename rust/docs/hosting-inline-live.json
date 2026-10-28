@@ -64,7 +64,18 @@
       }
     },
     "negative_control": "customer 臂两批之间产物未变（gh.io 由 CI 在 push 后重建），却测出 LCP −14.3% / FCP −8.0% / SI −17.6% ⇒ n=3 的线上采样噪声 ≥ 内联收益，admin 臂的改善不可归因于本次改动",
-    "verdict": "收益证据只认 live_before/live_after 的确定性读数（渲染阻塞请求 1→0；文档+CSS br +0.2%）；Lighthouse 仅作辅证"
+    "verdict": "收益证据只认 live_before/live_after 的确定性读数（渲染阻塞请求 1→0；文档+CSS br +0.2%）；Lighthouse 仅作辅证",
+    "customer_after_real": {
+      "batch": "after-inline-b（gh.io 已重建）",
+      "n": 3,
+      "median": {
+        "fcp": 1706.3,
+        "lcp": 2894,
+        "si": 5424.9,
+        "ttfb": 181.9
+      }
+    },
+    "negative_control_final": "客户臂三批同页对比：真 after（新产物）在 LCP/SI 上比负控批（旧产物）还差（2894.0 vs 2720.4 / 5424.9 vs 4351.9）⇒ 线上 Lighthouse 波动完全盖过内联效应，实测坐实「不许拿它当收益证据」"
   },
   "caveat": "线上 Lighthouse 为真网络单机采样，样本少时噪声大于内联收益；确定性收益以 live_before/live_after 的字节与请求数为准。",
   "gaps_fixed": [
