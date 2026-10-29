@@ -46,7 +46,7 @@ const ident = (n) => '"' + String(n).split('"').join('""') + '"'
 // 第一版正是这么挂的：13 张声明表 + 这 2 张内部表 = 15，判据当场对不上。
 const schemaSql = readFileSync(new URL('../db/schema.sql', import.meta.url), 'utf8')
 const declared = new Set(
-  [...schemaSql.matchAll(/CREATE TABLE\s+(?:IF NOT EXISTS\s+)?["'\`]?([A-Za-z0-9_]+)["'\`]?/gi)].map((m) => m[1]),
+  [...schemaSql.matchAll(/CREATE TABLE\s+(?:IF NOT EXISTS\s+)?["'`]?([A-Za-z0-9_]+)["'`]?/gi)].map((m) => m[1]),
 )
 if (!declared.size) {
   console.error('[backup-d1-rest] 读不到 db/schema.sql 的表集 ⇒ 没有真相源就不产备份（rc=2，别产半截）')
