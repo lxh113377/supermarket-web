@@ -1,8 +1,8 @@
 name = "supermarket-web"
-# 2026-10-29 补：D1 备份工作流里 wrangler 报「Failed to automatically retrieve account IDs」——
-# 该步明明给了 CLOUDFLARE_ACCOUNT_ID 环境变量，但 wrangler 仍去列账号（会失败于只带 D1:Read 的 token）。
-# 按 wrangler 自己的提示，把 account_id 写进配置即可跳过该查询。值非机密（D1 备份/部署同一账号，仓内 IT 已硬编码同值）。
-account_id = "04b1466b2606b678a332fe6f26aa87ec"
+# 2026-10-29 **回退**：这里曾加过 account_id 想绕开 d1 export 的「列账号」失败，但实测会让 Pages 部署直接红：
+#   Configuration file for Pages projects does not support "account_id"
+# 而备份侧最终改成走 REST /query 的 scripts/backup-d1-rest.mjs（不经过 wrangler）⇒ 该行已无必要，故删除。
+# 教训：这份配置同时喂 Pages 部署与 D1 命令，加字段前要先想它在**另一条链**上意味着什么。
 compatibility_date = "2025-06-01"
 pages_build_output_dir = "dist"
 
