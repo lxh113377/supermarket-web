@@ -71,6 +71,12 @@ jobs:
         env:
           GH_API: https://api.github.com/repos/${{ github.repository }}
           PW_FOUND: ${{ steps.pw.outputs.found }}
+          # 2026-10-29 修：本步原先**没有**把 GITHUB_TOKEN 传进来，而脚本第 2 行就用了它 ——
+          # 在 set -euo pipefail 下 unbound variable 直接中止，再被 || 的兜底报成
+          # 「读不到仓库可见性（API 失败）」。于是只要走到这一步就必失败，与 token/口令配没配无关；
+          # 表现为「CF_D1_BACKUP_TOKEN 与 BACKUP_PASSPHRASE 都配好了，红依旧」。
+          # job 已声明 permissions: contents:read + actions:read ⇒ 默认 token 足够读可见性。
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           body=$(curl -fsS -H "Authorization: Bearer $GITHUB_TOKEN" -H 'Accept: application/vnd.github+json' "$GH_API") \
