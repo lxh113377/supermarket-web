@@ -26,3 +26,25 @@
 ## 与本会话的关系
 
 本会话（45 个 API 动作逐个原生化）不碰前端与打印链路；此登记的作用是**不让一条连红 6 天的生产信号被静默忽略**。
+## 附二 · D1 每日备份红（2026-10-29 定案：外部凭据缺口，不降级）
+
+**事实（一手）**：`D1 Daily Backup` 自 2026-10-24 起连续 5 次 failure（run 40790479911 / 40603075999 / 40420891865 / 40239765884 / 40137849606）；
+失败 step 名叫 **Fail loudly instead of reporting a green no-op** —— 这条红是**工作流自己设计的正确信号**，不是缺陷。
+
+**根因**：外部凭据缺口。`gh secret list` 只有 `CLOUDFLARE_API_TOKEN` 与 `GH_DISPATCH_TOKEN`；
+`CF_D1_BACKUP_TOKEN` 与 `BACKUP_PASSPHRASE` **都不存在**，`gh variable list` 为空。
+导出步与上传步都依赖它们 ⇒ 本 run 不产出任何可核对的备份产物（也就是：**生产库当前没有已验证的备份**）。
+
+**为什么不设 `BACKUP_SKIP_OK=true`**（这是本条的处置决定，理由写在这）：
+① 它把「没有备份」从 FAIL 降成 WARN ＝ 由我代 owner 接受「暂时不备份」；仓内注释的原意是「别再让它沉默」，
+   而这条红现在**既不沉默、又具名缺哪个 secret、又给了三条出路** —— 唯一正确的动作是补凭据，不是把红变黄。
+② 本条属「外部凭据缺口」，是我唯一允许「办不到 + 落待办 + 给证据」的类别。owner 若确要豁免，一条命令即可（见下）。
+
+**解除它需要的两条命令**（都要 owner 的账号/口令，我无法代做）：
+1. `gh secret set CF_D1_BACKUP_TOKEN` —— 值 = Cloudflare API Token（权限 D1:Read，账号 id 04b1466b2606b678a332fe6f26aa87ec）；
+2. `gh secret set BACKUP_PASSPHRASE` —— 值 = owner 自定的解密口令（本仓公开 ⇒ 明文导出不允许，脚本会自动加密，产物名带 -enc；恢复用 `npm run backup:decrypt`）。
+
+**若 owner 确要显式豁免**（降为 WARN，仍会打印事实）：`gh variable set BACKUP_SKIP_OK --body true`。
+
+**未做**：我没有改 `.github/workflows/d1-backup.yml` 一个字节 —— 它的报错已具名 `CF_D1_BACKUP_TOKEN`、已给两条出路，
+另一条守卫也已具名 `BACKUP_PASSPHRASE` 与三条出路（先读后动，避免把一份已经很好的判据改差）。
