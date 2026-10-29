@@ -12,11 +12,13 @@
 //! 三层改动，每层都对应上面某一格：
 //!
 //! 1. **样式表内联进 HTML**：去掉那一次渲染阻塞请求（11.7 KB / 1 RTT）。
-//!    代价是 HTML 变大（约 135 KB raw），但我们把它**预压缩**到 ~13 KB brotli
-//!    并配 ETag —— 首次访问省一次 RTT，重复访问是 304（0 字节）。
+//!    代价是 HTML 变大：**2026-10-29 实测** 145,077 B raw（同一份产物里被内联的 CSS 是 142,100 B raw），
+//!    我们把它**预压缩**到 30,138 B brotli（gzip 30,247 B）并配 ETag —— 首次访问省一次 RTT，重复访问是 304（0 字节）。
 //!    CSP 不放开 `'unsafe-inline'`：样式的 sha256 在构建时算好写进 `style-src`
 //!    （**哈希式** CSP，比 nonce 好的一点是 HTML 仍然可缓存）。
 //! 2. **首屏路由 chunk 提前 preload**：`HomePage-*.js` 目前在入口 JS 执行后才被发现（t=1707）。
+//!    托管侧（Cloudflare Pages 静态托管）自 2026-10-29 起在构建期生成同样的 Link 段（scripts/inline-critical-css.mjs），
+//!    同样是「入口 + 首屏路由 chunk + 从产物 HTML 取字体、跳过已内联的样式」这三条规则。
 //!    在 head 里加 modulepreload 后它与其他入口 chunk 并行（t≈1027）。
 //! 3. **流式写出**（见 [crate::stream]）：head + hero 先冲出去，浏览器可以边收边解析。
 //!    配合 `Link` 头，Cloudflare 会把它转成 **103 Early Hints**（见 docs/03）。

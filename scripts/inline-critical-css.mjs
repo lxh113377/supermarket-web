@@ -7,7 +7,7 @@
 // 为什么在构建期做而不是运行时：线上托管侧是 Cloudflare Pages 静态托管，没有可编程的响应体重写；
 // 唯一能改首屏 HTML 的时机就是构建。
 import { createHash } from 'node:crypto'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -88,6 +88,28 @@ const entryScript = /<script\b[^>]*\bsrc=["'](\.?\/assets\/[^"']+\.js)["']/i.exe
 if (entryScript) {
   const entryUrl = '/' + entryScript[1].replace(/^\.\//, '')
   const headersPath = path.join(dist, '_headers')
+  // ── 额外预载：镜像 rust/crates/edge/src/shell.rs 的三条规则 ──
+  // ① 首屏路由 chunk：托管侧按产物 glob（Vite 的 chunk 名取自模块名，稳定但不写死在代码里 ——
+  //    与 shell.rs 那条「字体一律从产物自己的 preload 里取」同源：只留一份真相）。
+  //    ⚠️ URL 的 hash 片段根本不会发给服务端 ⇒ /#/shop 与 / 拿到的是同一份头，
+  //    所以这条只能押默认落地路由（首页），押不到别的路由。权衡写在这里，不藏。
+  const routeLinks = []
+  try {
+    for (const f of readdirSync(path.join(dist, "assets"))) {
+      if (/^HomePage-[A-Za-z0-9_-]+[.]js$/.test(f)) routeLinks.push("/assets/" + f)
+    }
+  } catch {
+    // 产物里没有 assets/ 目录：跳过而不是编一个名字（宁可少一条预载，也不预载一个 404）
+  }
+  // ② 字体：从产物 HTML 自己的 <link rel=preload as=font> 取（属性顺序不固定 ⇒ 按整标签判定再取 href）
+  const fontLinks = []
+  for (const tag of html.match(/<link[^>]*>/gi) || []) {
+    if (!/rel=["']preload["']/i.test(tag) || !/as=["']font["']/i.test(tag)) continue
+    const m = /href=["']([^"']+)["']/i.exec(tag)
+    if (m) fontLinks.push(m[1].replace(/^[.][/]/, "/"))
+  }
+  // ③ 样式表不进 Link（已内联；再提示一次等于白花一次请求）—— 与 shell.rs 跳过 kind=style 一致
+  const extraLinks = [...routeLinks, ...fontLinks]
   const SENTINEL_START = '# >>> inline-css 生成段（构建期重写，勿手改）>>>'
   const SENTINEL_END = '# <<< inline-css 生成段 <<<'
   if (existsSync(headersPath)) {
@@ -95,20 +117,24 @@ if (entryScript) {
     const startAt = h.indexOf(SENTINEL_START)
     const endAt = h.indexOf(SENTINEL_END)
     if (startAt >= 0 && endAt > startAt) h = (h.slice(0, startAt) + h.slice(endAt + SENTINEL_END.length)).replace(/\n{3,}/g, '\n\n')
+    // 预载行：Link 头的语法是 <url>; rel=preload; as=script|font; crossorigin（少了尖括号就是无效头）
+    const entryLine = '  Link: <' + entryUrl + '>; rel=preload; as=script; crossorigin'
+    const extraLines = extraLinks.map((u) => '  Link: <' + u + '>; rel=preload; as=' + (/[.]woff2?$/i.test(u) ? 'font' : 'script') + '; crossorigin')
     const block = [
       SENTINEL_START,
-      '# 入口 chunk 预载：解析 HTML 之前就开始下载（与内存内联同一处产出，hash 由本次构建决定）',
-      // 把内联字节数写进生成段：判据据此核对「内联过程没悄悄改内容」（此前该标记没人写，是条死腿）
+      '# 首屏预载（构建期按本次产物的 hash 生成）：入口 + 首屏路由 chunk + 字体',
       '# inline-css-bytes: ' + Buffer.byteLength(css, 'utf8'),
       '/index.html',
-      '  Link: <' + entryUrl + '>; rel=preload; as=script; crossorigin',
+      entryLine,
+      ...extraLines,
       '/',
-      '  Link: <' + entryUrl + '>; rel=preload; as=script; crossorigin',
+      entryLine,
+      ...extraLines,
       SENTINEL_END,
       '',
     ].join('\n')
     writeFileSync(headersPath, h.trimEnd() + '\n' + block)
-    console.log('[inline-css] _headers 已写入入口预载：' + entryUrl)
+    console.log('[inline-css] _headers 已写入预载：入口 ' + entryUrl + '｜路由 ' + routeLinks.length + ' 条｜字体 ' + fontLinks.length + ' 条')
   } else {
     console.log('[inline-css] dist/_headers 不存在，跳过 Link 预载（不改平台默认行为）')
   }
