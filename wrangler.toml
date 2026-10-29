@@ -1,4 +1,8 @@
 name = "supermarket-web"
+# 2026-10-29 补：D1 备份工作流里 wrangler 报「Failed to automatically retrieve account IDs」——
+# 该步明明给了 CLOUDFLARE_ACCOUNT_ID 环境变量，但 wrangler 仍去列账号（会失败于只带 D1:Read 的 token）。
+# 按 wrangler 自己的提示，把 account_id 写进配置即可跳过该查询。值非机密（D1 备份/部署同一账号，仓内 IT 已硬编码同值）。
+account_id = "04b1466b2606b678a332fe6f26aa87ec"
 compatibility_date = "2025-06-01"
 pages_build_output_dir = "dist"
 
