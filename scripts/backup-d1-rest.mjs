@@ -5,6 +5,8 @@
 // 与 wrangler.toml 的 account_id 都给了也没绕过去）。本件改用 REST /query 端点自己拼 SQL dump：
 // ① 读 sqlite_master 拿**原始 DDL**（table/index 的 sql 列就是原文）；② 逐表 SELECT * 生成 INSERT。
 // 出口与 wrangler 版完全一致：写同一个 d1-backup.sql，后面的恢复演练 / 加密 / 上传三步不用改。
+// @probe-safe: 缺 CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID / D1_DATABASE_ID 任一即 rc=2 直接 bail（本机实测 0s），
+// 所有 fetch 都在那道门之后 ⇒ 探针面可以安全 spawn 它（声明与 scripts/lib/preflight.mjs 的 fail-closed 口径一致）。
 import { readFileSync, writeFileSync } from 'node:fs'
 
 const TOK = process.env.CLOUDFLARE_API_TOKEN
