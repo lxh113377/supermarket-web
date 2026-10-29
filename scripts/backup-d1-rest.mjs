@@ -5,7 +5,7 @@
 // 与 wrangler.toml 的 account_id 都给了也没绕过去）。本件改用 REST /query 端点自己拼 SQL dump：
 // ① 读 sqlite_master 拿**原始 DDL**（table/index 的 sql 列就是原文）；② 逐表 SELECT * 生成 INSERT。
 // 出口与 wrangler 版完全一致：写同一个 d1-backup.sql，后面的恢复演练 / 加密 / 上传三步不用改。
-import { writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 
 const TOK = process.env.CLOUDFLARE_API_TOKEN
 const ACC = process.env.CLOUDFLARE_ACCOUNT_ID
@@ -39,9 +39,28 @@ function lit(v) {
 }
 const ident = (n) => '"' + String(n).split('"').join('""') + '"'
 
-const objs = await q("SELECT type, name, sql FROM sqlite_master WHERE type IN ('table','index') AND sql IS NOT NULL ORDER BY type DESC, name ASC")
-const tables = objs.filter((o) => o.type === 'table')
-const indexes = objs.filter((o) => o.type === 'index')
+// 表集真相源 = db/schema.sql（**不是** sqlite_master）。理由：D1 里还有 _cf_KV 与 sqlite_sequence 这类内部表，
+// 把它们连 DDL 一起导出去，载入后就是「多表」⇒ 恢复演练判据（表集与 schema 双向对账）会判 schema 真相源漂移。
+// 第一版正是这么挂的：13 张声明表 + 这 2 张内部表 = 15，判据当场对不上。
+const schemaSql = readFileSync(new URL('../db/schema.sql', import.meta.url), 'utf8')
+const declared = new Set(
+  [...schemaSql.matchAll(/CREATE TABLE\s+(?:IF NOT EXISTS\s+)?["'\`]?([A-Za-z0-9_]+)["'\`]?/gi)].map((m) => m[1]),
+)
+if (!declared.size) {
+  console.error('[backup-d1-rest] 读不到 db/schema.sql 的表集 ⇒ 没有真相源就不产备份（rc=2，别产半截）')
+  process.exit(2)
+}
+const objs = await q("SELECT type, name, sql, tbl_name FROM sqlite_master WHERE type IN ('table','index') AND sql IS NOT NULL ORDER BY type DESC, name ASC")
+const liveTables = objs.filter((o) => o.type === 'table').map((o) => o.name)
+const tables = objs.filter((o) => o.type === 'table' && declared.has(o.name))
+// schema 声明了、线上却没有 ⇒ 备份必然不完整，响亮失败（别把缺表当成"库很小"）
+const missing = [...declared].filter((n) => !liveTables.includes(n))
+if (missing.length) {
+  console.error('[backup-d1-rest] schema 声明了但线上缺表：' + missing.join(',') + ' ⇒ 备份不完整（rc=1）')
+  process.exit(1)
+}
+// 索引只保留挂在已导出表上的（内表索引跟着表一起被排除，否则载入时会因缺表报错）
+const indexes = objs.filter((o) => o.type === 'index' && declared.has(o.tbl_name))
 const out = []
 out.push('-- D1 逻辑备份（由 scripts/backup-d1-rest.mjs 经 REST /query 生成，不依赖 wrangler）')
 out.push('-- 生成时刻 ' + new Date().toISOString() + '｜表 ' + tables.length + ' 张｜索引 ' + indexes.length + ' 个')
@@ -52,7 +71,6 @@ for (const i of indexes) out.push(i.sql.trim() + ';')
 let rows = 0
 for (const t of tables) {
   const name = t.name
-  if (name.startsWith('_cf_') || name === 'sqlite_sequence') continue // D1 内部对象不进备份
   const data = await q('SELECT * FROM ' + ident(name))
   if (!data.length) continue
   const cols = Object.keys(data[0])

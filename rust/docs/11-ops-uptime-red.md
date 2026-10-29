@@ -77,3 +77,20 @@ PROBE errors= [10000]
 **下一步（owner）**：建 token（Cloudflare 控制台 → My Profile → API Tokens → 权限 Account·D1·Read）⇒
 `gh secret set CF_D1_BACKUP_TOKEN` ⇒ `gh workflow run d1-backup.yml` ⇒ 看 Export=success、Upload(encrypted)=success、
 产物名 `d1-backup-enc-<n>`。口令那半已就绪，配好 token 当晚就会真产出密文备份。
+## 附四 · 2026-10-29 全链实测：三个真 bug + 首次跑通
+
+此前 60 次 run 的 `d1-backup` 产物 **0 件** —— 没有任何一次真跑到后面几步；本轮第一次跑通，也因此暴露三个从未被发现的问题。
+
+1. **`Decide artifact disposition` 缺 `GITHUB_TOKEN` 透传**：脚本第 2 行就用它，`set -euo pipefail` 下 unbound 直接中止，
+   被 `||` 兜底报成「读不到仓库可见性（API 失败）」⇒ **只要走到这一步就必失败，与凭据配没配无关**（现象：token+口令都配好，红依旧）。修后该步 success。
+2. **`wrangler d1 export` 先列账号**：原文 `Failed to automatically retrieve account IDs`；该步**本来就给了** `CLOUDFLARE_ACCOUNT_ID`，
+   再往 `wrangler.toml` 加 `account_id` 也没绕过，反而让 Pages 部署红（`Pages projects does not support "account_id"`）⇒ 已回退。
+   **终解** = `scripts/backup-d1-rest.mjs` 走 REST `/query` 自拼 dump，完全不经过 wrangler。
+3. **恢复判据行数口径不一致**：第 113 行表集对账排除 `SYSTEM_TABLES`，第 116/146 行求行数却没排除 ⇒ SQLite 自建 `sqlite_sequence` 被计入，
+   「载入行数 == INSERT 数」恒不成立（实测 1712 vs 1709）。修：统一口径。dump 侧表集也从 `sqlite_master` 改成以 `db/schema.sql` 为真相源（13 表），
+   并让「schema 有而线上缺」响亮失败。
+
+**凭据面**：仓库既有 `CLOUDFLARE_API_TOKEN` 探针回 **401 / errors=[10000]**（认证失败，不是 403 缺权限）⇒ 很可能已失效；它还被 `ci-deep.yml` 在用。
+`CF_D1_BACKUP_TOKEN`（新）探针回 **200**；`BACKUP_PASSPHRASE` 由本机同值灌入。**`BACKUP_SKIP_OK` 始终未设**（会吞掉调度层红）。
+
+**实测**：导出 `表 13 / 索引 16 / 1709 行 → 2,487,072 B`；恢复演练 `OK 1709 行 / 14 表，integrity=ok，fk=0`。

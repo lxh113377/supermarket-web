@@ -113,7 +113,14 @@ export function judgeRestore({ loaded, insertCount, expectedTables }) {
   const extra = [...restored].filter((t) => !expectedTables.has(t) && !SYSTEM_TABLES.has(t))
   if (extra.length) problems.push(`备份里出现 schema.sql 之外的表：${extra.join(', ')} ⇒ 真相源漂移`)
 
-  const rows = Object.values(loaded.counts).reduce((a, b) => a + b, 0)
+  // 行数口径必须与上面表集对账**同一套**（都排除 SYSTEM_TABLES）：
+  // SQLite 会为 AUTOINCREMENT 表自建 sqlite_sequence 并在载入时写入行，它永远不可能在逻辑 dump 里
+  // 出现对应 INSERT ⇒ 把它计进总数，「载入行数 == INSERT 数」就恒不成立。
+  // 2026-10-29 由**第一份真 dump** 首次暴露（此前从没有任何备份产物，这条腿从未真跑过）：
+  // 实测载入 1712 ≠ 文本 1709，多出的 3 行正是 sqlite_sequence。
+  const rows = Object.entries(loaded.counts)
+    .filter(([t]) => !SYSTEM_TABLES.has(t))
+    .reduce((a, [, c]) => a + c, 0)
   if (insertCount === 0) problems.push('dump 里 0 条 INSERT ⇒ 这是一份只有 schema 的尸体，不是数据备份')
   else if (rows !== insertCount) problems.push(`载入行数 ${rows} ≠ dump 文本 INSERT 数 ${insertCount} ⇒ 备份被截断或半截上传`)
 
@@ -143,7 +150,9 @@ function main() {
   const insertCount = countInsertStatements(sqlText)
   const loaded = loadDump(sqlText)
   const problems = judgeRestore({ loaded, insertCount, expectedTables })
-  const rows = Object.values(loaded.counts).reduce((a, b) => a + b, 0)
+  const rows = Object.entries(loaded.counts)
+    .filter(([t]) => !SYSTEM_TABLES.has(t))
+    .reduce((a, [, c]) => a + c, 0) // 与判据同一口径：内部表不计（见 judgeRestore 里的长注释）
 
   const perTable = Object.entries(loaded.counts).sort((a, b) => b[1] - a[1]).map(([t, c]) => `${t}=${c}`).join(' ')
   const line = `size=${size}B sha256=${digest.slice(0, 16)}… INSERT文本=${insertCount} 载入行数=${rows} 表数=${Object.keys(loaded.counts).length}`
