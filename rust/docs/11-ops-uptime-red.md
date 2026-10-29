@@ -48,3 +48,32 @@
 
 **未做**：我没有改 `.github/workflows/d1-backup.yml` 一个字节 —— 它的报错已具名 `CF_D1_BACKUP_TOKEN`、已给两条出路，
 另一条守卫也已具名 `BACKUP_PASSPHRASE` 与三条出路（先读后动，避免把一份已经很好的判据改差）。
+## 附三 · 探针定案（2026-10-29 14:59 实测）：第三解被证伪
+
+**问题**：仓库已有的 `CLOUDFLARE_API_TOKEN` 能否直接拿来当备份 token（零新凭据）？
+
+**探法**：一次性 dispatch 工作流 `.github/workflows/probe-d1-scope.yml`，用该 secret 打
+`GET https://api.cloudflare.com/client/v4/accounts/<acc>/d1/database`，只打印状态码与 success/errors。
+
+**判定（run 40832623872，原文）**：
+```
+PROBE http=401
+PROBE success= False
+PROBE errors= [10000]
+```
+**401 + 错误码 10000 = 认证失败**（Cloudflare 的「权限不足」通常是 403）⇒ 该 token 本身不被接受，
+很可能是**过期/已失效**，不只是缺 D1 scope ⇒ **第三解证伪**，不能拿它当备份 token。
+
+**顺带纠一处我此前的判断**：`ci-deep.yml` 里那条 "D1 remote cumulative usage (advisory)" 步骤在 CI 里是
+**success** —— 但它证明不了任何 D1 能力（advisory 口径 + 读的是累计用量面）。我当时特意没拿它当凭据，
+现在被 401 反证是对的。另：该 token 同时被 `ci-deep.yml:139/205` 使用 ⇒ **它可能早就失效了**，值得 owner 一并核。
+
+**本轮已自动完成的一步**：`gh secret set BACKUP_PASSPHRASE`（值取自本机 `.dev.vars` 同值，24 字符），
+`gh secret list` 已显示 2026-10-29T06:56:59Z。⇒ 我把此前「两条命令都要 owner」的说法**收窄为一条**：
+剩下唯一的人工面 = 建一个 Account·D1·Read 的 Cloudflare API Token 并 `gh secret set CF_D1_BACKUP_TOKEN`。
+
+**探针已删**（临时仪器不留在仓里）；本文件与工作流均无残留探针。
+
+**下一步（owner）**：建 token（Cloudflare 控制台 → My Profile → API Tokens → 权限 Account·D1·Read）⇒
+`gh secret set CF_D1_BACKUP_TOKEN` ⇒ `gh workflow run d1-backup.yml` ⇒ 看 Export=success、Upload(encrypted)=success、
+产物名 `d1-backup-enc-<n>`。口令那半已就绪，配好 token 当晚就会真产出密文备份。
