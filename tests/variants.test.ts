@@ -30,6 +30,10 @@ import { products as seedProducts } from '../src/data/products-seed'
 
 /**
  * 两轴 + 「某一轴取值后另一轴为空」的夹具 —— 复刻退役演示组 baixiang-noodle 的形状。
+ * ⚠️ 这里的「十三香/麻辣香/山西老陈醋」是形状夹具，不是现行口味清单：2026-11-01 白象按
+ *    老大指定换成红烧/香辣/排骨/肥牛/椒香（真相源 = products-seed.ts 的 BIXIANG_FLAVORS）。
+ *    本夹具钉的是「一个轴对某选项整体为空」这个形状，口味叫什么不影响判据，故不跟着改 ——
+ *    改成同步文案会让这条回归失去它原来的形状来源（它复刻的是已退役演示组，不是在售清单）。
  * 保留它是因为 pickCombo 的硬钉回归只有在「一个轴对某选项整体为空」时才会暴露旧算法的缺陷。
  */
 const baixiang: VariantGroup = {
@@ -299,11 +303,12 @@ describe('specOptions —— 后台维护的口味合成单轴组', () => {
   })
 })
 
-describe('本轮口径：可选规格只留给 4 款小包薯片 + 白象帮泡', () => {
-  const KEEP_FLAVOR_ORDERS = [33, 34, 40, 46, 52]
+describe('本轮口径：可选规格只留给 4 款小包薯片 + 白象帮泡与零售', () => {
+  // 47（零售）2026-11-01 起带口味：老大原话「泡面的零售与帮泡均可选口味」。
+  const KEEP_FLAVOR_ORDERS = [33, 34, 40, 46, 47, 52]
   const FOOD_SUBS = ['snacks', 'filling']
 
-  it('这 5 款的口味清单不得被误删（回归保护）', () => {
+  it('这 6 款的口味清单不得被误删（回归保护）', () => {
     for (const o of KEEP_FLAVOR_ORDERS) {
       const p = seedProducts.find((x) => Number(x.order) === o)
       expect(p, `order ${o} 从目录里消失了`).toBeTruthy()
@@ -311,7 +316,7 @@ describe('本轮口径：可选规格只留给 4 款小包薯片 + 白象帮泡'
     }
   })
 
-  it('目录里带口味的商品当前仍只有这 5 款（新增须显式改这条并说明依据）', () => {
+  it('目录里带口味的商品当前仍只有这 6 款（新增须显式改这条并说明依据）', () => {
     const withFlavors = seedProducts
       .filter((p) => (p.specOptions?.length ?? 0) > 0)
       .map((p) => Number(p.order))
@@ -319,11 +324,21 @@ describe('本轮口径：可选规格只留给 4 款小包薯片 + 白象帮泡'
     expect(withFlavors).toEqual(KEEP_FLAVOR_ORDERS)
   })
 
-  it('白象帮泡的三种口味与退役前演示组声明的那三个逐字相符（换载体不许换文案）', () => {
-    const p = seedProducts.find((x) => Number(x.order) === 46)!
-    expect(p.spec, '静态规格仍带着口味长文案，后台会读成重复信息').toBe('帮泡')
-    expect(enabledSpecOptions(p).map((o) => o.label))
-      .toEqual(['十三香', '麻辣香', '山西老陈醋'])
+  it('白象两条都是老大指定的五口味，且帮泡与零售逐字同源（同一集合不得各写一份）', () => {
+    const FIVE = ['红烧', '香辣', '排骨', '肥牛', '椒香']
+    const p46 = seedProducts.find((x) => Number(x.order) === 46)!
+    const p47 = seedProducts.find((x) => Number(x.order) === 47)!
+    // 静态规格仍是「帮泡」/「零售」：口味只走 specOptions，写进 spec 长文案会被后台读成重复信息
+    expect(p46.spec).toBe('帮泡')
+    expect(p47.spec).toBe('零售')
+    expect(enabledSpecOptions(p46).map((o) => o.label)).toEqual(FIVE)
+    expect(enabledSpecOptions(p47).map((o) => o.label)).toEqual(FIVE)
+    // 反向断言：换清单是替换不是追加，旧三口味不得残留在任一条上
+    for (const p of [p46, p47]) {
+      for (const gone of ['十三香', '麻辣香', '山西老陈醋']) {
+        expect(p.specOptions!.some((o) => o.label === gone), `${p.spec} 仍带旧口味 ${gone}`).toBe(false)
+      }
+    }
   })
 
   it('每个口味都是干净的 label（防脏值流到前端渲染成空按钮）', () => {

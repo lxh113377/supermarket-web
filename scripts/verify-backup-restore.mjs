@@ -71,6 +71,30 @@ export function countInsertStatements(sqlText) {
   return splitStatements(sqlText).filter((s) => /^INSERT\s+INTO\b/i.test(s)).length
 }
 
+/**
+ * 业务面 INSERT 计数（与 judgeRestore 的行数口径同一套分母）。
+ *
+ * 为什么必须有第二条腿（2026-11-01 一手实测）：判据的行数侧按注释要求排除了 SYSTEM_TABLES，
+ * 但文本侧仍把 `INSERT INTO sqlite_sequence` 计进 INSERT 数 ⇒ 两侧分母天生不等。
+ * wrangler 的导出形态**不固定**：2026-10-29 那份 dump 里没有 sqlite_sequence 的 INSERT
+ * （载入 1712 vs 文本 1709，多出 3 行 → 当时把行数侧排掉系统表就闭合了）；
+ * 而 2026-11-01 这份**带 4 条** `INSERT INTO sqlite_sequence` ⇒ 文本 1781 vs 行数 1777，
+ * 差值恰为 4，逐表对账每一表都相等、integrity=ok、fk=0、products=67。
+ * 也就是说：把一个完全健康的备份判成"被截断"，红因在计数口径，不在备份本体。
+ *
+ * 这不是放宽判据：真截断丢掉的是业务行，业务行两侧都计 ⇒ 照样红（见 tests/backupRestore.test.js
+ * 的负控：从"带 sqlite_sequence 的 wrangler 形态"里删掉一条 products INSERT，必须仍判红）。
+ * 系统自管对象（sqlite_sequence 由 SQLite 在载入时自行写入）不参与"条数强不变量"，
+ * 与 judgeRestore 里表集对账排除它是同一个理由。
+ */
+export function countBusinessInsertStatements(sqlText) {
+  return splitStatements(sqlText).filter((s) => {
+    if (!/^INSERT\s+INTO\b/i.test(s)) return false
+    const m = /^INSERT\s+INTO\s+("?)([\w"]+)\1/.exec(s)
+    return !(m && SYSTEM_TABLES.has(m[2]))
+  }).length
+}
+
 /** 真相源：db/schema.sql 里 CREATE TABLE 出来的表名。 */
 export function expectedTablesFromSchema(schemaSql) {
   const names = new Set()
@@ -147,7 +171,8 @@ function main() {
   const digest = sha256Of(sqlText)
   const size = statSync(target).size
   const expectedTables = expectedTablesFromSchema(readFileSync(join(ROOT, 'db', 'schema.sql'), 'utf8'))
-  const insertCount = countInsertStatements(sqlText)
+  // 与 judgeRestore 的行数侧同分母（都排除系统表），否则"带 sqlite_sequence 的导出形态"会把健康备份判成截断
+  const insertCount = countBusinessInsertStatements(sqlText)
   const loaded = loadDump(sqlText)
   const problems = judgeRestore({ loaded, insertCount, expectedTables })
   const rows = Object.entries(loaded.counts)

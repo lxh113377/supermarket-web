@@ -46,8 +46,8 @@ INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", s
 INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p043', '脆脆鲨', '', 0.88, '["snacks"]', 1, 43, '[]');
 INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p044', '山椒猪皮', '', 0.33, '["snacks"]', 1, 44, '[]');
 INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p045', '乌梅干', '', 2.33, '["snacks"]', 1, 45, '[]');
-INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p046', '白象方便面', '帮泡', 3.66, '["filling"]', 1, 46, '[{"label":"十三香"},{"label":"麻辣香"},{"label":"山西老陈醋"}]');
-INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p047', '白象方便面', '零售', 1.88, '["filling"]', 1, 47, '[]');
+INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p046', '白象方便面', '帮泡', 3.66, '["filling"]', 1, 46, '[{"label":"红烧"},{"label":"香辣"},{"label":"排骨"},{"label":"肥牛"},{"label":"椒香"}]');
+INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p047', '白象方便面', '零售', 1.88, '["filling"]', 1, 47, '[{"label":"红烧"},{"label":"香辣"},{"label":"排骨"},{"label":"肥牛"},{"label":"椒香"}]');
 INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p048', '乡巴佬卤蛋', '', 1.37, '["filling"]', 1, 48, '[]');
 INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p049', '双汇火腿肠', '', 0.88, '["filling"]', 1, 49, '[]');
 INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p050', '优酸乳', '200ml', 1.5, '["sweet"]', 1, 50, '[]');
@@ -67,3 +67,4 @@ INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", s
 INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p065', '正大无花果', '', 0.5, '["snacks"]', 1, 65, '[]');
 INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p066', '小样软糖', '', 0.49, '["snacks"]', 1, 66, '[]');
 INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p067', '话梅糖软糖', '', 0.09, '["snacks"]', 1, 67, '[]');
+INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p068', '香芋压片糖', '', 0.5, '["snacks"]', 1, 68, '[]');

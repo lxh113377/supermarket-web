@@ -38,6 +38,17 @@ export const categories: Category[] = [
   },
 ]
 
+/**
+ * 白象方便面五口味（2026-11-01 老大指定：红烧 / 香辣 / 排骨 / 肥牛 / 椒香）。
+ * 帮泡（46）与零售（47）共用这一份清单：两条记录是目录里的独立行（各自真实价、各自库存），
+ * 但口味集合必须同源 —— 分成两份字面量就会出现「帮泡有椒香而零售没有」这种没人能解释的漂移。
+ * 只写 label 不写 enabled：缺省即视为开启（utils/spec-options.ts 只过滤 enabled===false），
+ * 商家要在后台关掉某个口味，由后台写入 enabled:false，不在真相源里预置。
+ */
+const BIXIANG_FLAVORS = [
+  { label: '红烧' }, { label: '香辣' }, { label: '排骨' }, { label: '肥牛' }, { label: '椒香' },
+]
+
 export const products: SeedProduct[] = [
   // 甜口
   { name: '康师傅冰糖雪梨', spec: '1L', price: 2.66, subcategories: ['sweet'], order: 1 },
@@ -128,9 +139,12 @@ export const products: SeedProduct[] = [
   // 未被本次改动触碰，也不得用 seed 反向覆盖 D1。
   {
     name: '白象方便面', spec: '帮泡', price: 3.66, subcategories: ['filling'], order: 46,
-    specOptions: [{ label: '十三香' }, { label: '麻辣香' }, { label: '山西老陈醋' }],
+    specOptions: BIXIANG_FLAVORS,
   },
-  { name: '白象方便面', spec: '零售', price: 1.88, subcategories: ['filling'], order: 47 },
+  {
+    name: '白象方便面', spec: '零售', price: 1.88, subcategories: ['filling'], order: 47,
+    specOptions: BIXIANG_FLAVORS,
+  },
   { name: '乡巴佬卤蛋', spec: '', price: 1.37, subcategories: ['filling'], order: 48 },
   { name: '双汇火腿肠', spec: '', price: 0.88, subcategories: ['filling'], order: 49 },
 
@@ -170,4 +184,7 @@ export const products: SeedProduct[] = [
   // 新增商品（2026-10-26，用户提供供货图；糖果类归零食，图上无净含量小字，spec 留空）
   { name: '小样软糖', spec: '', price: 0.49, subcategories: ['snacks'], order: 66 },
   { name: '话梅糖软糖', spec: '', price: 0.09, subcategories: ['snacks'], order: 67 },
+
+  // 新增商品（2026-11-01，用户提供供货图；「新美 BEST CANDY」香芋味压片糖果，图上无净含量小字 ⇒ spec 留空，糖果类归零食）
+  { name: '香芋压片糖', spec: '', price: 0.5, subcategories: ['snacks'], order: 68 },
 ]

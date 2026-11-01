@@ -41,8 +41,8 @@
       "source": "scripts/check-memory-volume.mjs（CONTENT_MAX_DEFAULT/SHELL_MAX_DEFAULT 导入 + 当场 stat）；运行时字段一律现算，禁手抄"
     },
     "seedCatalog": {
-      "products": 66,
-      "enabled": 66,
+      "products": 67,
+      "enabled": 67,
       "orders": 0,
       "source": "node:sqlite 内存重放 db/schema.sql + db/seed.sql（本机实测）"
     },
@@ -53,9 +53,9 @@
       "source": "docs/d1-write-quota.json"
     },
     "d1Usage": {
-      "rowsWrittenLastDay": 198,
-      "rowsReadLastDay": 17321,
-      "dayUtc": "2026-10-24",
+      "rowsWrittenLastDay": 68,
+      "rowsReadLastDay": 4643,
+      "dayUtc": "2026-11-01",
       "source": "docs/d1-remote-usage.json 的 channels.graphql.byDateUtc 最后一项（当日）；2026-10-24 本机 `check-d1-remote-usage --write` 刷新后同步"
     },
     "bundleBudget": {
@@ -347,8 +347,8 @@
           "path": "db/seed.sql",
           "field": "INSERT INTO products 行数",
           "measuredBy": "node:sqlite 内存重放 db/schema.sql + db/seed.sql",
-          "evidence": "本机 2026-10-26 实测 products=66 / enabled=66（seed 面，新增「小样软糖」order 66 与「话梅糖软糖」order 67 后复算）",
-          "measuredAt": "2026-10-26"
+          "evidence": "本机 2026-11-01 实测 products=67 / enabled=67（seed 面，新增「香芋压片糖」order 68 后由 node:sqlite 重放 schema+seed 复算）",
+          "measuredAt": "2026-11-01"
         },
         "cadence": "每次商品面变更",
         "thresholds": {

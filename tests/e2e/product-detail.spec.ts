@@ -11,7 +11,8 @@ import { watchErrors, DEV_CSP_NOISE, type ErrorWatch } from './helpers/watchErro
  * dev 下页面完全无样式，几何断言结构上不可能通过（已实测确认，非推测）。
  *
  * 商品 id 规则 = `p_` + order。规格只剩一条来路（后台写进 D1 的 specOptions）：
- *   白象方便面 46 帮泡 ¥3.66（三个口味，选口味不改价不换图）/ 47 零售 ¥1.88（无口味清单）；
+ *   白象方便面 46 帮泡 ¥3.66 / 47 零售 ¥1.88 —— 两条都带五口味（2026-11-01 老大：
+ *   「泡面的零售与帮泡均可选口味」），选口味不改价不换图；
  *   乐事薯片 33 40g ¥2.66 —— 商品自带口味（specOptions），选口味不改价、不换图。
  * 其余商品（含全部饮品）无口味清单，页面不得长出选择器。
  */
@@ -56,16 +57,16 @@ const mainPrice = (page: import('@playwright/test').Page) =>
  * 原来那三条（点缩略图换 47、选规格改价 3.66↔1.88、零售装清空口味并播报）失去被测量对象，
  * 按新口径重写而不是删掉——留空的判据等于没装。
  */
-test('白象帮泡：口味选择器出三个真实口味，单图且选口味不改价', async ({ page }) => {
+test('白象帮泡：口味选择器出五口味（红烧/香辣/排骨/肥牛/椒香），单图且选口味不改价', async ({ page }) => {
   await open(page, 46)
-  await expect(page.getByRole('button', { name: '十三香', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: '麻辣香', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: '山西老陈醋', exact: true })).toBeVisible()
+  for (const label of ['红烧', '香辣', '排骨', '肥牛', '椒香']) {
+    await expect(page.getByRole('button', { name: label, exact: true })).toBeVisible()
+  }
   await expect(page.locator('[data-main-image] img')).toHaveAttribute('src', /\/images\/46\.webp/)
   await expect(mainPrice(page)).toHaveText('¥3.66')
-  await page.getByRole('button', { name: '山西老陈醋', exact: true }).click()
+  await page.getByRole('button', { name: '椒香', exact: true }).click()
   await expect(mainPrice(page)).toHaveText('¥3.66')
-  await expect(page.getByText('已选口味：山西老陈醋')).toBeVisible()
+  await expect(page.getByText('已选口味：椒香')).toBeVisible()
 })
 
 test('白象帮泡：口味轴上不再有「版本」轴，零售装那张图不混进帮泡详情页', async ({ page }) => {
@@ -79,10 +80,16 @@ test('白象帮泡：口味轴上不再有「版本」轴，零售装那张图�
   await expect(page.locator('img[src="/images/47.webp"]')).toHaveCount(0)
 })
 
-test('白象零售（47）：没有口味清单就不渲染选择器，价格是自己的 1.88', async ({ page }) => {
+test('白象零售（47）：与帮泡同一套五口味，价格仍是它自己的 1.88（口味不是另一条记录）', async ({ page }) => {
   await open(page, 47)
   await expect(mainPrice(page)).toHaveText('¥1.88')
-  await expect(page.getByRole('button', { name: '十三香', exact: true })).toHaveCount(0)
+  for (const label of ['红烧', '香辣', '排骨', '肥牛', '椒香']) {
+    await expect(page.getByRole('button', { name: label, exact: true })).toBeVisible()
+  }
+  await page.getByRole('button', { name: '肥牛', exact: true }).click()
+  await expect(mainPrice(page)).toHaveText('¥1.88')
+  // 零售行仍不渲染「版本」轴：帮泡与零售是目录里两条独立记录，不在详情页互相切换
+  await expect(axis(page, '版本')).toHaveCount(0)
   await expect(page.getByRole('button', { name: '帮泡装', exact: true })).toHaveCount(0)
 })
 
@@ -92,11 +99,11 @@ test('【口味落库链】选口味加购 → 购物袋那一行带的就是口
   // 组件层已有判据直接调用服务端 allowedOrderSpecs 对账（tests/productDetailVariants.test.tsx），
   // 这里补的是真实浏览器里"加购后行上确实带着口味"这一段。
   await open(page, 46)
-  await page.getByRole('button', { name: '麻辣香', exact: true }).click()
+  await page.getByRole('button', { name: '红烧', exact: true }).click()
   await page.getByRole('button', { name: '加入购物车' }).click()
   await expect(page.getByText(/已把 1 件「白象方便面」加入购物袋/)).toBeVisible()
   await page.goto('/#/cart')
-  await expect(page.getByText('帮泡 · 麻辣香').first()).toBeVisible()
+  await expect(page.getByText('帮泡 · 红烧').first()).toBeVisible()
 })
 
 test('口味不改价：乐事薯片选到烤虾味仍是 40g 的真实单价 2.66', async ({ page }) => {

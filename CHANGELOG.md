@@ -1,5 +1,50 @@
 ## [未发布]
-### 2026-10-29 托管侧内联首屏 CSS（+ 证明 br 已在线上）
+### 2026-11-01 新增商品「香芋压片糖」¥0.5 + 白象泡面五口味（帮泡与零售均可选）+ 泡面图片替换
+
+- **新增商品**：香芋压片糖（order 68，「新美 BEST CANDY」香芋味压片糖果，供货图无净含量小字 ⇒ `spec` 留空，糖果类归「零食」snacks）。
+  交付形状与 2026-10-26「小样软糖/话梅糖软糖」逐字同构，零代码改动 —— 商品 `image` 为空 ⇒ 调用点走
+  `productImageUrl(order)` 派生 `/images/68.webp`（`src/utils/images.ts:21`）。真相源 `src/data/products-seed.ts` 增 1 条，
+  `db/seed.sql` 由 `node db/gen-seed.mjs` 重生成（66→67 行商品）。
+- **白象五口味**：老大指定 红烧 / 香辣 / 排骨 / 肥牛 / 椒香，且**零售(47) 与帮泡(46) 都可选口味**（此前 47 实测 `specOptions=[]`，
+  零售详情页根本不渲染选择器）。口味仍只走唯一权威载体 `products.specOptions`（写进 `spec` 长文案的口味顾客点不到、
+  后台也读不出 —— 2026-09-26 那次静默回落事故就是这么来的）。两条记录共用同一份清单常量 `BIXIANG_FLAVORS`，
+  分成两份字面量就会出现「帮泡有椒香而零售没有」这种没人能解释的漂移。
+- **图片替换**：46/47 两张泡面图按老大要求全部换成「白象五口味全家福」（1280×1280 源图下采 800×800 q80 + sm 400×400 q75，
+  只下采不放大）；68 用香芋糖供货图同流水线出双尺寸。被替换的旧图留在 `_backup/product-images-src/`（gitignore 内，回滚用）。
+- **生产库**：新增三件迁移 + 三个配对回滚 —— `migrate-add-product-xiangyu-yapian.sql`（行集轨，`INSERT OR IGNORE`）、
+  `migrate-taste-baixiang5-p046.sql` / `migrate-taste-baixiang5-p047.sql`（数据轨，单列 UPDATE）。三个回滚件已登记进
+  `scripts/verify-migrate-replay.mjs` 的 `ROLLBACK_INSERT` / `ROLLBACK_DATA` 具名清单。只 INSERT/UPDATE 定向行，
+  不触碰既有列（线上与 seed 有系统性价格漂移：实测线上 p046=2.88 / p047=1.68，seed 仍是 3.66 / 1.88 —— 本笔不碰价）。
+- **排序约束（实测）**：两件口味迁移必须排在 `migrate-taste-baixiang.sql` 之后（那件把 46 设成旧三口味），
+  且都在 `migrate-spec-options.sql` 之后（那件末行 `NOT IN (33,34,40,52)` 会清空 specOptions）。
+  `migrate-add-product-xiangyu-yapian.sql` 排在 `migrate-spec-options.sql` 之前是**通道性形态**（四条 add-product 先例全同形），
+  因为该 INSERT 显式写 `specOptions='[]'` 不受清空影响；⚠️ 将来给 p068 配口味必须**新发一件排在后面**，不得回改本件。
+- **测试面同步**（改口味必然带动，不是顺手改）：`tests/variants.test.ts` 的 `KEEP_FLAVOR_ORDERS` 加 47（`toEqual` 等值断言）
+  + 五口味逐字同源判据（含「旧三口味不得残留」的反向断言）；`tests/productDetailVariants.test.tsx` 里「47 不渲染选择器」
+  按新口径**反转**为「47 渲染五口味且不渲染版本轴」；`tests/customerPage.test.tsx` 角标 3→5；`tests/e2e/product-detail.spec.ts`
+  三条用例改五口味。`tests/variants.test.ts` 的两轴夹具**保留旧三口味** —— 它钉的是「一个轴对某选项整体为空」的形状，
+  不是在售清单，跟着改会丢掉它的形状来源（已在夹具注释里写明）。
+- **判据自修（一手假红，不是放宽判据）**：按 §4 前置铁律跑真备份的载回断言时，
+  `verify-backup-restore` 把一份**完全健康**的 dump 报成"被截断"（文本 INSERT=1781 vs 载入行数=1777，
+  差值恰为该 dump 里 **4 条 `INSERT INTO sqlite_sequence`**；逐表对账每表相等、integrity=ok、fk=0、products=67）。
+  根因是**两侧分母不对称**：行数侧按 2026-10-29 的注释排除了 `SYSTEM_TABLES`，文本侧没排除。
+  wrangler 的导出形态不固定（10-29 那份没有 sqlite_sequence 的 INSERT，今天这份有 4 条）⇒ 这条腿从第十一轮起
+  从未被真实导出形态测过（旧夹具的 mini-dumper 用 `name NOT LIKE 'sqlite_%'` 过滤，永远产不出该形态）。
+  修法 = 新增 `countBusinessInsertStatements()`（与行数侧同分母）并让 CLI 用它，**不是**把阈值调松：
+  真截断丢的是业务行，业务行两侧都计 ⇒ 照样红。补两条腿自证：⑦ 正例（带 sqlite_sequence 的形态必须判可恢复）、
+  ⑧ 负控（同形态删一条 products 业务行必须仍判"≠ dump 文本 INSERT 数"）+ CLI 层正例一条；
+  `tests/backupRestore.test.js` 13→16 用例全过，真备份 rc 由 1 转 0。
+- **日历型红一处顺手治掉**：`check-d1-roundtrips` 的 A11 因 `docs/d1-remote-usage.json` 回执 @2026-10-24 超 7 天判红
+  （与本次改动无关）。跑 `node scripts/check-d1-remote-usage.mjs --write` 刷新（VERIFIED @2026-11-01T13:57Z，8/0），
+  并**同笔**同步 registry 的 `d1Usage` 三项（198/17321/2026-10-24 → 68/4643/2026-11-01）——
+  该件头注警告过的"只写回执不跟册"正是 2026-10-24 那次的实测坑。
+- **我自己踩的坑（记下来免得再踩）**：中途用 `npx vite build` 出过一次性产物，**漏了 `postbuild`**
+  （`inline-critical-css.mjs`）⇒ `verify:inline-css` 当场判红 6 项（CSS 没内联、字体/chunk 没预载、`_headers` 缺 Link）。
+  那不是判据坏，是我把构建链走短了；正解 = 一律 `npm run build`（prebuild=lint、postbuild=内联），红即自修。
+- **登记面**：`docs/governance/registry.json` 的 `facts.seedCatalog` 66→67 与 `bl-sku` evidence 同日复算；
+  `docs/doc-commands.json` 由 `node scripts/check-doc-commands.mjs --update` 重生（先写本条再重生，顺序不可倒）。
+
+本机实测：见 memory/07-next-steps.part199.md（verify 全链 + 线上 /pub 复算回执）。### 2026-10-29 托管侧内联首屏 CSS（+ 证明 br 已在线上）
 - **br 预压缩**：线上**早就有** —— 部署前后 curl 都是 `Content-Encoding: br`（平台按 Accept-Encoding 自动协商）；
   Pages 无「预压缩变体协商」、`_headers` 是静态声明不能按请求头分支 ⇒ 手写 `Content-Encoding: br` 反会给不支持 br 的客户端发乱码。**这项不做，给证据。**
 - **内联首屏 CSS**：构建期把入口样式表换成 `<style>`（`postbuild` = scripts/inline-critical-css.mjs），并**只把 sha256 写进 CSP meta 的 style-src**；

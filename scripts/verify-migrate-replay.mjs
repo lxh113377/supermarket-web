@@ -281,6 +281,9 @@ export function judge({ files, schemaSql, extraFiles = [] }) {
   const ROLLBACK_DATA = {
     'rollback-rename-order20.sql': { forward: 'adhoc-rename-order20.sql' },
     'rollback-taste-baixiang.sql': { forward: 'migrate-taste-baixiang.sql' },
+    // 2026-11-01 白象五口味：两条都是「单列 UPDATE 换值」形态 ⇒ 走数据轨（回滚值≠正向值即判得出空操作）
+    'rollback-taste-baixiang5-p046.sql': { forward: 'migrate-taste-baixiang5-p046.sql' },
+    'rollback-taste-baixiang5-p047.sql': { forward: 'migrate-taste-baixiang5-p047.sql' },
   }
   // 第十七轮补：行集轨（INSERT 新增行 / DELETE 删行）。数据轨只认单语句 UPDATE 改名，
   // 「插一批新行 + 回滚删这批行」落不进那条形态；本轨先于它之外单列，避免把插入型迁移
@@ -290,6 +293,7 @@ export function judge({ files, schemaSql, extraFiles = [] }) {
     'rollback-add-product-laoyuannuantang.sql': { forward: 'migrate-add-product-laoyuannuantang.sql', tables: ['products'] },
     'rollback-add-product-zhengda-wuhuaguo.sql': { forward: 'migrate-add-product-zhengda-wuhuaguo.sql', tables: ['products'] },
     'rollback-add-product-xiaoyang-huamei.sql': { forward: 'migrate-add-product-xiaoyang-huamei.sql', tables: ['products'] },
+    'rollback-add-product-xiangyu-yapian.sql': { forward: 'migrate-add-product-xiangyu-yapian.sql', tables: ['products'] },
   }
   const textOf = (name) => [...files, ...(extraFiles || [])].find((f) => f.file === name)?.text
   const seedSql = textOf('seed.sql') || ''

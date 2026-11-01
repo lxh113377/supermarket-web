@@ -1,0 +1,11 @@
+-- 白象方便面「零售」(order 47) 新增五口味（2026-11-01）
+-- 背景：老大原话「泡面的零售与帮泡均可选口味」。此前 47 的 specOptions 实测为空（2026-11-01 /pub：
+--   p047 specOptions=[]），所以零售那条详情页根本不渲染口味选择器（口径见 tests/e2e/product-detail.spec.ts）。
+-- 口味清单与 46 同源（同一份五口味）：两条记录仍是目录里的独立行，各自真实价、各自库存，
+--   共用口味集合是这次的业务口径 —— 分两份写就会出现「帮泡有椒香而零售没有」这种没人能解释的漂移。
+-- ⚠️ 不改 spec（线上 p047.spec = 「零售」），不改 price（线上实测 1.68，seed 是 1.88 —— 系统性漂移，本件不碰）。
+-- ⚠️ 排序：本件排在 migrate-taste-baixiang.sql 与 migrate-taste-baixiang5-p046.sql 之后、
+--    且必须在 migrate-spec-options.sql 之后（那件末行把 33/34/40/52 之外的 specOptions 清空）。
+-- 幂等：按 "order" 定位的单条 UPDATE，可安全重跑。
+-- 执行方式与备份前置同 migrate-taste-baixiang5-p046.sql；回滚见 rollback-taste-baixiang5-p047.sql。
+UPDATE products SET specOptions='[{"label":"红烧"},{"label":"香辣"},{"label":"排骨"},{"label":"肥牛"},{"label":"椒香"}]' WHERE "order"=47;

@@ -1,0 +1,17 @@
+-- 白象方便面「帮泡」(order 46) 口味换清单：十三香/麻辣香/山西老陈醋 → 红烧/香辣/排骨/肥牛/椒香（2026-11-01）
+-- 背景：老大 2026-11-01 指定五口味（供货图 = 白象「五口味全家福」：麻辣牛肉/红烧排骨/椒香排骨/四川红烧牛肉/原味排骨）。
+--   口味唯一权威载体仍是 products.specOptions（见 migrate-taste-baixiang.sql 头注：写进 spec 长文案的口味
+--   顾客点不到、后台也读不出，2026-09-26 那次事故就是这么来的）。
+-- ⚠️ 不改 spec：线上 p046.spec 实测就是「帮泡」（2026-11-01 /pub 读数复核），本件只换口味清单。
+-- ⚠️ 文件名必须排在 migrate-taste-baixiang.sql 之后（账目表按文件名排序应用）：
+--    那件把 46 设成旧三口味，本件把它改成五口味；反序则"从零重放"会停在旧三口味上。
+--    排序实测：migrate-taste-baixiang.sql < migrate-taste-baixiang5-p046.sql（"." 0x2E < "5" 0x35）。
+-- 回滚值取 2026-11-01 `POST /pub {action:getPublicProducts}` 的线上现值（含 enabled:true，与库里存的一致），
+--   不是 2026-09-28 之前的空清单 —— 回滚的语义是"回到改动前"，不是"回到最早"。
+-- 幂等：按 "order" 定位的单条 UPDATE，可安全重跑。
+-- 执行方式（chaoshi-web-deploy skill §4，一律走账目表，禁裸 d1 execute --file）：
+--   node scripts/migrate.mjs status --remote
+--   node scripts/migrate.mjs apply --remote --yes
+-- 前置：先全量备份并载回断言（备份只有被载回并断言过才算备份）。
+-- 回滚见 rollback-taste-baixiang5-p046.sql。
+UPDATE products SET specOptions='[{"label":"红烧"},{"label":"香辣"},{"label":"排骨"},{"label":"肥牛"},{"label":"椒香"}]' WHERE "order"=46;

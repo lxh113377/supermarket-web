@@ -166,6 +166,13 @@ describe('CLI 退出码：零输入绝不记绿', () => {
     expect(r.out).toContain('OK 备份可恢复')
     expect(r.out).toContain('products=3')
   })
+  it('CLI 正例：带 sqlite_sequence 的 wrangler 形态 ⇒ exit 0（口径修正端到端生效）', () => {
+    const f = join(DIR, 'good-with-seq.sql')
+    writeFileSync(f, makeDump() + "\nINSERT INTO sqlite_sequence (name, seq) VALUES ('products',3);\n", 'utf8')
+    const r = run([f])
+    expect(r.rc).toBe(0)
+    expect(r.out).toContain('OK 备份可恢复')
+  })
   it('坏备份 ⇒ exit 1（判据红，不放宽）', () => {
     const f = join(DIR, 'empty.sql')
     writeFileSync(f, SCHEMA_SQL, 'utf8')

@@ -1,0 +1,13 @@
+-- 新增商品：香芋压片糖 ¥0.5（2026-11-01，order 68）
+-- 背景：老大报新品并提供供货图（「新美 BEST CANDY」Tar 舒心大香芋·香芋味糖，充气糖果，压片/条状）。
+--   图上无净含量小字 ⇒ spec 留空；糖果类按既有口径归「零食」(snacks) 子分类（同 64 老酸奶软糖 / 66 小样软糖 / 67 话梅糖软糖）。
+-- 只 INSERT 新行，不触碰既有分类/商品的任何列（线上与 seed 存在系统性价格漂移，禁 seed 覆盖）。
+-- 幂等：INSERT OR IGNORE（账目表只跑一次；重放校验连跑两次必须不报错）。
+-- 图片走派生 URL：商品 image 为空 ⇒ 前端按 src/utils/images.ts 的 productImageUrl(order) 取 /images/68.webp，
+--   零代码改动；配套资产 public/images/68.webp（800w）与 public/images/sm/68.webp（400w）同笔入库。
+-- 执行方式（chaoshi-web-deploy skill §4，一律走账目表）：
+--   node scripts/migrate.mjs status --remote
+--   node scripts/migrate.mjs apply --remote --yes
+-- 前置：先全量备份并载回断言（备份只有被载回并断言过才算备份）。
+-- 回滚见 rollback-add-product-xiangyu-yapian.sql（按 _id + "order" 双条件删本行）。
+INSERT OR IGNORE INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p068', '香芋压片糖', '', 0.5, '["snacks"]', 1, 68, '[]');
