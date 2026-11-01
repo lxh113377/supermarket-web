@@ -53,11 +53,27 @@ HEAD/GET /images/{46,47,68}.webp + sm/ → 200，sha256 前 12 位与本地逐�
    懒加载 chunk /assets/products-seed-g9tDKD6V.js 内含「香芋压片糖 / 椒香 / 肥牛」
 ```
 
+## 真机渲染回执（收尾后补跑，两端各三条）
+
+```
+PAGES  order 46 | 白象方便面 ¥2.88 | img=/images/46.webp | axes=["口味"] buttons=["红烧","香辣","排骨","肥牛","椒香"]
+PAGES  order 47 | 白象方便面 ¥1.68 | img=/images/47.webp | axes=["口味"] buttons=["红烧","香辣","排骨","肥牛","椒香"]
+PAGES  order 68 | 香芋压片糖 ¥0.50 | img=/images/68.webp | axes=[] buttons=[]（无口味清单 ⇒ 不凭空长出选择器）
+GH.IO  同上三条逐字相同（github.io 需经 Clash 代理，直连 ERR_CONNECTION_TIMED_OUT 是本机网络面不是站点面）
+page errors: none（两端六次导航零 JS 异常）
+端到端功能链：p_47 点「椒香」→ 加购 → 购物袋行 spec = "零售 · 椒香"，price 1.68，页面渲染出该文案
+  ⇒ 老大最初报的「顾客选了口味而后台看不见」这条链在新五口味上实测闭合（服务端 allowedOrderSpecs 放行）。
+本地 e2e：npx playwright test tests/e2e/product-detail.spec.ts ⇒ 15 passed（首轮因缺 chromium 二进制
+  15 全红，那是环境不是代码；npx playwright install chromium-headless-shell 后复跑全绿）
+CI 终态：run 41316590650@a37a1e2 success（gates 47/47、e2e、e2e-cloud-stub、visual 702s、deploy 全绿）；
+  分类计数 绿=16 真判据红=0 在跑=0；两端 deploy 均「已发生」。
+线上图片字节：12 件（两端 × 6 文件）sha256 全部 == 本地源件 ⇒ ALL_IMAGES_MATCH_ON_BOTH_FRONTS
+```
+
 ## 未取证 / 边界（如实登记，不假装闭环）
 
 - 件 A 未交付（骨架回件）⇒ 其结论来自 Lead 自测，非独立第二意见；图片流水线口径以 verify_images.py 实跑 rc=0 为准。
 - 价格未动：线上 p046=2.88 / p047=1.68 与 seed 3.66/1.88 的系统性漂移**本笔刻意不碰**（禁 seed 覆盖线上），
   老大本轮只点名口味与图片，未授权改价 ⇒ 未改，留此说明以免下轮误当遗漏。
-- 顾客端「口味可选」的**真机渲染**未跑 Playwright（CI 的 visual job 在收尾时仍在跑；gates/e2e/deep-gates 已绿）。
-  组件层与 e2e 判据均已在 CI 通过面内，故不另立待办。
+- ~~顾客端真机渲染未取证~~ ⇒ **已补取证**（收尾后跑的）：真 Chromium 逐页渲染两端 46/47/68，见下方「真机渲染回执」。
 - 旧三口味的历史订单不受影响：splitOrderSpec 对不含「 · 」的老单返回 flavor=""，后台不显示徽标（既有口径）。
