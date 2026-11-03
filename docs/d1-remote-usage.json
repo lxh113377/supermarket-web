@@ -1,14 +1,14 @@
 {
   "schema": "chaoshi-d1-remote-usage-v1",
-  "retrievedAtUtc": "2026-11-01T13:57:14.775Z",
+  "retrievedAtUtc": "2026-11-03T11:03:22.661Z",
   "endpoint": "https://api.cloudflare.com/client/v4/graphql",
   "accountResolvedVia": "wrangler whoami",
   "databaseName": "supermarket",
   "windowUtc": {
-    "today_geq": "2026-11-01T00:00:00Z",
-    "today_lt": "2026-11-02T00:00:00Z",
-    "hist_geq": "2026-10-26T00:00:00Z",
-    "hist_lt": "2026-11-02T00:00:00Z"
+    "today_geq": "2026-11-03T00:00:00Z",
+    "today_lt": "2026-11-04T00:00:00Z",
+    "hist_geq": "2026-10-28T00:00:00Z",
+    "hist_lt": "2026-11-04T00:00:00Z"
   },
   "quota": {
     "rows_written_free_per_day": 100000,
@@ -19,24 +19,10 @@
   "channels": {
     "graphql": {
       "state": "VERIFIED",
-      "retrievedAt": "2026-11-01T13:57:23.432Z",
-      "rowsRead": 4643,
-      "rowsWritten": 68,
+      "retrievedAt": "2026-11-03T11:03:25.891Z",
+      "rowsRead": 5030,
+      "rowsWritten": 21,
       "byDateUtc": [
-        [
-          "2026-10-26",
-          {
-            "rowsRead": 25807,
-            "rowsWritten": 227
-          }
-        ],
-        [
-          "2026-10-27",
-          {
-            "rowsRead": 76743,
-            "rowsWritten": 192
-          }
-        ],
         [
           "2026-10-28",
           {
@@ -68,8 +54,22 @@
         [
           "2026-11-01",
           {
-            "rowsRead": 4643,
-            "rowsWritten": 68
+            "rowsRead": 10141,
+            "rowsWritten": 89
+          }
+        ],
+        [
+          "2026-11-02",
+          {
+            "rowsRead": 4507,
+            "rowsWritten": 84
+          }
+        ],
+        [
+          "2026-11-03",
+          {
+            "rowsRead": 5030,
+            "rowsWritten": 21
           }
         ]
       ],
@@ -77,12 +77,12 @@
     },
     "wrangler": {
       "state": "VERIFIED",
-      "retrievedAt": "2026-11-01T13:57:25.934Z",
+      "retrievedAt": "2026-11-03T11:03:28.163Z",
       "rolling24h": {
-        "rows_read_24h": 13356,
-        "rows_written_24h": 300,
-        "read_queries_24h": 188,
-        "write_queries_24h": 106
+        "rows_read_24h": 8093,
+        "rows_written_24h": 44,
+        "read_queries_24h": 110,
+        "write_queries_24h": 12
       },
       "databaseId": "4bfc0283-d307-4285-9f02-dc230cfe4f5c",
       "reason": null

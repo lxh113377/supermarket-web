@@ -53,9 +53,9 @@
       "source": "docs/d1-write-quota.json"
     },
     "d1Usage": {
-      "rowsWrittenLastDay": 68,
-      "rowsReadLastDay": 4643,
-      "dayUtc": "2026-11-01",
+      "rowsWrittenLastDay": 21,
+      "rowsReadLastDay": 5030,
+      "dayUtc": "2026-11-03",
       "source": "docs/d1-remote-usage.json 的 channels.graphql.byDateUtc 最后一项（当日）；2026-10-24 本机 `check-d1-remote-usage --write` 刷新后同步"
     },
     "bundleBudget": {
