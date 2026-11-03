@@ -1,0 +1,13 @@
+-- 新增商品：康师傅茉莉柚茶 1L ¥3.88（2026-11-03，order 69）
+-- 背景：老大报新品并提供供货图（康师傅 茉莉柚茶，果味茶饮，图上净含量小字=1L）。
+--   归类比照 53 康师傅茉莉清茶 / 54 康师傅茉莉蜜茶：果味茶饮 ⇒ subcategories ["tea","sweet"]。
+-- 只 INSERT 新行，不触碰既有分类/商品的任何列（线上与 seed 存在系统性价格漂移，禁 seed 覆盖）。
+-- 幂等：INSERT OR IGNORE（账目表只跑一次；重放校验连跑两次必须不报错）。
+-- 图片走派生 URL：商品 image 为空 ⇒ 前端按 src/utils/images.ts 的 productImageUrl(order) 取 /images/69.webp，
+--   零代码改动；配套资产 public/images/69.webp（800w q80）与 public/images/sm/69.webp（400w q75）同笔入库。
+-- 执行方式（chaoshi-web-deploy skill §4，一律走账目表）：
+--   node scripts/migrate.mjs status --remote
+--   node scripts/migrate.mjs apply --remote --yes
+-- 前置：先全量备份并载回断言（备份只有被载回并断言过才算备份）。
+-- 回滚见 rollback-add-product-moliyoucha.sql（按 _id + "order" 双条件删本行）。
+INSERT OR IGNORE INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p069', '康师傅茉莉柚茶', '1L', 3.88, '["tea","sweet"]', 1, 69, '[]');

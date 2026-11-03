@@ -294,6 +294,7 @@ export function judge({ files, schemaSql, extraFiles = [] }) {
     'rollback-add-product-zhengda-wuhuaguo.sql': { forward: 'migrate-add-product-zhengda-wuhuaguo.sql', tables: ['products'] },
     'rollback-add-product-xiaoyang-huamei.sql': { forward: 'migrate-add-product-xiaoyang-huamei.sql', tables: ['products'] },
     'rollback-add-product-xiangyu-yapian.sql': { forward: 'migrate-add-product-xiangyu-yapian.sql', tables: ['products'] },
+    'rollback-add-product-moliyoucha.sql': { forward: 'migrate-add-product-moliyoucha.sql', tables: ['products'] },
   }
   const textOf = (name) => [...files, ...(extraFiles || [])].find((f) => f.file === name)?.text
   const seedSql = textOf('seed.sql') || ''

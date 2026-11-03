@@ -1,4 +1,17 @@
 ## [未发布]
+### 2026-11-03 新增商品「康师傅茉莉柚茶」1L ¥3.88 —— 供货图入库，走既有商品面变更链
+
+- **新增商品**：康师傅茉莉柚茶（order 69 / `p069`，果味茶饮，图上净含量小字=1L ⇒ `spec='1L'`；归类比照 53/54 茉莉清茶/蜜茶
+  形态 ⇒ `subcategories=['tea','sweet']`）。交付形状与 2026-10-24「正大无花果」逐字同构，零生产代码改动 —— 商品 `image`
+  为空 ⇒ 调用点走 `productImageUrl(order)` 派生 `/images/69.webp`（`src/utils/images.ts`）。真相源 `src/data/products-seed.ts`
+  增 1 条，`db/seed.sql` 由 `node db/gen-seed.mjs` 重生成（67→68 行商品）。
+- **图片**：`public/images/69.webp`（800×800 q80）+ `sm/69.webp`（400×400 q75），sharp 流水线（与 r101 同链，只下采不放大），
+  源图留存 `_backup/product-images-src/moliyoucha-src.jpg`（gitignore 内）。
+- **生产库**：`migrate-add-product-moliyoucha.sql`（行集轨，`INSERT OR IGNORE`）+ 配对 `rollback-add-product-moliyoucha.sql`
+  （按 `_id` + `"order"` 双条件删行），回滚件已登记进 `scripts/verify-migrate-replay.mjs` 的 `ROLLBACK_INSERT` 具名清单。
+  只 INSERT 定向行，不触碰既有列（线上与 seed 有系统性价格漂移，本笔不碰任何既有行）。
+- **治理面**：`docs/governance/registry.json` 的 `seedCatalog` facts 67→68 同步（F2 机器对账要求数字=现值）。
+
 ### 2026-11-01 新增商品「香芋压片糖」¥0.5 + 白象泡面五口味（帮泡与零售均可选）+ 泡面图片替换
 
 - **新增商品**：香芋压片糖（order 68，「新美 BEST CANDY」香芋味压片糖果，供货图无净含量小字 ⇒ `spec` 留空，糖果类归「零食」snacks）。

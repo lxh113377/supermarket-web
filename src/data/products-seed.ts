@@ -187,4 +187,7 @@ export const products: SeedProduct[] = [
 
   // 新增商品（2026-11-01，用户提供供货图；「新美 BEST CANDY」香芋味压片糖果，图上无净含量小字 ⇒ spec 留空，糖果类归零食）
   { name: '香芋压片糖', spec: '', price: 0.5, subcategories: ['snacks'], order: 68 },
+
+  // 新增商品（2026-11-03，用户提供供货图；康师傅茉莉柚茶 1L 果味茶饮，图上净含量小字=1L ⇒ spec 带上；比照 53/54 茉莉清茶/蜜茶归 tea+sweet）
+  { name: '康师傅茉莉柚茶', spec: '1L', price: 3.88, subcategories: ['tea', 'sweet'], order: 69 },
 ]
