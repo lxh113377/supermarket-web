@@ -29,3 +29,8 @@
   全量探针刷新（observed_utc=2026-11-07T13:50:00Z）⇒ vitest 31/31 复跑全过；未刷绿未改阈值。
 - C9：非阻断（默认面 rc=0、脚本自注永不进阻断链）；13 条 10-29 历史未覆盖列待办，刷新需 gh api+token。
 - migrate status --remote 实测：TODO 本笔迁移（sha aba67555ad0fa535）/ 19 已应用 / 1 待应用 / 共 20。
+
+## 部署回执（2026-11-07）
+- 提交 c9c0807（14 件）→ push main（064ce6a..c9c0807，HTTP/1.1 去代理通道成功）→ CI run 42380538366 / 42380538252 success；dispatch run 42380546680 success。
+- D1：备份载回断言 OK → 迁移 APPLIED（1 新应用）→ 重放负控 0 待应用；线上 /pub 含 p070 恰 1 条逐字段相等、双图 200、deploy==HEAD。
+- 遗留红（既有，非本笔）：C9 绕过终态读数 13 条未覆盖（刷新走联网读数通道）；uptime 顾客端 3 请求异常 + 打印反代 530（CampusPrint origin 离线）。

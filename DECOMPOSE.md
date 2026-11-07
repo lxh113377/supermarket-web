@@ -38,8 +38,12 @@
 ## 交付清单（本笔提交显式清单，内层 main）
 DECOMPOSE.md · CHANGELOG.md · memory/07-next-steps.md · memory/07-next-steps.part202.md · src/data/products-seed.ts · db/seed.sql · db/migrate-add-product-wahaha-yingyangkuaixian.sql · db/rollback-add-product-wahaha-yingyangkuaixian.sql · scripts/verify-migrate-replay.mjs · docs/governance/registry.json · public/images/70.webp · public/images/sm/70.webp
 
-## 状态
-生产文件已落盘并读回自检通过；本地门禁 → 提交 → 部署 → 线上复算回执待回填。
+## 状态（r103 收口回执，2026-11-07）
+- 门禁：npm run verify + verify:backend + npm test 全链 CHAIN_RC 0/0/0（GATE-PASS 17；S6 读数由全量探针刷新、doccmd 台账重生、C9 实证非阻断）。
+- 提交：c9c0807（14 件显式清单）；D1：备份 2502467B 载回断言 OK（1866 行/14 表/products=69）→ APPLIED 1 新应用 → 负控重放 0 待应用。
+- 部署：本地 pages deploy 6c033a25 + push（HTTP/1.1 去代理，064ce6a..c9c0807）→ CI run 42380538366/42380538252 @c9c0807 success；dispatch run 42380546680 success（github.io 重建）。
+- 线上：/_health deploy=c9c0807==HEAD（live-shape 3/3 漂移 0）；CACHE_VERSION sm-v1794060935787；/pub 在售 40 条 p070 恰 1 条逐字段相等；双图 200；smoke 4/4（含 /web 带密钥）；uptime 管理侧全绿+密钥禁令在守，顾客端 3 红+打印反代 530 = r102 在册既有红非本笔引入。
+- 遗留待办：C9 读数刷新（联网 gh api）与顾客端巡检红修复 → 07-next-steps.part202.md。
 
 ## 门禁收口记录（2026-11-07 实测）
 - 首跑全链（npm run verify && verify:backend && npm test，日志 _backup/verify-r103.log）：CHAIN_RC verify=1 backend=0 test=1。
