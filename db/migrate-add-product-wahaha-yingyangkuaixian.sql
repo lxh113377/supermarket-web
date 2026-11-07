@@ -1,0 +1,14 @@
+-- 新增商品：哇哈哈营养快线 500ml ¥3.88（2026-11-07，order 70）
+-- 背景：老大口头报新品（「哇哈哈营养快线500ml 3.88元」）；供货主图由本机无头抓取选定正品「娃哈哈营养快线 原味」电商图，
+--   名称沿用老大原样拼写「哇哈哈」，真实品牌为「娃哈哈」——作为观察项记录，不擅自改名。
+-- 归类：比照目录里唯一含乳饮料 p050「优酸乳」的形态 ⇒ subcategories ['sweet']（含乳甜饮，不归茶/维生素）。
+-- 只 INSERT 新行，不触碰既有分类/商品的任何列（线上与 seed 存在系统性价格漂移，禁 seed 覆盖）。
+-- 幂等：INSERT OR IGNORE（账目表只跑一次；重放校验连跑两次必须不报错）。
+-- 图片走派生 URL：商品 image 为空 ⇒ 前端按 src/utils/images.ts 的 productImageUrl(order) 取 /images/70.webp，
+--   零代码改动；配套资产 public/images/70.webp（800w q80）与 public/images/sm/70.webp（400w q75）同笔入库。
+-- 执行方式（chaoshi-web-deploy skill §4，一律走账目表）：
+--   node scripts/migrate.mjs status --remote
+--   node scripts/migrate.mjs apply --remote --yes
+-- 前置：先全量备份并载回断言（备份只有被载回并断言过才算备份）。
+-- 回滚见 rollback-add-product-wahaha-yingyangkuaixian.sql（按 _id + "order" 双条件删本行）。
+INSERT OR IGNORE INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p070', '哇哈哈营养快线', '500ml', 3.88, '["sweet"]', 1, 70, '[]');

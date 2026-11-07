@@ -1,4 +1,22 @@
 ## [未发布]
+### 2026-11-07 新增商品「哇哈哈营养快线」500ml ¥3.88 —— 供货图入库，走既有商品面变更链
+
+- **新增商品**：哇哈哈营养快线（order 70 / p070，500ml 含乳饮料，老大口述净含量=500ml ⇒ spec 带上；归类比照 p050 优酸乳
+  形态 ⇒ subcategories=[sweet]）。交付形状与 2026-11-03「康师傅茉莉柚茶」逐字同构，零生产代码改动 —— 商品 image
+  为空 ⇒ 调用点走 productImageUrl(order) 派生 /images/70.webp（src/utils/images.ts）。真相源 src/data/products-seed.ts
+  增 1 条，db/seed.sql 由 node db/gen-seed.mjs 重生成（68→69 行商品）。名称沿用老大原样拼写「哇哈哈」，真实品牌为
+  「娃哈哈」（供货主图印娃哈哈），作为观察项记录，不擅自改名。
+- **图片**：public/images/70.webp（800×800 q80）+ sm/70.webp（400×400 q75），sharp 流水线（与 r102 同链，只下采不放大），
+  源图留存 _backup/product-images-src/wahaha-yingyangkuaixian-src.jpg（gitignore 内）。正品电商主图由本机无头抓取选定。
+- **生产库**：migrate-add-product-wahaha-yingyangkuaixian.sql（行集轨，INSERT OR IGNORE）+ 配对
+  rollback-add-product-wahaha-yingyangkuaixian.sql（按 _id + "order" 双条件删行），回滚件已登记进
+  scripts/verify-migrate-replay.mjs 的 ROLLBACK_INSERT 具名清单。只 INSERT 定向行，不触碰既有列（线上与 seed 有系统性价格漂移，本笔不碰任何既有行）。
+- **治理面**：docs/governance/registry.json 的 seedCatalog facts 68→69 与 evidence/measuredAt 同步（F2 机器对账要求数字=现值）。
+- **证据新鲜度（S6）**：docs/judge-side-effects.json 读数过期（2026-10-21，16.9 天 > 14 天阈值）会让 CI gates 的 vitest 红
+  并掐死 deploy（ci.yml:142/472）。按判据自带救济 `node scripts/check-judge-side-effects.mjs --update` 全量探针重算
+  （候选 23 / 盲 15 / 实测产物 5）刷新 observed_utc；vitest 31/31 复跑全过。C9 绕过终态读数对账（10-29 历史 13 条）
+  实测非阻断（verify:escape-hatch 默认面 rc=0），列待办不挡部署。
+
 ### 2026-11-03 新增商品「康师傅茉莉柚茶」1L ¥3.88 —— 供货图入库，走既有商品面变更链
 
 - **新增商品**：康师傅茉莉柚茶（order 69 / `p069`，果味茶饮，图上净含量小字=1L ⇒ `spec='1L'`；归类比照 53/54 茉莉清茶/蜜茶

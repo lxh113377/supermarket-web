@@ -190,4 +190,10 @@ export const products: SeedProduct[] = [
 
   // 新增商品（2026-11-03，用户提供供货图；康师傅茉莉柚茶 1L 果味茶饮，图上净含量小字=1L ⇒ spec 带上；比照 53/54 茉莉清茶/蜜茶归 tea+sweet）
   { name: '康师傅茉莉柚茶', spec: '1L', price: 3.88, subcategories: ['tea', 'sweet'], order: 69 },
+
+  // 新增商品（2026-11-07，老大口头报新品；哇哈哈营养快线 500ml 含乳饮料，净含量按老大口述=500ml ⇒ spec 带上；
+  //   归类比照目录里唯一的含乳饮料 p050「优酸乳」：含乳甜饮 ⇒ subcategories ['sweet']，不归茶/维生素；
+  //   image 留空 ⇒ 调用点走 productImageUrl(order) 派生 /images/70.webp，零生产代码改动）
+  { name: '哇哈哈营养快线', spec: '500ml', price: 3.88, subcategories: ['sweet'], order: 70 },
 ]
+

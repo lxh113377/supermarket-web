@@ -69,3 +69,4 @@ INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", s
 INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p067', '话梅糖软糖', '', 0.09, '["snacks"]', 1, 67, '[]');
 INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p068', '香芋压片糖', '', 0.5, '["snacks"]', 1, 68, '[]');
 INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p069', '康师傅茉莉柚茶', '1L', 3.88, '["tea","sweet"]', 1, 69, '[]');
+INSERT INTO products (_id, name, spec, price, subcategories, enabled, "order", specOptions) VALUES ('p070', '哇哈哈营养快线', '500ml', 3.88, '["sweet"]', 1, 70, '[]');
