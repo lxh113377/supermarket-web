@@ -1,4 +1,18 @@
 ## [未发布]
+### 2026-11-13 新增商品「脉动」600ml ¥3.88 —— 供货图入库，走既有商品面变更链
+
+- **新增商品**：脉动（order 71 / `p071`，维生素饮料 青柠口味，图上净含量小字=600ml ⇒ `spec='600ml'`；图上卖点「3D源动力 /
+  多种维生素」⇒ 归类比照维生素面 `p014 水溶c100` / `p015 维他命` 形态 ⇒ `subcategories=['vitamin']`）。交付形状与
+  2026-11-07「哇哈哈营养快线」逐字同构，零生产代码改动 —— 商品 `image` 为空 ⇒ 调用点走 `productImageUrl(order)`
+  派生 `/images/71.webp`（`src/utils/images.ts`）。真相源 `src/data/products-seed.ts` 增 1 条，`db/seed.sql` 由
+  `node db/gen-seed.mjs` 重生成（69→70 行商品）。
+- **图片**：`public/images/71.webp`（800×800 q80，104860B）+ `sm/71.webp`（400×400 q75，31826B），sharp 流水线
+  （与 r103 同链，只下采不放大），源图留存 `_backup/product-images-src/r104-dongmai-01.jpg`（gitignore 内，138315B）。
+  体积约为前例 1.9×（广告图文字/水汽细节密度高，q80/q75 口径未动）。
+- **生产库**：`migrate-add-product-dongmai.sql`（行集轨，`INSERT OR IGNORE`）+ 配对 `rollback-add-product-dongmai.sql`
+  （按 `_id` + `"order"` 双条件删行），回滚件已登记进 `scripts/verify-migrate-replay.mjs` 的 `ROLLBACK_INSERT` 具名清单。
+  只 INSERT 定向行，不触碰既有列（线上与 seed 有系统性价格漂移，本笔不碰任何既有行）。
+- **治理面**：`docs/governance/registry.json` 的 `seedCatalog` facts 69→70 与 `measuredAt` 同步（F2 机器对账要求数字=现值）。
 ### 2026-11-07 新增商品「哇哈哈营养快线」500ml ¥3.88 —— 供货图入库，走既有商品面变更链
 
 - **新增商品**：哇哈哈营养快线（order 70 / p070，500ml 含乳饮料，老大口述净含量=500ml ⇒ spec 带上；归类比照 p050 优酸乳

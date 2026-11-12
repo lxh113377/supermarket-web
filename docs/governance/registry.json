@@ -3,7 +3,7 @@
   "generatedUtc": "2026-10-18T05:05:00Z",
   "comment": "契约治理 + 体量治理的唯一机器登记册。人读规范见同目录两份 markdown；判据 scripts/check-governance-framework.mjs 对本册做三向对账（登记值 ⇄ 真相源现值 ⇄ 源件在盘非空）。凡登记项被文档以 [registry:<id>] 引用，判据做双向存在性对账。数字一律取本机 2026-10-18 实跑读数，禁手抄第二份。",
   "facts": {
-    "measuredAt": "2026-10-18T04:30:00Z",
+    "measuredAt": "2026-11-13T07:16:00Z",
     "repo": "supermarket-web (内层 git 根)",
     "head": "f2410b3",
     "contractActions": {
@@ -41,8 +41,8 @@
       "source": "scripts/check-memory-volume.mjs（CONTENT_MAX_DEFAULT/SHELL_MAX_DEFAULT 导入 + 当场 stat）；运行时字段一律现算，禁手抄"
     },
     "seedCatalog": {
-      "products": 69,
-      "enabled": 69,
+      "products": 70,
+      "enabled": 70,
       "orders": 0,
       "source": "node:sqlite 内存重放 db/schema.sql + db/seed.sql（本机实测）"
     },

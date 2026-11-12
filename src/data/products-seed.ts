@@ -195,5 +195,9 @@ export const products: SeedProduct[] = [
   //   归类比照目录里唯一的含乳饮料 p050「优酸乳」：含乳甜饮 ⇒ subcategories ['sweet']，不归茶/维生素；
   //   image 留空 ⇒ 调用点走 productImageUrl(order) 派生 /images/70.webp，零生产代码改动）
   { name: '哇哈哈营养快线', spec: '500ml', price: 3.88, subcategories: ['sweet'], order: 70 },
+  // 新增商品（2026-11-13，老大提供供货图；脉动维生素饮料 青柠口味 600ml*15瓶装，图上净含量=600ml ⇒ spec 带上；
+  //   图上卖点「多种维生素」⇒ 归类比照 p014 水溶c100 / p015 维他命 的维生素面 subcategories ['vitamin']；
+  //   image 留空 ⇒ 调用点走 productImageUrl(order) 派生 /images/71.webp，零生产代码改动）
+  { name: '脉动', spec: '600ml', price: 3.88, subcategories: ['vitamin'], order: 71 },
 ]
 
