@@ -44,3 +44,23 @@
   ⇒ **本机无法自行 Pages 部署**，部署只能走 push main → CI deploy job。
 - GitHub：api.github.com 直连 200，gh CLI 已登录（lxh113377，repo + workflow scope）；git 走 Clash 127.0.0.1:7897
   （首轮 `git ls-remote` RPC 失败，重试 PASS）。
+
+## 状态（r104 收口回执，2026-11-13）
+- 商品已上线：D1 生产行 `p_mwe6hs0s1p1yqy`（order 71 / 脉动 / 600ml / 3.88 / vitamin）经 `/web createProduct` 建出；
+  `/pub getPublicProducts` 在售 37 条、p071 逐字段相等；`/web getProducts` 64→71 条含 71；两图 200。
+- 提交：`ca29b12`（15 件显式清单）已 push origin/main；`dispatch.yml` run 43329457303 success —— github.io 构建产物清单
+  里确有 `./images/71.webp` 与 `./images/sm/71.webp`（顾客端图已在线上产物中）。
+- **未完成的唯一一件：pages.dev 侧部署**。CI run 43329436020 的 `gates` job 红 ⇒ `deploy` job skipped（未创建）；
+  pages.dev 的 `_health.deploy` 仍是 d89ddab，`/images/71.webp` 回的是 index.html（145077B, text/html）而非 webp。
+- 红因（实测，非本笔引入的新判据）：`verify:roundtrips` 的 A11 判 `docs/d1-remote-usage.json` 的 retrievedAtUtc 龄期
+  （2026-11-03，9.5 天 > 7 天保险丝）。刷新它需要 CF **Account Analytics: Read**；本机 `CF_D1_BACKUP_TOKEN` 只有 D1 读
+  （写 query 与 /import 均 7500、GraphQL `authz not authorized for that account`），wrangler OAuth 已过期且 refresh_token
+  报 `invalid_grant`，CI 侧 `secrets.CLOUDFLARE_API_TOKEN` 同样 authz 失败（ci-deep run 43330487902 原文）⇒ 外部凭据缺口。
+- 诚实性说明（本会话走过又回退的一条路）：把旧 graphql 读数与新 wrangler 读数拼成「顶层时刻是新的」回执可以让 A11 转绿，
+  但 graphql 那半仍是 11-03 的数 —— 等于把过期读数包装成新读数。已 `git checkout` 还原，未提交。
+- 判据面绿的部分（逐条可复跑）：npm run verify 前 4 段 49/6/25 通过（唯一红为 A11）；verify:backend 212/212；
+  vitest 152 文件 2196 用例全绿（`tests/cliEntrypoints` 的 roundtrips 腿随 A11 一起红）；verify:governance F2 13 组不符 0；
+  verify:migrate-replay 迁移 21 件 / 行集轨 8 件 / 覆盖 18 件；verify:images 主图 71/71 + 缩略图 71/71；verify:volume GATE-PASS。
+- 待办（需外部凭据，已落全局三处 part462）：新建带 Account Analytics:Read 的 CF Token → 写 `.dev.vars` 的 CLOUDFLARE_API_TOKEN
+  并跑 `node scripts/check-d1-remote-usage.mjs --write` → 同步仓库 secret → 下一次 push 时 gates 绿、deploy 自动补跑，
+  判据 = `grep retrievedAtUtc docs/d1-remote-usage.json` 距今 ≤7 天 ∧ `npm run verify:roundtrips` rc=0 ∧ `_health.deploy`==HEAD。
