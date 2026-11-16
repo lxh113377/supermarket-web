@@ -156,6 +156,7 @@ G11 认的是"已证明停在门口"这个整词，不是子串 —— 否则 �
 | inline-critical-css.mjs | writes-artifacts | ❌ 不声明停在门口：它**就是要**改写 `dist/index.html` / `dist/_headers`（构建期内联 + 生成入口预载段）。幂等靠哨兵注释，重复跑不会叠加；但它只该在 build 之后跑，探针面不碰。同族见上表豁免行 |
 | check-doc-commands.mjs | writes-artifacts | ❌ 不声明停在门口：只有显式 `--update` 才改写 `docs/doc-commands.json` 与 README 的门禁块（两处都受版本控制）；默认 args 只读，本轮真面实测 rc=1 / 6 条判据 4 通过 2 失败（D5+D6 同点名 `check:judge-side-effects`）。它在文档面为空时由 **D1 判红**而不是 rc=2 ⇒ 探针的"缺输入即 bail"形状对它不成立 |
 | check-judge-side-effects.mjs | writes-artifacts | ❌ 不声明停在门口：只有 `--update` 重写 `docs/judge-side-effects.json`；无 flag 的真跑法把每个候选解进 `os.tmpdir()` 的一次性 `git archive` 快照里跑（本机第四十六轮实测：候选 9 件、**1m37s**（修前 6m49s，根因＝读数面把探针注入的 node_modules 也算进去）、工作树字节零改动）⇒ 慢且要 git+tar，不进 ②③ 自动面。本轮新增件在 HEAD 里还没有 ⇒ 它**对自己的探针**记 UNVERIFIED 并具名在册（`unprobeable`），入库后自动可探 |
+| check-governance-framework.mjs | wrangler | ✅ 已证明停在门口（门禁类，`verify:governance` 每轮 CI gates 真跑）：**`wrangler` 标签来自注释文字、不是调用面**——goal-553143d2 给 `d1Usage()` 补 wrangler rolling24h 回退时，注释里写了 `wrangler d1 info --json` 说明文字，分类器按源码特征推导（同 backup-d1-rest.mjs 先例：按推导值登记，不改注释抹平标签）。代码本身**零触网零 spawn**：只读 `docs/d1-remote-usage.json`/`registry.json` + 内存 SQLite 重放 seed，骨架**实测 rc=0 / 293ms**（@2026-11-17 本机，12 通过/0 失败/0 未验）⇒ 回到分母。判据本体由 `tests/governanceFramework.test.js` 覆盖（真仓默认面 rc 0/1/2 皆可 + M1/M2 变异体） |
 ## 为什么"CI 里真跑过"算减轻因素、但不抵消缺口
 
 被豁免/挂账的入口大多确实在 CI 或部署流程里以 `node scripts/X.mjs` 真跑过 —— 入口崩了 CI 就红，

@@ -1,4 +1,16 @@
 ## [未发布]
+### 2026-11-17 Rust 提速·线上部署解卡（goal-553143d2）—— gates 四卡点本机治愈，pages.dev 部署链打通
+
+- **背景**：rust/ 三 crate 重写与提速证据已在 r1 本机复算钉死（docs/13：TTFB −68.4%/首屏传输 −23.9%/WASM 索引 2.42×/e2e 80/80）；微信顾客端 github.io 已部署到 HEAD（dispatch run 43899142168 success，内联 CSS/字体分包 A 包 11604B/br 形态线上实测确认）。pages.dev 停在 d89ddab（落后 5 提交），根因 = CI gates 红 ⇒ deploy job skipped。
+- **A11 回执龄期治愈**：r104 part462 原判「无合法路径」系当时 node_modules 被 R15 磁盘清理回收、wrangler 不可跑。本轮重建 wrangler 4.145.0 后，用 .dev.vars 的 CF_D1_BACKUP_TOKEN（仅 D1 读）走 `wrangler d1 info` 通道刷新 docs/d1-remote-usage.json（retrievedAtUtc 2026-11-16T16:39:46Z，wrangler 通道 VERIFIED，真实远端读数非伪绿）。remoteUsageClaim（lib/d1-quota.mjs:48）认任一通道 VERIFIED ⇒ A11 PASS（check-d1-roundtrips 25/0，无 CF token 模拟 CI 环境复跑仍 PASS）。
+- **C10 处置结论治愈**：docs/escape-hatch-remote.json 补 R#87(5deae55)/R#93(991dcee)/R#97(a5035e5) 三条判决面 RED 的可证伪 disposition.why（CI run 40843101036/40870897639/43333223217 + 治愈提交 a56e8c1/e3c8650）。check-escape-hatch-log --require-disposition rc=0（待处置 0/已解释 32）。
+- **F2 d1Usage 回退（判据消费面补齐，非改门槛）**：scripts/check-governance-framework.mjs 的 d1Usage() 原只读 graphql.byDateUtc；graphql 盲（本机 token 无 Analytics:Read）时现算 null ⇒ F2 缺键 rc=2 ⇒ gates 红。补 wrangler rolling24h 回退（与 A11 任一通道口径对齐，真实读数），同步 docs/governance/registry.json 的 d1Usage（0/0/2026-11-16，source 诚实标注滚动24h口径）。governance 12/0/0 判定=PASS。
+- **G9/G11 风险登记**：d1Usage 回退注释含 `wrangler d1 info --json` 文字 ⇒ classifyRisk 推导 wrangler 标签（同 backup-d1-rest.mjs 先例：标签来自注释非调用面）。docs/cli-entrypoints.md 风险表补登记行 + 源码加 @probe-safe 声明（骨架实测 rc=0/293ms，零触网零 spawn）。cli-entrypoints 14/14 GATE-PASS。
+- **验证**：npm run verify **VERIFY_RC=0**（49+6+25+…各腿 0 失败，vitest 152 文件/2196 用例全过，backend 真跑，governance PASS）；scan-secrets 1223 文件通过；lint 0 warnings。
+- **部署路径**：CI secret CLOUDFLARE_API_TOKEN 有 Pages:Edit（最近成功 deploy run 42381885886@d89ddab 2026-11-07 实证）⇒ 本笔 push main 后 gates 绿 → deploy job 自动部署 pages.dev 到 HEAD（含脉动 71.webp 真图）→ smoke + 自动回滚护栏在案。
+- **受限项**：graphql Analytics:Read 仍缺（外部凭据）⇒ 夜更 receipt-refresh 的 graphql 通道仍盲、F2 d1Usage 走 wrangler 回退口径；彻底自愈需 CF 控制台建 Account Analytics:Read token。github.io 本机 curl 链路不可达（握手后断流，r104 在册既有红），部署由 dispatch 链完成且 run success。
+- **回滚**：git revert 本笔即恢复 d1Usage 原状（F2 回到需 graphql 的旧口径）；部署回滚 = wrangler pages deployment list 选 d89ddab。
+
 ### 2026-11-13 新增商品「脉动」600ml ¥3.88 —— 供货图入库，走既有商品面变更链
 
 - **新增商品**：脉动（order 71 / `p071`，维生素饮料 青柠口味，图上净含量小字=600ml ⇒ `spec='600ml'`；图上卖点「3D源动力 /

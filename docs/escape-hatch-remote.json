@@ -1209,7 +1209,11 @@
         "CI Deep Gates",
         "D1 Daily Backup"
       ],
-      "detail": "#87 head=5deae55 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）｜旁证（非判决面）：CI Deep Gates、D1 Daily Backup 红 3 条 —— 与「CI 有没有绿」无关，不计入判决"
+      "detail": "#87 head=5deae55 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）｜旁证（非判决面）：CI Deep Gates、D1 Daily Backup 红 3 条 —— 与「CI 有没有绿」无关，不计入判决",
+      "disposition": {
+        "why": "CI run 40843101036（push@5deae55）gates/deploy 红：上一笔往 wrangler.toml 加 account_id，Pages 配置不支持该键致部署 job 失败。治本提交 a56e8c1 回退该键并恢复部署（账本 .ci/escape-hatch.jsonl 第87-88行在案）；复算 gh api repos/lxh113377/supermarket-web/actions/runs/40843101036/jobs 可见红 step。",
+        "until": ""
+      }
     },
     {
       "id": "R#88",
@@ -1293,7 +1297,11 @@
       ],
       "cancelledRuns": 0,
       "sideRed": [],
-      "detail": "#93 head=991dcee branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）"
+      "detail": "#93 head=991dcee branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）",
+      "disposition": {
+        "why": "CI run 40870897639（push@991dcee）gates 红：风险标签用 + 分隔被判据解析成单个标签。治本提交 e3c8650 改回逗号分隔（账本第93-94行在案）；复算 gh api repos/lxh113377/supermarket-web/actions/runs/40870897639/jobs。",
+        "until": ""
+      }
     },
     {
       "id": "R#94",
@@ -1349,7 +1357,11 @@
         "CI Deep Gates",
         "Uptime"
       ],
-      "detail": "#97 head=a5035e5 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）｜旁证（非判决面）：CI Deep Gates、Uptime 红 8 条 —— 与「CI 有没有绿」无关，不计入判决"
+      "detail": "#97 head=a5035e5 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）｜旁证（非判决面）：CI Deep Gates、Uptime 红 8 条 —— 与「CI 有没有绿」无关，不计入判决",
+      "disposition": {
+        "why": "CI run 43333223217（push@a5035e5）gates 红在 A11 d1-remote-usage 回执龄期（@2026-11-03 超7天）。本轮 goal-553143d2 已治：用 CF_D1_BACKUP_TOKEN 走 wrangler d1 info 通道（仅需 D1 读）刷新回执，node scripts/check-d1-roundtrips.mjs 实测 25通过/0失败、A11 PASS（回执@2026-11-16T16:39:46Z，verdict 通道 wrangler=VERIFIED）。r104 part462 原判无合法路径系当时 node_modules 被回收 wrangler 不可跑，本轮重建后打通。",
+        "until": ""
+      }
     },
     {
       "id": "R#98",

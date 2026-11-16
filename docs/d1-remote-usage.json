@@ -1,14 +1,14 @@
 {
   "schema": "chaoshi-d1-remote-usage-v1",
-  "retrievedAtUtc": "2026-11-03T11:03:22.661Z",
+  "retrievedAtUtc": "2026-11-16T16:39:46.620Z",
   "endpoint": "https://api.cloudflare.com/client/v4/graphql",
-  "accountResolvedVia": "wrangler whoami",
+  "accountResolvedVia": "env",
   "databaseName": "supermarket",
   "windowUtc": {
-    "today_geq": "2026-11-03T00:00:00Z",
-    "today_lt": "2026-11-04T00:00:00Z",
-    "hist_geq": "2026-10-28T00:00:00Z",
-    "hist_lt": "2026-11-04T00:00:00Z"
+    "today_geq": "2026-11-16T00:00:00Z",
+    "today_lt": "2026-11-17T00:00:00Z",
+    "hist_geq": "2026-11-10T00:00:00Z",
+    "hist_lt": "2026-11-17T00:00:00Z"
   },
   "quota": {
     "rows_written_free_per_day": 100000,
@@ -18,82 +18,32 @@
   },
   "channels": {
     "graphql": {
-      "state": "VERIFIED",
-      "retrievedAt": "2026-11-03T11:03:25.891Z",
-      "rowsRead": 5030,
-      "rowsWritten": 21,
-      "byDateUtc": [
-        [
-          "2026-10-28",
-          {
-            "rowsRead": 102117,
-            "rowsWritten": 205
-          }
-        ],
-        [
-          "2026-10-29",
-          {
-            "rowsRead": 15230,
-            "rowsWritten": 18
-          }
-        ],
-        [
-          "2026-10-30",
-          {
-            "rowsRead": 7211,
-            "rowsWritten": 24
-          }
-        ],
-        [
-          "2026-10-31",
-          {
-            "rowsRead": 9179,
-            "rowsWritten": 238
-          }
-        ],
-        [
-          "2026-11-01",
-          {
-            "rowsRead": 10141,
-            "rowsWritten": 89
-          }
-        ],
-        [
-          "2026-11-02",
-          {
-            "rowsRead": 4507,
-            "rowsWritten": 84
-          }
-        ],
-        [
-          "2026-11-03",
-          {
-            "rowsRead": 5030,
-            "rowsWritten": 21
-          }
-        ]
-      ],
-      "reason": null
+      "state": "UNREACHABLE",
+      "retrievedAt": "2026-11-16T16:39:46.623Z",
+      "rowsRead": null,
+      "rowsWritten": null,
+      "byDateUtc": [],
+      "reason": "authz not authorized for that account"
     },
     "wrangler": {
       "state": "VERIFIED",
-      "retrievedAt": "2026-11-03T11:03:28.163Z",
+      "retrievedAt": "2026-11-16T16:39:50.135Z",
       "rolling24h": {
-        "rows_read_24h": 8093,
-        "rows_written_24h": 44,
-        "read_queries_24h": 110,
-        "write_queries_24h": 12
+        "rows_read_24h": 0,
+        "rows_written_24h": 0,
+        "read_queries_24h": 0,
+        "write_queries_24h": 0
       },
       "databaseId": "4bfc0283-d307-4285-9f02-dc230cfe4f5c",
       "reason": null
     }
   },
-  "verdict": "OK",
+  "verdict": "UNREACHABLE",
   "legs": {
     "total": 8,
-    "passed": 8,
+    "passed": 6,
     "failed": 0,
-    "skipped": 0
+    "skipped": 2
   },
   "failureIds": []
 }

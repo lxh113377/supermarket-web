@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @probe-safe: 骨架实测 rc=0 / 293ms（@2026-11-17 本机，12 通过/0 失败/0 未验）——本件零触网零 spawn，只读 docs/d1-remote-usage.json 与 registry.json + 内存 SQLite 重放 seed；wrangler 风险标签来自 d1Usage() 回退注释里的 `wrangler d1 info --json` 说明文字（同 backup-d1-rest.mjs 先例），不是调用面 ⇒ 探针可安全 spawn。
 /**
  * check-governance-framework.mjs —— 契约治理 ⇄ 体量治理 登记册的三向对账（第七十六轮）
  *
@@ -173,7 +174,22 @@ export function d1Usage(root = ROOT) {
   const g = (j.channels || {}).graphql || {}
   const byDate = g.byDateUtc || []
   const last = byDate.length ? byDate[byDate.length - 1] : []
-  return { rowsWrittenLastDay: last[1] ? last[1].rowsWritten : null, rowsReadLastDay: last[1] ? last[1].rowsRead : null, dayUtc: last[0] || null }
+  // 首选 graphql 按日分组的最后一项（UTC 日口径，与登记册 source 同口径）。
+  if (last[1]) {
+    return { rowsWrittenLastDay: last[1].rowsWritten, rowsReadLastDay: last[1].rowsRead, dayUtc: last[0] || null }
+  }
+  // 回退：graphql 盲（如本机 token 仅 D1 读、无 Analytics:Read）但 wrangler 通道 VERIFIED 时，
+  // 消费其 rolling24h 真实远端读数（fetchWrangler 从 `wrangler d1 info --json` 取，非编造）。
+  // 这与 A11 的 remoteUsageClaim「任一通道 VERIFIED 即认」（lib/d1-quota.mjs）口径对齐：
+  // 同一份回执的两个消费者不该一个认 wrangler、一个只认 graphql。
+  // 口径差异诚实标注：rolling24h 是滚动 24h 合计、非严格 UTC 日；dayUtc 取回执取数时刻的 UTC 日。
+  // 两通道都盲 ⇒ 仍回 null（F2 判缺键 UNVERIFIED，不伪绿）。
+  const w = (j.channels || {}).wrangler || {}
+  if (w.state === 'VERIFIED' && w.rolling24h) {
+    const day = String(j.retrievedAtUtc || '').slice(0, 10) || null
+    return { rowsWrittenLastDay: w.rolling24h.rows_written_24h, rowsReadLastDay: w.rolling24h.rows_read_24h, dayUtc: day }
+  }
+  return { rowsWrittenLastDay: null, rowsReadLastDay: null, dayUtc: null }
 }
 
 /** 首屏预算：从既有判据的 BUDGET 常量读（不抄）。 */
