@@ -138,3 +138,12 @@ Lead 初判「wrangler 通道 VERIFIED=真实读数」轻信了 fetchWrangler �
   - R#104 head `d2686aa0b66509702658a2d13c854b4c778f28c7`（CI run 43919345692）：同一 A11 回执龄期。
 - 复跑 `node scripts/check-escape-hatch-log.mjs --update-remote` → verdict=GREEN rc=0（105 条：绕过 104/起始 1，不合规 0，检查 105/105）；**C9 PASS**（读数 2026-11-16T23:03:19.920Z｜在册 98 ⇄ 绕过 98｜未覆盖 0｜死读数 0）；**C10 PASS**（RED 待处置 0｜已解释 34）。
 - 仍未解：A11 的唯一正路仍是 §7.4 的 Analytics:Read 凭据（A4 外部凭据），本机无合法路径。
+
+### 8.5 手动通道首轮 CI 复跑暴露的缺陷（已修）
+
+a009835 的 CI run 43976729213 的 gates job（133682656108）第 20 步 vitest 报两条失败，其中一条是本轮新增资产自身的缺陷，不是凭据问题：
+
+1. `tests/ciWorkflow.test.ts:111`（供应链卫生）——`manual-deploy-pages.yml` 里的 `actions/checkout@v4` 与 `actions/setup-node@v4` 用了浮动 tag，而仓库判据要求每个 `uses:` 钉 40 位提交 SHA。修法：换成仓库其余工作流同款 `actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1` 与 `actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0`；`npx vitest run tests/ciWorkflow.test.ts` 由 1 failed / 42 passed 变为 43 passed。
+2. `tests/cliEntrypoints.test.js:76`——A11 回执龄期（诚实红，外部凭据缺口，8.1–8.4 已论证无合法本机解）。
+
+教训：新工作流文件必须与既有工作流同一套钉 SHA 卫生，否则会给自己添一条可修的红腿；本轮先部署成功、后由 CI 复跑把它找出来，属于「部署通道已通但卫生判据未过」的形态。

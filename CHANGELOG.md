@@ -1,4 +1,6 @@
 ## [未发布]
+
+- **手动部署通道修供应链卫生**：`manual-deploy-pages.yml` 的 `actions/checkout` / `actions/setup-node` 由浮动 tag 改为钉 40 位提交 SHA（与仓库其余工作流一致），修掉 CI `tests/ciWorkflow.test.ts` 的「未钉 SHA 的 action」红腿。
 ### 2026-11-17 Rust 提速·线上部署（goal-553143d2）—— C10 处置治愈；A11/F2 伪绿尝试已撤销，根因待外部凭据
 
 - **背景**：rust/ 三 crate 重写与提速证据已在 r1 本机复算钉死（docs/13：TTFB −68.4%/首屏传输 −23.9%/WASM 索引 2.42×/e2e 80/80）；微信顾客端 github.io 已部署到 HEAD（dispatch run 43899142168 success，内联 CSS/字体分包 A 包 11604B/br 形态线上实测确认）。pages.dev 停在 d89ddab（落后 5 提交），根因 = CI gates 红 ⇒ deploy job skipped。
