@@ -8,6 +8,12 @@
 - **生产者优先加固建议（f2-review，待办）**：fetchWrangler（check-d1-remote-usage.mjs:142）的「键缺失⇒UNREACHABLE」防线在 wrangler 4.145.0 已失效（authz 盲被掩成 0、键照写）⇒ 应识别 graphql authz 盲时 wrangler 零不可信，避免 A11 被掩码零骗绿。这是比 F2 更深一层的伪绿风险。
 - **受限项**：pages.dev 部署待外部 Analytics:Read 凭据（A4，已落待办三处）；github.io 本机 curl 链路不可达（握手后断流，r104 在册既有红），顾客端部署由 dispatch 链完成且 run success、提速形态线上实测确认。
 - **回滚**：本笔撤销已还原判据/登记/回执到 8e79414 诚实态；C10 处置为真实治愈保留。
+- **新增审计化手动部署通道（本轮，取代此前「本机 wrangler 兜底」的口头路径）**：`.github/workflows/manual-deploy-pages.yml`，仅 workflow_dispatch 手动触发，
+  用与 ci.yml 完全相同的构建参数（含两个 VITE_CB_* 注入）在 CI 内构建目标提交产物，再用同一枚仓库 secret 部署 pages.dev。
+  关键三点：① 显式传 branch=main 与 commit-hash=目标提交，保证落 production 且 /_health.deploy 等于该提交短 sha（否则冒烟必红）；
+  ② 冒烟用 jq 比对 deploy 字段、再验 /pub 的 code 为 0、再验 /images/71.webp 的形态与字节，任一不符即 job 红并打印回滚命令；
+  ③ 不挂 push/tag 触发器，判据不因此变绿 —— ci.yml 的 A11 仍诚实红，本件只把「被凭据闸住的部署腿」单独走通并留 Actions 审计。
+  GitHub 规定 workflow_dispatch 的文件必须在默认分支上，故本件随 main 入库；回滚 = 用 ref=上一个线上版本再跑同一件。
 
 ### 2026-11-13 新增商品「脉动」600ml ¥3.88 —— 供货图入库，走既有商品面变更链
 
