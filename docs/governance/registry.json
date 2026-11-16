@@ -53,10 +53,10 @@
       "source": "docs/d1-write-quota.json"
     },
     "d1Usage": {
-      "rowsWrittenLastDay": 0,
-      "rowsReadLastDay": 0,
-      "dayUtc": "2026-11-16",
-      "source": "docs/d1-remote-usage.json：graphql 盲（本机 token 仅 D1 读）时回退 channels.wrangler.rolling24h（真实远端读数，滚动24h口径，dayUtc=取数时刻 UTC 日）；2026-11-17 goal-553143d2 `check-d1-remote-usage --write` 刷新后同步，与 A11 remoteUsageClaim 任一通道口径对齐"
+      "rowsWrittenLastDay": 21,
+      "rowsReadLastDay": 5030,
+      "dayUtc": "2026-11-03",
+      "source": "docs/d1-remote-usage.json 的 channels.graphql.byDateUtc 最后一项（当日）；2026-10-24 本机 `check-d1-remote-usage --write` 刷新后同步"
     },
     "bundleBudget": {
       "firstLoadJsBytes": 97280,

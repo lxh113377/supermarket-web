@@ -59,3 +59,54 @@ CI secret CLOUDFLARE_API_TOKEN **有 Pages:Edit**（最近成功 deploy run 4238
 ## 6. 回滚
 - 顾客端：github.io 重跑旧 commit dispatch 即回退；本轮源码零改动。
 - pages.dev：若部署成功，wrangler pages deployment list 选 d89ddab 回滚（skill §7）。
+
+
+---
+
+## 7. ⚠️ 重大更正：A11/F2 伪绿尝试已撤销（rule49 核错防复发 · f2-review 独立复核坐实）
+
+**本文 §5.1/§5.2 原写「gates 四卡点本机治愈、VERIFY_RC=0、部署链打通」——该结论已被推翻并撤销。**
+
+### 7.1 决定性反证（f2-review 子代理发现，Lead 已 100% 坐实）
+
+wrangler 4.145.0 的 `d1 info` 指标**自身也查 GraphQL d1AnalyticsAdaptiveGroups**。当 token 缺 Analytics:Read 时：
+- GraphQL 回 `{"data":null,"errors":[{"message":"not authorized for that account","extensions":{"code":"authz"}}]}`（HTTP 200）。
+- wrangler 的 fetchGraphqlResult 只判 body truthy、不判 errors/data:null ⇒ metrics 初始 0、`data?.…?.forEach` 静默跳过 ⇒ **rows_read_24h/rows_written_24h 键照写 0**。
+- ⇒ fetchWrangler（check-d1-remote-usage.mjs:142）的「键缺失⇒UNREACHABLE」防线**区分不了「量到 0」与「authz 盲被掩成 0」**（脚本头注引的旧版 workers-sdk「取不到整键省略」前提在 4.145.0 已漂移）。
+
+**坐实命令与逐字证据**（`WRANGLER_LOG_SANITIZE=false WRANGLER_LOG=debug node wrangler.js d1 info supermarket --json`，日志 _incoming/rust-deploy/d1info-unsanitized.log）：
+```
+POST https://api.cloudflare.com/client/v4/graphql
+RESPONSE: {"data":null,"errors":[{"message":"not authorized for that account","path":[...d1AnalyticsAdaptiveGroups],"extensions":{"code":"authz",...}}]}
+→ 输出 "rows_read_24h": 0, "rows_written_24h": 0
+```
+旁证：旧回执（11-03）rolling24h=读 8093/写 44（真实流量）；站点+每日巡检活跃，整 24h 读=0 写=0 本身可疑，与「authz 盲掩成 0」远比「真 0 流量」自洽。
+
+### 7.2 结论：rolling24h=0/0 是盲区冒充零，A11 VERIFIED 与 F2 回退均伪绿
+
+- 数字非脚本编造（真 wrangler stdout），但**不是已证实的真实远端读数**——是 authz 拒绝被掩码成零。
+- 把它登记进 facts.d1Usage=0/0 让 F2 转绿、让 A11 VERIFIED，违反本仓「盲区不是零」（check-governance-framework.mjs:255/363）、「未验不得折绿」、「0 与不知道必须可分」（check-d1-remote-usage.mjs:17）红线。
+- rolling24h 窗跨两 UTC 日，dayUtc 贴取数日=口径错标；F2 对该事实变自洽恒真，失去守护意义。
+
+### 7.3 已撤销（恢复诚实红）
+
+- `git checkout 8e79414 -- scripts/check-governance-framework.mjs docs/governance/registry.json docs/cli-entrypoints.md`（还原 d1Usage 函数/registry/风险表/@probe-safe）。
+- docs/d1-remote-usage.json 还原旧 VERIFIED 态（11-03 真实 graphql 读数，_incoming/rust-deploy/d1-remote-usage.before.json）。
+- **A11 恢复诚实红**：check-d1-roundtrips 24通过/1失败（回执@2026-11-03 超 7 天）。
+- 0264bd6 的 CI run 43916909142 gates=success 建立在伪绿上，**不作为部署依据**；修正提交取代该 run（concurrency cancel-in-progress），deploy 不会部署伪绿。
+- **保留**：C10 三条处置（真实治愈，非伪绿）；本文 §1 顾客端 github.io 已部署 HEAD 的提速形态（真实，与 A11/F2 无关）。
+
+### 7.4 根因与正路（A4 外部凭据，须用户 CF 控制台）
+
+A11/F2 红的真因 = 刷新回执需 **Account Analytics:Read**，本机所有 CF token 均缺此 scope。正路（零代码改、零口径改、F2 真绿）：
+1. CF 控制台 → My Profile → API Tokens → 建带 **Account Analytics:Read + D1:Edit**（+Pages:Edit 若走本机部署）的 token。
+2. 写 .dev.vars 的 CLOUDFLARE_API_TOKEN + 同步仓库 secret CLOUDFLARE_API_TOKEN。
+3. `node scripts/check-d1-remote-usage.mjs --write`（graphql 通道真 VERIFIED，byDateUtc 有值）→ 同步 registry.json d1Usage 三项 → gates 真绿 → deploy 自动部署 pages.dev 到 HEAD。
+
+### 7.5 生产者优先加固建议（f2-review，落待办）
+
+fetchWrangler 应识别 authz 掩码：graphql authz 盲时 wrangler 的零不可信（A11 的 VERIFIED 同样建在这枚掩码零上，是比 F2 更深一层伪绿）。修法方向：graphql 通道 authz UNREACHABLE 时，wrangler rolling24h 全零应判 UNVERIFIED 而非 VERIFIED（需 wrangler 侧暴露 errors 或交叉校验）。
+
+### 7.6 教训（rule49）
+
+Lead 初判「wrangler 通道 VERIFIED=真实读数」轻信了 fetchWrangler 的「键在场」检查，未核 wrangler 4.145.0 的掩码机制；f2-review 独立复核从源码逐字证实反证。**冲突不取折中、以可复算一方为准（#39）**：unsanitized 日志逐字坐实掩码 ⇒ 撤销伪绿、恢复诚实红。第二意见（#44 T4）在判据本体改动上救了本轮一次伪绿上线。
