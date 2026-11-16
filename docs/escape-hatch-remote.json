@@ -1,7 +1,7 @@
 {
   "schema": "chaoshi-escape-hatch-remote-v1",
   "note": "`node scripts/check-escape-hatch-log.mjs --update-remote` 生成；联网取数（gh api），**永不进阻断链**（网络不通时它会把一次正常提交判红而本地无可自愈处置，户内规⑩）。判决面 = `.ci/contract.json` 的 `workflow` 字段（当前 CI）；别的 workflow 的红只作旁证印出、不进判决（C9 判覆盖：账本有而读数无 = 未覆盖，读数有而账本无 = 死读数；C10 判结论：判决面 RED 且无 `disposition.why` = 待处置）。",
-  "generatedUtc": "2026-10-27T04:51:57.425Z",
+  "generatedUtc": "2026-11-16T15:40:52.198Z",
   "scopeWorkflow": "CI",
   "repository": "https://github.com/lxh113377/supermarket-web.git",
   "rows": [
@@ -1157,6 +1157,223 @@
       "cancelledRuns": 0,
       "sideRed": [],
       "detail": "#83 head=c43a5cb branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
+    },
+    {
+      "id": "R#84",
+      "head": "dc8eed52e52fcbe0d7b4c6c9aa5137fa7c52f6fe",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#84 head=dc8eed5 branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
+    },
+    {
+      "id": "R#85",
+      "head": "143c5ff5acd8a4aa4d083d350c3c3dbe2136f712",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#85 head=143c5ff branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
+    },
+    {
+      "id": "R#86",
+      "head": "cf44ce582817337cb4c44d60d8f5106701709715",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#86 head=cf44ce5 branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0"
+    },
+    {
+      "id": "R#87",
+      "head": "5deae5575b72c436bcd35563f485f76b1686dcf4",
+      "state": "RED",
+      "ok": false,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [
+        "CI"
+      ],
+      "cancelledRuns": 0,
+      "sideRed": [
+        "CI Deep Gates",
+        "D1 Daily Backup"
+      ],
+      "detail": "#87 head=5deae55 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）｜旁证（非判决面）：CI Deep Gates、D1 Daily Backup 红 3 条 —— 与「CI 有没有绿」无关，不计入判决"
+    },
+    {
+      "id": "R#88",
+      "head": "a56e8c115eaba9a56f5a62c69f6a30aeab4b3ee1",
+      "state": "CANCELLED",
+      "ok": false,
+      "unverified": true,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 1,
+      "sideRed": [
+        "CI Deep Gates"
+      ],
+      "detail": "#88 head=a56e8c1 branch=main｜判决面「CI」1 条：success 0／failure 0／cancelled 1／未结束 0｜**CI 从来没给出结论**（被平台作业上限掐断）⇒ 不算绿也不算红，不据此记谁欠账｜旁证（非判决面）：CI Deep Gates 红 1 条 —— 与「CI 有没有绿」无关，不计入判决"
+    },
+    {
+      "id": "R#89",
+      "head": "ecfd85e39050770464de42c1beb20a4ff2d05ecf",
+      "state": "CANCELLED",
+      "ok": false,
+      "unverified": true,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 1,
+      "sideRed": [
+        "CI Deep Gates"
+      ],
+      "detail": "#89 head=ecfd85e branch=main｜判决面「CI」1 条：success 0／failure 0／cancelled 1／未结束 0｜**CI 从来没给出结论**（被平台作业上限掐断）⇒ 不算绿也不算红，不据此记谁欠账｜旁证（非判决面）：CI Deep Gates 红 1 条 —— 与「CI 有没有绿」无关，不计入判决"
+    },
+    {
+      "id": "R#90",
+      "head": "64becf2b3938fb538f54a4faf9f108db306c0037",
+      "state": "CANCELLED",
+      "ok": false,
+      "unverified": true,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 1,
+      "sideRed": [
+        "CI Deep Gates"
+      ],
+      "detail": "#90 head=64becf2 branch=main｜判决面「CI」1 条：success 0／failure 0／cancelled 1／未结束 0｜**CI 从来没给出结论**（被平台作业上限掐断）⇒ 不算绿也不算红，不据此记谁欠账｜旁证（非判决面）：CI Deep Gates 红 1 条 —— 与「CI 有没有绿」无关，不计入判决"
+    },
+    {
+      "id": "R#91",
+      "head": "306c3db400e1f94315c6b104e71e0f09dc961dd3",
+      "state": "CANCELLED",
+      "ok": false,
+      "unverified": true,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 1,
+      "sideRed": [
+        "CI Deep Gates"
+      ],
+      "detail": "#91 head=306c3db branch=main｜判决面「CI」1 条：success 0／failure 0／cancelled 1／未结束 0｜**CI 从来没给出结论**（被平台作业上限掐断）⇒ 不算绿也不算红，不据此记谁欠账｜旁证（非判决面）：CI Deep Gates 红 1 条 —— 与「CI 有没有绿」无关，不计入判决"
+    },
+    {
+      "id": "R#92",
+      "head": "9f32b96c6d39c9b9adf0f38fb686d6712f74c497",
+      "state": "CANCELLED",
+      "ok": false,
+      "unverified": true,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 1,
+      "sideRed": [
+        "CI Deep Gates"
+      ],
+      "detail": "#92 head=9f32b96 branch=main｜判决面「CI」1 条：success 0／failure 0／cancelled 1／未结束 0｜**CI 从来没给出结论**（被平台作业上限掐断）⇒ 不算绿也不算红，不据此记谁欠账｜旁证（非判决面）：CI Deep Gates 红 1 条 —— 与「CI 有没有绿」无关，不计入判决"
+    },
+    {
+      "id": "R#93",
+      "head": "991dceee14147710d8f99b741fd1132ec58c315c",
+      "state": "RED",
+      "ok": false,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [
+        "CI"
+      ],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#93 head=991dcee branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）"
+    },
+    {
+      "id": "R#94",
+      "head": "e3c8650a58b85387f13016d5b62b0c22aada1123",
+      "state": "CANCELLED",
+      "ok": false,
+      "unverified": true,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 1,
+      "sideRed": [],
+      "detail": "#94 head=e3c8650 branch=main｜判决面「CI」1 条：success 0／failure 0／cancelled 1／未结束 0｜**CI 从来没给出结论**（被平台作业上限掐断）⇒ 不算绿也不算红，不据此记谁欠账"
+    },
+    {
+      "id": "R#95",
+      "head": "555621eb4007d595752cd0360d475434b52fd5f8",
+      "state": "CANCELLED",
+      "ok": false,
+      "unverified": true,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 1,
+      "sideRed": [],
+      "detail": "#95 head=555621e branch=main｜判决面「CI」1 条：success 0／failure 0／cancelled 1／未结束 0｜**CI 从来没给出结论**（被平台作业上限掐断）⇒ 不算绿也不算红，不据此记谁欠账"
+    },
+    {
+      "id": "R#96",
+      "head": "d429d1124e6a5e7e1649e2dd74a0240b5618c178",
+      "state": "GREEN",
+      "ok": true,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [
+        "CI Deep Gates",
+        "Uptime"
+      ],
+      "detail": "#96 head=d429d11 branch=main｜判决面「CI」1 条：success 1／failure 0／cancelled 0／未结束 0｜旁证（非判决面）：CI Deep Gates、Uptime 红 6 条 —— 与「CI 有没有绿」无关，不计入判决"
+    },
+    {
+      "id": "R#97",
+      "head": "a5035e52e938010464b62bfe58eb2d95c4b5384b",
+      "state": "RED",
+      "ok": false,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [
+        "CI"
+      ],
+      "cancelledRuns": 0,
+      "sideRed": [
+        "CI Deep Gates",
+        "Uptime"
+      ],
+      "detail": "#97 head=a5035e5 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）｜旁证（非判决面）：CI Deep Gates、Uptime 红 8 条 —— 与「CI 有没有绿」无关，不计入判决"
+    },
+    {
+      "id": "R#98",
+      "head": "4fa6123ec697c8e919ee24f8c9f8579e72056f1c",
+      "state": "CANCELLED",
+      "ok": false,
+      "unverified": true,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 1,
+      "sideRed": [],
+      "detail": "#98 head=4fa6123 branch=main｜判决面「CI」1 条：success 0／failure 0／cancelled 1／未结束 0｜**CI 从来没给出结论**（被平台作业上限掐断）⇒ 不算绿也不算红，不据此记谁欠账"
+    },
+    {
+      "id": "R#99",
+      "head": "d76f9bc0aeee2039bc0f0087ffda2dc98bfeef65",
+      "state": "PENDING",
+      "ok": false,
+      "unverified": true,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#99 head=d76f9bc branch=main｜判决面「CI」1 条：success 0／failure 0／cancelled 0／未结束 1"
     }
   ]
 }
