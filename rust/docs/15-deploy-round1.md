@@ -147,3 +147,14 @@ a009835 的 CI run 43976729213 的 gates job（133682656108）第 20 步 vitest 
 2. `tests/cliEntrypoints.test.js:76`——A11 回执龄期（诚实红，外部凭据缺口，8.1–8.4 已论证无合法本机解）。
 
 教训：新工作流文件必须与既有工作流同一套钉 SHA 卫生，否则会给自己添一条可修的红腿；本轮先部署成功、后由 CI 复跑把它找出来，属于「部署通道已通但卫生判据未过」的形态。
+
+### 8.6 本轮终态（HEAD 1f5b804 已双端上线）
+
+- pages.dev：run 43978445960（Manual pages.dev refresh）conclusion success；线上 `GET /_health` 返回 `deploy: "1f5b804"`，与本地 HEAD 相同。
+- 首屏形态（curl / node 实测，pages.dev）：HTML 145,077 B（内联 CSS 142,100 B 后）、`<style>` 1 个、`rel=stylesheet` 0 个、CSP 含 `sha256-LxLA9TnJRDU`、入口 `assets/index-Dd7e3Qhg.js`；`Accept-Encoding: br` 线上 wire 30,082 B（identity 145,077 B，压缩比 4.82×）。
+- 字体治理：`/fonts/display-serif-cjk-a.woff2` 200 / 11,604 B；旧单文件 `/fonts/display-serif-cjk.woff2` 回 SPA fallback（text/html 145,077 B，等价 404）。
+- 商品图：`/images/71.webp` 200 image/webp 104,860 B（脉动真图上线；此前是软 200 的 SPA fallback）。D1 该行 `image` 字段仍为空串，仅文件上线。
+- 接口：`/pub getPublicCategories` code 0 / 3 条；`getPublicProducts` code 0 / 45 条，末条为 `p_mwe6hs0s1p1yqy`（脉动 600ml ¥3.88，order 71）。
+- 顾客端 github.io：dispatch run 43978456885（1f5b804）success，本机直连 github.io 仍超时（网络侧限制），以 Actions 结论为准。
+- CI 现状：run 43978433366 的 gates 只剩一条失败 = `tests/cliEntrypoints.test.js:76`（A11 回执龄期），`tests/ciWorkflow.test.ts` 已随 8.5 修复转绿；deploy job 仍 skipped（设计如此，不再依赖它发布）。
+- 回滚：pages.dev 用 `wrangler pages deployment list` 选旧版本回滚；github.io 用同一 dispatch 通道指定旧 commit 重发。
