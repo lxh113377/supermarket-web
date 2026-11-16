@@ -3,6 +3,8 @@
 > 目标：用 rust 重写部分达到提速效果**并完成线上部署**。
 > 本文 = 本轮部署面收口；提速证据本体见 [13-r1-recompute.md](13-r1-recompute.md)（TTFB −68.4% / 首屏传输 −23.9% / 入口 chunk −15.6% / WASM 常驻索引 2.42× / e2e 80/80）。
 
+> **⚠️ 本轮最终状态（纠错后，详见 §7）**：顾客端 github.io 已部署 HEAD 提速版（真实达成）；管理端 pages.dev 仍 d89ddab——A11/F2 的「治愈」经 f2-review 独立复核 + Lead 日志逐字坐实为 **wrangler authz 掩码零伪绿**，已撤销恢复诚实红（提交 b996745），伪绿 deploy 被 concurrency 取消未上线。pages.dev 真部署待用户补 CF Account Analytics:Read token（A4 外部凭据，已问 + 落台账 part686）。本文 §5 原「四卡点治愈」主张已被 §7 推翻，以 §7 为准。
+
 ## 1. 结论先行（分两端，因为它们的部署链路完全不同）
 
 | 端 | 载体 | 部署状态 | 证据 |
