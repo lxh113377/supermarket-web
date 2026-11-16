@@ -1,7 +1,7 @@
 {
   "schema": "chaoshi-escape-hatch-remote-v1",
   "note": "`node scripts/check-escape-hatch-log.mjs --update-remote` 生成；联网取数（gh api），**永不进阻断链**（网络不通时它会把一次正常提交判红而本地无可自愈处置，户内规⑩）。判决面 = `.ci/contract.json` 的 `workflow` 字段（当前 CI）；别的 workflow 的红只作旁证印出、不进判决（C9 判覆盖：账本有而读数无 = 未覆盖，读数有而账本无 = 死读数；C10 判结论：判决面 RED 且无 `disposition.why` = 待处置）。",
-  "generatedUtc": "2026-11-16T15:40:52.198Z",
+  "generatedUtc": "2026-11-16T23:07:26.945Z",
   "scopeWorkflow": "CI",
   "repository": "https://github.com/lxh113377/supermarket-web.git",
   "rows": [
@@ -1378,14 +1378,104 @@
     {
       "id": "R#99",
       "head": "d76f9bc0aeee2039bc0f0087ffda2dc98bfeef65",
+      "state": "CANCELLED",
+      "ok": false,
+      "unverified": true,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 1,
+      "sideRed": [],
+      "detail": "#99 head=d76f9bc branch=main｜判决面「CI」1 条：success 0／failure 0／cancelled 1／未结束 0｜**CI 从来没给出结论**（被平台作业上限掐断）⇒ 不算绿也不算红，不据此记谁欠账"
+    },
+    {
+      "id": "R#100",
+      "head": "8e794147b7bf411630549fc38b8ca506d2a3d8a7",
+      "state": "RED",
+      "ok": false,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [
+        "CI"
+      ],
+      "cancelledRuns": 0,
+      "sideRed": [
+        "CI Deep Gates"
+      ],
+      "detail": "#100 head=8e79414 branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）｜旁证（非判决面）：CI Deep Gates 红 1 条 —— 与「CI 有没有绿」无关，不计入判决",
+      "disposition": {
+        "why": "head=8e79414 判决面 CI run 43899120184 唯一红腿 = gates 的 vitest A11 腿（docs/d1-remote-usage.json 的 retrievedAtUtc=2026-11-03 已超 7 天阈值）；刷新该回执需 CF Account Analytics:Read，本机与 CI 均无此 scope（part462 外部凭据缺口，A4）。部署腿本轮已由 manual-deploy-pages.yml run 43974942216 走通、/_health deploy=b1a0311。",
+        "until": ""
+      }
+    },
+    {
+      "id": "R#101",
+      "head": "0264bd65134baaf8e56ad57a99da0541921623cb",
+      "state": "CANCELLED",
+      "ok": false,
+      "unverified": true,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 1,
+      "sideRed": [],
+      "detail": "#101 head=0264bd6 branch=main｜判决面「CI」1 条：success 0／failure 0／cancelled 1／未结束 0｜**CI 从来没给出结论**（被平台作业上限掐断）⇒ 不算绿也不算红，不据此记谁欠账"
+    },
+    {
+      "id": "R#102",
+      "head": "b9967457377476c448675a881e918af3f695bc52",
+      "state": "CANCELLED",
+      "ok": false,
+      "unverified": true,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 1,
+      "sideRed": [
+        "CI Deep Gates"
+      ],
+      "detail": "#102 head=b996745 branch=main｜判决面「CI」1 条：success 0／failure 0／cancelled 1／未结束 0｜**CI 从来没给出结论**（被平台作业上限掐断）⇒ 不算绿也不算红，不据此记谁欠账｜旁证（非判决面）：CI Deep Gates 红 1 条 —— 与「CI 有没有绿」无关，不计入判决"
+    },
+    {
+      "id": "R#103",
+      "head": "dcc89399ba708559b661eeb66e50ad3f7d7c9b07",
+      "state": "CANCELLED",
+      "ok": false,
+      "unverified": true,
+      "scope": "CI",
+      "failingRuns": [],
+      "cancelledRuns": 1,
+      "sideRed": [],
+      "detail": "#103 head=dcc8939 branch=main｜判决面「CI」1 条：success 0／failure 0／cancelled 1／未结束 0｜**CI 从来没给出结论**（被平台作业上限掐断）⇒ 不算绿也不算红，不据此记谁欠账"
+    },
+    {
+      "id": "R#104",
+      "head": "d2686aa0b66509702658a2d13c854b4c778f28c7",
+      "state": "RED",
+      "ok": false,
+      "unverified": false,
+      "scope": "CI",
+      "failingRuns": [
+        "CI"
+      ],
+      "cancelledRuns": 0,
+      "sideRed": [],
+      "detail": "#104 head=d2686aa branch=main｜判决面「CI」1 条：success 0／failure 1／cancelled 0／未结束 0（CI）",
+      "disposition": {
+        "why": "head=d2686aa 判决面 CI run 43919345692 唯一红腿 = gates 的 vitest A11 腿（同一 A11 回执龄期：retrievedAtUtc=2026-11-03 超 7 天）；凭据缺口同 part462（需 CF Account Analytics:Read）。同一时段 github.io dispatch run 43919364065 success，pages.dev 由 manual-deploy-pages.yml run 43974942216 部署到 b1a0311。",
+        "until": ""
+      }
+    },
+    {
+      "id": "R#105",
+      "head": "b1a0311c463a118346c99e6f1e17d4c9346a082d",
       "state": "PENDING",
       "ok": false,
       "unverified": true,
       "scope": "CI",
       "failingRuns": [],
       "cancelledRuns": 0,
-      "sideRed": [],
-      "detail": "#99 head=d76f9bc branch=main｜判决面「CI」1 条：success 0／failure 0／cancelled 0／未结束 1"
+      "sideRed": [
+        "CI Deep Gates"
+      ],
+      "detail": "#105 head=b1a0311 branch=main｜判决面「CI」1 条：success 0／failure 0／cancelled 0／未结束 1｜旁证（非判决面）：CI Deep Gates 红 1 条 —— 与「CI 有没有绿」无关，不计入判决"
     }
   ]
 }

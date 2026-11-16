@@ -15,6 +15,11 @@
   ③ 不挂 push/tag 触发器，判据不因此变绿 —— ci.yml 的 A11 仍诚实红，本件只把「被凭据闸住的部署腿」单独走通并留 Actions 审计。
   GitHub 规定 workflow_dispatch 的文件必须在默认分支上，故本件随 main 入库；回滚 = 用 ref=上一个线上版本再跑同一件。
 
+- **C10 收口（本轮第二轮，真实治愈）**：补 R#100（head `8e79414`，CI run 43899120184）、R#104（head `d2686aa`，CI run 43919345692）两条判决面 RED 的可证伪 disposition（why 带 run 号、until 留空）；
+  `docs/escape-hatch-remote.json` 重生成后 **C9 PASS**（在册 98 ⇄ 绕过 98｜未覆盖 0｜死读数 0）+ **C10 PASS**（RED 待处置 0｜已解释 34），verify:escape-hatch verdict=GREEN rc=0。
+- **新增实证：D1-only 凭据刷新会把 A11 红搬成治理 F2 红**。本轮再次用 `CF_D1_BACKUP_TOKEN` 跑官方写入器 `scripts/check-d1-remote-usage.mjs --write`（rc=0，graphql=UNREACHABLE、wrangler=VERIFIED），A11 数字虽转绿（25 通过/0 失败），
+  但同工作区 `check-governance-framework` 立刻 rc=2 UNVERIFIED：F2 facts 对账缺 `d1Usage.rowsWrittenLastDay/rowsReadLastDay/dayUtc` 三键（`d1Usage()` 只读 `channels.graphql.byDateUtc` 末项，authz 后为空）。
+  ⇒ 该通道不构成合法绿（叠加前轮已坐实的「wrangler rolling24h 掩码零」伪绿）。已 `git checkout` 还原回执到 11-03 真实读数，A11 恢复诚实红；真绿唯一正路仍是 §7.4 的 CF Account Analytics:Read 凭据。
 ### 2026-11-13 新增商品「脉动」600ml ¥3.88 —— 供货图入库，走既有商品面变更链
 
 - **新增商品**：脉动（order 71 / `p071`，维生素饮料 青柠口味，图上净含量小字=600ml ⇒ `spec='600ml'`；图上卖点「3D源动力 /

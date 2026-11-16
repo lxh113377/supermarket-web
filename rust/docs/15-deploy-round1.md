@@ -112,3 +112,29 @@ fetchWrangler 应识别 authz 掩码：graphql authz 盲时 wrangler 的零不�
 ### 7.6 教训（rule49）
 
 Lead 初判「wrangler 通道 VERIFIED=真实读数」轻信了 fetchWrangler 的「键在场」检查，未核 wrangler 4.145.0 的掩码机制；f2-review 独立复核从源码逐字证实反证。**冲突不取折中、以可复算一方为准（#39）**：unsanitized 日志逐字坐实掩码 ⇒ 撤销伪绿、恢复诚实红。第二意见（#44 T4）在判据本体改动上救了本轮一次伪绿上线。
+
+## 8. 2026-11-17 第二轮：回执刷新实验再次被否（F2 耦合实证）+ 台账 C10 收口
+
+### 8.1 实验（用 D1-only 凭据跑官方写入器）
+
+- 命令：`node scripts/check-d1-remote-usage.mjs --write`（env `CLOUDFLARE_API_TOKEN` = .dev.vars 的 CF_D1_BACKUP_TOKEN，`CLOUDFLARE_ACCOUNT_ID=04b1466b2606b678a332fe6f26aa87ec`）→ rc=0，日志 6 通过/0 失败/2 未验证，verdict=UNREACHABLE。
+- 新回执：retrievedAtUtc=2026-11-16T23:04:35.450Z；graphql=UNREACHABLE（reason「authz not authorized for that account」、byDateUtc=[]）；wrangler=VERIFIED（rolling24h 全 0）。
+- `node scripts/check-d1-roundtrips.mjs` → **A11 数字转绿**（25 通过/0 失败，A11 明细「两侧同态=VERIFIED｜回执 @2026-11-16T23:04:35.450Z」）。
+
+### 8.2 反证一：刷新会把 A11 红换成治理 F2 红
+
+- 同一工作区跑 `node scripts/check-governance-framework.mjs` → **rc=2（判定=UNVERIFIED）**：11 通过/0 失败/1 未验，卡在「UNVERIFIED F2 facts 对账：比对 13 组 / 不符 0 / 册内缺键 3 ｜ 缺 d1Usage.rowsWrittenLastDay,d1Usage.rowsReadLastDay,d1Usage.dayUtc」。其余 F1/F3–F12 全 PASS。
+- 机制：`d1Usage(root)` 只读回执 `channels.graphql.byDateUtc` 最后一项；graphql 变 UNREACHABLE ⇒ byDateUtc=[] ⇒ 三键为 null ⇒ 与登记册 `docs/governance/registry.json` 的 facts.d1Usage 对不上。⇒ **D1-only 凭据刷新不是合法绿，只是把红腿从 A11 搬到 F2**；要真绿必须 graphql 通道带真实 byDateUtc（需 Analytics:Read），再同步登记册 —— 零代码改、零口径改。
+
+### 8.3 反证二：wrangler 的零是掩码零（前轮 f2-review 已坐实，§7.5）
+
+`wrangler d1 info` 的 rolling24h 指标自身也查 GraphQL d1AnalyticsAdaptiveGroups，authz 拒绝时 `{data:null,errors:[authz]}` 被静默掩码成 0/0。⇒ 本实验里 A11 的 VERIFIED 建立在这枚掩码零上，仍是伪绿。
+
+### 8.4 处置与净产出
+
+- 处置：`git checkout -- docs/d1-remote-usage.json` 还原 11-03 真实 graphql 读数；复跑 `check-d1-roundtrips` → A11 恢复诚实红（24 通过/1 失败，回执超 7 天）；复跑 governance → F2 PASS（13 组全对）。
+- 补两条判决面 RED 的可证伪 disposition（写进 `docs/escape-hatch-remote.json` 行内，`--update-remote` 按 head 继承）：
+  - R#100 head `8e794147b7bf411630549fc38b8ca506d2a3d8a7`（CI run 43899120184）：唯一红腿 = gates 的 vitest A11 腿；
+  - R#104 head `d2686aa0b66509702658a2d13c854b4c778f28c7`（CI run 43919345692）：同一 A11 回执龄期。
+- 复跑 `node scripts/check-escape-hatch-log.mjs --update-remote` → verdict=GREEN rc=0（105 条：绕过 104/起始 1，不合规 0，检查 105/105）；**C9 PASS**（读数 2026-11-16T23:03:19.920Z｜在册 98 ⇄ 绕过 98｜未覆盖 0｜死读数 0）；**C10 PASS**（RED 待处置 0｜已解释 34）。
+- 仍未解：A11 的唯一正路仍是 §7.4 的 Analytics:Read 凭据（A4 外部凭据），本机无合法路径。
