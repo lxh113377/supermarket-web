@@ -1,0 +1,88 @@
+{
+  "label": "edge",
+  "base": "http://127.0.0.1:5182",
+  "at": "2026-11-16T15:22:11.233Z",
+  "shell": {
+    "status": 200,
+    "headers": {
+      "cache-control": "public, max-age=0, must-revalidate",
+      "content-encoding": "br",
+      "content-length": "23293",
+      "content-type": "text/html; charset=utf-8",
+      "date": "Mon, 16 Nov 2026 15:22:11 GMT",
+      "etag": "\"05933a8a909442e6\"",
+      "link": "</fonts/display-serif-cjk-a.woff2>; rel=preload; as=font; crossorigin, </assets/index-Dv7np4VG.js>; rel=preload; as=script; crossorigin, </assets/HomePage-BE29SW6P.js>; rel=preload; as=script; crossorigin, <./fonts/bricolage-latin-wght.woff2>; rel=preload; as=font; crossorigin, <./fonts/display-serif-cjk-a.woff2>; rel=preload; as=font; crossorigin",
+      "permissions-policy": "geolocation=(), microphone=(), camera=(), geolocation=(), microphone=(), camera=()",
+      "referrer-policy": "strict-origin-when-cross-origin, strict-origin-when-cross-origin",
+      "server": "supermarket-edge/0.1",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload, max-age=31536000; includeSubDomains; preload",
+      "vary": "accept-encoding",
+      "x-content-type-options": "nosniff, nosniff",
+      "x-edge-shell": "inline-css",
+      "x-frame-options": "DENY, DENY"
+    },
+    "decodedBytes": 145157,
+    "transferBytes": 23293,
+    "ttfbMs": 1.1073,
+    "totalMs": 2.1219,
+    "samples": 5
+  },
+  "shell304": {
+    "status": 304,
+    "headers": {
+      "cache-control": "public, max-age=0, must-revalidate",
+      "date": "Mon, 16 Nov 2026 15:22:11 GMT",
+      "etag": "\"05933a8a909442e6\"",
+      "link": "</fonts/display-serif-cjk-a.woff2>; rel=preload; as=font; crossorigin, </assets/index-Dv7np4VG.js>; rel=preload; as=script; crossorigin, </assets/HomePage-BE29SW6P.js>; rel=preload; as=script; crossorigin, <./fonts/bricolage-latin-wght.woff2>; rel=preload; as=font; crossorigin, <./fonts/display-serif-cjk-a.woff2>; rel=preload; as=font; crossorigin",
+      "permissions-policy": "geolocation=(), microphone=(), camera=(), geolocation=(), microphone=(), camera=()",
+      "referrer-policy": "strict-origin-when-cross-origin, strict-origin-when-cross-origin",
+      "server": "supermarket-edge/0.1",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload, max-age=31536000; includeSubDomains; preload",
+      "vary": "accept-encoding",
+      "x-content-type-options": "nosniff, nosniff",
+      "x-edge-shell": "inline-css",
+      "x-frame-options": "DENY, DENY"
+    },
+    "decodedBytes": 0,
+    "transferBytes": 0,
+    "ttfbMs": 0.6258,
+    "totalMs": 0.6332,
+    "samples": 5
+  },
+  "entryChunk": {
+    "path": "assets/index-Dv7np4VG.js",
+    "status": 200,
+    "headers": {
+      "cache-control": "public, max-age=31536000, immutable",
+      "content-encoding": "br",
+      "content-length": "5400",
+      "content-type": "text/javascript; charset=utf-8",
+      "date": "Mon, 16 Nov 2026 15:22:11 GMT",
+      "etag": "\"95f07a093683edde\"",
+      "permissions-policy": "geolocation=(), microphone=(), camera=(), geolocation=(), microphone=(), camera=()",
+      "referrer-policy": "strict-origin-when-cross-origin, strict-origin-when-cross-origin",
+      "server": "supermarket-edge/0.1",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload, max-age=31536000; includeSubDomains; preload",
+      "vary": "accept-encoding",
+      "x-content-type-options": "nosniff, nosniff",
+      "x-frame-options": "DENY, DENY"
+    },
+    "decodedBytes": 17189,
+    "transferBytes": 5400,
+    "ttfbMs": 0.6996,
+    "totalMs": 0.9515,
+    "samples": 5
+  },
+  "shellGzipOnly": {
+    "bytes": 30346,
+    "encoding": "gzip"
+  },
+  "shellIdentity": {
+    "bytes": 145157,
+    "encoding": "identity"
+  },
+  "health": {
+    "status": 200,
+    "body": "{\"status\":\"ok\",\"db\":\"unknown\",\"ts\":\"2026-11-16T15:22:11.233Z\",\"ai\":{\"configured\":false,\"source\":\"rule\"},\"deploy\":null,\"edge\":{\"uptimeSeconds\":16,\"assets\":268,\"cacheHits\":0,\"cacheMisses\":0,\"inlineCss\":0,\"routePreload\":\"assets/HomePage-BE29SW6P.js\"}}"
+  }
+}

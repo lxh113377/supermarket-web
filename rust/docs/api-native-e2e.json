@@ -1,5 +1,5 @@
 {
-  "at": "2026-10-28T10:32:31.062Z",
+  "at": "2026-11-16T15:34:30.575Z",
   "live": "https://supermarket-web.pages.dev",
   "edge": "http://127.0.0.1:5198",
   "mode": "JSON 列=文本",
@@ -46,7 +46,7 @@
     "getOrderStatus（未知订单号：错误路径）": {
       "action": "getOrderStatus",
       "payload": {
-        "orderId": "o_not_exist_1793183534521"
+        "orderId": "o_not_exist_1794843248411"
       },
       "status": 404,
       "edge": "native",
@@ -794,13 +794,13 @@
   "rowsFed": {
     "products": 45,
     "categories": 3,
-    "catalogOrders": 70,
+    "catalogOrders": 74,
     "reviews": 1,
     "orderStatus": 0
   },
   "staleWideObservation": {
     "status": 200,
-    "count": 99,
+    "count": 130,
     "stockReservedLen": 0,
     "thresholdMinutes": 10080,
     "note": "非空窗路径不做逐字节对比（响应无 createdAt、cutoff 含当前时刻）⇒ 组装语义由 core 的 5 条用例钉住；此处只记录现网形状"
