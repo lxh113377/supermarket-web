@@ -66,3 +66,12 @@
 ## 回滚
 - 部署回滚 = wrangler pages deployment list 选旧版本（skill §7）/ github.io 重跑旧 commit dispatch；本轮源码零改动预期，回滚面=部署版本本身。
 
+
+## 收口 — 2026-11-17（goal-553143d2 R2 · 双端追平 HEAD 3331873）
+
+- 决策（Lead 自决，#48 零回抛）：A11 死锁唯一合法路径 = 造一枚带 Account Analytics:Read 的 CF token（用户当轮授权代点浏览器）→ 刷回执 → 同步 registry facts → 提交；不碰任何判据，不伪造读数。
+- 结果：pages.dev CI gate 由红转绿并**自动 deploy 成功**（run 43988431114）；github.io 顾客端 dispatch 同步；Release parity（双端对偶）success。
+- 附修：tests/sbom.test.js 夹具写死 2026-10-17 撞 MAX_AGE_DAYS=30 时间炸弹 → 改随当下走（commit 3331873）。
+- 通道：本机 git HTTPS 出站全断 → 走 GitHub REST API 推提交（blobs→trees→commits→ref），远端 sha 与本地逐字节相等。
+- 证据：_incoming/rust-deploy/DEPLOY-CLOSED.md；台账三卷 part697。
+- 残留：新 token 无 Pages:Edit（禁替换 CI secret）；/images/71.webp 的 D1 image 字段空串。
