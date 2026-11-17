@@ -17,7 +17,9 @@ const tmpDirs = []
 afterAll(() => { for (const d of tmpDirs) { try { rmSync(d, { recursive: true, force: true }) } catch { /* 清理失败不改结论 */ } } })
 const tmp = () => { const d = mkdtempSync(join(tmpdir(), 'smsbom-')); tmpDirs.push(d); return d }
 const cli = (args) => assertCliRan(spawnSync(process.execPath, [SELF, ...args], { cwd: REPO, encoding: 'utf8', timeout: 120_000 }), { label: 'sbom ' + args.join(' ') })
-const mk = (keys, ts = '2026-10-17T00:00:00Z') => ({ bomFormat: 'CycloneDX', metadata: { timestamp: ts }, components: keys.map((k) => ({ name: k.split('@')[0], version: (k.split('@')[1] || '0'), purl: k })) })
+// 注入腿的夹具时间必须跟着“现在”走：写死某个日期会在 MAX_AGE_DAYS 到期那天把「补全 ⇒ 翻绿」这条腿变成假红，
+// 红的原因与要证的同步性无关（纯龄期）。要证过期，另有显式传 nowIso 的腿，不靠夹具的自然衰变。
+const mk = (keys, ts = new Date().toISOString()) => ({ bomFormat: 'CycloneDX', metadata: { timestamp: ts }, components: keys.map((k) => ({ name: k.split('@')[0], version: (k.split('@')[1] || '0'), purl: k })) })
 const A = mk(['pkg:npm/react@19.0.0', 'pkg:npm/vite@8.0.0'])
 
 describe('SBOM 可复现登记：清单必须与依赖面同步，且不能过期', () => {
